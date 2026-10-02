@@ -1,0 +1,76 @@
+# categoria LVIS	nome	categoria del catalogo	simbolo	larghezza tipica (cm)	quota da terra
+sofa	Divano	Soggiorno	Sofa	210	0
+loveseat	Divanetto	Soggiorno	Sofa	150	0
+sofa_bed	Divano letto	Soggiorno	Sofa	200	0
+futon	Futon	Camera	Bed	140	0
+armchair	Poltrona	Soggiorno	Armchair	85	0
+recliner	Poltrona reclinabile	Soggiorno	Armchair	90	0
+rocking_chair	Sedia a dondolo	Soggiorno	Armchair	65	0
+chair	Sedia	Pranzo	Chair	46	0
+stool	Sgabello	Pranzo	Chair	40	0
+bench	Panca	Pranzo	Chair	140	0
+ottoman	Pouf	Soggiorno	Armchair	60	0
+table	Tavolo	Pranzo	Table	140	0
+dining_table	Tavolo da pranzo	Pranzo	Table	180	0
+kitchen_table	Tavolo da cucina	Cucina	Table	120	0
+coffee_table	Tavolino	Soggiorno	Table	110	0
+desk	Scrivania	Studio	Desk	130	0
+bed	Letto	Camera	Bed	170	0
+bunk_bed	Letto a castello	Camera	Bed	100	0
+crib	Culla	Camera	Bed	70	0
+cabinet	Mobile	Soggiorno	Cabinet	90	0
+cupboard	Credenza	Cucina	Cabinet	120	0
+armoire	Armadio	Camera	Cabinet	120	0
+wardrobe	Armadio	Camera	Cabinet	150	0
+dresser	Comò	Camera	Cabinet	110	0
+bookcase	Libreria	Soggiorno	Cabinet	100	0
+lamp	Lampada	Luci	Lamp	40	0
+table_lamp	Lampada da tavolo	Luci	Lamp	30	75
+chandelier	Lampadario	Luci	Lamp	70	soffitto
+refrigerator	Frigorifero	Cucina	Appliance	70	0
+microwave_oven	Microonde	Cucina	Appliance	50	90
+stove	Cucina a gas	Cucina	Hob	60	0
+oven	Forno	Cucina	Appliance	60	0
+dishwasher	Lavastoviglie	Cucina	Appliance	60	0
+kitchen_sink	Lavello	Cucina	Sink	90	0
+toilet	WC	Bagno	Toilet	38	0
+sink	Lavabo	Bagno	Sink	60	0
+bathtub	Vasca	Bagno	Tub	170	0
+television_set	Televisore	Elettrodomestici e TV	Tv	100	0
+fireplace	Camino	Soggiorno	Cabinet	130	0
+piano	Pianoforte	Soggiorno	Cabinet	150	0
+clock	Orologio	Decori	Plant	35	0
+mirror	Specchio	Decori	Cabinet	70	0
+radiator	Termosifone	Elettrodomestici e TV	Cabinet	80	0
+vase	Vaso	Decori	Plant	30	0
+flowerpot	Pianta in vaso	Piante	Plant	50	0
+runner_(carpet)	Tappeto	Tappeti	Rug	250	0
+doormat	Zerbino	Tappeti	Rug	80	0
+bath_mat	Tappetino da bagno	Bagno	Rug	80	0
+cushion	Cuscino	Decori	Rug	45	45
+pillow	Cuscino	Decori	Rug	50	45
+beanbag	Pouf a sacco	Soggiorno	Armchair	90	0
+painting	Quadro	Decori	Tv	80	140
+poster	Poster	Decori	Tv	60	140
+curtain	Tenda	Decori	Cabinet	140	20
+trunk	Baule	Camera	Cabinet	90	0
+sculpture	Scultura	Decori	Plant	40	0
+statue_(sculpture)	Statua	Decori	Plant	40	0
+flower_arrangement	Composizione di fiori	Piante	Plant	40	75
+lantern	Lanterna	Luci	Lamp	30	0
+candle_holder	Candelabro	Decori	Plant	30	75
+wall_clock	Orologio da parete	Decori	Plant	35	170
+alarm_clock	Sveglia	Decori	Plant	15	55
+globe	Mappamondo	Studio	Plant	40	0
+stereo_(sound_system)	Impianto stereo	Elettrodomestici e TV	Appliance	50	0
+speaker_(stero_equipment)	Cassa acustica	Elettrodomestici e TV	Cabinet	30	0
+record_player	Giradischi	Elettrodomestici e TV	Appliance	45	60
+trash_can	Pattumiera	Cucina	Appliance	35	0
+basket	Cesto	Decori	Plant	45	0
+towel_rack	Portasciugamani	Bagno	Cabinet	60	0
+parasol	Ombrellone	Esterni	Plant	250	0
+fan	Ventilatore	Elettrodomestici e TV	Appliance	45	0
+file_cabinet	Schedario	Studio	Cabinet	50	0
+headboard	Testiera	Camera	Cabinet	170	0
+lampshade	Lampada	Luci	Lamp	40	0
+phonograph_record	Dischi in vinile	Decori	Plant	35	0

@@ -1,0 +1,27 @@
+*.iml
+.gradle/
+.kotlin/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+/app/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+# Build output
+build/
+**/build/
+
+# IDE / Kotlin generated
+.gradle/
+.kotlin/
+.idea/
+
+# Local secrets / credentials
+.env
+.env.*
+*.jks
+*.keystore
+*.p12
+*.pem

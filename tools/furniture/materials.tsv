@@ -1,0 +1,189 @@
+# cartella	nome	categoria	lato reale (cm)	uso	fonte
+WoodFloor040	Parquet rovere miele	Parquet e legno	120	pavimento	ambientCG
+WoodFloor041	Parquet anticato	Parquet e legno	120	pavimento	ambientCG
+WoodFloor043	Tavolato rustico	Parquet e legno	150	pavimento	ambientCG
+WoodFloor051	Listoni rovere	Parquet e legno	100	pavimento	ambientCG
+WoodFloor062	Parquet ciliegio	Parquet e legno	120	pavimento	ambientCG
+WoodFloor064	Parquet noce	Parquet e legno	120	pavimento	ambientCG
+WoodFloor070	Parquet a intreccio scuro	Parquet e legno	80	pavimento	ambientCG
+WoodFloor071	Parquet a intreccio chiaro	Parquet e legno	80	pavimento	ambientCG
+ph_laminate_floor_02	Laminato rovere	Parquet e legno	100	pavimento	Poly Haven
+Planks023A	Assi scure	Parquet e legno	150	entrambi	ambientCG
+Planks037A	Assi vissute	Parquet e legno	150	entrambi	ambientCG
+Tiles107	Piastrelle bianche 10×10	Piastrelle	80	entrambi	ambientCG
+Tiles138	Gres nero	Piastrelle	180	entrambi	ambientCG
+Tiles139	Gres beige	Piastrelle	180	entrambi	ambientCG
+Tiles140	Gres ardesia	Piastrelle	180	entrambi	ambientCG
+Tiles141	Gres pietra chiara	Piastrelle	180	entrambi	ambientCG
+Tiles142	Cotto chiaro	Piastrelle	180	pavimento	ambientCG
+Tiles143	Cotto	Piastrelle	180	pavimento	ambientCG
+Tiles144	Cotto scuro	Piastrelle	180	pavimento	ambientCG
+ph_interior_tiles	Piastrelle in diagonale	Piastrelle	120	pavimento	Poly Haven
+Terrazzo013	Terrazzo veneziano	Piastrelle	100	pavimento	ambientCG
+Marble006	Marmo nero Marquinia	Marmo e pietra	150	entrambi	ambientCG
+Marble012	Marmo grigio	Marmo e pietra	150	entrambi	ambientCG
+Marble016	Marmo nero venato	Marmo e pietra	150	entrambi	ambientCG
+Marble021	Marmo di Carrara	Marmo e pietra	150	entrambi	ambientCG
+ph_marble_01	Lastre di pietra beige	Marmo e pietra	200	entrambi	Poly Haven
+Travertine009	Travertino	Marmo e pietra	150	entrambi	ambientCG
+Carpet012	Moquette blu	Moquette	100	pavimento	ambientCG
+Carpet016	Moquette beige	Moquette	100	pavimento	ambientCG
+Concrete034	Cemento spatolato	Intonaco e cemento	200	entrambi	ambientCG
+Plaster001	Intonaco liscio	Intonaco e cemento	200	parete	ambientCG
+Plaster007	Intonaco rustico	Intonaco e cemento	200	parete	ambientCG
+Wallpaper002C	Carta da parati marmorizzata	Intonaco e cemento	100	parete	ambientCG
+Bricks097	Mattoni antichi	Mattoni e pietra	100	parete	ambientCG
+Bricks102	Muro in pietra	Mattoni e pietra	150	parete	ambientCG
+Bricks104	Mattoni rossi	Mattoni e pietra	100	parete	ambientCG
+Bricks105	Mattoni gialli	Mattoni e pietra	100	parete	ambientCG
+PavingStones138	Porfido	Esterni	120	pavimento	ambientCG
+PavingStones151	Sampietrini a ventaglio	Esterni	150	pavimento	ambientCG
+Grass001	Prato	Esterni	200	pavimento	ambientCG
+Grass005	Prato all'inglese	Esterni	200	pavimento	ambientCG
+WoodFloor052	Spina di pesce rovere	Parquet e legno	100	pavimento	ambientCG
+WoodFloor007	Quadrotte scure	Parquet e legno	100	pavimento	ambientCG
+WoodFloor039	Tavolato sbiancato	Parquet e legno	150	pavimento	ambientCG
+WoodFloor044	Assi chiare nodose	Parquet e legno	150	pavimento	ambientCG
+WoodFloor069	Parquet a quadri	Parquet e legno	100	pavimento	ambientCG
+WoodFloor057	Spina di pesce ciliegio	Parquet e legno	100	pavimento	ambientCG
+WoodFloor067B	Doghe strette scure	Parquet e legno	120	pavimento	ambientCG
+WoodFloor061	Parquet acero	Parquet e legno	120	pavimento	ambientCG
+WoodFloor034	Parquet a riquadri	Parquet e legno	100	pavimento	ambientCG
+WoodFloor035	Quadrotte vissute	Parquet e legno	100	pavimento	ambientCG
+WoodFloor036	Tavolato bianco	Parquet e legno	150	pavimento	ambientCG
+WoodFloor063	Listoni teak	Parquet e legno	120	pavimento	ambientCG
+WoodFloor046	Listoni noce	Parquet e legno	120	pavimento	ambientCG
+WoodFloor053	Spina di pesce classica	Parquet e legno	100	pavimento	ambientCG
+WoodFloor048	Wengè	Parquet e legno	120	pavimento	ambientCG
+WoodFloor054	Parquet a cesto	Parquet e legno	80	pavimento	ambientCG
+WoodFloor066B	Listoni rovere naturale	Parquet e legno	120	pavimento	ambientCG
+ph_herringbone_parquet	Spina di pesce naturale	Parquet e legno	120	pavimento	Poly Haven
+ph_diagonal_parquet	Parquet in diagonale	Parquet e legno	120	pavimento	Poly Haven
+ph_rectangular_parquet	Parquet a riquadri classico	Parquet e legno	120	pavimento	Poly Haven
+Planks033B	Assi color miele	Parquet e legno	150	entrambi	ambientCG
+Planks020	Assi chiare	Parquet e legno	150	entrambi	ambientCG
+Planks036B	Assi da ponte	Esterni	150	pavimento	ambientCG
+Tiles133A	Piastrelle bianche lucide	Piastrelle	80	entrambi	ambientCG
+Tiles074	Scacchiera in marmo	Piastrelle	120	pavimento	ambientCG
+Tiles040	Gres bianco 60×60	Piastrelle	180	entrambi	ambientCG
+Tiles132A	Mosaico azzurro	Piastrelle	60	entrambi	ambientCG
+Tiles078	Lastre di marmo rosa	Piastrelle	150	entrambi	ambientCG
+Tiles131	Cementine decorate	Piastrelle	80	pavimento	ambientCG
+Tiles052	Gres grafite	Piastrelle	180	entrambi	ambientCG
+Tiles105	Gres bianco grande formato	Piastrelle	240	entrambi	ambientCG
+Tiles075	Marmo nero lucido	Piastrelle	180	entrambi	ambientCG
+Tiles045	Gres antracite a correre	Piastrelle	180	entrambi	ambientCG
+Tiles108	Lastre nere lucide	Piastrelle	240	entrambi	ambientCG
+Tiles129B	Esagonette nere	Piastrelle	60	entrambi	ambientCG
+Tiles098	Pietra a opus	Piastrelle	150	pavimento	ambientCG
+Tiles136A	Piastrelle blu	Piastrelle	80	entrambi	ambientCG
+Tiles032	Mattoncini verdi	Piastrelle	60	parete	ambientCG
+Tiles089	Ardesia a lastre	Piastrelle	180	entrambi	ambientCG
+Tiles071	Esagonette bianche	Piastrelle	60	entrambi	ambientCG
+Tiles081	Cementine bianco e nero	Piastrelle	80	pavimento	ambientCG
+Tiles054	Marmo grigio a lastre	Piastrelle	180	entrambi	ambientCG
+Tiles101	Maioliche blu	Piastrelle	80	entrambi	ambientCG
+Tiles035	Mosaico grigio	Piastrelle	60	entrambi	ambientCG
+Tiles110	Pietra beige	Piastrelle	180	pavimento	ambientCG
+Tiles076	Cementine geometriche	Piastrelle	80	pavimento	ambientCG
+Tiles010	Mattoncini bianchi	Piastrelle	80	parete	ambientCG
+Tiles012	Scacchiera bianco e nero	Piastrelle	120	pavimento	ambientCG
+Tiles020	Mosaico acquamarina	Piastrelle	60	entrambi	ambientCG
+ph_floor_tiles_02	Piastrelle in graniglia	Piastrelle	120	pavimento	Poly Haven
+ph_floor_tiles_04	Piastrelle beige	Piastrelle	120	pavimento	Poly Haven
+ph_floor_tiles_06	Piastrelle a scacchi	Piastrelle	120	pavimento	Poly Haven
+ph_blue_floor_tiles_01	Piastrelle blu antiche	Piastrelle	120	pavimento	Poly Haven
+ph_checkered_pavement_tiles	Scacchiera da esterno	Esterni	150	pavimento	Poly Haven
+ph_brown_floor_tiles	Piastrelle marroni	Piastrelle	120	pavimento	Poly Haven
+Marble014	Marmo crema	Marmo e pietra	150	entrambi	ambientCG
+Marble020	Marmo tortora	Marmo e pietra	150	entrambi	ambientCG
+Marble019	Marmo bianco venato	Marmo e pietra	150	entrambi	ambientCG
+Marble007	Marmo Emperador chiaro	Marmo e pietra	150	entrambi	ambientCG
+Marble009	Marmo verde	Marmo e pietra	150	entrambi	ambientCG
+Marble024	Marmo grigio perla	Marmo e pietra	150	entrambi	ambientCG
+Marble023	Marmo blu notte	Marmo e pietra	150	entrambi	ambientCG
+Marble008	Marmo oro	Marmo e pietra	150	entrambi	ambientCG
+Onyx015	Onice bianco	Marmo e pietra	150	entrambi	ambientCG
+Onyx013	Onice nero	Marmo e pietra	150	entrambi	ambientCG
+Onyx011	Onice verde acqua	Marmo e pietra	150	entrambi	ambientCG
+Onyx010	Onice rosso	Marmo e pietra	150	entrambi	ambientCG
+Onyx006	Onice azzurro	Marmo e pietra	150	entrambi	ambientCG
+Onyx012	Onice miele	Marmo e pietra	150	entrambi	ambientCG
+Terrazzo018	Terrazzo multicolore	Piastrelle	100	pavimento	ambientCG
+Terrazzo005	Terrazzo grigio	Piastrelle	100	pavimento	ambientCG
+Terrazzo011	Terrazzo chiaro	Piastrelle	100	pavimento	ambientCG
+Terrazzo009	Terrazzo colorato	Piastrelle	100	pavimento	ambientCG
+Terrazzo015	Terrazzo nero	Piastrelle	100	pavimento	ambientCG
+Travertine005	Travertino noce	Marmo e pietra	150	entrambi	ambientCG
+Travertine003	Travertino classico	Marmo e pietra	150	entrambi	ambientCG
+Travertine013	Travertino azzurro	Marmo e pietra	150	entrambi	ambientCG
+Travertine002	Travertino grigio	Marmo e pietra	150	entrambi	ambientCG
+Carpet001	Moquette bianca	Moquette	100	pavimento	ambientCG
+Carpet015	Moquette rossa	Moquette	100	pavimento	ambientCG
+Carpet014	Moquette avorio	Moquette	100	pavimento	ambientCG
+Carpet011	Moquette verde oliva	Moquette	100	pavimento	ambientCG
+Carpet013	Moquette rosa melange	Moquette	100	pavimento	ambientCG
+Carpet003	Moquette a quadri grigia	Moquette	100	pavimento	ambientCG
+Carpet006	Moquette blu a quadri	Moquette	100	pavimento	ambientCG
+Carpet002	Moquette a fiori	Moquette	100	pavimento	ambientCG
+Carpet008	Moquette beige a riquadri	Moquette	100	pavimento	ambientCG
+Bricks075A	Muro in pietra grezza	Mattoni e pietra	150	parete	ambientCG
+Bricks101	Mattoni arancio	Mattoni e pietra	100	parete	ambientCG
+Bricks085	Mattoni rustici	Mattoni e pietra	100	parete	ambientCG
+Bricks094	Mattoni vissuti	Mattoni e pietra	100	parete	ambientCG
+Bricks092	Mattoni faccia a vista	Mattoni e pietra	100	parete	ambientCG
+Bricks066	Blocchi grigi	Mattoni e pietra	150	parete	ambientCG
+Bricks060	Mattoni bianchi	Mattoni e pietra	100	parete	ambientCG
+Bricks059	Mattoni scuri	Mattoni e pietra	100	parete	ambientCG
+Bricks084	Pietra a secco	Mattoni e pietra	150	parete	ambientCG
+Bricks100	Pietra gialla	Mattoni e pietra	150	parete	ambientCG
+Bricks091	Pietra a strati	Mattoni e pietra	150	parete	ambientCG
+Bricks051	Mattoni arancio lisci	Mattoni e pietra	100	parete	ambientCG
+Bricks090	Mattoni misti	Mattoni e pietra	100	parete	ambientCG
+Bricks093	Mattoni crema	Mattoni e pietra	100	parete	ambientCG
+Bricks074	Mattoni bruciati	Mattoni e pietra	100	parete	ambientCG
+Plaster002	Intonaco bianco	Intonaco e cemento	200	parete	ambientCG
+Plaster004	Intonaco grigio	Intonaco e cemento	200	parete	ambientCG
+Plaster005	Intonaco fine	Intonaco e cemento	200	parete	ambientCG
+Concrete048	Cemento chiaro	Intonaco e cemento	200	entrambi	ambientCG
+Concrete046	Resina bianca	Intonaco e cemento	200	entrambi	ambientCG
+Concrete042A	Cemento grigio	Intonaco e cemento	200	entrambi	ambientCG
+Concrete031	Cemento a lastre	Intonaco e cemento	200	entrambi	ambientCG
+Concrete032	Cemento scuro	Intonaco e cemento	200	entrambi	ambientCG
+ph_floral_jacquard	Carta da parati jacquard	Intonaco e cemento	60	parete	Poly Haven
+PavingStones150	Porfido a ventaglio	Esterni	150	pavimento	ambientCG
+PavingStones128	Lastre di pietra chiara	Esterni	200	pavimento	ambientCG
+PavingStones142	Ciottolato	Esterni	120	pavimento	ambientCG
+PavingStones146	Mattonelle chiare	Esterni	120	pavimento	ambientCG
+PavingStones070	Selciato	Esterni	120	pavimento	ambientCG
+PavingStones149	Opus incertum	Esterni	200	pavimento	ambientCG
+PavingStones136	Lastre beige	Esterni	200	pavimento	ambientCG
+PavingStones127	Lastre grigie	Esterni	200	pavimento	ambientCG
+PavingStones131	Pietre con erba	Esterni	150	pavimento	ambientCG
+PavingStones122	Mattoni da esterno	Esterni	120	pavimento	ambientCG
+PavingStones141	Ghiaia	Esterni	150	pavimento	ambientCG
+PavingStones111	Autobloccanti	Esterni	150	pavimento	ambientCG
+PavingStones081	Lastre a intreccio	Esterni	150	pavimento	ambientCG
+PavingStones130	Esagoni in cemento	Esterni	150	pavimento	ambientCG
+WoodSiding008	Perlinato scuro	Mattoni e pietra	150	parete	ambientCG
+WoodSiding005	Doghe rosse	Mattoni e pietra	150	parete	ambientCG
+WoodSiding009	Doghe bianche	Mattoni e pietra	150	parete	ambientCG
+WoodSiding001	Doghe in legno	Mattoni e pietra	150	parete	ambientCG
+Fabric061	Juta fine	Tessuti	60	tappeto	ambientCG
+Fabric066	Lino verde	Tessuti	60	tappeto	ambientCG
+Fabric083	Quadri grigi	Tessuti	60	tappeto	ambientCG
+Fabric030	Lana grigia	Tessuti	60	tappeto	ambientCG
+Fabric062	Lana intrecciata bianca	Tessuti	60	tappeto	ambientCG
+Fabric080	Tartan	Tessuti	80	tappeto	ambientCG
+Fabric045	Juta	Tessuti	60	tappeto	ambientCG
+Fabric081A	Velluto azzurro	Tessuti	60	tappeto	ambientCG
+Fabric079	Lana a righe	Tessuti	60	tappeto	ambientCG
+Fabric028	Velluto salvia	Tessuti	60	tappeto	ambientCG
+Fabric023	Velluto blu	Tessuti	60	tappeto	ambientCG
+Fabric026	Lana rossa a coste	Tessuti	60	tappeto	ambientCG
+Fabric031	Lana grigia melange	Tessuti	60	tappeto	ambientCG
+Wicker010A	Vimini intrecciato	Tessuti	60	tappeto	ambientCG
+Wicker008A	Paglia intrecciata	Tessuti	60	tappeto	ambientCG
+ph_fabric_pattern_05	Tessuto a motivi	Tessuti	80	tappeto	Poly Haven
+ph_fabric_pattern_07	Tessuto a motivi etnici	Tessuti	80	tappeto	Poly Haven
+ph_faux_fur_geometric	Pelliccia geometrica	Tessuti	80	tappeto	Poly Haven

@@ -1,0 +1,131 @@
+# id	nome	categoria	simbolo	quota da terra (cm, "soffitto" = appeso al soffitto)
+Sofa_01	Divano classico chiaro	Soggiorno	Sofa	0
+sofa_02	Divano Chesterfield	Soggiorno	Sofa	0
+sofa_03	Divano imbottito	Soggiorno	Sofa	0
+chinese_sofa	Divano orientale	Soggiorno	Sofa	0
+painted_wooden_sofa	Divano in legno	Soggiorno	Sofa	0
+ArmChair_01	Poltrona	Soggiorno	Armchair	0
+GreenChair_01	Poltrona classica	Soggiorno	Armchair	0
+mid_century_lounge_chair	Poltrona girevole	Soggiorno	Armchair	0
+modern_arm_chair_01	Poltrona moderna	Soggiorno	Armchair	0
+chinese_armchair	Poltrona orientale	Soggiorno	Armchair	0
+Rockingchair_01	Sedia a dondolo	Soggiorno	Armchair	0
+Ottoman_01	Pouf	Soggiorno	Armchair	0
+CoffeeTable_01	Tavolino verde intagliato	Soggiorno	Table	0
+coffee_table_round_01	Tavolino rotondo	Soggiorno	RoundTable	0
+modern_coffee_table_01	Tavolino moderno	Soggiorno	Table	0
+modern_coffee_table_02	Tavolino con intreccio	Soggiorno	Table	0
+industrial_coffee_table	Tavolino industriale	Soggiorno	Table	0
+gothic_coffee_table	Tavolino gotico	Soggiorno	Table	0
+chinese_tea_table	Tavolino da tè	Soggiorno	Table	0
+side_table_01	Tavolino laterale	Soggiorno	Table	0
+side_table_tall_01	Tavolino alto	Soggiorno	Table	0
+ClassicConsole_01	Consolle classica	Soggiorno	Cabinet	0
+chinese_console_table	Consolle orientale	Soggiorno	Cabinet	0
+modern_wooden_cabinet	Madia moderna	Soggiorno	Cabinet	0
+chinese_screen_panels	Paravento	Soggiorno	Cabinet	0
+Shelf_01	Libreria	Soggiorno	Cabinet	0
+painted_wooden_shelves	Scaffaletto dipinto	Soggiorno	Cabinet	0
+wooden_bookshelf_worn	Libreria rustica	Soggiorno	Cabinet	0
+wooden_display_shelves_01	Vetrinetta a giorno	Soggiorno	Cabinet	0
+steel_frame_shelves_01	Scaffale metallico	Soggiorno	Cabinet	0
+steel_frame_shelves_03	Scaffale metallico alto	Soggiorno	Cabinet	0
+dining_table	Tavolo con tovaglia	Pranzo	Table	0
+WoodenTable_01	Tavolo lungo	Pranzo	Table	0
+WoodenTable_02	Tavolino rotondo in legno	Soggiorno	RoundTable	0
+WoodenTable_03	Mobile a cassetti	Camera	Cabinet	0
+wooden_table_02	Tavolo semplice	Pranzo	Table	0
+painted_wooden_table	Tavolo dipinto	Pranzo	Table	0
+gallinera_table	Cassapanca intagliata	Soggiorno	Cabinet	0
+round_wooden_table_01	Tavolo rotondo	Pranzo	RoundTable	0
+round_wooden_table_02	Tavolo rotondo grande	Pranzo	RoundTable	0
+small_wooden_table_01	Scrivania in legno	Studio	Desk	0
+WoodenChair_01	Sedia gotica	Pranzo	Chair	0
+dining_chair_02	Sedia da pranzo	Pranzo	Chair	0
+gallinera_chair	Sedia intagliata	Pranzo	Chair	0
+painted_wooden_chair_01	Sedia dipinta	Pranzo	Chair	0
+painted_wooden_chair_02	Sedia dipinta azzurra	Pranzo	Chair	0
+bar_chair_round_01	Sgabello da bar	Pranzo	Chair	0
+metal_stool_01	Sgabello in metallo	Pranzo	Chair	0
+wooden_stool_01	Sgabello in legno	Pranzo	Chair	0
+wooden_stool_02	Sgabello basso	Pranzo	Chair	0
+painted_wooden_stool	Sgabello dipinto	Pranzo	Chair	0
+folding_wooden_stool	Sgabello pieghevole	Pranzo	Chair	0
+chinese_stool	Sgabello orientale	Pranzo	Chair	0
+painted_wooden_bench	Panca con schienale	Pranzo	Chair	0
+GothicBed_01	Letto gotico	Camera	Bed	0
+old_bed_frame	Letto in ferro	Camera	Bed	0
+vintage_day_bed	Dormeuse	Camera	Bed	0
+ClassicNightstand_01	Comodino classico	Camera	Cabinet	0
+painted_wooden_nightstand	Comodino dipinto	Camera	Cabinet	0
+GothicCabinet_01	Mobiletto gotico	Camera	Cabinet	0
+vintage_cabinet_01	Credenza con alzata	Camera	Cabinet	0
+painted_wooden_cabinet	Credenza dipinta	Camera	Cabinet	0
+painted_wooden_cabinet_02	Mobile con mensole	Camera	Cabinet	0
+chinese_cabinet	Mobile orientale	Camera	Cabinet	0
+GothicCommode_01	Comò gotico	Camera	Cabinet	0
+chinese_commode	Comò orientale	Camera	Cabinet	0
+drawer_cabinet	Scaffale con cassetti	Camera	Cabinet	0
+vintage_wooden_drawer_01	Cassettiera bassa	Camera	Cabinet	0
+ornate_mirror_01	Specchio decorato	Camera	Cabinet	120
+metal_office_desk	Scrivania in metallo	Studio	Desk	0
+SchoolDesk_01	Scrivania semplice	Studio	Desk	0
+classic_laptop	Portatile	Studio	Tv	75
+desk_lamp_arm_01	Lampada da scrivania	Studio	Lamp	75
+Chandelier_01	Lampadario classico	Luci	Lamp	soffitto
+Chandelier_02	Lampadario a bracci	Luci	Lamp	soffitto
+Chandelier_03	Lampadario di cristallo	Luci	Lamp	soffitto
+chinese_chandelier	Lampadario orientale	Luci	Lamp	soffitto
+lantern_chandelier_01	Lampadario a lanterna	Luci	Lamp	soffitto
+modern_ceiling_lamp_01	Lampada a sospensione	Luci	Lamp	soffitto
+hanging_industrial_lamp	Sospensione industriale	Luci	Lamp	soffitto
+caged_hanging_light	Lampada a sospensione lunga	Luci	Lamp	soffitto
+industrial_wall_sconce	Applique	Luci	Lamp	180
+industrial_wall_lamp	Applique a gabbia	Luci	Lamp	180
+industrial_pipe_lamp	Lampada da tavolo industriale	Luci	Lamp	75
+vintage_oil_lamp	Lume a petrolio	Luci	Lamp	75
+ceiling_fan	Ventilatore a soffitto	Luci	Lamp	soffitto
+Television_01	Televisore vintage	Elettrodomestici e TV	Tv	0
+television_02	Televisore anni '80	Elettrodomestici e TV	Tv	0
+gaming_console	Console di gioco	Elettrodomestici e TV	Appliance	50
+boombox	Stereo portatile	Elettrodomestici e TV	Appliance	0
+vintage_microwave	Microonde	Elettrodomestici e TV	Appliance	90
+vintage_electric_kettle	Bollitore	Elettrodomestici e TV	Appliance	90
+scandinavian_masonry_heater	Stufa	Elettrodomestici e TV	Appliance	0
+wall_clock	Orologio da parete	Decori	Plant	170
+vintage_grandfather_clock_01	Pendolo	Decori	Cabinet	0
+mantel_clock_01	Orologio da mensola	Decori	Plant	80
+alarm_clock_01	Sveglia	Decori	Plant	55
+hanging_picture_frame_01	Quadro	Decori	Tv	140
+hanging_picture_frame_02	Quadro grande	Decori	Tv	130
+hanging_picture_frame_03	Cornice ovale	Decori	Tv	140
+fancy_picture_frame_01	Cornice decorata	Decori	Tv	140
+fancy_picture_frame_02	Cornice dorata	Decori	Tv	140
+standing_picture_frame_01	Portafoto	Decori	Plant	75
+standing_picture_frame_02	Portafoto grande	Decori	Plant	75
+ceramic_vase_01	Vaso in ceramica	Decori	Plant	0
+ceramic_vase_02	Vaso in ceramica alto	Decori	Plant	0
+ceramic_vase_03	Vaso smaltato	Decori	Plant	0
+ceramic_vase_04	Anfora	Decori	Plant	0
+antique_ceramic_vase_01	Vaso antico	Decori	Plant	0
+brass_vase_01	Vaso in ottone	Decori	Plant	0
+brass_vase_02	Vaso in ottone alto	Decori	Plant	0
+throw_pillows_01	Cuscini	Decori	Rug	45
+book_encyclopedia_set_01	Enciclopedia	Decori	Cabinet	0
+marble_bust_01	Busto in marmo	Decori	Plant	0
+horse_statue_01	Statua di cavallo	Decori	Plant	0
+concrete_cat_statue	Gatto in cemento	Decori	Plant	0
+wicker_basket_01	Cesto in vimini	Decori	Plant	0
+wicker_basket_02	Cesto in vimini grande	Decori	Plant	0
+tea_set_01	Servizio da tè	Decori	Plant	76
+vintage_suitcase	Valigie vintage	Decori	Cabinet	0
+potted_plant_01	Pianta in vaso	Piante	Plant	0
+potted_plant_02	Pianta grande	Piante	Plant	0
+potted_plant_04	Pianta grassa	Piante	Plant	0
+planter_box_01	Fioriera	Piante	Plant	0
+planter_box_02	Fioriera lunga	Piante	Plant	0
+planter_box_03	Fioriera alta	Piante	Plant	0
+planter_pot_clay	Vaso di terracotta	Piante	Plant	0
+outdoor_table_chair_set_01	Tavolo e sedie da giardino	Esterni	Table	0
+wooden_picnic_table	Tavolo da picnic	Esterni	Table	0
+plastic_monobloc_chair_01	Sedia da giardino	Esterni	Chair	0
