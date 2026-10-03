@@ -439,7 +439,8 @@ class RemoteAssetStoreHttpTest {
         val b = TestBlob("env/huge.ibl", SyntheticContent(256L * 1024 * 1024, 9))
         serve(b)
         val spy = SpyCache(disk(max = 400L * 1024 * 1024))
-        val s = store(spy, resolverOf(b))
+        // 256 MB: oltre il limite predefinito (64 MB) dei blob remoti, quindi lo si alza apposta per provare lo streaming
+        val s = store(spy, resolverOf(b), policy = FetchPolicy(baseBackoffMillis = 1, maxBackoffMillis = 5, maxBlobBytes = 512L * 1024 * 1024))
         assertEquals(AssetAvailability.Available, s.ensure(b.path))
         assertEquals(0, spy.puts.get())
         assertTrue(spy.writeCalls.get() > 1_000)

@@ -11,6 +11,9 @@ package com.sagoma.planimetria.assets.remote
  *   non riparte subito con un'altra raffica: per questo tempo ridà l'errore già noto, senza rete. Non vale per gli errori
  *   permanenti o di integrità (404, 403, hash, dimensione, cache…): un nuovo `ensure` esplicito rifà la verifica. Poi scade da solo, e solo una nuova richiesta
  *   riprova (non c'è nessun ritentativo automatico). `0` lo disattiva. Vale per blob (percorso + impronta attesa).
+ * - [maxBlobBytes]: dimensione massima, dichiarata dal manifest, di un blob ottenuto dal percorso remoto. Oltre, `RemoteAssetStore`
+ *   non lo scarica e non lo serve ([RemoteError.TooLarge]): oggi i file si leggono in un `ByteArray` intero, e un manifest
+ *   sbagliato non deve poter esaurire la memoria. Vale solo per il remoto: non è un limite di `AssetStore` né di `AssetCache`.
  * - Attesa prima del tentativo successivo: [baseBackoffMillis] raddoppiata a ogni tentativo, al massimo [maxBackoffMillis];
  *   con `Retry-After` si aspetta almeno quanto dice il server, sempre entro [maxBackoffMillis].
  *
@@ -24,10 +27,12 @@ class FetchPolicy(
     val baseBackoffMillis: Long = 500,
     val maxBackoffMillis: Long = 10_000,
     val failureCooldownMillis: Long = 5_000,
+    val maxBlobBytes: Long = 64L * 1024 * 1024,
 ) {
     init {
         require(maxConcurrentDownloads >= 1) { "maxConcurrentDownloads deve essere almeno 1" }
         require(maxAttempts >= 1) { "maxAttempts deve essere almeno 1" }
+        require(maxBlobBytes > 0) { "maxBlobBytes deve essere positivo" }
         require(baseBackoffMillis >= 0 && maxBackoffMillis >= 0 && failureCooldownMillis >= 0) { "attese negative" }
     }
 

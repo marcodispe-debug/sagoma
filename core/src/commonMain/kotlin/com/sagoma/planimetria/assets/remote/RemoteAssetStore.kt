@@ -12,9 +12,9 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -59,13 +59,17 @@ sealed class RemoteEnsureResult {
  *   dimensione e chiave del blob. [replaceSnapshot] vale per le operazioni successive; un download già partito
  *   con una vecchia istantanea può finire di scaricare e verificare, ma NON installa il risultato se il manifest
  *   corrente non lo aspetta più (altro SHA o percorso tolto): il suo `ensure` dà `Failed(Cancelled)`.
+ * - Un blob dichiarato più grande di [FetchPolicy.maxBlobBytes] non si scarica e non si serve: `ensure` dà
+ *   `Failed(TooLarge)` (e [state] lo stesso) senza nessuna richiesta, `peek` dà `null`, `availability` non è mai `Available`.
  * - Assenza dal manifest = non disponibile da qui ([AssetAvailability.Unavailable]), anche se un vecchio file è
  *   rimasto in cache. Conservare asset ritirati sarebbe una policy esplicita diversa.
  * - Dopo un fallimento transiente (rete, tempo scaduto, 429, 5xx: [RemoteError.isTransient]) a tentativi finiti il blob resta
  *   in pausa per [FetchPolicy.failureCooldownMillis]. Gli errori permanenti o di integrità non creano pausa; l'ultimo errore
  *   resta comunque in [state].
  *
- * Un download continua anche se chi lo ha chiesto smette di aspettare (lo possono attendere altri). [close] ferma
+ * Un download continua anche se chi lo ha chiesto smette di aspettare (lo possono attendere altri). Lo store ha un job proprio,
+ * figlio di quello dello `scope` che riceve: [close] ferma solo i suoi lavori e lascia attivo lo scope di chi lo ha costruito,
+ * mentre la cancellazione di quello scope ferma anche lo store. [close] ferma
  * tutto: i download in corso e chi li attende finiscono come `Failed(Cancelled)`, e ogni `ensure` successivo
  * dà subito `Failed(Cancelled)` (mai sospeso). La cache va usata solo tramite questo negozio, mai come negozio
  * nudo davanti ad esso: la verifica dell'impronta contro il manifest sta qui.
@@ -76,13 +80,22 @@ class RemoteAssetStore(
     private val fetcher: BlobFetcher,
     private val policy: FetchPolicy = FetchPolicy(),
     private val capabilities: Set<String> = emptySet(),
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val clock: () -> Long = monotonicMillis,
 ) : AssetStore {
+    // I voli girano su un job proprio, FIGLIO di quello dello scope ricevuto: chi lo possiede è lo store, che con `close()`
+    // cancella solo questo (lo scope del chiamante resta attivo); se invece il chiamante cancella il suo scope, la
+    // cancellazione scende fino ai voli.
+    private val job = SupervisorJob(scope.coroutineContext[Job])
+    private val workScope = CoroutineScope(scope.coroutineContext + job)
+
     /** L'istantanea del manifest usata dalle nuove operazioni. */
     @kotlin.concurrent.Volatile
     var snapshot: BlobResolver = snapshot
         private set
+
+    /** Quanti download può fare insieme (da [FetchPolicy]): chi lo orchestra non deve chiederne di più. */
+    val maxConcurrentDownloads: Int get() = policy.maxConcurrentDownloads
 
     /** Da ora le nuove richieste usano [newSnapshot]; i download già partiti finiscono con la loro. */
     fun replaceSnapshot(newSnapshot: BlobResolver) {
@@ -121,12 +134,13 @@ class RemoteAssetStore(
     override fun availability(path: String): AssetAvailability {
         val snap = snapshot
         val entry = snap.entryForPath(path) ?: return AssetAvailability.Unavailable
-        if (isCached(entry)) return AssetAvailability.Available
+        if (!tooLarge(entry) && isCached(entry)) return AssetAvailability.Available
         return if (isCompatible(snap, entry)) AssetAvailability.Remote else AssetAvailability.Incompatible
     }
 
     override fun peek(path: String): ByteArray? {
         val entry = snapshot.entryForPath(path) ?: return null
+        if (tooLarge(entry)) return null // oltre il limite remoto non si serve (e non si legge in un ByteArray) nemmeno se è in cache
         if (!cache.info(entry.path).matches(entry.sha256, entry.size)) return null
         val bytes = cache.peek(entry.path) ?: return null
         if (bytes.size.toLong() != entry.size) return null
@@ -150,6 +164,8 @@ class RemoteAssetStore(
         val snap = snapshot // da qui in poi si usa solo questa istantanea
         val entry = snap.entryForPath(path) ?: return RemoteEnsureResult.NotInCatalog
         if (!isCompatible(snap, entry)) return RemoteEnsureResult.Incompatible
+        // Prima di ogni lavoro: un blob oltre il limite non si scarica, senza connessioni, scrittori né cache.
+        if (tooLarge(entry)) return RemoteEnsureResult.Failed(RemoteError.TooLarge(entry.size, policy.maxBlobBytes))
         if (isCached(entry)) return RemoteEnsureResult.Available
         var immediate: RemoteEnsureResult? = null
         val flight = lock.withLock {
@@ -178,8 +194,9 @@ class RemoteAssetStore(
     fun state(path: String): AssetState? {
         val snap = snapshot
         val entry = snap.entryForPath(path) ?: return null
-        if (isCached(entry)) return AssetState.Available
+        if (!tooLarge(entry) && isCached(entry)) return AssetState.Available
         if (!isCompatible(snap, entry)) return AssetState.Incompatible
+        if (tooLarge(entry)) return AssetState.Failed(RemoteError.TooLarge(entry.size, policy.maxBlobBytes))
         if (closed) return AssetState.Failed(RemoteError.Cancelled) // un download interrotto da close() non esiste più
         val key = keyOf(entry)
         flights[key]?.let { f -> return AssetState.Downloading(if (entry.size <= 0) 0f else (f.delivered.toFloat() / entry.size).coerceIn(0f, 1f)) }
@@ -196,7 +213,7 @@ class RemoteAssetStore(
     fun close() {
         closed = true
         val running = flights.values
-        scope.cancel()
+        job.cancel() // solo il job dello store, mai lo scope di chi lo ha costruito
         for (f in running) f.result.complete(RemoteEnsureResult.Failed(RemoteError.Cancelled))
     }
 
@@ -204,6 +221,8 @@ class RemoteAssetStore(
 
     /** Il download è identificato dal percorso E dall'impronta attesa: la stessa destinazione con contenuto atteso diverso è un altro download. */
     private fun keyOf(entry: BlobEntry) = entry.path + "\u0000" + entry.sha256
+
+    private fun tooLarge(entry: BlobEntry) = entry.size > policy.maxBlobBytes
 
     private fun isCached(entry: BlobEntry) =
         cache.info(entry.path).matches(entry.sha256, entry.size) && cache.availability(entry.path) == AssetAvailability.Available
@@ -227,7 +246,7 @@ class RemoteAssetStore(
         val flight = Flight(entry)
         flights = flights + (key to flight)
         failures = failures - key
-        scope.launch(start = CoroutineStart.ATOMIC) {
+        workScope.launch(start = CoroutineStart.ATOMIC) {
             val result = try {
                 currentCoroutineContext().ensureActive()
                 download(flight)

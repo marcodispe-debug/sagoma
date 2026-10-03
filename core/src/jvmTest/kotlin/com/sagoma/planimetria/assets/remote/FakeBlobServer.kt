@@ -129,7 +129,7 @@ class FakeBlobServer : AutoCloseable {
                     val from = ex.requestHeaders.getFirst("Range")?.removePrefix("bytes=")?.removeSuffix("-")?.toLongOrNull() ?: 0L
                     val length = b.content.size - from
                     ex.sendResponseHeaders(if (from > 0) 206 else 200, if (length == 0L) -1 else length)
-                    if (length > 0) b.content.writeTo(ex.responseBody, from, b.chunkSize) { if (b.delayPerChunkMs > 0) Thread.sleep(b.delayPerChunkMs) }
+                    if (length > 0) b.content.writeTo(ex.responseBody, from, b.chunkSize) { if (b.delayPerChunkMs > 0) { ex.responseBody.flush(); Thread.sleep(b.delayPerChunkMs) } }
                 }
             }
         } catch (e: IOException) {

@@ -124,7 +124,7 @@ fun codeSourceStamp(anchor: Class<*>): String = try {
 }
 
 /** Una cartella contiene l'altra (o sono la stessa); nel dubbio, sì. */
-private fun overlaps(a: File, b: File): Boolean = try {
+internal fun overlaps(a: File, b: File): Boolean = try {
     val pa = a.canonicalFile.toPath()
     val pb = b.canonicalFile.toPath()
     pa.startsWith(pb) || pb.startsWith(pa)

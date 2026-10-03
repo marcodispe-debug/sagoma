@@ -99,3 +99,23 @@ class CountingFetcher : BlobFetcher {
         return FetchResult.Success(b.size.toLong(), b.size.toLong())
     }
 }
+
+/** Manifest valido (testo JSON, disposizione `flat`, un asset per blob) con i blob dati. */
+fun manifestJson(version: Long, vararg blobs: TestBlob): String {
+    val assets = blobs.mapIndexed { i, b ->
+        val requires = if (b.requires.isEmpty()) "" else ""","requires":[${b.requires.joinToString(",") { "\"$it\"" }}]"""
+        """{"id":"asset$i","kind":"furniture"$requires,"files":[{"role":"model","path":"${b.path}","sha256":"${b.sha}","size":${b.size}}]}"""
+    }.joinToString(",")
+    return """{"schema":1,"catalog":"test","catalogVersion":$version,"releaseId":"r$version","blobs":{"layout":"flat"},"assets":[$assets]}"""
+}
+
+/** Distinto per `seed`: contenuto piccolo e deterministico. */
+fun smallBlob(path: String, seed: Int, size: Int = 3_000) = TestBlob(path, BytesContent(ByteArray(size) { (it * 31 + seed).toByte() }))
+
+suspend fun waitUntil(what: String, timeoutMs: Long = 5_000, cond: () -> Boolean) {
+    val end = System.currentTimeMillis() + timeoutMs
+    while (!cond()) {
+        check(System.currentTimeMillis() < end) { "timeout in attesa di: $what" }
+        kotlinx.coroutines.delay(5)
+    }
+}

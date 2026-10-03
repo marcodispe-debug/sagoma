@@ -52,6 +52,16 @@ class BlobResolver(val manifest: Manifest) {
         entriesByAssetRole = r
     }
 
+    companion object {
+        /**
+         * Il resolver di "nessun manifest ancora": nessun percorso, nessun asset, nessun errore. Serve a costruire un
+         * `RemoteAssetStore` prima che esista un manifest valido (tutto risulta non disponibile) senza nullable da gestire.
+         */
+        val EMPTY: BlobResolver = BlobResolver(
+            Manifest(SUPPORTED_MANIFEST_SCHEMA, "", 0, "empty", null, 0, BlobLayout.Flat, emptyList(), emptyMap(), emptyList(), null),
+        )
+    }
+
     val assetCount: Int get() = assetsById.size
 
     /** Tutti gli asset, nell'ordine del manifest. */
