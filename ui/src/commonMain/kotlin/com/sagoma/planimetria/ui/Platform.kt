@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Density
+import com.sagoma.planimetria.assets.AssetStore
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.persistence.ProjectRepository
 
@@ -47,8 +48,11 @@ interface Platform {
     /** Condivide un testo con le altre app (mail, messaggi…). */
     fun shareText(subject: String, text: String)
 
-    /** File distribuito con l'app (catalogo arredi, miniature, materiali); null se non c'è. */
-    fun readAsset(path: String): ByteArray?
+    /**
+     * Da dove arrivano i file di arredi, materiali e luci (catalogo, miniature, modelli 3D, texture):
+     * nell'app, in una cartella o, più avanti, scaricati. Dove non ci sono è vuoto (EmptyAssetStore).
+     */
+    val assetStore: AssetStore
 
     /** Immagine (PNG, JPEG) da mostrare. */
     fun decodeImage(bytes: ByteArray): ImageBitmap?

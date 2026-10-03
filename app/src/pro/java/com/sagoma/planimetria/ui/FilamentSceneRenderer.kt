@@ -5,6 +5,8 @@ import android.view.Choreographer
 import android.view.Surface
 import android.view.SurfaceView
 import android.view.View as AndroidView
+import com.sagoma.planimetria.assets.AssetPaths
+import com.sagoma.planimetria.assets.AssetStore
 import com.google.android.filament.Camera
 import com.google.android.filament.ColorGrading
 import com.google.android.filament.Engine
@@ -39,8 +41,9 @@ import kotlin.math.pow
  * Versione pro: la scena disegnata con Filament (Google), con materiali fisici, sole con ombre morbide,
  * luce ambiente, occlusione ambientale negli angoli (SSAO), antialiasing e resa dei colori naturale.
  * La scena arriva come glTF in memoria ([Glb]); si ridisegna solo quando cambia qualcosa.
+ * Modelli, texture e luci ambiente li dà `assets` (da dove arrivino, qui non importa).
  */
-class FilamentSceneRenderer : AndroidSceneRenderer() {
+class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRenderer() {
 
     companion object {
         private var loaded = false
@@ -83,7 +86,6 @@ class FilamentSceneRenderer : AndroidSceneRenderer() {
     private var surfaceView: SurfaceView? = null
 
     private var asset: FilamentAsset? = null
-    private var appContext: Context? = null
     /** File dei modelli degli arredi, letti una volta sola (null = modello mancante). */
     private val modelFiles = HashMap<String, ByteBuffer?>()
     /** Arredi in scena, nello stesso ordine della scena: si riusano se il modello non cambia. */
@@ -166,7 +168,7 @@ class FilamentSceneRenderer : AndroidSceneRenderer() {
         materials = UbershaderProvider(engine)
         assetLoader = AssetLoader(engine, materials, EntityManager.get())
         resourceLoader = ResourceLoader(engine)
-        texturedSurfaces = TexturedSurfaces(engine, scene, materials)
+        texturedSurfaces = TexturedSurfaces(engine, scene, materials, assets)
     }
 
     private val frameCallback = object : Choreographer.FrameCallback {
@@ -187,8 +189,6 @@ class FilamentSceneRenderer : AndroidSceneRenderer() {
     override fun createView(context: Context): AndroidView {
         val sv = SurfaceView(context)
         surfaceView = sv
-        appContext = context.applicationContext
-        texturedSurfaces.context = appContext
         displayHelper = DisplayHelper(context)
         uiHelper.renderCallback = object : UiHelper.RendererCallback {
             override fun onNativeWindowChanged(surface: Surface) {
@@ -369,7 +369,7 @@ class FilamentSceneRenderer : AndroidSceneRenderer() {
 
     /** Legge assets/env/<name>.ibl (preparato con tools/furniture/PackEnv.java). */
     private fun loadEnv(name: String): Env? = runCatching {
-        val bytes = appContext!!.assets.open("env/$name.ibl").use { it.readBytes() }
+        val bytes = assets.peek(AssetPaths.environment(name)) ?: error("${AssetPaths.environment(name)} non trovato")
         val bb = ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
         check(bb.get().toInt() == 'S'.code && bb.get().toInt() == 'I'.code && bb.get().toInt() == 'B'.code && bb.get().toInt() == 'L'.code)
         bb.int // versione
@@ -451,7 +451,7 @@ class FilamentSceneRenderer : AndroidSceneRenderer() {
     }
 
     private fun modelFile(name: String): ByteBuffer? = modelFiles.getOrPut(name) {
-        runCatching { appContext!!.assets.open("furniture/$name.glb").use { it.readBytes() } }.getOrNull()?.let { bytes ->
+        assets.peek(AssetPaths.furnitureModel(name))?.let { bytes ->
             ByteBuffer.allocateDirect(bytes.size).put(bytes).also { it.flip() }
         }
     }

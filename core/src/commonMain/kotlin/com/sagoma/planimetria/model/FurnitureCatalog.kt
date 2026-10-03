@@ -81,7 +81,13 @@ object FurnitureCatalog {
     private val categoryOrder = listOf("Soggiorno", "Pranzo", "Cucina", "Camera", "Bagno", "Studio", "Luci", "Tappeti", "Elettrodomestici e TV", "Decori", "Piante", "Esterni")
 
     var items: List<Item> = emptyList()
-        private set
+        private set(value) {
+            field = value
+            byModel = null
+        }
+
+    /** Indice per modello, costruito alla prima ricerca dopo ogni cambio del catalogo (a ogni disegno si cerca un arredo). */
+    private var byModel: Map<String, Item>? = null
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -122,7 +128,14 @@ object FurnitureCatalog {
     val categories: List<String>
         get() = items.map { it.category }.distinct().sortedBy { c -> categoryOrder.indexOf(c).let { if (it < 0) Int.MAX_VALUE else it } }
 
-    fun item(model: String): Item? = items.firstOrNull { it.model == model }
+    fun item(model: String): Item? {
+        val index = byModel ?: HashMap<String, Item>(items.size * 2).also { m ->
+            // Se un modello comparisse due volte vale il primo, come con la ricerca in elenco.
+            for (i in items) if (i.model !in m) m[i.model] = i
+            byModel = m
+        }
+        return index[model]
+    }
 
     /** Ricerca per nome o categoria (senza distinguere maiuscole). */
     fun search(query: String): List<Item> {

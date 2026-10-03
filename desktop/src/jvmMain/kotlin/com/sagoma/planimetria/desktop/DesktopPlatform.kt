@@ -5,6 +5,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.Density
+import com.sagoma.planimetria.assets.AssetStore
+import com.sagoma.planimetria.assets.ClasspathAssetStore
+import com.sagoma.planimetria.assets.CompositeAssetStore
+import com.sagoma.planimetria.assets.DirectoryAssetStore
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.persistence.ProjectRepository
 import com.sagoma.planimetria.ui.ImportedImage
@@ -71,10 +75,10 @@ class DesktopPlatform(
         toast("Copiato negli appunti: incollalo dove vuoi")
     }
 
-    override fun readAsset(path: String): ByteArray? {
-        assets?.let { dir -> File(dir, path).takeIf { it.isFile }?.let { return it.readBytes() } }
-        return javaClass.getResourceAsStream("/$path")?.use { it.readBytes() }
-    }
+    /** Come prima: prima la cartella `-Dsagoma.assets` (se c'è), poi le risorse del programma. */
+    override val assetStore: AssetStore = CompositeAssetStore(
+        listOfNotNull(assets?.let { DirectoryAssetStore(it) }, ClasspathAssetStore(javaClass.classLoader)),
+    )
 
     override fun decodeImage(bytes: ByteArray): ImageBitmap? = SkiaImages.decode(bytes)
     override fun encodePng(image: ImageBitmap): ByteArray? = SkiaImages.encodePng(image)
@@ -90,7 +94,7 @@ class DesktopPlatform(
 
     override fun now(): Long = System.currentTimeMillis()
 
-    override fun createSceneRenderer(): SceneRenderer = runCatching { DesktopGlSceneRenderer(::readAsset) }.getOrElse {
+    override fun createSceneRenderer(): SceneRenderer = runCatching { DesktopGlSceneRenderer(assetStore::peek) }.getOrElse {
         UnavailableSceneRenderer("La vista 3D non è disponibile su questo computer (OpenGL non trovato).")
     }
 }

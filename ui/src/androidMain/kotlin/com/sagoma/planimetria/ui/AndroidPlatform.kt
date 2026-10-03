@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.sagoma.planimetria.assets.AssetStore
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.persistence.ProjectRepository
 import kotlinx.coroutines.Dispatchers
@@ -46,7 +47,7 @@ class AndroidPlatform(
     override val isPro: Boolean,
     override val projects: ProjectRepository,
     override val tips: TipStore,
-    private val sceneRenderer: (Context) -> SceneRenderer,
+    private val sceneRenderer: (Context, AssetStore) -> SceneRenderer,
 ) : Platform {
 
     /** "Salva con nome": nome proposto e tipo MIME → dove salvare. */
@@ -100,7 +101,7 @@ class AndroidPlatform(
         activity.startActivity(Intent.createChooser(send, subject))
     }
 
-    override fun readAsset(path: String): ByteArray? = runCatching { activity.assets.open(path).use { it.readBytes() } }.getOrNull()
+    override val assetStore: AssetStore = AndroidAssetStore(activity.assets)
 
     override fun decodeImage(bytes: ByteArray): ImageBitmap? = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
 
@@ -178,7 +179,7 @@ class AndroidPlatform(
 
     override fun now(): Long = System.currentTimeMillis()
 
-    override fun createSceneRenderer(): SceneRenderer = sceneRenderer(activity)
+    override fun createSceneRenderer(): SceneRenderer = sceneRenderer(activity, assetStore)
 
     override fun gestureExclusion(modifier: Modifier): Modifier = modifier.systemGestureExclusion()
 
