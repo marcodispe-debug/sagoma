@@ -345,16 +345,6 @@ class DiskAssetCache(
         }
     }
 
-    private fun moveReplacing(from: File, to: File) {
-        try {
-            Files.move(from.toPath(), to.toPath(), StandardCopyOption.ATOMIC_MOVE)
-        } catch (e: AtomicMoveNotSupportedException) {
-            Files.move(from.toPath(), to.toPath(), StandardCopyOption.REPLACE_EXISTING)
-        } catch (e: FileAlreadyExistsException) {
-            Files.move(from.toPath(), to.toPath(), StandardCopyOption.REPLACE_EXISTING)
-        }
-    }
-
     /** Riscrive l'indice (file temporaneo e spostamento). Con il blocco preso. Se non riesce, all'apertura successiva si riallinea con il disco. */
     private fun persist() {
         orderDirty = false
@@ -440,4 +430,15 @@ internal class IncrementalSha256 {
     private val md = MessageDigest.getInstance("SHA-256")
     fun update(bytes: ByteArray, offset: Int, length: Int) = md.update(bytes, offset, length)
     fun hex(): String = hexOf(md.digest())
+}
+
+/** Sposta `from` al posto di `to` in modo atomico (o, se il disco non lo supporta, sostituendo): chi legge vede il vecchio file o il nuovo, mai uno a metà. */
+internal fun moveReplacing(from: File, to: File) {
+    try {
+        Files.move(from.toPath(), to.toPath(), StandardCopyOption.ATOMIC_MOVE)
+    } catch (e: AtomicMoveNotSupportedException) {
+        Files.move(from.toPath(), to.toPath(), StandardCopyOption.REPLACE_EXISTING)
+    } catch (e: FileAlreadyExistsException) {
+        Files.move(from.toPath(), to.toPath(), StandardCopyOption.REPLACE_EXISTING)
+    }
 }
