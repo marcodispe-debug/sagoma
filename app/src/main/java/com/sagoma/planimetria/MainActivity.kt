@@ -22,6 +22,7 @@ class MainActivity : ComponentActivity() {
             projects = FileProjectRepository(filesDir),
             tips = FileTipStore(filesDir),
             sceneRenderer = SceneRenderers::create,
+            remoteStore = (application as SagomaApplication).remoteStore,
         )
         FurnitureAssets.init(platform)
         enableEdgeToEdge()

@@ -2,6 +2,8 @@ package com.sagoma.planimetria
 
 import android.app.Application
 import android.util.Log
+import com.sagoma.planimetria.assets.AssetStore
+import com.sagoma.planimetria.assets.LateBoundAssetStore
 import com.sagoma.planimetria.assets.remote.RemoteAssets
 import com.sagoma.planimetria.assets.remote.createJvmRemoteAssets
 import kotlinx.coroutines.CompletableDeferred
@@ -33,6 +35,15 @@ class SagomaApplication : Application() {
     lateinit var remoteAssets: Deferred<RemoteAssets?>
         private set
 
+    /**
+     * Il negozio remoto da mettere dietro agli asset impacchettati, da consegnare subito a una `Platform` (nessuna attesa, nessun
+     * `await`): vuoto finché `remoteAssets` non è pronto, poi risponde con lo store di quello. È collegato una sola volta, dallo
+     * stesso lavoro che apre il sistema remoto, quindi vale per ogni `Platform` e `Activity`, anche se si ricreano nel frattempo.
+     * `null` dove il remoto è spento (free o indirizzi vuoti): allora non c'è niente da comporre.
+     */
+    var remoteStore: AssetStore? = null
+        private set
+
     override fun onCreate() {
         super.onCreate()
         remoteAssets = openRemoteAssets()
@@ -44,10 +55,13 @@ class SagomaApplication : Application() {
         val manifestUrl = getString(R.string.remote_manifest_url).trim()
         val blobBaseUrl = getString(R.string.remote_blob_base_url).trim()
         if (manifestUrl.isEmpty() || blobBaseUrl.isEmpty()) return remoteDisabled()
+        val late = LateBoundAssetStore()
+        remoteStore = late
         return CoroutineScope(SupervisorJob() + Dispatchers.IO).async {
             try {
                 // Stessa cartella di base della cache degli asset impacchettati: le cartelle remote non vengono mai toccate dalla sua pulizia.
                 createJvmRemoteAssets(File(noBackupFilesDir, "asset-cache"), manifestUrl, blobBaseUrl, REMOTE_CACHE_BYTES)
+                    ?.also { late.bind(it.store) } // una sola volta: questo è l'unico punto che lo fa
             } catch (e: Exception) {
                 // Il remoto è un di più: se non si apre l'app funziona con gli asset impacchettati.
                 Log.w(TAG, "Sistema remoto non disponibile", e)

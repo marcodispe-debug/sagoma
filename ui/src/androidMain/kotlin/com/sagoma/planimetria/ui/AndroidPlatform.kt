@@ -26,6 +26,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.sagoma.planimetria.assets.AssetStore
+import com.sagoma.planimetria.assets.CompositeAssetStore
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.persistence.ProjectRepository
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +49,8 @@ class AndroidPlatform(
     override val projects: ProjectRepository,
     override val tips: TipStore,
     private val sceneRenderer: (Context, AssetStore) -> SceneRenderer,
+    /** Negozio remoto del processo (lo possiede l'`Application`, mai creato qui), da usare dopo gli asset impacchettati; `null` = nessun remoto. */
+    remoteStore: AssetStore? = null,
 ) : Platform {
 
     /** "Salva con nome": nome proposto e tipo MIME → dove salvare. */
@@ -101,7 +104,9 @@ class AndroidPlatform(
         activity.startActivity(Intent.createChooser(send, subject))
     }
 
-    override val assetStore: AssetStore = createAndroidAssetStore(activity, isPro)
+    override val assetStore: AssetStore = createAndroidAssetStore(activity, isPro).let { bundled ->
+        if (remoteStore == null) bundled else CompositeAssetStore(bundled, remoteStore)
+    }
 
     override fun decodeImage(bytes: ByteArray): ImageBitmap? = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
 
