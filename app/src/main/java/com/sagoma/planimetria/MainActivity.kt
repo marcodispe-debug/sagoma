@@ -16,13 +16,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Edition.isPro = Flavor.isPro
+        val app = application as SagomaApplication
         val platform = AndroidPlatform(
             activity = this,
             isPro = Flavor.isPro,
             projects = FileProjectRepository(filesDir),
             tips = FileTipStore(filesDir),
             sceneRenderer = SceneRenderers::create,
-            remoteStore = (application as SagomaApplication).remoteStore,
+            remoteStore = app.remoteStore,
+            assetRequests = app.assetRequests,
         )
         FurnitureAssets.init(platform)
         enableEdgeToEdge()

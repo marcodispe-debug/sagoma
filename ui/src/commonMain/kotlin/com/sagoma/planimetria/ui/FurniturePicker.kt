@@ -31,6 +31,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +45,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.sagoma.planimetria.assets.AssetPaths
+import com.sagoma.planimetria.assets.remote.AssetPriority
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.model.FurnitureCatalog
 
@@ -104,7 +108,13 @@ private fun CatalogCard(item: FurnitureCatalog.Item, onClick: () -> Unit) {
     Surface(onClick = onClick, shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
         Column(Modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.size(width = 88.dp, height = 70.dp).background(Color(0xFFF6F5F2), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                // Leggere la versione fa ricomporre la scheda quando arriva un asset: la miniatura si rilegge, e se manca si richiede di nuovo.
+                val assetRequests = LocalPlatform.current.assetRequests
+                val assetsVersion by assetRequests.version.collectAsState()
                 val thumb = FurnitureAssets.thumbnail(item.model)
+                if (thumb == null) LaunchedEffect(item.model, assetsVersion) {
+                    assetRequests.request(AssetPaths.furnitureThumbnail(item.model), AssetPriority.Visible)
+                }
                 if (thumb != null) {
                     Image(thumb, contentDescription = item.label, contentScale = ContentScale.Fit, modifier = Modifier.size(width = 84.dp, height = 66.dp))
                 } else Canvas(Modifier.size(width = 88.dp, height = 70.dp)) {

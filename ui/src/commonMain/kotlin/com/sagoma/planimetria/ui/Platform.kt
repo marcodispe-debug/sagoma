@@ -6,7 +6,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Density
+import com.sagoma.planimetria.assets.AssetRequests
 import com.sagoma.planimetria.assets.AssetStore
+import com.sagoma.planimetria.assets.NoAssetRequests
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.persistence.ProjectRepository
 
@@ -53,6 +55,12 @@ interface Platform {
      * nell'app, in una cartella o, più avanti, scaricati. Dove non ci sono è vuoto (EmptyAssetStore).
      */
     val assetStore: AssetStore
+
+    /**
+     * Come chiedere che un file diventi disponibile (e saperne l'arrivo) quando gli asset vengono da un sistema remoto; dove non
+     * c'è non fa niente.
+     */
+    val assetRequests: AssetRequests get() = NoAssetRequests
 
     /** Immagine (PNG, JPEG) da mostrare. */
     fun decodeImage(bytes: ByteArray): ImageBitmap?

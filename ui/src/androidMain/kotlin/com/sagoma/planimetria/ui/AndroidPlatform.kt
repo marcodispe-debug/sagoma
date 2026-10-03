@@ -25,8 +25,10 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.sagoma.planimetria.assets.AssetRequests
 import com.sagoma.planimetria.assets.AssetStore
 import com.sagoma.planimetria.assets.CompositeAssetStore
+import com.sagoma.planimetria.assets.NoAssetRequests
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.persistence.ProjectRepository
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +53,8 @@ class AndroidPlatform(
     private val sceneRenderer: (Context, AssetStore) -> SceneRenderer,
     /** Negozio remoto del processo (lo possiede l'`Application`, mai creato qui), da usare dopo gli asset impacchettati; `null` = nessun remoto. */
     remoteStore: AssetStore? = null,
+    /** Richieste verso il sistema remoto del processo (anch'esso dell'`Application`); senza remoto non fanno niente. */
+    override val assetRequests: AssetRequests = NoAssetRequests,
 ) : Platform {
 
     /** "Salva con nome": nome proposto e tipo MIME → dove salvare. */

@@ -2,8 +2,12 @@ package com.sagoma.planimetria
 
 import android.app.Application
 import android.util.Log
+import com.sagoma.planimetria.assets.AssetRequests
 import com.sagoma.planimetria.assets.AssetStore
 import com.sagoma.planimetria.assets.LateBoundAssetStore
+import com.sagoma.planimetria.assets.NoAssetRequests
+import com.sagoma.planimetria.assets.remote.LateBoundAssetRequests
+import com.sagoma.planimetria.assets.remote.ManifestRefreshResult
 import com.sagoma.planimetria.assets.remote.RemoteAssets
 import com.sagoma.planimetria.assets.remote.createJvmRemoteAssets
 import kotlinx.coroutines.CompletableDeferred
@@ -11,7 +15,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import java.io.File
 
 /**
@@ -44,6 +50,14 @@ class SagomaApplication : Application() {
     var remoteStore: AssetStore? = null
         private set
 
+    /**
+     * Come una `Platform` chiede al sistema remoto di portare un file sul dispositivo (priorità comprese) e sa che è arrivato (o che
+     * il sistema è pronto o ha un manifest nuovo): usa il prefetcher di `remoteAssets` senza che l'interfaccia lo veda né aspetti.
+     * Prima che il sistema sia aperto le richieste non fanno niente. [NoAssetRequests] dove il remoto è spento.
+     */
+    var assetRequests: AssetRequests = NoAssetRequests
+        private set
+
     override fun onCreate() {
         super.onCreate()
         remoteAssets = openRemoteAssets()
@@ -56,17 +70,40 @@ class SagomaApplication : Application() {
         val blobBaseUrl = getString(R.string.remote_blob_base_url).trim()
         if (manifestUrl.isEmpty() || blobBaseUrl.isEmpty()) return remoteDisabled()
         val late = LateBoundAssetStore()
+        val requests = LateBoundAssetRequests()
         remoteStore = late
-        return CoroutineScope(SupervisorJob() + Dispatchers.IO).async {
+        assetRequests = requests
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        return scope.async {
             try {
                 // Stessa cartella di base della cache degli asset impacchettati: le cartelle remote non vengono mai toccate dalla sua pulizia.
-                createJvmRemoteAssets(File(noBackupFilesDir, "asset-cache"), manifestUrl, blobBaseUrl, REMOTE_CACHE_BYTES)
-                    ?.also { late.bind(it.store) } // una sola volta: questo è l'unico punto che lo fa
+                createJvmRemoteAssets(File(noBackupFilesDir, "asset-cache"), manifestUrl, blobBaseUrl, REMOTE_CACHE_BYTES)?.also { remote ->
+                    // Una sola volta: questo è l'unico punto che collega.
+                    late.bind(remote.store)
+                    requests.bind(remote.prefetcher, scope)
+                    // Il manifest si aggiorna a parte (`scope`, non questo lavoro): chi aspetta `remoteAssets` non aspetta la rete.
+                    scope.launch { refreshManifest(remote, requests) }
+                }
             } catch (e: Exception) {
                 // Il remoto è un di più: se non si apre l'app funziona con gli asset impacchettati.
                 Log.w(TAG, "Sistema remoto non disponibile", e)
                 null
             }
+        }
+    }
+
+    /** Una volta all'avvio: se arriva un manifest nuovo chi osserva ricontrolla (le richieste fatte prima non avevano niente da scaricare). */
+    private suspend fun refreshManifest(remote: RemoteAssets, requests: LateBoundAssetRequests) {
+        try {
+            when (val r = remote.refreshManifest()) {
+                is ManifestRefreshResult.Updated -> requests.invalidate()
+                is ManifestRefreshResult.Failed -> Log.w(TAG, "Manifest remoto non aggiornato: ${r.error}")
+                else -> {} // già aggiornato: lo store ha il manifest giusto fin dall'apertura
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Aggiornamento del manifest remoto non riuscito", e)
         }
     }
 
