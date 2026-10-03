@@ -19,6 +19,8 @@ import androidx.compose.ui.window.WindowExceptionHandlerFactory
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.sagoma.planimetria.Edition
+import com.sagoma.planimetria.assets.remote.RemoteAssets
+import com.sagoma.planimetria.assets.remote.createJvmRemoteAssets
 import com.sagoma.planimetria.persistence.FileProjectRepository
 import com.sagoma.planimetria.persistence.FileTipStore
 import com.sagoma.planimetria.ui.FurnitureAssets
@@ -57,16 +59,39 @@ private fun logError(where: String, e: Throwable) {
     }
 }
 
+/** Spazio massimo della cache dei blob remoti sul computer (valore di partenza, da tarare). */
+private const val REMOTE_CACHE_BYTES = 1024L * 1024 * 1024
+
+/**
+ * Il sistema remoto degli asset, uno per processo: si crea qui, una volta, e si passa a chi lo usa. Solo se si indicano gli indirizzi
+ * (`-Dsagoma.remote.manifest=` e `-Dsagoma.remote.blobs=`, come `-Dsagoma.assets`); altrimenti `null`: nessuna cache remota, nessuna rete.
+ * La cartella degli asset indicata con `-Dsagoma.assets` non si tocca mai.
+ */
+private fun createRemoteAssets(): RemoteAssets? {
+    val manifestUrl = System.getProperty("sagoma.remote.manifest")?.trim().orEmpty()
+    val blobBaseUrl = System.getProperty("sagoma.remote.blobs")?.trim().orEmpty()
+    if (manifestUrl.isEmpty() || blobBaseUrl.isEmpty()) return null
+    val assets = System.getProperty("sagoma.assets")?.let(::File)?.takeIf { it.isDirectory }
+    return createJvmRemoteAssets(assetCacheDir(), manifestUrl, blobBaseUrl, REMOTE_CACHE_BYTES, protectedDirs = listOfNotNull(assets))
+}
+
 fun main() {
     Thread.setDefaultUncaughtExceptionHandler { t, e -> logError("thread ${t.name}", e) }
-    app()
+    // Una sola volta per processo, chiuso quando la finestra si chiude e il programma finisce (non a ogni ricomposizione).
+    val remote = createRemoteAssets()
+    try {
+        app(remote)
+    } finally {
+        remote?.close()
+    }
     // Finestra chiusa (progetto già salvato alla chiusura): il programma finisce davvero. Prima poteva
     // restare aperto, invisibile, in memoria.
     exitProcess(0)
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
-private fun app() = application(exitProcessOnExit = false) {
+@Suppress("UNUSED_PARAMETER") // lo usa la Platform nella tranche di collegamento
+private fun app(remote: RemoteAssets?) = application(exitProcessOnExit = false) {
     val dir = dataDir()
     val assets = System.getProperty("sagoma.assets")?.let(::File)?.takeIf { it.isDirectory }
     val platform = DesktopPlatform(isPro = true, projects = FileProjectRepository(dir), tips = FileTipStore(dir), assets = assets, assetCacheDir = assetCacheDir())

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sistema remoto degli asset (solo versione pro). Vuoti = disattivato: nessuna cache remota, nessuna rete, nessun thread. -->
+    <string name="remote_manifest_url" translatable="false"></string>
+    <string name="remote_blob_base_url" translatable="false"></string>
+</resources>

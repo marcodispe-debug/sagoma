@@ -31,6 +31,10 @@ class RemoteAssets(
     @kotlin.concurrent.Volatile
     private var closed = false
 
+    /** Chi ha costruito il sistema può farsi avvisare della chiusura (la factory JVM ci libera la cartella che occupa). */
+    @kotlin.concurrent.Volatile
+    internal var onClosed: (() -> Unit)? = null
+
     /**
      * Chiede un manifest più recente (vedi [ManifestRepository.refresh]); se è `Updated` o `Unchanged` allinea lo store allo
      * snapshot corrente. Dopo [close] termina subito con `Failed(Cancelled)`: niente richiesta, niente salvataggio, niente applicazione.
@@ -67,6 +71,9 @@ class RemoteAssets(
         closed = true
         prefetcher.close()
         store.close()
+        val hook = onClosed
+        onClosed = null
+        hook?.invoke()
     }
 
     private suspend fun applyIfUpdated(r: ManifestRefreshResult): ManifestRefreshResult {
