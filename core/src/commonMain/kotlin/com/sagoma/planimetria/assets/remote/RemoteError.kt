@@ -60,8 +60,8 @@ sealed class RemoteError {
     }
 
     /** L'impronta SHA-256 del contenuto non è quella attesa. */
-    data class HashMismatch(val expected: String, val actual: String) : RemoteError() {
-        override fun describe() = "hash mismatch: expected $expected, got $actual"
+    data class HashMismatch(val expected: String, val actual: String? = null) : RemoteError() {
+        override fun describe() = "hash mismatch: expected $expected" + (actual?.let { ", got $it" } ?: "")
     }
 
     /** La cache locale non è utilizzabile (disco pieno, non scrivibile, percorso non valido). */
