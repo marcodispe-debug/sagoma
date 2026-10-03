@@ -13,6 +13,12 @@ import kotlin.test.assertTrue
 class HttpBlobFetcherTest {
     private val server = FakeBlobServer()
 
+    // Le chiavi dei blob sono sempre impronte (BlobRequest rifiuta il resto): chiavi di prova valide.
+    private val K = "a".repeat(64)
+    private val RA = "b".repeat(64)
+    private val MISSING = "c".repeat(64)
+    private fun sk(code: Int) = "%064x".format(code)
+
     @AfterTest
     fun stop() = server.close()
 
@@ -36,9 +42,9 @@ class HttpBlobFetcherTest {
     @Test
     fun `200 consegna i byte a blocchi`() {
         val d = bytes(100_000)
-        server.content("k", BytesContent(d))
+        server.content(K, BytesContent(d))
         val sink = Collect()
-        val r = fetch(HttpBlobFetcher(server.baseUrl, bufferSize = 4096), "k", size = 100_000, sink = sink)
+        val r = fetch(HttpBlobFetcher(server.baseUrl, bufferSize = 4096), K, size = 100_000, sink = sink)
         assertEquals(FetchResult.Success(100_000, 100_000), r)
         assertContentEquals(d, sink.out.toByteArray())
         assertTrue(sink.chunks > 10, "chunks=${sink.chunks}")
@@ -47,13 +53,13 @@ class HttpBlobFetcherTest {
 
     @Test
     fun `stati HTTP`() {
-        for (code in listOf(403, 404, 429, 500, 503, 418)) server.route("s$code", Behavior.Status(code))
+        for (code in listOf(403, 404, 429, 500, 503, 418)) server.route(sk(code), Behavior.Status(code))
         for (code in listOf(403, 404, 429, 500, 503, 418)) {
-            assertEquals(FetchResult.Http(code), fetch(HttpBlobFetcher(server.baseUrl), "s$code", sink = Collect()), "code $code")
+            assertEquals(FetchResult.Http(code), fetch(HttpBlobFetcher(server.baseUrl), sk(code), sink = Collect()), "code $code")
         }
-        server.route("ra", Behavior.Status(429, retryAfter = "7"))
-        assertEquals(FetchResult.Http(429, 7), fetch(HttpBlobFetcher(server.baseUrl), "ra", sink = Collect()))
-        assertEquals(FetchResult.Http(404), fetch(HttpBlobFetcher(server.baseUrl), "missing", sink = Collect()))
+        server.route(RA, Behavior.Status(429, retryAfter = "7"))
+        assertEquals(FetchResult.Http(429, 7), fetch(HttpBlobFetcher(server.baseUrl), RA, sink = Collect()))
+        assertEquals(FetchResult.Http(404), fetch(HttpBlobFetcher(server.baseUrl), MISSING, sink = Collect()))
     }
 
     @Test
@@ -70,18 +76,18 @@ class HttpBlobFetcherTest {
 
     @Test
     fun `lunghezza annunciata diversa da quella attesa prima di leggere il corpo`() {
-        server.content("k", BytesContent(bytes(500)))
+        server.content(K, BytesContent(bytes(500)))
         val sink = Collect()
-        val r = fetch(HttpBlobFetcher(server.baseUrl), "k", size = 400, sink = sink)
+        val r = fetch(HttpBlobFetcher(server.baseUrl), K, size = 400, sink = sink)
         assertEquals(FetchResult.ContentLengthMismatch(400, 500), r)
         assertEquals(0, sink.out.size())
     }
 
     @Test
     fun `risposta troncata`() {
-        server.route("k", Behavior.Cut(BytesContent(bytes(100_000)), 30_000))
+        server.route(K, Behavior.Cut(BytesContent(bytes(100_000)), 30_000))
         val sink = Collect()
-        val r = fetch(HttpBlobFetcher(server.baseUrl), "k", size = 100_000, sink = sink)
+        val r = fetch(HttpBlobFetcher(server.baseUrl), K, size = 100_000, sink = sink)
         assertIs<FetchResult.Truncated>(r)
         assertTrue(r.bytesDelivered in 1..30_000, r.toString())
         assertEquals(100_000L, r.announced)
@@ -90,14 +96,14 @@ class HttpBlobFetcherTest {
 
     @Test
     fun `timeout`() {
-        server.route("k", Behavior.Hang(2_000))
-        assertEquals(FetchResult.Timeout, fetch(HttpBlobFetcher(server.baseUrl, readTimeoutMillis = 200), "k", sink = Collect()))
+        server.route(K, Behavior.Hang(2_000))
+        assertEquals(FetchResult.Timeout, fetch(HttpBlobFetcher(server.baseUrl, readTimeoutMillis = 200), K, sink = Collect()))
     }
 
     @Test
     fun `timeout durante il corpo`() {
-        server.route("k", Behavior.Ok(BytesContent(bytes(100_000)), chunkSize = 1_000, delayPerChunkMs = 800))
-        val r = fetch(HttpBlobFetcher(server.baseUrl, readTimeoutMillis = 200), "k", sink = Collect())
+        server.route(K, Behavior.Ok(BytesContent(bytes(100_000)), chunkSize = 1_000, delayPerChunkMs = 800))
+        val r = fetch(HttpBlobFetcher(server.baseUrl, readTimeoutMillis = 200), K, sink = Collect())
         assertEquals(FetchResult.Timeout, r)
     }
 
@@ -106,16 +112,16 @@ class HttpBlobFetcherTest {
         val dead = FakeBlobServer()
         val url = dead.baseUrl
         dead.close()
-        val r = fetch(HttpBlobFetcher(url, headers = mapOf("Authorization" to "Bearer SEGRETO")), "k", sink = Collect())
+        val r = fetch(HttpBlobFetcher(url, headers = mapOf("Authorization" to "Bearer SEGRETO")), K, sink = Collect())
         assertIs<FetchResult.ConnectionFailed>(r)
         assertFalse("127.0.0.1" in r.toString() || "SEGRETO" in r.toString(), r.toString())
     }
 
     @Test
     fun `il sink puo fermare il trasferimento`() {
-        server.content("k", BytesContent(bytes(200_000)))
+        server.content(K, BytesContent(bytes(200_000)))
         var n = 0
-        val r = fetch(HttpBlobFetcher(server.baseUrl, bufferSize = 1000), "k", sink = BlobSink { _, _, _ -> ++n < 3 })
+        val r = fetch(HttpBlobFetcher(server.baseUrl, bufferSize = 1000), K, sink = BlobSink { _, _, _ -> ++n < 3 })
         assertIs<FetchResult.SinkRejected>(r)
         assertEquals(2000L, r.bytesDelivered)
     }
@@ -123,9 +129,9 @@ class HttpBlobFetcherTest {
     @Test
     fun `offset diverso da zero usa Range e pretende 206`() {
         val d = bytes(10_000)
-        server.content("k", BytesContent(d))
+        server.content(K, BytesContent(d))
         val sink = Collect()
-        val r = fetch(HttpBlobFetcher(server.baseUrl), "k", offset = 4_000, size = 10_000, sink = sink)
+        val r = fetch(HttpBlobFetcher(server.baseUrl), K, offset = 4_000, size = 10_000, sink = sink)
         assertEquals(FetchResult.Success(6_000, 6_000), r)
         assertContentEquals(d.copyOfRange(4_000, 10_000), sink.out.toByteArray())
         assertTrue(server.requestHeaders.last().any { (k, v) -> k.equals("Range", true) && v == listOf("bytes=4000-") })
@@ -133,16 +139,24 @@ class HttpBlobFetcherTest {
 
     @Test
     fun `intestazioni proprie e niente compressione`() {
-        server.content("k", BytesContent(bytes(10)))
-        fetch(HttpBlobFetcher(server.baseUrl, headers = mapOf("X-Test" to "uno")), "k", sink = Collect())
+        server.content(K, BytesContent(bytes(10)))
+        fetch(HttpBlobFetcher(server.baseUrl, headers = mapOf("X-Test" to "uno")), K, sink = Collect())
         val h = server.requestHeaders.last()
         assertTrue(h.any { (k, v) -> k.equals("X-Test", true) && v == listOf("uno") })
         assertTrue(h.any { (k, v) -> k.equals("Accept-Encoding", true) && v == listOf("identity") })
     }
 
     @Test
+    fun `una chiave non valida non arriva mai al fetcher ne al server`() {
+        for (bad in listOf("../../secret", "k", "", "a/b", "%2e%2e", "http://evil/x", "x?y=1", "x#z")) {
+            kotlin.test.assertFailsWith<IllegalArgumentException>(bad) { BlobRequest(bad) }
+        }
+        assertEquals(0, server.totalHits())
+    }
+
+    @Test
     fun `corpo vuoto`() {
-        server.content("k", BytesContent(ByteArray(0)))
-        assertEquals(FetchResult.Success(0, 0), fetch(HttpBlobFetcher(server.baseUrl), "k", size = 0, sink = Collect()))
+        server.content(K, BytesContent(ByteArray(0)))
+        assertEquals(FetchResult.Success(0, 0), fetch(HttpBlobFetcher(server.baseUrl), K, size = 0, sink = Collect()))
     }
 }

@@ -156,7 +156,7 @@ class RemoteAssetStoreHttpTest {
     fun `ensure dopo un errore restituisce Remote e poi riesce quando il server torna`() = runBlocking<Unit> {
         val b = blob()
         server.route(b.key, Behavior.Status(404))
-        val s = store(disk(), resolverOf(b))
+        val s = store(disk(), resolverOf(b), policy = FetchPolicy(maxAttempts = 3, baseBackoffMillis = 1, maxBackoffMillis = 5, failureCooldownMillis = 0))
         assertEquals(AssetAvailability.Remote, s.ensure(b.path))
         assertIs<AssetState.Failed>(s.state(b.path))
         serve(b)

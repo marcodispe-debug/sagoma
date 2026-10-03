@@ -9,7 +9,12 @@ enum class AssetStatus { Active, Deprecated, Withdrawn }
 /** Chi può scaricarlo: `Public` senza credenziali, `Protected` serve un accesso (per esempio la versione pro). */
 enum class AssetAccess { Public, Protected }
 
-/** Come si dispone una cartella di blob: dove sta il contenuto con una certa impronta. */
+/**
+ * Come si dispone una cartella di blob: dove sta il contenuto con una certa impronta. È l'UNICA definizione di
+ * che cosa sia una chiave di blob valida ([isValidKey], [isValidBlobKey]): il resolver, la richiesta di
+ * trasporto e i fetcher usano questa, così una chiave non può diventare un percorso o un indirizzo arbitrario
+ * (`..`, `/`, `\`, `?`, `#`, `%2e`, schemi, maiuscole: tutto ciò che non è esadecimale minuscolo è rifiutato).
+ */
 enum class BlobLayout {
     /** `<sha256>` */
     Flat,
@@ -17,10 +22,29 @@ enum class BlobLayout {
     /** `<aa>/<sha256>`, con `aa` i primi due caratteri dell'impronta. */
     Fanout2;
 
-    /** Chiave del blob con questa impronta (minuscola): indipendente da dove e come lo si serve. */
-    fun keyOf(sha256: String): String = when (this) {
-        Flat -> sha256
-        Fanout2 -> sha256.substring(0, 2) + "/" + sha256
+    /** Chiave del blob con questa impronta; l'impronta deve essere SHA-256 esadecimale minuscolo (altrimenti `IllegalArgumentException`). */
+    fun keyOf(sha256: String): String {
+        require(isBlobSha256(sha256)) { "impronta del blob non valida" }
+        return when (this) {
+            Flat -> sha256
+            Fanout2 -> sha256.substring(0, 2) + "/" + sha256
+        }
+    }
+
+    /** `key` è una chiave ben formata di questa disposizione. */
+    fun isValidKey(key: String): Boolean = when (this) {
+        Flat -> isBlobSha256(key)
+        Fanout2 -> key.length == 2 + 1 + SHA256_HEX_LENGTH && key[2] == '/' && isBlobSha256(key.substring(3)) && key.startsWith(key.substring(3, 5))
+    }
+
+    companion object {
+        private const val SHA256_HEX_LENGTH = 64
+
+        /** SHA-256 in esadecimale minuscolo, 64 caratteri e nient'altro. */
+        fun isBlobSha256(s: String): Boolean = s.length == SHA256_HEX_LENGTH && s.all { it in '0'..'9' || it in 'a'..'f' }
+
+        /** `key` è una chiave valida per almeno una disposizione. */
+        fun isValidBlobKey(key: String): Boolean = entries.any { it.isValidKey(key) }
     }
 }
 

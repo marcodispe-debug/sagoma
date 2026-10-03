@@ -7,6 +7,11 @@ class BlobEntry(
     /** Chiave del blob nel deposito (derivata dall'impronta e dalla disposizione del manifest), senza nessun URL. */
     val blobKey: String,
 ) {
+    init {
+        // Difesa in profondità: anche con un manifest costruito a mano (senza passare dal parser) la chiave resta un'impronta.
+        require(BlobLayout.isValidBlobKey(blobKey) && blobKey.endsWith(file.sha256)) { "chiave del blob non valida" }
+    }
+
     val path: String get() = file.path
     val role: String get() = file.role
     val sha256: String get() = file.sha256
@@ -31,7 +36,12 @@ class BlobResolver(val manifest: Manifest) {
             a[asset.id] = asset
             val roles = LinkedHashMap<String, BlobEntry>()
             for (f in asset.files) {
-                val e = BlobEntry(asset.id, f, manifest.blobLayout.keyOf(f.sha256))
+                val key = try {
+                    manifest.blobLayout.keyOf(f.sha256)
+                } catch (e: IllegalArgumentException) {
+                    throw IllegalArgumentException("asset '${asset.id}': impronta del file non valida")
+                }
+                val e = BlobEntry(asset.id, f, key)
                 if (f.role !in roles) roles[f.role] = e
                 if (f.path !in p) p[f.path] = e // un percorso ripetuto ha lo stesso contenuto (lo garantisce la validazione)
             }

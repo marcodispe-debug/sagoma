@@ -12,8 +12,9 @@ interface BlobFetcher {
 }
 
 /**
- * Cosa scaricare. [blobKey] è la chiave del blob nel deposito (vedi [BlobEntry.blobKey]): sta al fetcher
- * tradurla in un indirizzo, così l'endpoint resta astratto. [offset] è dove riprendere: per ora si usa sempre 0
+ * Cosa scaricare. [blobKey] è la chiave del blob nel deposito (vedi [BlobEntry.blobKey]), sempre una chiave
+ * valida secondo [BlobLayout] (altrimenti la richiesta non si crea): sta al fetcher tradurla in un indirizzo,
+ * così l'endpoint resta astratto e la chiave non può uscire dal suo spazio. [offset] è dove riprendere: per ora si usa sempre 0
  * (un fetcher può non supportare altro). [expectedSize] è la dimensione intera attesa del blob, utile al trasporto
  * per scartare subito una risposta che dichiara un'altra lunghezza; `null` se non si sa.
  */
@@ -23,6 +24,7 @@ class BlobRequest(
     val expectedSize: Long? = null,
 ) {
     init {
+        require(BlobLayout.isValidBlobKey(blobKey)) { "chiave del blob non valida" }
         require(offset >= 0) { "offset negativo" }
     }
 }

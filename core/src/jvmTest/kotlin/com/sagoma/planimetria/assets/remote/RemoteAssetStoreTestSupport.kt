@@ -5,7 +5,12 @@ import com.sagoma.planimetria.assets.AssetPutResult
 import com.sagoma.planimetria.assets.AssetWriteResult
 import com.sagoma.planimetria.assets.AssetWriter
 import com.sagoma.planimetria.assets.DiskAssetCache
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -54,3 +59,43 @@ class SpyCache(val disk: DiskAssetCache) : AssetCache by disk {
 }
 
 fun tmpCount(root: File): Int = File(root, "tmp").listFiles()?.size ?: 0
+
+fun TestBlob.bytes(): ByteArray = (content as BytesContent).bytes
+
+/** Fetcher in memoria: ogni blob aspetta il suo "via libera". Con `cancellable = false` ignora la cancellazione mentre aspetta. */
+class GateFetcher(private val cancellable: Boolean = true) : BlobFetcher {
+    val requests = CopyOnWriteArrayList<String>()
+    val contents = ConcurrentHashMap<String, ByteArray>()
+    private val gates = ConcurrentHashMap<String, CompletableDeferred<Unit>>()
+
+    fun gate(key: String): CompletableDeferred<Unit> = gates.getOrPut(key) { CompletableDeferred() }
+    fun add(b: TestBlob): GateFetcher = also { contents[b.key] = b.bytes() }
+
+    override suspend fun fetch(request: BlobRequest, sink: BlobSink): FetchResult {
+        requests += request.blobKey
+        val g = gate(request.blobKey)
+        if (cancellable) g.await() else withContext(NonCancellable) { g.await() }
+        val b = contents[request.blobKey] ?: return FetchResult.Http(404)
+        sink.accept(b, 0, b.size)
+        return FetchResult.Success(b.size.toLong(), b.size.toLong())
+    }
+}
+
+/** Fetcher in memoria che conta le chiamate; risponde con `status` (se non `null`) oppure con il contenuto. */
+class CountingFetcher : BlobFetcher {
+    val calls = AtomicInteger()
+    val contents = ConcurrentHashMap<String, ByteArray>()
+
+    @Volatile
+    var status: Int? = null
+
+    fun add(b: TestBlob): CountingFetcher = also { contents[b.key] = b.bytes() }
+
+    override suspend fun fetch(request: BlobRequest, sink: BlobSink): FetchResult {
+        calls.incrementAndGet()
+        status?.let { return FetchResult.Http(it) }
+        val b = contents[request.blobKey] ?: return FetchResult.Http(404)
+        sink.accept(b, 0, b.size)
+        return FetchResult.Success(b.size.toLong(), b.size.toLong())
+    }
+}

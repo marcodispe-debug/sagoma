@@ -94,23 +94,3 @@ class CachePopulatingAssetStore(
         }
     }
 }
-
-/**
- * La cache vista come negozio, ma senza fidarsi di una voce la cui impronta non è quella attesa per quel
- * percorso: per quel file la cache "non ce l'ha", e chi sta dietro (la sorgente) lo rimette al suo posto.
- */
-class HashCheckedCacheView(
-    private val cache: AssetCache,
-    private val expectedSha256: (String) -> String?,
-) : AssetStore {
-    private fun stale(path: String): Boolean {
-        val want = expectedSha256(path) ?: return false
-        val have = cache.info(path)?.sha256 ?: return false // senza voce è già un "non c'è"
-        return !have.equals(want, ignoreCase = true)
-    }
-
-    override fun availability(path: String): AssetAvailability =
-        if (stale(path)) AssetAvailability.Unavailable else cache.availability(path)
-
-    override fun peek(path: String): ByteArray? = if (stale(path)) null else cache.peek(path)
-}

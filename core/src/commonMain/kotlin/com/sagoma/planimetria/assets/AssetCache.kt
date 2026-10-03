@@ -105,3 +105,11 @@ interface AssetCache : AssetStore {
     /** Svuota la cache, file fissati compresi. */
     fun clear()
 }
+
+/**
+ * La voce in cache è proprio quella attesa: stessa impronta SHA-256 (maiuscole e minuscole non contano) e, se
+ * [size] è data, stessa dimensione. L'unico confronto "questo file è quello giusto?" per chi verifica la cache
+ * contro un manifest ([HashCheckedCacheView], [com.sagoma.planimetria.assets.remote.RemoteAssetStore]).
+ */
+internal fun CachedAssetInfo?.matches(sha256: String, size: Long? = null): Boolean =
+    this != null && this.sha256.equals(sha256, ignoreCase = true) && (size == null || this.size == size)

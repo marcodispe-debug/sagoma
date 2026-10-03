@@ -7,6 +7,10 @@ package com.sagoma.planimetria.assets.remote
  * - [maxConcurrentDownloads]: tentativi di download in corso nello stesso momento (di blob diversi).
  * - [maxAttempts]: tentativi totali per un blob, il primo compreso.
  * - [retryTruncated]: una risposta interrotta a metà si ritenta (è un problema di connessione); se `false` fallisce subito.
+ * - [failureCooldownMillis]: dopo che un blob ha fallito per un errore transiente (finiti i tentativi) un nuovo `ensure`
+ *   non riparte subito con un'altra raffica: per questo tempo ridà l'errore già noto, senza rete. Non vale per gli errori
+ *   permanenti o di integrità (404, 403, hash, dimensione, cache…): un nuovo `ensure` esplicito rifà la verifica. Poi scade da solo, e solo una nuova richiesta
+ *   riprova (non c'è nessun ritentativo automatico). `0` lo disattiva. Vale per blob (percorso + impronta attesa).
  * - Attesa prima del tentativo successivo: [baseBackoffMillis] raddoppiata a ogni tentativo, al massimo [maxBackoffMillis];
  *   con `Retry-After` si aspetta almeno quanto dice il server, sempre entro [maxBackoffMillis].
  *
@@ -19,11 +23,12 @@ class FetchPolicy(
     val retryTruncated: Boolean = true,
     val baseBackoffMillis: Long = 500,
     val maxBackoffMillis: Long = 10_000,
+    val failureCooldownMillis: Long = 5_000,
 ) {
     init {
         require(maxConcurrentDownloads >= 1) { "maxConcurrentDownloads deve essere almeno 1" }
         require(maxAttempts >= 1) { "maxAttempts deve essere almeno 1" }
-        require(baseBackoffMillis >= 0 && maxBackoffMillis >= 0) { "attese negative" }
+        require(baseBackoffMillis >= 0 && maxBackoffMillis >= 0 && failureCooldownMillis >= 0) { "attese negative" }
     }
 
     fun isRetryable(error: RemoteError): Boolean = error.isTransient

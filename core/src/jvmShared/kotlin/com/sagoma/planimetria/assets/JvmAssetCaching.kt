@@ -34,6 +34,39 @@ fun buildCachedAssetStore(
     return cachedAssetStore(source, cache, expectedSha256, run)
 }
 
+/**
+ * Nome della cartella (dentro la cartella di base che si passa a [openRemoteAssetCache]) della cache dei blob remoti.
+ * Non è mai uno dei nomi `v-<impronta>` che [openVersionedAssetCache] cancella: i blob remoti sono contenuto verificato dal
+ * manifest, valido tra un aggiornamento dell'app e l'altro, mentre la cache degli asset impacchettati è una copia derivata
+ * dall'installazione e si butta a ogni nuova versione.
+ */
+const val REMOTE_CACHE_DIR_NAME = "remote"
+
+/**
+ * Apre la cache dei blob remoti in `baseDir/remote`: una cache separata da quella degli asset impacchettati, senza
+ * versioni né cancellazioni legate all'installazione (anche se `baseDir` è la stessa cartella di base della cache versionata).
+ * `null` se non si può usare (cartella dentro o sopra una delle `protectedDirs`, errore di apertura): chi chiama prosegue senza remoto.
+ *
+ * Composizione prevista:
+ * ```
+ * CompositeAssetStore(
+ *   <asset impacchettati + loro cache versionata>,   // buildCachedAssetStore(...)
+ *   RemoteAssetStore(manifest, <questa cache>, fetcher),
+ * )
+ * ```
+ * Questa cache si usa SOLO passandola a [com.sagoma.planimetria.assets.remote.RemoteAssetStore], che verifica ogni file contro
+ * l'impronta del manifest: mai come negozio nudo davanti ad esso.
+ */
+fun openRemoteAssetCache(baseDir: File, maxBytes: Long, protectedDirs: List<File> = emptyList()): AssetCache? {
+    val dir = File(baseDir, REMOTE_CACHE_DIR_NAME)
+    if (protectedDirs.any { overlaps(dir, it) }) return null
+    return try {
+        DiskAssetCache(dir, maxBytes)
+    } catch (e: Exception) {
+        null
+    }
+}
+
 private const val VERSION_DIR_PREFIX = "v-"
 private val versionDirName = Regex("v-[0-9a-f]{16}")
 
