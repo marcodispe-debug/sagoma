@@ -16,6 +16,12 @@ enum class AssetPutResult {
 
     /** Errore del disco (spazio finito, percorso occupato da un file…): il file NON è stato salvato e il resto della cache è intatto. */
     IoError,
+
+    /** I byte ricevuti non sono quanti dichiarati (troppi o troppo pochi): il file NON è stato salvato. */
+    SizeMismatch,
+
+    /** Chi scriveva ha rinunciato ([AssetWriter.abort]) o ha chiuso lo scrittore senza completarlo: niente è stato salvato. */
+    Aborted,
 }
 
 /**
@@ -60,6 +66,18 @@ interface AssetCache : AssetStore {
      * contenuto deve avere quell'impronta, altrimenti non si salva ([AssetPutResult.HashMismatch]).
      */
     fun put(path: String, bytes: ByteArray, sha256: String? = null): AssetPutResult
+
+    /**
+     * Apre una scrittura a blocchi di un file di cui si conoscono dimensione e impronta (per esempio da un
+     * manifest): è il modo di mettere in cache file grandi senza tenerli per intero in memoria. Il file diventa
+     * visibile, completo, solo con [AssetWriter.commit]; vedi [AssetWriter] per le garanzie. Lo scrittore si
+     * ottiene sempre: se il percorso non è valido o il file non entra, il suo `commit` darà il motivo.
+     *
+     * L'implementazione di default accumula i byte in memoria e alla fine usa [put]: corretta ma non a blocchi.
+     * Le cache su disco la sostituiscono con una vera scrittura in streaming.
+     */
+    fun openWrite(path: String, expectedSize: Long, expectedSha256: String): AssetWriter =
+        BufferingAssetWriter(this, path, expectedSize, expectedSha256)
 
     /** Toglie il file dalla cache; `true` se c'era. */
     fun remove(path: String): Boolean

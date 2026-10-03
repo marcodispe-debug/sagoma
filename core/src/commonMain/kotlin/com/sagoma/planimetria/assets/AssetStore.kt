@@ -1,11 +1,32 @@
 package com.sagoma.planimetria.assets
 
 /**
- * Se un asset si può usare subito. Oggi i file sono tutti locali, quindi gli stati sono due; quando gli
- * asset potranno arrivare dalla rete se ne aggiungeranno altri (per esempio "da scaricare" e "in scaricamento"):
- * chi usa [AssetStore] deve trattare "non disponibile" come un caso normale, non come un errore.
+ * Se un asset si può usare subito. Un solo valore, [Available], vuol dire "c'è, si legge adesso": tutti gli altri
+ * vogliono dire "adesso no", e chi usa [AssetStore] deve trattarli come un caso normale, non come un errore
+ * (confrontare con `== Available`, mai con un elenco di stati). Il dettaglio (in scaricamento, errore…) sta in
+ * [com.sagoma.planimetria.assets.remote.AssetState], non qui.
  */
-enum class AssetAvailability { Available, Unavailable }
+enum class AssetAvailability {
+    /** C'è e si legge adesso. */
+    Available,
+
+    /** Non c'è, e questo negozio non sa dove prenderlo. */
+    Unavailable,
+
+    /** Non è ancora sul dispositivo, ma il catalogo remoto lo ha: [AssetStore.ensure] può ottenerlo. */
+    Remote,
+
+    /** Esiste, ma questa versione dell'app non sa usarlo: inutile provare a scaricarlo. */
+    Incompatible,
+}
+
+/** Da quanto è "buono" uno stato non disponibile: serve a un negozio composto per riassumere quelli dei suoi negozi. */
+private fun AssetAvailability.rank(): Int = when (this) {
+    AssetAvailability.Available -> 3
+    AssetAvailability.Remote -> 2
+    AssetAvailability.Incompatible -> 1
+    AssetAvailability.Unavailable -> 0
+}
 
 /**
  * Da dove arrivano i file di arredi, materiali e luci (catalogo, miniature, modelli 3D, texture, luci
@@ -45,6 +66,23 @@ interface AssetStore {
 internal fun isSafeAssetPath(path: String): Boolean =
     path.isNotEmpty() && !path.startsWith("/") && !path.startsWith("\\") && path.split('/', '\\').none { it == ".." }
 
+private val windowsReservedNames = setOf("CON", "PRN", "AUX", "NUL") + (1..9).map { "COM$it" } + (1..9).map { "LPT$it" }
+
+/**
+ * Percorso adatto a una cache su disco, anche su Windows: relativo, senza `..`, senza segmenti vuoti né
+ * caratteri che Windows non ammette, né nomi riservati (`CON`, `NUL`…). Lo usano la cache su disco e la
+ * validazione del manifest: un percorso che non lo rispetta non può stare né nell'uno né nell'altra.
+ */
+internal fun isPortableAssetPath(path: String): Boolean {
+    if (!isSafeAssetPath(path)) return false
+    for (segment in path.split('/')) {
+        if (segment.isEmpty() || segment.endsWith('.') || segment.endsWith(' ')) return false
+        if (segment.any { it < ' ' || it in "<>:\"|?*\\" }) return false
+        if (segment.substringBefore('.').uppercase() in windowsReservedNames) return false
+    }
+    return true
+}
+
 /** Comodo per `if`: il file è già disponibile adesso. */
 fun AssetStore.isAvailable(path: String): Boolean = availability(path) == AssetAvailability.Available
 
@@ -61,8 +99,16 @@ object EmptyAssetStore : AssetStore {
 class CompositeAssetStore(private val stores: List<AssetStore>) : AssetStore {
     constructor(vararg stores: AssetStore) : this(stores.toList())
 
-    override fun availability(path: String): AssetAvailability =
-        if (stores.any { it.availability(path) == AssetAvailability.Available }) AssetAvailability.Available else AssetAvailability.Unavailable
+    /** `Available` se uno dei negozi lo ha; altrimenti il miglior stato tra i negozi (`Remote` batte `Incompatible` batte `Unavailable`). */
+    override fun availability(path: String): AssetAvailability {
+        var best = AssetAvailability.Unavailable
+        for (s in stores) {
+            val a = s.availability(path)
+            if (a == AssetAvailability.Available) return a
+            if (a.rank() > best.rank()) best = a
+        }
+        return best
+    }
 
     override fun peek(path: String): ByteArray? {
         for (s in stores) s.peek(path)?.let { return it }
@@ -70,8 +116,13 @@ class CompositeAssetStore(private val stores: List<AssetStore>) : AssetStore {
     }
 
     override suspend fun ensure(path: String): AssetAvailability {
-        for (s in stores) if (s.ensure(path) == AssetAvailability.Available) return AssetAvailability.Available
-        return AssetAvailability.Unavailable
+        var best = AssetAvailability.Unavailable
+        for (s in stores) {
+            val a = s.ensure(path)
+            if (a == AssetAvailability.Available) return a
+            if (a.rank() > best.rank()) best = a
+        }
+        return best
     }
 
     /**

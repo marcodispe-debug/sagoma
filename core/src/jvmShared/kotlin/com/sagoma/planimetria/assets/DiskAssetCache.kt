@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.OutputStream
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
@@ -113,32 +114,149 @@ class DiskAssetCache(
         if (sha256 != null && !sha256.equals(actual, ignoreCase = true)) return AssetPutResult.HashMismatch
         if (synchronized(lock) { entries.keys.any { it != path && it.equals(path, ignoreCase = true) } }) return AssetPutResult.InvalidPath
 
-        val tmp = try {
-            tmpDir.mkdirs()
-            File.createTempFile("asset-", ".part", tmpDir)
-        } catch (e: IOException) {
-            return AssetPutResult.IoError
-        }
+        val tmp = newTempFile() ?: return AssetPutResult.IoError
         try {
             FileOutputStream(tmp).use { out ->
                 out.write(bytes)
                 out.fd.sync()
             }
-            val target = File(dataDir, path)
-            synchronized(lock) {
-                target.parentFile?.mkdirs()
-                moveReplacing(tmp, target)
-                entries.remove(path)?.let { used -= it.size }
-                entries[path] = Entry(bytes.size.toLong(), actual, now())
-                used += bytes.size
-                evict(keep = path)
-                persist()
-            }
+            return installLocked(path, tmp, bytes.size.toLong(), actual)
         } catch (e: IOException) {
             tmp.delete() // se lo spostamento è riuscito il file non c'è più e delete non fa niente
             return AssetPutResult.IoError
         }
+    }
+
+    /**
+     * Scrittura a blocchi: i byte vanno in un file temporaneo (nella stessa cartella di `data/`, quindi lo
+     * spostamento finale è atomico) mentre se ne calcolano impronta e dimensione; a `commit` si verifica e si
+     * sposta. Dà sempre uno scrittore: se non può riuscire, è già fallito e `commit` dice perché.
+     */
+    override fun openWrite(path: String, expectedSize: Long, expectedSha256: String): AssetWriter {
+        fun failed(r: AssetPutResult) = FailedAssetWriter(path, expectedSize, expectedSha256, r)
+        if (!isPortableAssetPath(path)) return failed(AssetPutResult.InvalidPath)
+        if (expectedSize < 0) return failed(AssetPutResult.SizeMismatch)
+        if (expectedSize > maxBytes) return failed(AssetPutResult.TooLarge)
+        if (!isSha256Hex(expectedSha256)) return failed(AssetPutResult.HashMismatch)
+        if (synchronized(lock) { entries.keys.any { it != path && it.equals(path, ignoreCase = true) } }) return failed(AssetPutResult.InvalidPath)
+        val tmp = newTempFile() ?: return failed(AssetPutResult.IoError)
+        return try {
+            val fos = FileOutputStream(tmp)
+            DiskWriter(path, expectedSize, expectedSha256, tmp, fos, outputWrapper(fos))
+        } catch (e: IOException) {
+            tmp.delete()
+            failed(AssetPutResult.IoError)
+        }
+    }
+
+    /** Solo per i test: avvolge il flusso su disco di ogni scrittore (per simulare errori di scrittura). */
+    internal var outputWrapper: (OutputStream) -> OutputStream = { it }
+
+    /** Solo per i test: chiamato poco prima dello spostamento finale di un `commit` (può lanciare per simulare un errore). */
+    internal var beforeInstall: () -> Unit = {}
+
+    private inner class DiskWriter(
+        override val path: String,
+        override val expectedSize: Long,
+        override val expectedSha256: String,
+        private val tmp: File,
+        private val fos: FileOutputStream,
+        private val out: OutputStream,
+    ) : AssetWriter {
+        private val digest = IncrementalSha256()
+        private var written = 0L
+        private var result: AssetPutResult? = null // `null` finché è aperto
+
+        override val bytesWritten: Long @Synchronized get() = written
+        override val state: AssetWriterState
+            @Synchronized get() = when (result) {
+                null -> AssetWriterState.Open
+                AssetPutResult.Stored -> AssetWriterState.Committed
+                else -> AssetWriterState.Closed
+            }
+
+        @Synchronized
+        override fun write(chunk: ByteArray, offset: Int, length: Int): AssetWriteResult {
+            if (offset < 0 || length < 0 || offset > chunk.size - length) throw IndexOutOfBoundsException()
+            if (result != null) return AssetWriteResult.Closed
+            if (written + length > expectedSize) {
+                fail(AssetPutResult.SizeMismatch)
+                return AssetWriteResult.TooMuchData
+            }
+            try {
+                out.write(chunk, offset, length)
+            } catch (e: IOException) {
+                fail(AssetPutResult.IoError)
+                return AssetWriteResult.IoError
+            }
+            digest.update(chunk, offset, length)
+            written += length
+            return AssetWriteResult.Ok
+        }
+
+        @Synchronized
+        override fun commit(): AssetPutResult {
+            result?.let { return it }
+            if (written != expectedSize) return fail(AssetPutResult.SizeMismatch)
+            val actual = digest.hex()
+            if (!actual.equals(expectedSha256, ignoreCase = true)) return fail(AssetPutResult.HashMismatch)
+            try {
+                out.flush()
+                fos.fd.sync()
+                out.close()
+                beforeInstall()
+            } catch (e: IOException) {
+                return fail(AssetPutResult.IoError)
+            }
+            val r = try {
+                installLocked(path, tmp, written, actual)
+            } catch (e: IOException) {
+                tmp.delete()
+                AssetPutResult.IoError
+            }
+            if (r != AssetPutResult.Stored) tmp.delete()
+            result = r
+            return r
+        }
+
+        @Synchronized
+        override fun abort() {
+            if (result == null) fail(AssetPutResult.Aborted)
+        }
+
+        private fun fail(r: AssetPutResult): AssetPutResult {
+            result = r
+            try {
+                out.close()
+            } catch (e: IOException) {
+                // si sta già scartando tutto
+            }
+            tmp.delete()
+            return r
+        }
+    }
+
+    /** Sposta `tmp` al posto del file `path` e aggiorna indice e spazio; scritture concorrenti sullo stesso percorso: vince l'ultima, mai un file misto. */
+    private fun installLocked(path: String, tmp: File, size: Long, sha256: String): AssetPutResult {
+        val target = File(dataDir, path)
+        synchronized(lock) {
+            if (entries.keys.any { it != path && it.equals(path, ignoreCase = true) }) return AssetPutResult.InvalidPath
+            target.parentFile?.mkdirs()
+            moveReplacing(tmp, target)
+            entries.remove(path)?.let { used -= it.size }
+            entries[path] = Entry(size, sha256, now())
+            used += size
+            evict(keep = path)
+            persist()
+        }
         return AssetPutResult.Stored
+    }
+
+    private fun newTempFile(): File? = try {
+        tmpDir.mkdirs()
+        File.createTempFile("asset-", ".part", tmpDir)
+    } catch (e: IOException) {
+        null
     }
 
     override fun remove(path: String): Boolean {
@@ -310,21 +428,16 @@ class DiskAssetCache(
     }
 }
 
-private val windowsReservedNames = setOf("CON", "PRN", "AUX", "NUL") + (1..9).map { "COM$it" } + (1..9).map { "LPT$it" }
+/** Impronta SHA-256 in esadecimale minuscolo: lo stesso formato per `put`, per lo scrittore a blocchi e per `verify`. */
+internal fun hexOf(digest: ByteArray): String = digest.joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
 
-/**
- * Percorso adatto a una cache su disco, anche su Windows: relativo, senza `..`, senza segmenti vuoti né
- * caratteri che Windows non ammette, né nomi riservati (`CON`, `NUL`…).
- */
-internal fun isPortableAssetPath(path: String): Boolean {
-    if (!isSafeAssetPath(path)) return false
-    for (segment in path.split('/')) {
-        if (segment.isEmpty() || segment.endsWith('.') || segment.endsWith(' ')) return false
-        if (segment.any { it < ' ' || it in "<>:\"|?*\\" }) return false
-        if (segment.substringBefore('.').uppercase() in windowsReservedNames) return false
-    }
-    return true
+internal fun isSha256Hex(s: String): Boolean = s.length == 64 && s.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }
+
+internal fun sha256Hex(bytes: ByteArray): String = hexOf(MessageDigest.getInstance("SHA-256").digest(bytes))
+
+/** SHA-256 calcolato a blocchi, con lo stesso algoritmo e lo stesso formato di [sha256Hex]. */
+internal class IncrementalSha256 {
+    private val md = MessageDigest.getInstance("SHA-256")
+    fun update(bytes: ByteArray, offset: Int, length: Int) = md.update(bytes, offset, length)
+    fun hex(): String = hexOf(md.digest())
 }
-
-internal fun sha256Hex(bytes: ByteArray): String =
-    MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
