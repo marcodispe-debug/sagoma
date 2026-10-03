@@ -38,6 +38,15 @@ private fun dataDir(): File {
 }
 
 /**
+ * Cartella della cache degli asset: %LOCALAPPDATA%\Sagoma\asset-cache su Windows (non nel profilo "roaming",
+ * perché è grande e si può rifare), ~/.sagoma/asset-cache altrove. Mai dentro la cartella degli asset.
+ */
+private fun assetCacheDir(): File {
+    val local = System.getenv("LOCALAPPDATA")
+    return File(if (local != null) File(local, "Sagoma") else File(System.getProperty("user.home"), ".sagoma"), "asset-cache")
+}
+
+/**
  * Errori del programma in `errori.log` nella cartella dei dati: Sagoma parte senza console, e altrimenti
  * un errore non lascerebbe traccia (la finestra sparirebbe e basta).
  */
@@ -60,7 +69,7 @@ fun main() {
 private fun app() = application(exitProcessOnExit = false) {
     val dir = dataDir()
     val assets = System.getProperty("sagoma.assets")?.let(::File)?.takeIf { it.isDirectory }
-    val platform = DesktopPlatform(isPro = true, projects = FileProjectRepository(dir), tips = FileTipStore(dir), assets = assets)
+    val platform = DesktopPlatform(isPro = true, projects = FileProjectRepository(dir), tips = FileTipStore(dir), assets = assets, assetCacheDir = assetCacheDir())
     Edition.isPro = platform.isPro
     FurnitureAssets.init(platform)
     // Errore nella finestra: lo si scrive nel registro, lo si dice all'utente e si chiude tutto (invece di

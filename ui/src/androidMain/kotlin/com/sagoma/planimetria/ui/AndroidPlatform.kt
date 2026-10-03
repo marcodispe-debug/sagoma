@@ -101,7 +101,7 @@ class AndroidPlatform(
         activity.startActivity(Intent.createChooser(send, subject))
     }
 
-    override val assetStore: AssetStore = AndroidAssetStore(activity.assets)
+    override val assetStore: AssetStore = createAndroidAssetStore(activity, isPro)
 
     override fun decodeImage(bytes: ByteArray): ImageBitmap? = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
 
