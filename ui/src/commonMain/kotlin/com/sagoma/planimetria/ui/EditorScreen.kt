@@ -178,7 +178,6 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 state.canRedo,
                 vm,
                 focusedRoom = state.plan.room(state.focusedRoomId),
-                canDeleteRoom = state.plan.rooms.size > 1,
                 onExport = exportPng,
                 extraMenu = extraMenu,
                 compact = compact,
@@ -855,7 +854,6 @@ private fun Toolbar(
     canRedo: Boolean,
     vm: EditorViewModel,
     focusedRoom: Room?,
-    canDeleteRoom: Boolean,
     onExport: () -> Unit,
     /** Voci in più del menu ⋮ (progetti, tavola PDF, computo, pianta di sfondo). */
     extraMenu: List<Pair<String, () -> Unit>> = emptyList(),
@@ -895,14 +893,10 @@ private fun Toolbar(
                 DropdownMenuItem(
                     text = {
                         Text(
-                            when {
-                                focusedRoom == null -> "Elimina stanza…"
-                                !canDeleteRoom -> "Elimina stanza (è l'unica)"
-                                else -> "Elimina ${focusedRoom.name}…"
-                            },
+                            if (focusedRoom == null) "Elimina stanza…" else "Elimina ${focusedRoom.name}…",
                         )
                     },
-                    enabled = focusedRoom != null && canDeleteRoom,
+                    enabled = focusedRoom != null,
                     onClick = { menu = false; focusedRoom?.let { vm.requestDeleteRoom(it.id) } },
                 )
                 HorizontalDivider()

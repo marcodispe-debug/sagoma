@@ -13,6 +13,7 @@ import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.model.WallCut
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -131,5 +132,143 @@ class WallCutsTest {
         assertEquals(Pick.Wall(1, 0), sloped.pick)
         assertEquals(270.0, high.point.y, 0.5)
         assertEquals(235.0, sloped.point.y, 0.5)
+    }
+
+    // ---------- Mansarda: i due pallini sono lo stesso inizio di falda ----------
+
+    private fun cutRoom(points: List<Vec2>, s0: Double, s2: Double) = Room(
+        2, "Obliqua", RoomType.Altro, points,
+        wallHeights = mapOf(1 to 200.0),
+        wallCuts = mapOf(0 to WallCut(towardEnd = true, start = s0), 2 to WallCut(towardEnd = false, start = s2)),
+    )
+
+    // Muri 0 e 2 obliqui rispetto al muro basso (1, verticale a x = 600): i loro start, a pari distanza, differiscono.
+    private val oblique = cutRoom(listOf(Vec2(0.0, 0.0), Vec2(600.0, 100.0), Vec2(600.0, 350.0), Vec2(0.0, 400.0)), 150.0, 150.0)
+
+    private fun distFromLowWall(p: Vec2) = 600.0 - p.x
+
+    @Test
+    fun `i due punti di una mansarda dritta sono alla stessa distanza dal muro basso`() {
+        val a = Ceilings.startPoint(attic, 0)!!
+        val b = Ceilings.startPoint(attic, 2)!!
+        assertEquals(distFromLowWall(a), distFromLowWall(b), 1e-9)
+        assertEquals(2, Ceilings.partnerWall(attic, 0)?.let { 2 } ?: 0)
+        assertEquals(0, Ceilings.partnerWall(attic, 2))
+    }
+
+    @Test
+    fun `trascinando un punto l'altro si aggiorna alla stessa posizione`() {
+        val moved = Ceilings.withCutStart(attic, 0, 100.0)
+        assertEquals(100.0, moved.wallCuts[0]!!.start, 1e-9)
+        assertEquals(100.0, moved.wallCuts[2]!!.start, 1e-9)
+        val back = Ceilings.withCutStart(moved, 2, 220.0)
+        assertEquals(220.0, back.wallCuts[0]!!.start, 1e-9)
+        assertEquals(220.0, back.wallCuts[2]!!.start, 1e-9)
+        assertEquals(distFromLowWall(Ceilings.startPoint(back, 0)!!), distFromLowWall(Ceilings.startPoint(back, 2)!!), 1e-9)
+    }
+
+    @Test
+    fun `la linea di inizio falda passa esattamente dai due punti`() {
+        for (room in listOf(attic, Ceilings.withCutStart(oblique, 0, 150.0), Ceilings.withCutStart(oblique, 2, 90.0))) {
+            val lines = Ceilings.slopeStartLines(room)
+            assertEquals(1, lines.size)
+            val (p, q) = lines.single()
+            val pts = listOf(Ceilings.startPoint(room, 0)!!, Ceilings.startPoint(room, 2)!!)
+            assertEquals(setOf(pts[0], pts[1]).size, setOf(p, q).size)
+            for (pt in pts) assertTrue(Polygon.distanceToSegment(pt, p, q) < 1e-6)
+            assertTrue(p.distanceTo(pts[0]) < 1e-6 || p.distanceTo(pts[1]) < 1e-6)
+        }
+    }
+
+    @Test
+    fun `con muri obliqui i punti restano sulla stessa distanza anche se gli start differiscono`() {
+        val r = Ceilings.withCutStart(oblique, 0, 150.0)
+        val s0 = r.wallCuts[0]!!.start
+        val s2 = r.wallCuts[2]!!.start
+        assertTrue(Math.abs(s0 - s2) > 0.5) // start diversi...
+        val a = Ceilings.startPoint(r, 0)!!
+        val b = Ceilings.startPoint(r, 2)!!
+        assertEquals(distFromLowWall(a), distFromLowWall(b), 1e-6) // ...stessa posizione logica
+        // La linea è parallela al muro basso: nessuna diagonale.
+        val (p, q) = Ceilings.slopeStartLines(r).single()
+        assertEquals(p.x, q.x, 1e-6)
+        assertEquals(distFromLowWall(a), distFromLowWall(p), 1e-6)
+    }
+
+    @Test
+    fun `la falda e un solo piano senza triangoli o diagonali aggiuntivi`() {
+        for (room in listOf(attic, Ceilings.withCutStart(oblique, 0, 150.0), Ceilings.withCutStart(oblique, 2, 60.0))) {
+            val a = Ceilings.startPoint(room, 0)!!
+            val d = distFromLowWall(a)
+            // L'altezza dipende solo dalla distanza dal muro basso: stessa x, y diverse, stessa altezza.
+            for (x in listOf(300.0, 400.0, 500.0, 590.0)) {
+                val expected = if (600.0 - x >= d) 270.0 else 200.0 + 70.0 * (600.0 - x) / d
+                val h = listOf(150.0, 200.0, 250.0).map { Ceilings.heightAt(room, Vec2(x, it)) }
+                for (v in h) assertEquals(expected, v, 1e-6)
+            }
+            // Il bordo delle pareti coincide col soffitto: nessun muro buca la falda.
+            // (Solo con muri laterali perpendicolari: la fascia davanti al muro basso e quella di prima, con muri obliqui
+            // gli angoli fuori dalla fascia restano a soffitto piano.)
+            if (room == attic) for (w in listOf(0, 2)) for (t in listOf(0.0, 100.0, 300.0, 450.0, 590.0)) {
+                val a0 = room.wallStart(w)
+                val b0 = room.wallEnd(w)
+                val pt = a0 + (b0 - a0).normalized() * t
+                assertEquals(Ceilings.wallTopAt(room, w, t), Ceilings.heightAt(room, pt), 1e-6)
+            }
+            for (w in listOf(0, 2)) assertEquals(270.0, Ceilings.heightAt(room, Ceilings.startPoint(room, w)!!), 1e-6)
+            val tris = Ceilings.triangles(room)
+            if (room == attic) for ((p, q, r) in tris) for (v in listOf(p, q, r)) assertEquals(Ceilings.heightAt(room, v.flat), v.y, 1e-6)
+            val area = tris.sumOf { (p, q, r) -> Polygon.area(listOf(p.flat, q.flat, r.flat)) }
+            assertEquals(Polygon.area(room.points), area, 1.0)
+        }
+    }
+
+    @Test
+    fun `la mansarda a un solo taglio resta come prima`() {
+        val single = attic.copy(wallCuts = mapOf(0 to WallCut(towardEnd = true, start = 150.0)))
+        assertNull(Ceilings.partnerWall(single, 0))
+        val moved = Ceilings.withCutStart(single, 0, 100.0)
+        assertEquals(setOf(0), moved.wallCuts.keys)
+        assertEquals(100.0, moved.wallCuts[0]!!.start, 1e-9)
+        assertSame(single, Ceilings.alignedToPartner(single, 0))
+        assertEquals(1, Ceilings.slopeStartLines(single).size)
+        val (p, q) = Ceilings.slopeStartLines(single).single()
+        assertEquals(450.0, p.x, 1e-9)
+        assertEquals(450.0, q.x, 1e-9)
+        assertEquals(270.0, Ceilings.heightAt(single, Vec2(450.0, 200.0)), 1e-9)
+        assertEquals(235.0, Ceilings.heightAt(single, Vec2(525.0, 200.0)), 1e-9)
+        assertEquals(1, Ceilings.slopeStartLines(single).size)
+    }
+
+    @Test
+    fun `se l'altro muro e piu corto il limite vale per entrambi`() {
+        val short = cutRoom(listOf(Vec2(0.0, 0.0), Vec2(600.0, 0.0), Vec2(600.0, 400.0), Vec2(100.0, 400.0)), 150.0, 150.0)
+        val r = Ceilings.withCutStart(short, 0, 9999.0)
+        assertEquals(500.0, r.wallCuts[0]!!.start, 1e-6)
+        assertEquals(500.0, r.wallCuts[2]!!.start, 1e-6)
+    }
+
+    @Test
+    fun `un taglio nuovo prende lo stesso inizio dell'altro lato`() {
+        val mismatched = attic.copy(wallCuts = mapOf(
+            0 to WallCut(towardEnd = true, start = 100.0), 2 to WallCut(towardEnd = false, start = 200.0),
+        ))
+        val aligned = Ceilings.alignedToPartner(mismatched, 0)
+        assertEquals(200.0, aligned.wallCuts[0]!!.start, 1e-9)
+        assertEquals(200.0, aligned.wallCuts[2]!!.start, 1e-9)
+    }
+
+    @Test
+    fun `file con start diversi sono un solo piano alla distanza media`() {
+        val legacy = attic.copy(wallCuts = mapOf(
+            0 to WallCut(towardEnd = true, start = 100.0), 2 to WallCut(towardEnd = false, start = 200.0),
+        ))
+        assertEquals(270.0, Ceilings.heightAt(legacy, Vec2(450.0, 100.0)), 1e-9)
+        assertEquals(270.0, Ceilings.heightAt(legacy, Vec2(450.0, 300.0)), 1e-9)
+        assertEquals(235.0, Ceilings.heightAt(legacy, Vec2(525.0, 100.0)), 1e-9)
+        assertEquals(235.0, Ceilings.heightAt(legacy, Vec2(525.0, 300.0)), 1e-9)
+        val (p, q) = Ceilings.slopeStartLines(legacy).single()
+        assertEquals(450.0, p.x, 1e-9)
+        assertEquals(450.0, q.x, 1e-9)
     }
 }

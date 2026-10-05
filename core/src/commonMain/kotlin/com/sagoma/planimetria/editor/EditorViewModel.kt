@@ -79,7 +79,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     private val tutorial = Tutorial()
 
     // Il file è piccolo (pochi KB): lo si legge subito, così la prima schermata è già quella giusta.
-    private val loaded = store.load() ?: Building.single(FloorPlan())
+    private val loaded = store.load() ?: Building.single(FloorPlan(), autoLevel = true)
     private val loadedPlan = loaded.floor.plan
     private val _state = MutableStateFlow(
         EditorUiState(
@@ -274,13 +274,19 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val layers = _state.value.building.layers
         history.undo(_state.value.fullBuilding)?.let {
             setBuilding(it.copy(layers = layers))
+            dropStaleCreation()
             tutorialEvent(TutorialEvent.Undo)
         }
     }
 
     fun redo() {
         val layers = _state.value.building.layers
-        history.redo(_state.value.fullBuilding)?.let { setBuilding(it.copy(layers = layers)) }
+        history.redo(_state.value.fullBuilding)?.let { setBuilding(it.copy(layers = layers)); dropStaleCreation() }
+    }
+
+    /** La scelta obbligatoria della stanza iniziale non ha più senso se annullando (o ripetendo) il piano ha di nuovo delle stanze. */
+    private fun dropStaleCreation() = _state.update {
+        if (it.creation?.cancellable == false && it.plan.rooms.isNotEmpty()) it.copy(creation = null) else it
     }
 
     // ---------- Livelli ----------
@@ -331,14 +337,14 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
      * del piano più alto (solo i muri, senza aperture né impianti), da modificare; altrimenti è vuoto
      * e si apre subito la creazione della prima stanza.
      */
-    fun addFloor(name: String, levelHeight: Double, copyRooms: Boolean) {
+    fun addFloor(name: String, levelHeight: Double, copyRooms: Boolean, autoLevel: Boolean = false) {
         closeFloorDialog()
         commitBuilding { b ->
             val top = b.floors.last()
             val rooms = if (copyRooms) top.plan.rooms.map {
                 Room(it.id, it.name, it.type, it.points, ceilingHeight = it.ceilingHeight)
             } else emptyList()
-            val floor = Floor(b.nextFloorId, name.trim().ifBlank { Building.floorName(b.floors.size) }, FloorPlan(rooms), levelHeight)
+            val floor = Floor(b.nextFloorId, name.trim().ifBlank { Building.floorName(b.floors.size) }, FloorPlan(rooms), levelHeight, autoLevel).synced()
             b.copy(floors = b.floors + floor, current = b.floors.size)
         }
         if (!userAdjustedView) fitToView()
@@ -346,12 +352,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         showTip(Tip.Floors)
     }
 
-    /** Nome e interpiano di un piano. */
-    fun updateFloor(index: Int, name: String, levelHeight: Double) {
+    /** Nome e interpiano di un piano. `autoLevel`: l'interpiano è calcolato dalle stanze (`levelHeight` allora non conta). */
+    fun updateFloor(index: Int, name: String, levelHeight: Double, autoLevel: Boolean = false) {
         closeFloorDialog()
         commitBuilding { b ->
             val f = b.floors.getOrNull(index) ?: return@commitBuilding b
-            b.copy(floors = b.floors.mapIndexed { i, x -> if (i == index) f.copy(name = name.trim().ifBlank { f.name }, levelHeight = levelHeight) else x })
+            b.copy(floors = b.floors.mapIndexed { i, x -> if (i == index) f.copy(name = name.trim().ifBlank { f.name }, levelHeight = levelHeight, autoLevel = autoLevel).synced() else x })
         }
     }
 
@@ -663,7 +669,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val shape = Polygon.fromInterior(interior, wallThickness)
         // Prima stanza di un piano superiore: nell'angolo del piano di sotto, così ci si allinea subito.
         val below = _state.value.planBelow?.let { Openings.planBounds(it) }
-        val points = if (plan.rooms.isEmpty() && below != null) {
+        // Piano di sopra: la stanza si posa sulla prima stanza di sotto ancora scoperta, con gli angoli coincidenti.
+        val above = if (type.outdoor) null else RoomFactory.placeAbove(plan, _state.value.planBelow, shape)
+        val points = if (above != null) above
+        else if (plan.rooms.isEmpty() && below != null) {
             val sb = Polygon.bounds(shape)
             shape.map { it - Vec2(sb.minX, sb.minY) + Vec2(below.minX, below.minY) }
         // Balconi e terrazze nascono già appoggiati alla casa (muro in comune), le stanze un po' distanti.
@@ -1006,7 +1015,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun cancelDrawWalls() = _state.update { it.copy(wallDraw = null, snapGuides = emptyList()) }
 
     private fun drawSnap(p: Vec2, wd: WallDraw) =
-        SnapEngine.snapDrawing(p, wd.points.lastOrNull(), wd.points.firstOrNull(), SnapEngine.targets(_state.value.plan), wd.points, snapTolerance())
+        SnapEngine.snapDrawing(p, wd.points.lastOrNull(), wd.points.firstOrNull(), SnapEngine.targetsWithBelow(_state.value.plan, _state.value.planBelow), wd.points, snapTolerance())
 
     /** Il puntatore si muove (mouse sul computer): anteprima del prossimo muro, già agganciata. */
     fun drawWallsCursor(p: Vec2) = _state.update { s ->
@@ -1455,14 +1464,16 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             ?: options.minByOrNull { room.wallHeight(Ceilings.lowWall(room, index, WallCut(it, 0.0))) }
             ?: return@commit plan
         val start = room.wallCuts[index]?.start ?: (room.wallLength(index) / 2)
-        plan.replace(room.copy(wallCuts = room.wallCuts + (index to WallCut(toward, Ceilings.clampStart(room, index, start)))))
+        val withCut = room.copy(wallCuts = room.wallCuts + (index to WallCut(toward, Ceilings.clampStart(room, index, start))))
+        // Se l'altro lato della mansarda ha già il taglio, l'inizio della falda è lo stesso.
+        plan.replace(Ceilings.alignedToPartner(withCut, index))
     }
 
     /** Distanza (cm, dal muro basso) da cui la parete inizia a scendere. */
     fun setWallCutStart(roomId: Long, index: Int, start: Double) = commit { plan ->
         val room = plan.room(roomId) ?: return@commit plan
-        val cut = room.wallCuts[index] ?: return@commit plan
-        plan.replace(room.copy(wallCuts = room.wallCuts + (index to cut.copy(start = Ceilings.clampStart(room, index, start)))))
+        if (room.wallCuts[index] == null) return@commit plan
+        plan.replace(Ceilings.withCutStart(room, index, start)) // e l'altro lato della mansarda segue
     }
 
     // ---------- Impianti ----------
@@ -1593,7 +1604,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 // Aggancio CAD: estremità e punti medi delle altre stanze, allineamenti con tutti gli angoli.
                 val neighbors = listOf(room.points[(i - 1 + n) % n], room.points[(i + 1) % n])
                 val own = room.points.filterIndexed { k, _ -> k != i }
-                val r = SnapEngine.snap(room.points[i] + totalDelta, SnapEngine.targets(start, excludeRoom = room.id), snapTolerance(), neighbors, own)
+                val r = SnapEngine.snap(room.points[i] + totalDelta, SnapEngine.targetsWithBelow(start, _state.value.planBelow, excludeRoom = room.id), snapTolerance(), neighbors, own)
                 val moved = room.points.toMutableList().also { it[i] = r.point }
                 snapGuides = r.guides
                 start.replace(room.copy(points = if (r.snapped) Snapping.straighten(moved, i) else moved))
@@ -1605,18 +1616,20 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 val corner = Ceilings.lowCorner(room, target.index, cut)
                 val other = if (cut.towardEnd) room.wallStart(target.index) else room.wallEnd(target.index)
                 val away = (other - corner).normalized()
-                val moved = Ceilings.clampStart(room, target.index, cut.start + (totalDelta dot away))
-                start.replace(room.copy(wallCuts = room.wallCuts + (target.index to cut.copy(start = moved))))
+                // Un solo inizio di falda: l'altro lato della mansarda segue il pallino.
+                start.replace(Ceilings.withCutStart(room, target.index, cut.start + (totalDelta dot away)))
             }
             is DragTarget.Wall -> {
                 val room = start.room(target.roomId) ?: return
                 // Vicino a un muro parallelo di un'altra stanza scatta sulla sua linea: i due muri si sovrappongono.
-                val otherWalls = start.rooms.filter { it.id != room.id }.flatMap { Snapping.wallsOf(it) }
+                // Anche ai muri del piano di sotto (solo come riferimento): si allinea il muro di sopra con quello di sotto.
+                val otherWalls = (start.rooms.filter { it.id != room.id } + _state.value.planBelow?.rooms.orEmpty()).flatMap { Snapping.wallsOf(it) }
                 start.replace(room.copy(points = Snapping.moveWallSnapped(room.points, target.index, totalDelta, otherWalls)))
             }
             is DragTarget.RoomLabel -> {
                 val room = start.room(target.roomId) ?: return
-                val others = start.rooms.filter { it.id != room.id }
+                // Riferimenti: le altre stanze del piano e quelle del piano di sotto (solo lette, mai modificate).
+                val others = start.rooms.filter { it.id != room.id } + _state.value.planBelow?.rooms.orEmpty()
                 val d = Snapping.snapRoomTranslation(room, others, totalDelta)
                 // Con la stanza si spostano anche le luci al soffitto (aperture e impianti a muro seguono i muri).
                 start.replace(Fixtures.movedRoom(room, d))
@@ -1939,7 +1952,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is Selection.Dimension -> removeDimension(sel.dimensionId)
             is Selection.Annotation -> removeAnnotation(sel.annotationId)
             is Selection.StairWell -> return false
-            null -> s.focusedRoomId?.let { if (s.plan.rooms.size > 1) requestDeleteRoom(it) else return false } ?: return false
+            null -> s.focusedRoomId?.let { requestDeleteRoom(it) } ?: return false
         }
         return true
     }
@@ -2114,12 +2127,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         plan.replace(room.copy(ceilingHeight = height))
     }
 
-    /** Una stanza si può eliminare solo se ne resta almeno un'altra (§1: deve sempre esistere una stanza). */
-    val canDeleteRoom: Boolean get() = _state.value.plan.rooms.size > 1
-
     /** Chiede conferma prima di eliminare (resta comunque annullabile). */
     fun requestDeleteRoom(id: Long) {
-        if (!canDeleteRoom || _state.value.plan.room(id) == null) return
+        if (_state.value.plan.room(id) == null) return
         _state.update { it.copy(confirmDeleteRoomId = id) }
     }
 
@@ -2127,9 +2137,14 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     fun deleteRoom(id: Long) {
         _state.update { it.copy(confirmDeleteRoomId = null) }
-        if (!canDeleteRoom) return
+        if (_state.value.plan.room(id) == null) return
         commit { it.copy(rooms = it.rooms.filter { r -> r.id != id }) }
         _state.update { it.copy(focusedRoomId = null, selection = null, pendingOpening = null) }
+        // Un piano di sopra può restare senza stanze. Il piano terra no: si riparte dalla scelta iniziale della stanza.
+        val s = _state.value
+        if (s.building.current == 0 && s.plan.rooms.isEmpty()) {
+            _state.update { it.copy(creation = CreationStep.PickShape(cancellable = false), creationType = null) }
+        }
     }
 
     // ---------- Eliminazione muro in comune: un unico ambiente ----------

@@ -372,11 +372,8 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
 
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = { vm.requestDeleteRoom(room.id) }, enabled = plan.rooms.size > 1) {
-                Text(
-                    if (plan.rooms.size > 1) "Elimina stanza" else "Unica stanza (non eliminabile)",
-                    color = if (plan.rooms.size > 1) MaterialTheme.colorScheme.error else Color.Unspecified,
-                )
+            TextButton(onClick = { vm.requestDeleteRoom(room.id) }) {
+                Text("Elimina stanza", color = MaterialTheme.colorScheme.error)
             }
         }
     }

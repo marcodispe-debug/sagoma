@@ -181,7 +181,7 @@ data class EditorUiState(
      * Tutti i piani. La pianta del piano corrente qui può essere vecchia: quella giusta è [plan]
      * (si aggiorna a ogni trascinamento); la casa completa è [fullBuilding].
      */
-    val building: Building = Building.single(FloorPlan()),
+    val building: Building = Building.single(FloorPlan(), autoLevel = true),
     /** Finestra per aggiungere o modificare un piano. */
     val floorDialog: FloorDialog? = null,
     /** Strumento "Distanza" attivo: i tocchi scelgono gli oggetti da misurare. */
