@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -79,6 +80,23 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel) {
                             }
                         }
                     }
+                    // Scansione con la fotocamera (solo dove la piattaforma la offre): si toccano gli angoli sul pavimento.
+                    if (LocalPlatform.current.roomScanner != null) {
+                        OutlinedCard(onClick = vm::pickScan, modifier = Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("📱", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.size(48.dp).padding(top = 6.dp))
+                                Spacer(Modifier.size(12.dp))
+                                Column {
+                                    Text("Scansiona con il telefono (prova)", style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        "Fotocamera e realtà aumentata: tocchi gli angoli sul pavimento e le misure si ricavano da sole",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
                     // Disegno libero, come nei CAD: angolo dopo angolo sulla pianta, con agganci e misure scritte.
                     OutlinedCard(onClick = vm::startDrawWalls, modifier = Modifier.fillMaxWidth()) {
                         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -136,6 +154,7 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel) {
 
         is CreationStep.Measures -> MeasuresDialog(step, vm, props)
         is CreationStep.Survey -> SurveyDialog(vm, props)
+        is CreationStep.Scan -> ScanHost(vm)
     }
 }
 
@@ -381,3 +400,21 @@ private fun MeasuresDialog(step: CreationStep.Measures, vm: EditorViewModel, pro
     )
 }
 
+
+/** Schermata intera della scansione: sopra l'editor, senza toccare la pianta finché non si conferma. */
+@Composable
+private fun ScanHost(vm: EditorViewModel) {
+    val scanner = LocalPlatform.current.roomScanner
+    if (scanner == null) {
+        androidx.compose.runtime.LaunchedEffect(Unit) { vm.cancelScan() }
+        return
+    }
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = vm::cancelScan,
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = true, dismissOnClickOutside = false),
+    ) {
+        androidx.compose.material3.Surface(Modifier.fillMaxSize()) {
+            scanner.Screen { result -> if (result == null) vm.cancelScan() else vm.createRoomFromScan(result.room) }
+        }
+    }
+}

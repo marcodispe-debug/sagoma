@@ -21,6 +21,8 @@ include(":app")
 include(":core")
 // Interfaccia (Compose Multiplatform), uguale su Android, computer e browser.
 include(":ui")
+// Scansione delle stanze con ARCore (solo Android).
+include(":scanner")
 // App per computer e sito web.
 include(":desktop")
 include(":web")

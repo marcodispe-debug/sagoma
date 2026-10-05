@@ -660,6 +660,32 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         s.copy(creation = CreationStep.Survey(c.cancellable))
     }
 
+    /** "Scansiona con il telefono": si apre la schermata della fotocamera. */
+    fun pickScan() = _state.update { s ->
+        val c = s.creation ?: return@update s
+        s.copy(creation = CreationStep.Scan(c.cancellable))
+    }
+
+    /** Scansione annullata o fallita: si torna alla scelta della forma. */
+    fun cancelScan() = _state.update { s ->
+        val c = s.creation as? CreationStep.Scan ?: return@update s
+        s.copy(creation = CreationStep.PickShape(c.cancellable))
+    }
+
+    /**
+     * Stanza dalla scansione: il perimetro interno scansionato (già in centimetri, assi di Sagoma) viene raddrizzato
+     * ([com.sagoma.planimetria.scan.ScanGeometry.alignedInterior]) e creato come una stanza qualsiasi, da modificare poi.
+     */
+    fun createRoomFromScan(
+        scan: com.sagoma.planimetria.scan.ScannedRoom,
+        type: RoomType = RoomType.Altro,
+        wallThickness: Double = Room.WALL_THICKNESS,
+    ) {
+        if (_state.value.creation !is CreationStep.Scan || scan.corners.size < 3) return
+        val interior = com.sagoma.planimetria.scan.ScanGeometry.alignedInterior(scan.corners)
+        addRoomFromInterior(type, interior, scan.ceilingHeight ?: Room.DEFAULT_CEILING_HEIGHT, wallThickness)
+    }
+
     /** Stanza dal rilievo: angoli sul filo interno calcolati da [com.sagoma.planimetria.geometry.Survey]. */
     fun createRoomFromSurvey(type: RoomType, interior: List<Vec2>, ceilingHeight: Double, wallThickness: Double) {
         if (_state.value.creation !is CreationStep.Survey || interior.size < 3) return

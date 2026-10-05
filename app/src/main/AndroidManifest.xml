@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Scansione delle stanze (ARCore): la fotocamera serve solo lì. Nessun telefono è escluso dall'installazione:
+         senza ARCore la funzione si spiega e basta, il resto dell'app funziona come prima. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
 
     <application
         android:name=".SagomaApplication"
@@ -8,6 +15,11 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Sagoma">
+        <!-- ARCore facoltativo: il Play Store non nasconde l'app ai telefoni senza ARCore. -->
+        <meta-data
+            android:name="com.google.ar.core"
+            android:value="optional"
+            tools:replace="android:value" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

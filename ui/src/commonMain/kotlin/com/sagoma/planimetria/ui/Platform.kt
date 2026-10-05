@@ -83,6 +83,9 @@ interface Platform {
     /** Ora attuale in millisecondi. */
     fun now(): Long
 
+    /** Scansione delle stanze con la fotocamera; null dove non esiste. */
+    val roomScanner: RoomScanner? get() = null
+
     /** Chi disegna la vista 3D. */
     fun createSceneRenderer(): SceneRenderer
 
@@ -94,6 +97,16 @@ interface Platform {
     /** Tasto o gesto "indietro" del sistema (dove esiste). */
     @Composable
     fun BackHandler(enabled: Boolean, onBack: () -> Unit) {}
+}
+
+/**
+ * Scansione di una stanza con la fotocamera (realtà aumentata): c'è solo dove la piattaforma la sa fare (Android); altrove
+ * [Platform.roomScanner] è null. Il risultato è in centimetri, nel sistema di Sagoma, senza tipi di ARCore.
+ */
+interface RoomScanner {
+    /** Schermata della scansione; `onResult(null)` se l'utente annulla o la scansione non è possibile. */
+    @Composable
+    fun Screen(onResult: (com.sagoma.planimetria.scan.ScanResult?) -> Unit)
 }
 
 /** Tipo MIME che accetta qualsiasi file. */

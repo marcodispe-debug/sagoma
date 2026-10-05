@@ -89,6 +89,9 @@ sealed interface CreationStep {
 
     /** Stanza da rilievo: lati e diagonali misurati sul posto. */
     data class Survey(override val cancellable: Boolean) : CreationStep
+
+    /** Scansione con la fotocamera (Android): perimetro toccato sul pavimento. */
+    data class Scan(override val cancellable: Boolean) : CreationStep
 }
 
 /**

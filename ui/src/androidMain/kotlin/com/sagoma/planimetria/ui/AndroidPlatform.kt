@@ -57,6 +57,9 @@ class AndroidPlatform(
     override val assetRequests: AssetRequests = NoAssetRequests,
 ) : Platform {
 
+    /** Scansione della stanza con ARCore (la schermata chiede da sola il permesso della fotocamera). */
+    override val roomScanner: RoomScanner = AndroidRoomScanner(activity)
+
     /** "Salva con nome": nome proposto e tipo MIME → dove salvare. */
     private class Save : ActivityResultContract<Pair<String, String>, Uri?>() {
         override fun createIntent(context: Context, input: Pair<String, String>) =

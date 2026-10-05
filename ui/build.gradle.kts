@@ -43,6 +43,8 @@ kotlin {
         androidMain.dependencies {
             api(libs.androidx.activity.compose)
             api(libs.androidx.core.ktx)
+            // Scansione delle stanze con ARCore: la schermata sta in questo modulo, la sessione AR in `scanner`.
+            implementation(project(":scanner"))
         }
     }
 }
