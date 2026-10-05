@@ -183,6 +183,13 @@ class Scene3D(
         const val FLOATS_PER_VERTEX = 10
         /** Altezza degli occhi quando si cammina (cm). */
         const val EYE_HEIGHT = 160.0
+        /** Plafoniera a parete: larghezza, altezza e sporgenza dal muro (cm). */
+        const val WALL_LIGHT_WIDTH = 30.0
+        const val WALL_LIGHT_HEIGHT = 12.0
+        const val WALL_LIGHT_DEPTH = 8.0
+        /** Faretto a parete: lato della scatola e sporgenza dal muro (cm). */
+        const val WALL_SPOT_SIZE = 8.0
+        const val WALL_SPOT_DEPTH = 6.0
 
         private fun rayTriangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3): Double? {
             val e1 = b - a
@@ -1775,6 +1782,16 @@ private class SceneBuilder(
 
     // ---------- Impianti ----------
 
+    /**
+     * Luce fissata a una parete: scatola luminosa appena fuori dal muro (sul filo interno, verso la stanza), centrata
+     * all'altezza dell'impianto; la luce vera sta davanti, un poco staccata, e punta lungo la normale della parete.
+     */
+    private fun wallLamp(room: Room, f: Fixture, p: Vec2, n: Vec2, along: Vec2, width: Double, height: Double, depth: Double, lumens: Double, pick: Pick) {
+        val c = p + n * (depth / 2 + 0.5)
+        box(c - along * (width / 2), c + along * (width / 2), depth / 2, f.elevation - height / 2, f.elevation + height / 2, tint(lightColor, pick), pick, emissive = true)
+        if (current) lights += Scene3D.SceneLight((p + n * (depth + 1.0)).at(f.elevation), Vec3(n.x, 0.0, n.y), lumens, warm = true, room = Polygon.bounds(room.points))
+    }
+
     private fun fixture(room: Room, f: Fixture) {
         val pick = Pick.Fixture(room.id, f.id)
         if (f.kind.mount == Mount.Wall) {
@@ -1790,6 +1807,8 @@ private class SceneBuilder(
                 FixtureKind.Outlet -> onWall(8.0, 8.0, 1.5, f.elevation - 4, Rgba(0.78f, 0.87f, 1f))
                 FixtureKind.Switch -> onWall(8.0, 12.0, 1.5, f.elevation - 6, Rgba(0.88f, 0.92f, 1f))
                 FixtureKind.WaterPoint -> onWall(6.0, 6.0, 5.0, f.elevation - 3, Rgba(0.18f, 0.6f, 0.7f))
+                FixtureKind.WallLight -> wallLamp(room, f, p, n, along, Scene3D.WALL_LIGHT_WIDTH, Scene3D.WALL_LIGHT_HEIGHT, Scene3D.WALL_LIGHT_DEPTH, 800.0, pick)
+                FixtureKind.WallSpot -> wallLamp(room, f, p, n, along, Scene3D.WALL_SPOT_SIZE, Scene3D.WALL_SPOT_SIZE, Scene3D.WALL_SPOT_DEPTH, 400.0, pick)
                 else -> Unit
             }
             return

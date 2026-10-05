@@ -784,7 +784,10 @@ private fun FixtureButton(
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
 ) {
     fun place(kind: FixtureKind) = { vm.startPlacingFixture(kind) }
-    val lights = listOf(FixtureKind.Spotlight, FixtureKind.Neon, FixtureKind.Chandelier, FixtureKind.CeilingLight, FixtureKind.LedStrip)
+    val lights = listOf(
+        FixtureKind.Spotlight, FixtureKind.Neon, FixtureKind.Chandelier, FixtureKind.CeilingLight, FixtureKind.LedStrip,
+        FixtureKind.WallLight, FixtureKind.WallSpot,
+    )
     MenuButton(
         "+ Impianti",
         enabled,

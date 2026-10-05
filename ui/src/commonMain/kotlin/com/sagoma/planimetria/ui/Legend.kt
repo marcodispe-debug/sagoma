@@ -34,6 +34,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.model.Fixture
+import com.sagoma.planimetria.model.Mount
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
@@ -180,9 +181,9 @@ private fun opening(
 /** Impianto a muro al centro del muro in alto, oppure luce al centro della stanza di prova. */
 private fun fixture(kind: FixtureKind): DrawScope.(TextMeasurer) -> Unit = { m ->
     val f = Fixture.default(1, kind).let {
-        if (kind.isLight) it.copy(point = Vec2(100.0, 80.0), length = if (kind.linear) 140.0 else it.length) else it.copy(position = 100.0)
+        if (kind.mount == Mount.Ceiling) it.copy(point = Vec2(100.0, 80.0), length = if (kind.linear) 140.0 else it.length) else it.copy(position = 100.0)
     }
-    drawSample(sampleRoom(fixtures = listOf(f)), m, if (kind.isLight) WholeRoom else TopWall)
+    drawSample(sampleRoom(fixtures = listOf(f)), m, if (kind.mount == Mount.Ceiling) WholeRoom else TopWall)
 }
 
 /** Quota come sulla pianta: filo interno del muro, linee di richiamo, trattini obliqui e valore. */
@@ -280,6 +281,8 @@ private val legendSections: List<LegendSection> by lazy {
                 LegendItem("Lampadario", "Lampadario a soffitto.", fixture(FixtureKind.Chandelier)),
                 LegendItem("Plafoniera", "Plafoniera a soffitto.", fixture(FixtureKind.CeilingLight)),
                 LegendItem("Striscia LED", "Striscia luminosa a soffitto, con lunghezza e rotazione.", fixture(FixtureKind.LedStrip)),
+                LegendItem("Plafoniera a parete", "Fissata al muro, con l'altezza da terra (di solito 220 cm).", fixture(FixtureKind.WallLight)),
+                LegendItem("Faretto a parete", "Fissato al muro e rivolto verso la stanza, con l'altezza da terra.", fixture(FixtureKind.WallSpot)),
             ),
         ),
         LegendSection(

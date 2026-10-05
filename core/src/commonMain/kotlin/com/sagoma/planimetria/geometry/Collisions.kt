@@ -50,6 +50,8 @@ object Collisions {
                 FixtureKind.Outlet -> 4.0
                 FixtureKind.Switch -> 6.0
                 FixtureKind.WaterPoint -> 3.0
+                FixtureKind.WallLight -> Scene3D.WALL_LIGHT_HEIGHT / 2
+                FixtureKind.WallSpot -> Scene3D.WALL_SPOT_SIZE / 2
                 else -> 0.0
             }
             // Un impianto sta su una sola faccia: conta solo la parete della sua stanza.

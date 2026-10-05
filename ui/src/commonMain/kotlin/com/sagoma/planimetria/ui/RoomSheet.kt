@@ -382,7 +382,7 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
 /** Dati principali di un impianto per l'elenco della stanza. */
 private fun fixtureSummary(f: Fixture): String = when (f.kind) {
     FixtureKind.Radiator -> "muro ${f.wallIndex + 1} · ${formatCm(f.length)}×${formatCm(f.height)} cm · da terra ${formatCm(f.elevation)}"
-    FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint -> "muro ${f.wallIndex + 1} · da terra ${formatCm(f.elevation)} cm"
+    FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint, FixtureKind.WallLight, FixtureKind.WallSpot -> "muro ${f.wallIndex + 1} · da terra ${formatCm(f.elevation)} cm"
     FixtureKind.Neon, FixtureKind.LedStrip -> "${formatCm(f.length)} cm · ${formatCm(f.rotation)}°"
     else -> "soffitto"
 }

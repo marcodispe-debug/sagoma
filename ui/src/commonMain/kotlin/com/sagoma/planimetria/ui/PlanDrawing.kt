@@ -449,6 +449,36 @@ private fun DrawScope.drawFixture(room: Room, f: Fixture, cam: Camera, selected:
             drawPath(drop, WaterColor)
             drawCircle(WaterColor, px(2.6f), body)
         }
+        // Luci a parete: sul filo interno del muro, con la sporgenza verso la stanza.
+        FixtureKind.WallLight -> {
+            // Plafoniera: rettangolo largo lungo il muro, con una linea al centro.
+            val (p, n) = Fixtures.wallAnchor(room, f)
+            val u = n.perp()
+            val half = toCm(px(11f))
+            val deep = toCm(px(7f))
+            val path = Path().apply {
+                listOf(p - u * half, p + u * half, p + u * half + n * deep, p - u * half + n * deep).forEachIndexed { i, q ->
+                    val o = cam.o(q); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y)
+                }
+                close()
+            }
+            drawPath(path, LightColor.copy(alpha = 0.35f))
+            drawPath(path, LightColor, style = Stroke(thin))
+            drawLine(LightColor, cam.o(p + n * (deep / 2) - u * (half * 0.6)), cam.o(p + n * (deep / 2) + u * (half * 0.6)), strokeWidth = thin / 2)
+        }
+        FixtureKind.WallSpot -> {
+            // Faretto: cerchietto sul muro con due raggi che si aprono verso la stanza.
+            val (p, n) = Fixtures.wallAnchor(room, f)
+            val u = n.perp()
+            val r = px(4f)
+            val c = cam.o(p + n * toCm(r))
+            drawCircle(LightColor.copy(alpha = 0.35f), r, c)
+            drawCircle(LightColor, r, c, style = Stroke(thin))
+            val base = p + n * toCm(r * 2)
+            for (side in listOf(-1.0, 1.0)) {
+                drawLine(LightColor, cam.o(base + u * (side * toCm(r * 0.5f))), cam.o(base + n * toCm(px(9f)) + u * (side * toCm(px(5f)))), strokeWidth = thin / 2, cap = StrokeCap.Round)
+            }
+        }
         FixtureKind.Spotlight -> {
             val c = cam.o(center)
             drawCircle(LightColor.copy(alpha = 0.25f), px(6f), c)

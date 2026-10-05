@@ -773,7 +773,7 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(vertical = 8.dp),
             )
-            FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint ->
+            FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint, FixtureKind.WallLight, FixtureKind.WallSpot ->
                 NumberField("Da terra", f.elevation, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(elevation = v) } }
             FixtureKind.Neon, FixtureKind.LedStrip -> {
                 NumberField("Lunghezza", f.length, Modifier.weight(1f)) { v -> update { it.copy(length = v) } }

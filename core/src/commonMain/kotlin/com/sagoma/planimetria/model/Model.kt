@@ -156,9 +156,17 @@ enum class FixtureKind(val label: String, val mount: Mount, val linear: Boolean 
     Chandelier("Lampadario", Mount.Ceiling),
     CeilingLight("Plafoniera", Mount.Ceiling),
     LedStrip("Striscia LED", Mount.Ceiling, linear = true),
-    WaterPoint("Punto acqua", Mount.Wall);
+    WaterPoint("Punto acqua", Mount.Wall),
+    /** Plafoniera fissata verticalmente a una parete (a muro come presa e interruttore, ma è una luce). */
+    WallLight("Plafoniera a parete", Mount.Wall),
+    /** Faretto fissato a una parete, rivolto verso la stanza. */
+    WallSpot("Faretto a parete", Mount.Wall);
 
-    val isLight get() = mount == Mount.Ceiling
+    /** Luce vera: a soffitto o a parete. */
+    val isLight get() = when (this) {
+        Spotlight, Neon, Chandelier, CeilingLight, LedStrip, WallLight, WallSpot -> true
+        Radiator, Outlet, Switch, WaterPoint -> false
+    }
 }
 
 /**
@@ -184,11 +192,15 @@ data class Fixture(
     val lampModel: LampModel = LampModel.Modern,
 ) {
     companion object {
+        /** Altezza da terra (cm) di plafoniere e faretti a parete appena messi. */
+        const val WALL_LIGHT_ELEVATION = 220.0
+
         fun default(id: Long, kind: FixtureKind) = when (kind) {
             FixtureKind.Radiator -> Fixture(id, kind, length = 80.0, height = 60.0, elevation = 12.0)
             FixtureKind.Outlet -> Fixture(id, kind, elevation = 30.0)
             FixtureKind.Switch -> Fixture(id, kind, elevation = 110.0)
             FixtureKind.WaterPoint -> Fixture(id, kind, elevation = 50.0)
+            FixtureKind.WallLight, FixtureKind.WallSpot -> Fixture(id, kind, elevation = WALL_LIGHT_ELEVATION)
             FixtureKind.Neon -> Fixture(id, kind, length = 120.0)
             FixtureKind.LedStrip -> Fixture(id, kind, length = 200.0)
             else -> Fixture(id, kind)
