@@ -301,13 +301,41 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
             scene.skybox = nightSky
         } else scene.skybox = env?.sky ?: skybox
 
-        updateLamps(lampsOn = lampsMode == "on" || (lampsMode == "auto" && el < 8))
+        lampsOnNow = lampsMode == "on" || (lampsMode == "auto" && el < 8)
+        updateLamps(lampsOn = lampsOnNow)
         updateWindows(day, low)
         dirty = true
     }
 
     /** Fattore tra i lumen veri e l'esposizione della scena (tarato perché una stanza di notte si veda bene). */
     private val LUMEN_SCALE = 0.05f
+
+    /** Le lampade della casa sono accese (calcolato da [applyLighting]). */
+    private var lampsOnNow = false
+
+    /**
+     * Cambiano solo le luci (faretto orientato con la maniglia 3D): senza ricostruire la scena né l'illuminazione del giorno.
+     * Se le luci sono le stesse di prima per numero e tipo (con o senza direzione) si aggiornano sul posto direzione e posizione
+     * delle entità Filament già esistenti (`FOCUSED_SPOT` per chi ha una direzione); altrimenti si ricreano.
+     */
+    override fun setLights(lights: List<Scene3D.SceneLight>): Boolean {
+        val old = sceneLights
+        sceneLights = lights
+        if (!lampsOnNow) return true // lampade spente: niente da aggiornare, le luci nuove valgono alla prossima accensione
+        val lm = engine.lightManager
+        val sameShape = lampEntities.size == lights.size && old.size == lights.size &&
+            lights.indices.all { (old[it].direction == null) == (lights[it].direction == null) }
+        if (sameShape) {
+            for ((i, l) in lights.withIndex()) {
+                val inst = lm.getInstance(lampEntities[i])
+                val p = l.position
+                lm.setPosition(inst, (p.x * 0.01).toFloat(), (p.y * 0.01).toFloat(), (p.z * 0.01).toFloat())
+                l.direction?.let { lm.setDirection(inst, it.x.toFloat(), it.y.toFloat(), it.z.toFloat()) }
+            }
+        } else updateLamps(lampsOn = true)
+        dirty = true
+        return true
+    }
 
     private fun updateLamps(lampsOn: Boolean) {
         val lm = engine.lightManager

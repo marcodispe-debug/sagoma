@@ -33,6 +33,7 @@ import com.sagoma.planimetria.geometry.RoomMerge
 import com.sagoma.planimetria.geometry.Ceilings
 import com.sagoma.planimetria.geometry.Collisions
 import com.sagoma.planimetria.geometry.WallCollision
+import com.sagoma.planimetria.geometry.SpotAim
 import com.sagoma.planimetria.model.WallCut
 import androidx.compose.material3.FilterChip
 import kotlin.math.roundToInt
@@ -773,8 +774,18 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(vertical = 8.dp),
             )
-            FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint, FixtureKind.WallLight, FixtureKind.WallSpot ->
+            FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint, FixtureKind.WallLight ->
                 NumberField("Da terra", f.elevation, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(elevation = v) } }
+            FixtureKind.WallSpot -> {
+                NumberField("Da terra", f.elevation, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(elevation = v) } }
+                // Valori di precisione: il fascio si orienta soprattutto trascinando la maniglia nella vista 3D.
+                NumberField("Direzione", f.aimYaw, Modifier.weight(1f), allowZero = true, suffix = "°") { v ->
+                    update { it.copy(aimYaw = SpotAim.normalizeYaw(v)) }
+                }
+                NumberField("Inclinazione", f.aimTilt, Modifier.weight(1f), allowZero = true, allowNegative = true, suffix = "°") { v ->
+                    update { it.copy(aimTilt = SpotAim.clampTilt(v)) }
+                }
+            }
             FixtureKind.WallLedStrip -> {
                 // Segue il muro: lunghezza e altezza da terra, nessuna rotazione.
                 NumberField("Lunghezza", f.length, Modifier.weight(1f)) { v -> update { it.copy(length = v) } }
@@ -801,6 +812,11 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
                 else it.copy(radiatorModel = v)
             }
         }) { radiatorPreview(it) }
+        FixtureKind.WallSpot -> Text(
+            "Orienta il fascio trascinando la maniglia nella vista 3D (la direzione e l'inclinazione qui sono per ritoccarli con precisione).",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(vertical = 4.dp),
+        )
         FixtureKind.Chandelier -> ModelPicker("Modello", LampModel.entries, f.lampModel, { it.label }, { v -> update { it.copy(lampModel = v) } }) {
             lampPreview(it)
         }
@@ -819,15 +835,17 @@ private fun NumberField(
     modifier: Modifier,
     allowZero: Boolean = false,
     suffix: String = "cm",
+    allowNegative: Boolean = false,
     onValue: (Double) -> Unit,
 ) {
     var text by remember(value) { mutableStateOf(formatCm(value)) }
-    val parsed = text.replace(',', '.').toDoubleOrNull()?.takeIf { if (allowZero) it >= 0 else it > 0 }
+    val valid = { v: Double -> allowNegative || (if (allowZero) v >= 0 else v > 0) }
+    val parsed = text.replace(',', '.').toDoubleOrNull()?.takeIf(valid)
     SelectAllTextField(
         value = text,
         onValueChange = {
             text = it
-            it.replace(',', '.').toDoubleOrNull()?.takeIf { v -> if (allowZero) v >= 0 else v > 0 }?.let(onValue)
+            it.replace(',', '.').toDoubleOrNull()?.takeIf(valid)?.let(onValue)
         },
         label = label,
         numeric = true,

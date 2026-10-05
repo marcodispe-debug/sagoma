@@ -138,7 +138,12 @@ class Scene3D(
         val position: Vec3, val direction: Vec3?, val lumens: Double, val warm: Boolean,
         /** Ingombro in pianta della stanza della lampada: la luce resta lì e non passa i muri (null = ovunque). */
         val room: Bounds? = null,
+        /** Impianto da cui viene la luce (per aggiornarne solo la direzione mentre si orienta), se c'è. */
+        val fixtureId: Long? = null,
     )
+
+    /** Stessa scena con altre luci: serve ad aggiornare solo le luci, senza ricostruire la geometria. */
+    fun withLights(newLights: List<SceneLight>) = Scene3D(opaque, transparent, picks, obstacles, bounds, furniture, textured, newLights, windows, roofs)
 
     /** Apertura vetrata: centro in cm, normale verso l'interno della stanza, misure in cm. */
     data class SceneWindow(val center: Vec3, val inward: Vec3, val width: Double, val height: Double)
@@ -192,8 +197,6 @@ class Scene3D(
         /** Faretto a parete: lato della scatola e sporgenza dal muro (cm). */
         const val WALL_SPOT_SIZE = 8.0
         const val WALL_SPOT_DEPTH = 6.0
-        /** Inclinazione verso il basso del fascio del faretto a parete (gradi); non regolabile dall'utente. */
-        const val WALL_SPOT_TILT_DEG = 45.0
         /** Striscia LED a parete: altezza e sporgenza dal muro (cm), flusso totale (lumen) e distanza tra i punti luce (cm). */
         const val WALL_LED_HEIGHT = 2.0
         const val WALL_LED_DEPTH = 1.5
@@ -1819,12 +1822,9 @@ private class SceneBuilder(
     private fun wallLamp(room: Room, f: Fixture, p: Vec2, n: Vec2, along: Vec2, width: Double, height: Double, depth: Double, lumens: Double, pick: Pick) {
         wallGlow(f, p, n, along, width, height, depth, pick)
         // La plafoniera è una luce diffusa davanti alla parete (senza direzione: il renderer la fa puntiforme, come la plafoniera a
-        // soffitto). Il faretto è un fascio che segue la normale della parete, inclinato di [WALL_SPOT_TILT_DEG] verso il basso.
-        val direction = if (f.kind == FixtureKind.WallSpot) {
-            val theta = toRadians(Scene3D.WALL_SPOT_TILT_DEG)
-            Vec3(n.x * cos(theta), -sin(theta), n.y * cos(theta))
-        } else null
-        if (current) lights += Scene3D.SceneLight((p + n * (depth + 1.0)).at(f.elevation), direction, lumens, warm = true, room = Polygon.bounds(room.points))
+        // soffitto). Il faretto è un fascio orientato secondo `aimYaw` e `aimTilt` rispetto alla normale della parete (SpotAim).
+        val direction = if (f.kind == FixtureKind.WallSpot) SpotAim.direction(n, f.aimYaw, f.aimTilt) else null
+        if (current) lights += Scene3D.SceneLight((p + n * (depth + 1.0)).at(f.elevation), direction, lumens, warm = true, room = Polygon.bounds(room.points), fixtureId = f.id)
     }
 
     private fun fixture(room: Room, f: Fixture) {

@@ -7,6 +7,7 @@ import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.RoomFactory
 import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.ShapeDimensions
+import com.sagoma.planimetria.geometry.SpotAim
 import com.sagoma.planimetria.geometry.Vec3
 import com.sagoma.planimetria.model.Fixture
 import com.sagoma.planimetria.model.FixtureKind
@@ -161,7 +162,7 @@ class WallLightsTest {
                 } else {
                     // Faretto: fascio lungo la normale della parete, inclinato di 45° verso il basso.
                     val d = light.direction!!
-                    val theta = Math.toRadians(Scene3D.WALL_SPOT_TILT_DEG)
+                    val theta = Math.toRadians(SpotAim.DEFAULT_TILT)
                     assertTrue("$name/$kind/$i: Y negativa (${d.y})", d.y < 0.0)
                     assertEquals("$name/$kind/$i: inclinazione", -Math.sin(theta), d.y, 1e-9)
                     // La componente orizzontale è parallela alla normale e ha lunghezza cos(theta).

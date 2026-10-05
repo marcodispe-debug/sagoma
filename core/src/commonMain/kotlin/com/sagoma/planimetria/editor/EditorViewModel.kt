@@ -19,6 +19,8 @@ import com.sagoma.planimetria.model.WallCut
 import com.sagoma.planimetria.geometry.Rulers
 import com.sagoma.planimetria.geometry.ShapeDimensions
 import com.sagoma.planimetria.geometry.Snapping
+import com.sagoma.planimetria.geometry.SpotAim
+import com.sagoma.planimetria.geometry.Vec3
 import com.sagoma.planimetria.geometry.SnapEngine
 import com.sagoma.planimetria.geometry.SnapGuide
 import com.sagoma.planimetria.geometry.SnapKind
@@ -1309,6 +1311,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.Wall -> selectWall(target.roomId, target.index)
             is DragTarget.Opening -> selectOpening(target.roomId, target.openingId)
             is DragTarget.Fixture -> selectFixture(target.roomId, target.fixtureId)
+            is DragTarget.SpotAim -> selectFixture(target.roomId, target.fixtureId)
             is DragTarget.CutStart -> selectWall(target.roomId, target.index)
             is DragTarget.Corner -> focusRoom(target.roomId)
             is DragTarget.RoomLabel -> focusRoom(target.roomId)
@@ -1571,6 +1574,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.RulerRotate -> _state.update { it.copy(rotatingRulerId = target.rulerId) }
             is DragTarget.RulerEnd, is DragTarget.RulerBody -> Unit
             is DragTarget.CutStart -> selectWall(target.roomId, target.index)
+            is DragTarget.SpotAim -> selectFixture(target.roomId, target.fixtureId)
             is DragTarget.Stair -> selectStair(target.stairId)
             is DragTarget.Column -> selectColumn(target.columnId)
             is DragTarget.BeamBody -> selectBeam(target.beamId)
@@ -1589,7 +1593,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         dragTarget = target
         dragStartPlan = _state.value.plan
         history.record(_state.value.fullBuilding)
-        _state.update { it.copy(dragging = true) }
+        aimTrack = null
+        _state.update { it.copy(dragging = true, aimDrag = (target as? DragTarget.SpotAim)?.let { t -> AimDrag(t.roomId, t.fixtureId, it.plan) }) }
     }
 
     /** `totalDelta` è lo spostamento complessivo in cm dall'inizio del trascinamento. */
@@ -1767,6 +1772,30 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         _state.update { it.copy(plan = plan, snapGuides = guides) }
     }
 
+    /** Direzione del fascio prima dell'ultimo passo del dito (per prolungare il moto al bordo della sfera). */
+    private var aimTrack: Vec3? = null
+
+    /**
+     * Orientamento del fascio di un faretto a parete durante il trascinamento della sua maniglia 3D (`beginDrag` con
+     * [DragTarget.SpotAim], poi questo a ogni movimento, poi `endDrag`): `rayOrigin` e `rayDir` sono il raggio della visuale sotto
+     * il dito. Cambia solo `aimYaw` e `aimTilt`: posizione, muro e quota del faretto restano quelli di prima.
+     */
+    fun dragAim(target: DragTarget.SpotAim, rayOrigin: Vec3, rayDir: Vec3) {
+        val start = dragStartPlan ?: return
+        val room = start.room(target.roomId) ?: return
+        val f = room.fixture(target.fixtureId)?.takeIf { it.kind == FixtureKind.WallSpot && it.wallIndex < room.wallCount } ?: return
+        val current = _state.value.plan.room(target.roomId)?.fixture(target.fixtureId) ?: f
+        val n = SpotAim.normal(room, f)
+        val spot = SpotAim.position(room, f)
+        val cur = SpotAim.direction(n, current.aimYaw, current.aimTilt)
+        // Moto del dito: serve a restare sullo stesso emisfero della sfera quando si passa dal suo profilo.
+        val predicted = aimTrack?.let { Vec3(cur.x * 2 - it.x, cur.y * 2 - it.y, cur.z * 2 - it.z) }
+        val aim = SpotAim.aimFromRay(n, spot, rayOrigin, rayDir, current.aimYaw, current.aimTilt, predicted) ?: return
+        if (SpotAim.rayHitsSphere(spot, rayOrigin, rayDir)) aimTrack = cur
+        val moved = f.copy(aimYaw = aim.yaw, aimTilt = aim.tilt)
+        _state.update { it.copy(plan = start.replace(room.copy(fixtures = room.fixtures.map { x -> if (x.id == f.id) moved else x }))) }
+    }
+
     /** Guide dell'aggancio del trascinamento in corso (le imposta [dragBy], le toglie [endDrag]). */
     private var snapGuides: List<SnapGuide> = emptyList()
 
@@ -1788,7 +1817,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val moved = _state.value.plan != start
         if (!moved) history.discardLast()
         snapGuides = emptyList()
-        _state.update { it.copy(canUndo = history.canUndo, canRedo = history.canRedo, rotatingRulerId = null, dragging = false, snapGuides = emptyList()) }
+        _state.update { it.copy(canUndo = history.canUndo, canRedo = history.canRedo, rotatingRulerId = null, dragging = false, aimDrag = null, snapGuides = emptyList()) }
         if (moved) when (dragTarget) {
             is DragTarget.Wall -> tutorialEvent(TutorialEvent.WallDragged)
             is DragTarget.Corner -> tutorialEvent(TutorialEvent.CornerDragged)

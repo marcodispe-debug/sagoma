@@ -192,8 +192,17 @@ data class Fixture(
     /** Modello del termosifone e del lampadario. */
     val radiatorModel: RadiatorModel = RadiatorModel.Panel,
     val lampModel: LampModel = LampModel.Modern,
+    /**
+     * Faretto a parete: rotazione orizzontale del fascio (gradi, [0, 360), 0° = lungo la normale della parete) e inclinazione
+     * (gradi, da −90 a 90: 0° orizzontale, positivo verso il basso). I valori di default sono quelli di sempre (45° verso il basso).
+     */
+    val aimYaw: Double = 0.0,
+    val aimTilt: Double = DEFAULT_AIM_TILT,
 ) {
     companion object {
+        /** Inclinazione (gradi verso il basso) del fascio di un faretto a parete appena messo. */
+        const val DEFAULT_AIM_TILT = 45.0
+
         /** Altezza da terra (cm) di plafoniere e faretti a parete appena messi. */
         const val WALL_LIGHT_ELEVATION = 220.0
         /** Striscia LED a parete appena messa: lunghezza e altezza da terra (cm). */

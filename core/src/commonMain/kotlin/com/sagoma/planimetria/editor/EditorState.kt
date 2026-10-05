@@ -91,10 +91,18 @@ sealed interface CreationStep {
     data class Survey(override val cancellable: Boolean) : CreationStep
 }
 
+/**
+ * Orientamento di un faretto in corso: `basePlan` è la pianta com'era all'inizio del trascinamento. La vista 3D tiene la scena
+ * costruita su quella e aggiorna solo le luci (senza ricostruire la geometria a ogni movimento del dito).
+ */
+data class AimDrag(val roomId: Long, val fixtureId: Long, val basePlan: FloorPlan)
+
 /** Elemento afferrato con un trascinamento sulla pianta. */
 sealed interface DragTarget {
     data class Corner(val roomId: Long, val index: Int) : DragTarget
     data class Wall(val roomId: Long, val index: Int) : DragTarget
+    /** Maniglia 3D del fascio di un faretto a parete: si trascina per orientarlo (non sposta il faretto). */
+    data class SpotAim(val roomId: Long, val fixtureId: Long) : DragTarget
     /** Linea di un'apertura: si trascina lungo il proprio muro. */
     data class Opening(val roomId: Long, val openingId: Long) : DragTarget
     /** Impianto: a muro scorre lungo il muro, al soffitto si sposta liberamente. */
@@ -194,6 +202,8 @@ data class EditorUiState(
     val creationType: RoomType? = null,
     /** Trascinamento in corso sulla pianta: la vista non va ricentrata mentre il dito si muove. */
     val dragging: Boolean = false,
+    /** Faretto a parete che si sta orientando con la maniglia 3D (null altrimenti). */
+    val aimDrag: AimDrag? = null,
     val pendingOpening: PendingOpening? = null,
     /**
      * Tendina delle informazioni aperta. Selezionando qualcosa compare solo la striscia "Info" in basso:
