@@ -318,11 +318,12 @@ class DiskAssetWriterTest {
     @Test
     fun `dopo un riavvio i temporanei di scritture interrotte spariscono e niente e in cache`() {
         val root = newDir()
-        val c = cache(root)
-        val d = bytes(200)
-        val w = c.openWrite("a.bin", 200, sha(d))
-        w.writeAll(d, 50)
-        // il processo "muore" qui: nessun commit ne abort
+        cache(root)
+        // Il processo "muore" a meta scrittura: in tmp/ resta un file .part e nessun commit ne abort lo toglie. Lo si crea a mano,
+        // senza uno scrittore aperto: con il processo morto il sistema ha gia chiuso il file (su Windows un file aperto non si cancella).
+        val orphan = File(root, "tmp/asset-orfano.part")
+        orphan.writeBytes(bytes(50))
+        assertEquals(listOf(orphan), root.tmpFiles())
         val c2 = cache(root)
         assertTrue(root.tmpFiles().isEmpty())
         assertNull(c2.info("a.bin"))
