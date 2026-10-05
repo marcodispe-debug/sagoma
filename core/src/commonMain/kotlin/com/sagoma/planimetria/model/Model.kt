@@ -160,11 +160,13 @@ enum class FixtureKind(val label: String, val mount: Mount, val linear: Boolean 
     /** Plafoniera fissata verticalmente a una parete (a muro come presa e interruttore, ma è una luce). */
     WallLight("Plafoniera a parete", Mount.Wall),
     /** Faretto fissato a una parete, rivolto verso la stanza. */
-    WallSpot("Faretto a parete", Mount.Wall);
+    WallSpot("Faretto a parete", Mount.Wall),
+    /** Striscia LED fissata a una parete: lunga `length`, segue il muro (nessuna rotazione), a `elevation` da terra. */
+    WallLedStrip("Striscia LED a parete", Mount.Wall);
 
     /** Luce vera: a soffitto o a parete. */
     val isLight get() = when (this) {
-        Spotlight, Neon, Chandelier, CeilingLight, LedStrip, WallLight, WallSpot -> true
+        Spotlight, Neon, Chandelier, CeilingLight, LedStrip, WallLight, WallSpot, WallLedStrip -> true
         Radiator, Outlet, Switch, WaterPoint -> false
     }
 }
@@ -194,6 +196,9 @@ data class Fixture(
     companion object {
         /** Altezza da terra (cm) di plafoniere e faretti a parete appena messi. */
         const val WALL_LIGHT_ELEVATION = 220.0
+        /** Striscia LED a parete appena messa: lunghezza e altezza da terra (cm). */
+        const val WALL_LED_LENGTH = 200.0
+        const val WALL_LED_ELEVATION = 250.0
 
         fun default(id: Long, kind: FixtureKind) = when (kind) {
             FixtureKind.Radiator -> Fixture(id, kind, length = 80.0, height = 60.0, elevation = 12.0)
@@ -201,6 +206,7 @@ data class Fixture(
             FixtureKind.Switch -> Fixture(id, kind, elevation = 110.0)
             FixtureKind.WaterPoint -> Fixture(id, kind, elevation = 50.0)
             FixtureKind.WallLight, FixtureKind.WallSpot -> Fixture(id, kind, elevation = WALL_LIGHT_ELEVATION)
+            FixtureKind.WallLedStrip -> Fixture(id, kind, length = WALL_LED_LENGTH, elevation = WALL_LED_ELEVATION)
             FixtureKind.Neon -> Fixture(id, kind, length = 120.0)
             FixtureKind.LedStrip -> Fixture(id, kind, length = 200.0)
             else -> Fixture(id, kind)

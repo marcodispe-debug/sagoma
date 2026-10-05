@@ -383,6 +383,7 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
 private fun fixtureSummary(f: Fixture): String = when (f.kind) {
     FixtureKind.Radiator -> "muro ${f.wallIndex + 1} · ${formatCm(f.length)}×${formatCm(f.height)} cm · da terra ${formatCm(f.elevation)}"
     FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint, FixtureKind.WallLight, FixtureKind.WallSpot -> "muro ${f.wallIndex + 1} · da terra ${formatCm(f.elevation)} cm"
+    FixtureKind.WallLedStrip -> "muro ${f.wallIndex + 1} · ${formatCm(f.length)} cm · da terra ${formatCm(f.elevation)} cm"
     FixtureKind.Neon, FixtureKind.LedStrip -> "${formatCm(f.length)} cm · ${formatCm(f.rotation)}°"
     else -> "soffitto"
 }

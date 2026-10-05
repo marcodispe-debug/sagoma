@@ -786,7 +786,7 @@ private fun FixtureButton(
     fun place(kind: FixtureKind) = { vm.startPlacingFixture(kind) }
     val lights = listOf(
         FixtureKind.Spotlight, FixtureKind.Neon, FixtureKind.Chandelier, FixtureKind.CeilingLight, FixtureKind.LedStrip,
-        FixtureKind.WallLight, FixtureKind.WallSpot,
+        FixtureKind.WallLight, FixtureKind.WallSpot, FixtureKind.WallLedStrip,
     )
     MenuButton(
         "+ Impianti",

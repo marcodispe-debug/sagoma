@@ -382,7 +382,7 @@ private fun DrawScope.drawFixture(room: Room, f: Fixture, cam: Camera, selected:
             f.kind.linear -> Fixtures.linearEnds(f).let { (a, b) ->
                 drawLine(SelectedColor.copy(alpha = 0.3f), cam.o(a), cam.o(b), strokeWidth = px(18f), cap = StrokeCap.Round)
             }
-            f.kind == FixtureKind.Radiator -> radiatorSpan(room, f).let { (a, b) ->
+            f.kind == FixtureKind.Radiator || f.kind == FixtureKind.WallLedStrip -> radiatorSpan(room, f).let { (a, b) ->
                 drawLine(SelectedColor.copy(alpha = 0.3f), cam.o(a), cam.o(b), strokeWidth = px(18f), cap = StrokeCap.Round)
             }
             else -> drawCircle(SelectedColor.copy(alpha = 0.3f), px(16f), cam.o(center))
@@ -478,6 +478,17 @@ private fun DrawScope.drawFixture(room: Room, f: Fixture, cam: Camera, selected:
             for (side in listOf(-1.0, 1.0)) {
                 drawLine(LightColor, cam.o(base + u * (side * toCm(r * 0.5f))), cam.o(base + n * toCm(px(9f)) + u * (side * toCm(px(5f)))), strokeWidth = thin / 2, cap = StrokeCap.Round)
             }
+        }
+        FixtureKind.WallLedStrip -> {
+            // Striscia LED a parete: tratteggio lungo il muro (come quella a soffitto), appena dentro la stanza; segue il muro.
+            val (a, b) = radiatorSpan(room, f)
+            val (_, n) = Fixtures.wallAnchor(room, f)
+            val off = n * toCm(px(3f))
+            drawLine(LightColor.copy(alpha = 0.3f), cam.o(a + off), cam.o(b + off), strokeWidth = px(6f), cap = StrokeCap.Butt)
+            drawLine(
+                LightColor, cam.o(a + off), cam.o(b + off), strokeWidth = px(3f), cap = StrokeCap.Round,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(px(2f), px(3f))),
+            )
         }
         FixtureKind.Spotlight -> {
             val c = cam.o(center)

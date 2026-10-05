@@ -44,7 +44,7 @@ object Collisions {
             if (f.kind.mount != Mount.Wall || f.wallIndex >= room.wallCount) continue
             val (p, _) = Fixtures.wallAnchor(room, f)
             val along = (room.wallEnd(f.wallIndex) - room.wallStart(f.wallIndex)).normalized()
-            val half = if (f.kind == FixtureKind.Radiator) f.length / 2 else 0.0
+            val half = if (f.kind == FixtureKind.Radiator || f.kind == FixtureKind.WallLedStrip) f.length / 2 else 0.0
             val top = f.elevation + when (f.kind) {
                 FixtureKind.Radiator -> f.height
                 FixtureKind.Outlet -> 4.0
@@ -52,6 +52,7 @@ object Collisions {
                 FixtureKind.WaterPoint -> 3.0
                 FixtureKind.WallLight -> Scene3D.WALL_LIGHT_HEIGHT / 2
                 FixtureKind.WallSpot -> Scene3D.WALL_SPOT_SIZE / 2
+                FixtureKind.WallLedStrip -> Scene3D.WALL_LED_HEIGHT / 2
                 else -> 0.0
             }
             // Un impianto sta su una sola faccia: conta solo la parete della sua stanza.

@@ -64,6 +64,9 @@ object Distances {
                         if (f.kind == FixtureKind.Radiator) {
                             val along = n.perp()
                             Shape(listOf(rect(p - along * (f.length / 2), p + along * (f.length / 2), n, 0.0, Fixtures.RADIATOR_DEPTH)))
+                        } else if (f.kind == FixtureKind.WallLedStrip) {
+                            val along = n.perp()
+                            Shape(emptyList(), segments = listOf((p - along * (f.length / 2)) to (p + along * (f.length / 2))))
                         } else Shape(emptyList(), points = listOf(p))
                     }
                     f.kind.linear -> Fixtures.linearEnds(f).let { (a, b) -> Shape(emptyList(), segments = listOf(a to b)) }

@@ -181,7 +181,9 @@ private fun opening(
 /** Impianto a muro al centro del muro in alto, oppure luce al centro della stanza di prova. */
 private fun fixture(kind: FixtureKind): DrawScope.(TextMeasurer) -> Unit = { m ->
     val f = Fixture.default(1, kind).let {
-        if (kind.mount == Mount.Ceiling) it.copy(point = Vec2(100.0, 80.0), length = if (kind.linear) 140.0 else it.length) else it.copy(position = 100.0)
+        if (kind.mount == Mount.Ceiling) it.copy(point = Vec2(100.0, 80.0), length = if (kind.linear) 140.0 else it.length)
+        else if (kind == FixtureKind.WallLedStrip) it.copy(position = 100.0, length = 120.0)
+        else it.copy(position = 100.0)
     }
     drawSample(sampleRoom(fixtures = listOf(f)), m, if (kind.mount == Mount.Ceiling) WholeRoom else TopWall)
 }
@@ -283,6 +285,7 @@ private val legendSections: List<LegendSection> by lazy {
                 LegendItem("Striscia LED", "Striscia luminosa a soffitto, con lunghezza e rotazione.", fixture(FixtureKind.LedStrip)),
                 LegendItem("Plafoniera a parete", "Fissata al muro, con l'altezza da terra (di solito 220 cm).", fixture(FixtureKind.WallLight)),
                 LegendItem("Faretto a parete", "Fissato al muro e rivolto verso la stanza, con l'altezza da terra.", fixture(FixtureKind.WallSpot)),
+                LegendItem("Striscia LED a parete", "Striscia luminosa sul muro: segue il muro, con lunghezza e altezza da terra (di solito 250 cm).", fixture(FixtureKind.WallLedStrip)),
             ),
         ),
         LegendSection(

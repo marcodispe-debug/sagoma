@@ -19,6 +19,7 @@ import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.persistence.PlanJson
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -58,10 +59,10 @@ class WallLightsTest {
     }
 
     @Test
-    fun `sono luci i tipi a soffitto e i due a parete, non gli altri impianti a muro`() {
+    fun `sono luci i tipi a soffitto e quelli a parete, non gli altri impianti a muro`() {
         val lights = setOf(
             FixtureKind.Spotlight, FixtureKind.Neon, FixtureKind.Chandelier, FixtureKind.CeilingLight, FixtureKind.LedStrip,
-            FixtureKind.WallLight, FixtureKind.WallSpot,
+            FixtureKind.WallLight, FixtureKind.WallSpot, FixtureKind.WallLedStrip,
         )
         for (k in FixtureKind.entries) assertEquals(k.name, k in lights, k.isLight)
         assertTrue(FixtureKind.WallLight.isLight && FixtureKind.WallSpot.isLight)
@@ -154,9 +155,20 @@ class WallLightsTest {
                 // Luce vera: una sola, davanti alla lampada, alla stessa quota, che punta lungo la normale della parete.
                 val light = scene.lights.single()
                 assertEquals(220.0, light.position.y, 1e-9)
-                val d = light.direction!!
-                assertEquals("$name/$kind/$i direzione", 0.0, (Vec2(d.x, d.z) - inward).length, 1e-9)
-                assertEquals(0.0, d.y, 1e-12)
+                if (kind == FixtureKind.WallLight) {
+                    // Plafoniera: luce diffusa, senza fascio.
+                    assertNull("$name/$kind/$i: la plafoniera non ha direzione", light.direction)
+                } else {
+                    // Faretto: fascio lungo la normale della parete, inclinato di 45° verso il basso.
+                    val d = light.direction!!
+                    val theta = Math.toRadians(Scene3D.WALL_SPOT_TILT_DEG)
+                    assertTrue("$name/$kind/$i: Y negativa (${d.y})", d.y < 0.0)
+                    assertEquals("$name/$kind/$i: inclinazione", -Math.sin(theta), d.y, 1e-9)
+                    // La componente orizzontale è parallela alla normale e ha lunghezza cos(theta).
+                    val horizontal = Vec2(d.x, d.z)
+                    assertEquals("$name/$kind/$i: orizzontale lungo la normale", 0.0, (horizontal - inward * Math.cos(theta)).length, 1e-9)
+                    assertEquals("$name/$kind/$i: versore", 1.0, Math.sqrt(d.x * d.x + d.y * d.y + d.z * d.z), 1e-9)
+                }
                 assertEquals(t + depth + 1.0, (Vec2(light.position.x, light.position.z) - start) dot inward, 1e-6)
                 assertTrue("$name/$kind/$i luce nella stanza", Polygon.contains(r.points, Vec2(light.position.x, light.position.z)))
                 assertEquals(if (kind == FixtureKind.WallLight) 800.0 else 400.0, light.lumens, 0.0)

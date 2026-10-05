@@ -775,6 +775,11 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
             )
             FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint, FixtureKind.WallLight, FixtureKind.WallSpot ->
                 NumberField("Da terra", f.elevation, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(elevation = v) } }
+            FixtureKind.WallLedStrip -> {
+                // Segue il muro: lunghezza e altezza da terra, nessuna rotazione.
+                NumberField("Lunghezza", f.length, Modifier.weight(1f)) { v -> update { it.copy(length = v) } }
+                NumberField("Da terra", f.elevation, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(elevation = v) } }
+            }
             FixtureKind.Neon, FixtureKind.LedStrip -> {
                 NumberField("Lunghezza", f.length, Modifier.weight(1f)) { v -> update { it.copy(length = v) } }
                 NumberField("Rotazione", f.rotation, Modifier.weight(1f), allowZero = true, suffix = "°") { v ->

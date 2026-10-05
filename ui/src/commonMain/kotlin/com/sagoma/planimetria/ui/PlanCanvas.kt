@@ -192,6 +192,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                         f.kind == FixtureKind.Radiator -> radiatorSpan(room, f).let { (a, b) ->
                             Polygon.distanceToSegment(world, a, b) - Fixtures.RADIATOR_DEPTH / 2
                         }
+                        f.kind == FixtureKind.WallLedStrip -> radiatorSpan(room, f).let { (a, b) -> Polygon.distanceToSegment(world, a, b) }
                         else -> world.distanceTo(Fixtures.center(room, f))
                     }
                     f to d * cam.scale
@@ -246,6 +247,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                 val d = when {
                     f.kind.linear -> Fixtures.linearEnds(f).let { (a, b) -> Polygon.distanceToSegment(world, a, b) }
                     f.kind == FixtureKind.Radiator -> radiatorSpan(room, f).let { (a, b) -> Polygon.distanceToSegment(world, a, b) - Fixtures.RADIATOR_DEPTH / 2 }
+                    f.kind == FixtureKind.WallLedStrip -> radiatorSpan(room, f).let { (a, b) -> Polygon.distanceToSegment(world, a, b) }
                     else -> world.distanceTo(Fixtures.center(room, f))
                 }
                 if (d * cam.scale <= fixtureHitPx) objects += DragTarget.Fixture(room.id, f.id)

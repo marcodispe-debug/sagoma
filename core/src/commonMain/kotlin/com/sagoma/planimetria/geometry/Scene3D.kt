@@ -28,8 +28,10 @@ import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 /** Punto/vettore 3D in cm. Convenzione: x e z sono le coordinate della pianta (z = y della pianta), y è l'altezza. */
@@ -190,6 +192,13 @@ class Scene3D(
         /** Faretto a parete: lato della scatola e sporgenza dal muro (cm). */
         const val WALL_SPOT_SIZE = 8.0
         const val WALL_SPOT_DEPTH = 6.0
+        /** Inclinazione verso il basso del fascio del faretto a parete (gradi); non regolabile dall'utente. */
+        const val WALL_SPOT_TILT_DEG = 45.0
+        /** Striscia LED a parete: altezza e sporgenza dal muro (cm), flusso totale (lumen) e distanza tra i punti luce (cm). */
+        const val WALL_LED_HEIGHT = 2.0
+        const val WALL_LED_DEPTH = 1.5
+        const val WALL_LED_LUMENS = 1000.0
+        const val LED_LIGHT_SPACING = 80.0
 
         private fun rayTriangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3): Double? {
             val e1 = b - a
@@ -1786,10 +1795,36 @@ private class SceneBuilder(
      * Luce fissata a una parete: scatola luminosa appena fuori dal muro (sul filo interno, verso la stanza), centrata
      * all'altezza dell'impianto; la luce vera sta davanti, un poco staccata, e punta lungo la normale della parete.
      */
-    private fun wallLamp(room: Room, f: Fixture, p: Vec2, n: Vec2, along: Vec2, width: Double, height: Double, depth: Double, lumens: Double, pick: Pick) {
+    /** Scatola luminosa sulla parete: larga `width` lungo il muro, alta `height` attorno alla quota, sporgente `depth` dal filo interno. */
+    private fun wallGlow(f: Fixture, p: Vec2, n: Vec2, along: Vec2, width: Double, height: Double, depth: Double, pick: Pick) {
         val c = p + n * (depth / 2 + 0.5)
         box(c - along * (width / 2), c + along * (width / 2), depth / 2, f.elevation - height / 2, f.elevation + height / 2, tint(lightColor, pick), pick, emissive = true)
-        if (current) lights += Scene3D.SceneLight((p + n * (depth + 1.0)).at(f.elevation), Vec3(n.x, 0.0, n.y), lumens, warm = true, room = Polygon.bounds(room.points))
+    }
+
+    /**
+     * Striscia LED a parete: striscia sottile lungo il muro e, come quella a soffitto, più luci puntiformi neutre (senza direzione:
+     * il renderer le fa diffuse) distribuite sulla sua lunghezza, un poco davanti alla parete; il flusso totale si divide tra i punti.
+     */
+    private fun wallLedStrip(room: Room, f: Fixture, p: Vec2, n: Vec2, along: Vec2, pick: Pick) {
+        wallGlow(f, p, n, along, f.length, Scene3D.WALL_LED_HEIGHT, Scene3D.WALL_LED_DEPTH, pick)
+        if (!current) return
+        val count = maxOf(1, (f.length / Scene3D.LED_LIGHT_SPACING).toInt())
+        val front = p + n * (Scene3D.WALL_LED_DEPTH + 4.0)
+        for (k in 0 until count) {
+            val t = f.length * ((k + 0.5) / count) - f.length / 2
+            lights += Scene3D.SceneLight((front + along * t).at(f.elevation), null, Scene3D.WALL_LED_LUMENS / count, warm = false, room = Polygon.bounds(room.points))
+        }
+    }
+
+    private fun wallLamp(room: Room, f: Fixture, p: Vec2, n: Vec2, along: Vec2, width: Double, height: Double, depth: Double, lumens: Double, pick: Pick) {
+        wallGlow(f, p, n, along, width, height, depth, pick)
+        // La plafoniera è una luce diffusa davanti alla parete (senza direzione: il renderer la fa puntiforme, come la plafoniera a
+        // soffitto). Il faretto è un fascio che segue la normale della parete, inclinato di [WALL_SPOT_TILT_DEG] verso il basso.
+        val direction = if (f.kind == FixtureKind.WallSpot) {
+            val theta = toRadians(Scene3D.WALL_SPOT_TILT_DEG)
+            Vec3(n.x * cos(theta), -sin(theta), n.y * cos(theta))
+        } else null
+        if (current) lights += Scene3D.SceneLight((p + n * (depth + 1.0)).at(f.elevation), direction, lumens, warm = true, room = Polygon.bounds(room.points))
     }
 
     private fun fixture(room: Room, f: Fixture) {
@@ -1809,6 +1844,7 @@ private class SceneBuilder(
                 FixtureKind.WaterPoint -> onWall(6.0, 6.0, 5.0, f.elevation - 3, Rgba(0.18f, 0.6f, 0.7f))
                 FixtureKind.WallLight -> wallLamp(room, f, p, n, along, Scene3D.WALL_LIGHT_WIDTH, Scene3D.WALL_LIGHT_HEIGHT, Scene3D.WALL_LIGHT_DEPTH, 800.0, pick)
                 FixtureKind.WallSpot -> wallLamp(room, f, p, n, along, Scene3D.WALL_SPOT_SIZE, Scene3D.WALL_SPOT_SIZE, Scene3D.WALL_SPOT_DEPTH, 400.0, pick)
+                FixtureKind.WallLedStrip -> wallLedStrip(room, f, p, n, along, pick)
                 else -> Unit
             }
             return
