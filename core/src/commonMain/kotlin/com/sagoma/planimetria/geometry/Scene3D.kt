@@ -636,8 +636,9 @@ private class SceneBuilder(
             StairRailing.Wood -> tint(Rgba(0.54f, 0.37f, 0.23f), pick)
             else -> tint(railColor, pick)
         }
-        // Tagliata a filo del pavimento del piano di sopra (a scelta): niente sopra quella quota.
-        val cap = if (s.railingAboveFloor) Double.MAX_VALUE else rise
+        // Tagliata dal solaio (a scelta): niente sopra la faccia inferiore del solaio, cioè sotto lo spessore di [Floor.SLAB]
+        // che sta tra il soffitto e il pavimento del piano di sopra (non a filo del pavimento, che è la faccia superiore).
+        val cap = if (s.railingAboveFloor) Double.MAX_VALUE else rise - Floor.SLAB
         for ((a, b, st) in runs) {
             if (st.top >= cap) continue
             val ha = railAt(a)
