@@ -28,7 +28,10 @@ import com.google.ar.core.exceptions.UnavailableUserDeclinedInstallationExceptio
 import com.sagoma.planimetria.geometry.Triangulation
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.scan.ArPoint
+import com.sagoma.planimetria.scan.ArXZ
+import com.sagoma.planimetria.scan.DetectedWall
 import com.sagoma.planimetria.scan.ScanDraft
+import com.sagoma.planimetria.scan.WallObservation
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -36,6 +39,8 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * Vista della scansione: fotocamera, pavimento rilevato (piani orizzontali di ARCore) e perimetro toccato, disegnati con
@@ -55,6 +60,10 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         val trackingHint: String? = null,
         /** C'è almeno un pezzo di pavimento rilevato abbastanza grande. */
         val floorDetected: Boolean = false,
+        /** Quota del pavimento nel mondo AR (m, arrotondata al centimetro), se rilevato. */
+        val floorY: Double? = null,
+        /** Piani verticali (pareti) che ARCore sta seguendo in questo momento. */
+        val verticalPlanes: Int = 0,
     )
 
     /** Posizione sullo schermo (pixel della vista). */
@@ -65,6 +74,12 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
 
         /** Angolo toccato sul pavimento. */
         fun onFloorPoint(point: ArPoint)
+
+        /**
+         * Piani verticali seguiti da ARCore, ridotti a numeri (circa 4 volte al secondo): chi ascolta li accumula in pareti
+         * ([com.sagoma.planimetria.scan.WallScan]). Lo stesso piano ha sempre la stessa chiave.
+         */
+        fun onWallObservations(observations: List<WallObservation>)
 
         /** Tocco non valido (non sul pavimento rilevato, tracciamento perso…), con il motivo da mostrare. */
         fun onTapRejected(reason: String)
@@ -93,6 +108,10 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
     @Volatile
     var draft: ScanDraft = ScanDraft()
 
+    /** Pareti già riconosciute, da evidenziare sopra la scena; si può cambiare da qualsiasi thread. */
+    @Volatile
+    var walls: List<DetectedWall> = emptyList()
+
     @Volatile
     private var session: Session? = null
     private var installRequested = false
@@ -118,6 +137,9 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
     private val projectionMatrix = FloatArray(16)
     private val viewProjection = FloatArray(16)
     private var lastStatus: Status? = null
+    private var lastWallPost = 0L
+    /** Chiave stabile di ogni piano di ARCore (lo stesso piano è uguale a se stesso tra un fotogramma e l'altro). */
+    private val planeKeys = HashMap<Plane, Int>()
 
     init {
         preserveEGLContextOnPause = true
@@ -147,7 +169,7 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
                 }
                 val s = Session(activity)
                 val config = Config(s).apply {
-                    planeFindingMode = Config.PlaneFindingMode.HORIZONTAL
+                    planeFindingMode = Config.PlaneFindingMode.HORIZONTAL_AND_VERTICAL
                     updateMode = Config.UpdateMode.LATEST_CAMERA_IMAGE
                     focusMode = Config.FocusMode.AUTO
                     lightEstimationMode = Config.LightEstimationMode.DISABLED
@@ -195,6 +217,7 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
     fun release() {
         session?.close()
         session = null
+        planeKeys.clear()
     }
 
     // ---------- Tocco ----------
@@ -252,17 +275,21 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
             drawBackground(frame)
             val tracking = camera.trackingState == TrackingState.TRACKING
             val planes = if (tracking) floorPlanes(s) else emptyList()
+            val verticals = if (tracking) verticalPlanes(s) else emptyList()
             val floorY = planes.minOfOrNull { it.centerPose.ty() }
             val status = Status(
                 tracking = tracking,
                 trackingHint = if (tracking) null else hint(camera),
                 floorDetected = planes.any { it.extentX * it.extentZ >= MIN_FLOOR_AREA_M2 },
+                floorY = floorY?.let { (it * 100.0).roundToInt() / 100.0 },
+                verticalPlanes = verticals.size,
             )
             if (status != lastStatus) {
                 lastStatus = status
                 post { listener?.onStatus(status) }
             }
             handleTaps(frame, tracking, floorY)
+            publishWalls(verticals)
             if (!tracking) return
             camera.getProjectionMatrix(projectionMatrix, 0, NEAR, FAR)
             camera.getViewMatrix(viewMatrix, 0)
@@ -270,7 +297,9 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
             GLES20.glDisable(GLES20.GL_DEPTH_TEST)
             GLES20.glEnable(GLES20.GL_BLEND)
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
-            for (p in planes) drawPlane(p)
+            for (p in planes) drawPlane(p, PLANE_COLOR, LIFT)
+            for (p in verticals) drawPlane(p, WALL_PLANE_COLOR, 0f)
+            drawWalls(walls, floorY)
             drawDraft(draft, floorY)
             publishOverlay(draft)
         } catch (e: CameraNotAvailableException) {
@@ -320,6 +349,11 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         it.trackingState == TrackingState.TRACKING && it.subsumedBy == null && it.type == Plane.Type.HORIZONTAL_UPWARD_FACING
     }
 
+    /** Piani verticali seguiti, non assorbiti da un altro: candidati a parete (o a fronte di un mobile, di un'anta). */
+    private fun verticalPlanes(s: Session): List<Plane> = s.getAllTrackables(Plane::class.java).filter {
+        it.trackingState == TrackingState.TRACKING && it.subsumedBy == null && it.type == Plane.Type.VERTICAL
+    }
+
     private fun hint(camera: Camera): String? = when (camera.trackingFailureReason) {
         TrackingFailureReason.INSUFFICIENT_LIGHT -> "C'è poca luce: accendi le luci della stanza."
         TrackingFailureReason.EXCESSIVE_MOTION -> "Muovi il telefono più lentamente."
@@ -351,9 +385,83 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         post { listener?.onTapRejected(reason) }
     }
 
+    // ---------- Pareti (piani verticali) ----------
+
+    /** Circa 4 volte al secondo manda a chi ascolta i piani verticali seguiti, ridotti a numeri. */
+    private fun publishWalls(verticals: List<Plane>) {
+        val now = System.nanoTime()
+        if (now - lastWallPost < WALL_POST_INTERVAL_NS) return
+        lastWallPost = now
+        val list = verticals.mapNotNull { wallObservation(planeKeys.getOrPut(it) { planeKeys.size }, it) }
+        if (list.isNotEmpty()) post { listener?.onWallObservations(list) }
+    }
+
+    /**
+     * Il pezzo rilevato di un piano verticale come segmento in pianta + quote. Non si fa affidamento sugli assi locali del piano:
+     * i vertici del poligono si portano nel mondo, la normale del piano (asse Y locale) dà la direzione orizzontale della
+     * parete e i vertici si proiettano su quella direzione. Null se il piano non è abbastanza verticale o è minuscolo.
+     */
+    private fun wallObservation(key: Int, plane: Plane): WallObservation? {
+        val poly = plane.polygon
+        val n = poly.limit() / 2
+        if (n < 3) return null
+        val pose = plane.centerPose
+        val normal = pose.yAxis
+        val hx = normal[0].toDouble()
+        val hz = normal[2].toDouble()
+        val hl = sqrt(hx * hx + hz * hz)
+        if (hl < MIN_HORIZONTAL_NORMAL) return null // normale quasi verticale: è un piano orizzontale inclinato, non una parete
+        val nx = hx / hl
+        val nz = hz / hl
+        val tx = -nz
+        val tz = nx
+        var smin = Double.MAX_VALUE
+        var smax = -Double.MAX_VALUE
+        var offset = 0.0
+        var ymin = Double.MAX_VALUE
+        var ymax = -Double.MAX_VALUE
+        val world = FloatArray(3)
+        for (i in 0 until n) {
+            pose.transformPoint(floatArrayOf(poly.get(2 * i), 0f, poly.get(2 * i + 1)), 0, world, 0)
+            val x = world[0].toDouble()
+            val y = world[1].toDouble()
+            val z = world[2].toDouble()
+            val s = x * tx + z * tz
+            smin = minOf(smin, s); smax = maxOf(smax, s)
+            offset += x * nx + z * nz
+            ymin = minOf(ymin, y); ymax = maxOf(ymax, y)
+        }
+        offset /= n
+        if (smax - smin < MIN_PLANE_LENGTH_M || ymax - ymin < MIN_PLANE_HEIGHT_M) return null
+        return WallObservation(
+            key,
+            ArXZ(tx * smin + nx * offset, tz * smin + nz * offset),
+            ArXZ(tx * smax + nx * offset, tz * smax + nz * offset),
+            ymin, ymax,
+        )
+    }
+
+    /** Pareti riconosciute: la parte rilevata in altezza e la striscia sul pavimento, di colore diverso da pavimento e piani. */
+    private fun drawWalls(list: List<DetectedWall>, floorY: Float?) {
+        if (list.isEmpty()) return
+        val quads = ArrayList<Float>()
+        val feet = ArrayList<Float>()
+        for (w in list) {
+            val ax = w.a.x.toFloat(); val az = w.a.z.toFloat()
+            val bx = w.b.x.toFloat(); val bz = w.b.z.toFloat()
+            val y0 = w.bottomY.toFloat()
+            val y1 = w.topY.toFloat()
+            val q = floatArrayOf(ax, y0, az, bx, y0, bz, bx, y1, bz, ax, y1, az)
+            for (i in intArrayOf(0, 1, 2, 0, 2, 3)) { quads.add(q[3 * i]); quads.add(q[3 * i + 1]); quads.add(q[3 * i + 2]) }
+            if (floorY != null) addStrip(feet, ax, az, bx, bz, floorY + 3 * LIFT, WALL_FOOT_HALF_WIDTH_M)
+        }
+        drawTriangles(quads.toFloatArray(), quads.size / 3, DETECTED_WALL_COLOR)
+        if (feet.isNotEmpty()) drawTriangles(feet.toFloatArray(), feet.size / 3, DETECTED_WALL_FOOT_COLOR)
+    }
+
     // ---------- Disegno di piani e perimetro ----------
 
-    private fun drawPlane(plane: Plane) {
+    private fun drawPlane(plane: Plane, color: FloatArray, lift: Float) {
         val poly = plane.polygon
         val n = poly.limit() / 2
         if (n < 3) return
@@ -368,11 +476,11 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         for (i in 0 until n) {
             val a = pts[i]
             val b = pts[(i + 1) % n]
-            v[k++] = c[0]; v[k++] = c[1] + LIFT; v[k++] = c[2]
-            v[k++] = a[0]; v[k++] = a[1] + LIFT; v[k++] = a[2]
-            v[k++] = b[0]; v[k++] = b[1] + LIFT; v[k++] = b[2]
+            v[k++] = c[0]; v[k++] = c[1] + lift; v[k++] = c[2]
+            v[k++] = a[0]; v[k++] = a[1] + lift; v[k++] = a[2]
+            v[k++] = b[0]; v[k++] = b[1] + lift; v[k++] = b[2]
         }
-        drawTriangles(v, k / 3, PLANE_COLOR)
+        drawTriangles(v, k / 3, color)
     }
 
     private fun drawDraft(d: ScanDraft, floorY: Float?) {
@@ -498,7 +606,19 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         const val LIFT = 0.004f
         const val LINE_HALF_WIDTH_M = 0.012f
         const val MARK_HALF_SIZE_M = 0.035f
+        /** Ogni quanto (ns) si mandano i piani verticali a chi ascolta. */
+        const val WALL_POST_INTERVAL_NS = 250_000_000L
+        /** Un piano la cui normale è meno orizzontale di così non è una parete. */
+        const val MIN_HORIZONTAL_NORMAL = 0.5
+        const val MIN_PLANE_LENGTH_M = 0.3
+        const val MIN_PLANE_HEIGHT_M = 0.2
+        const val WALL_FOOT_HALF_WIDTH_M = 0.025f
         val PLANE_COLOR = floatArrayOf(0.10f, 0.75f, 0.45f, 0.28f)
+        /** Piani verticali visti da ARCore: azzurro, per distinguerli dal pavimento (verde). */
+        val WALL_PLANE_COLOR = floatArrayOf(0.20f, 0.55f, 1.00f, 0.22f)
+        /** Pareti riconosciute (raggruppate): magenta. */
+        val DETECTED_WALL_COLOR = floatArrayOf(0.95f, 0.25f, 0.70f, 0.35f)
+        val DETECTED_WALL_FOOT_COLOR = floatArrayOf(1.00f, 0.35f, 0.80f, 0.95f)
         val FILL_COLOR = floatArrayOf(0.25f, 0.55f, 1.00f, 0.25f)
         val LINE_COLOR = floatArrayOf(1.00f, 1.00f, 1.00f, 0.95f)
         val MARK_COLOR = floatArrayOf(1.00f, 0.65f, 0.05f, 1.00f)

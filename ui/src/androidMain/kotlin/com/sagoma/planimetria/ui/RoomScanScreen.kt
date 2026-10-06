@@ -51,6 +51,9 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import com.sagoma.planimetria.scan.ArPoint
 import com.sagoma.planimetria.scan.ScanDraft
 import com.sagoma.planimetria.scan.ScanResult
+import com.sagoma.planimetria.scan.WallObservation
+import com.sagoma.planimetria.scan.WallOutline
+import com.sagoma.planimetria.scan.WallScan
 import com.sagoma.planimetria.scanner.ArScanView
 import com.sagoma.planimetria.scanner.ArSupport
 import com.sagoma.planimetria.scanner.ArSupportCheck
@@ -151,7 +154,11 @@ private fun BlockedPanel(p: ScanPhase.Blocked, onGrant: () -> Unit, onExit: () -
 
 @Composable
 private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?) -> Unit) {
+    // Due modi, che si possono usare insieme: le pareti rilevate da ARCore (automatico) e gli angoli toccati a mano (come prima).
     var draft by remember { mutableStateOf(ScanDraft()) }
+    var wallScan by remember { mutableStateOf(WallScan()) }
+    // "Chiudi" con una parete mancante: la serie di pareti si chiude con un lato dritto tra i due estremi.
+    var chainClosed by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf(ArScanView.Status()) }
     var corners by remember { mutableStateOf<List<ArScanView.ScreenPoint?>>(emptyList()) }
     var mids by remember { mutableStateOf<List<ArScanView.ScreenPoint?>>(emptyList()) }
@@ -163,6 +170,7 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
     DisposableEffect(view) {
         view.listener = object : ArScanView.Listener {
             override fun onStatus(s: ArScanView.Status) { status = s }
+            override fun onWallObservations(observations: List<WallObservation>) { wallScan = wallScan.update(observations) }
             override fun onFloorPoint(point: ArPoint) {
                 draft = draft.add(point)
                 message = null
@@ -179,7 +187,19 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
             view.release()
         }
     }
-    LaunchedEffect(draft) { view.draft = draft }
+
+    val walls = remember(wallScan) { wallScan.walls() }
+    val layout = remember(walls) { WallOutline.layout(walls) }
+    val floorY = status.floorY ?: walls.minOfOrNull { it.bottomY } ?: 0.0
+    // Il perimetro mostrato: quello toccato a mano, se c'è; altrimenti quello ricostruito dalle pareti (chiuso da solo, o chiuso con "Chiudi").
+    val wallDraft: ScanDraft? = layout.closed?.let { WallOutline.toDraft(it, floorY) }
+        ?: if (chainClosed) layout.closableChain?.let { WallOutline.toDraft(it, floorY) } else null
+    val effective = if (draft.points.isNotEmpty()) draft else wallDraft ?: ScanDraft()
+    val room = effective.toScannedRoom()
+    val canCloseChain = draft.points.isEmpty() && wallDraft == null && layout.closableChain != null
+
+    LaunchedEffect(effective) { view.draft = effective }
+    LaunchedEffect(walls) { view.walls = walls }
     LaunchedEffect(message) { if (message != null) { delay(3000); message = null } }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         when (val r = view.start(activity)) {
@@ -190,7 +210,6 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
     }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { view.stop() }
 
-    val room = draft.toScannedRoom()
     val density = LocalDensity.current
     Box(Modifier.fillMaxSize()) {
         AndroidView(factory = { view }, modifier = Modifier.fillMaxSize())
@@ -200,19 +219,33 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
             if (c != null) Marker("${i + 1}", c, density, 24.dp, Color(0xFFE8A200))
         }
         for ((i, m) in mids.withIndex()) {
-            val length = draft.edgeLengthsCm.getOrNull(i)
+            val length = effective.edgeLengthsCm.getOrNull(i)
             if (m != null && length != null) Marker(formatMeters(length), m, density, 76.dp, Color(0xCC000000))
         }
 
         Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp)) {
             Surface(shape = RoundedCornerShape(12.dp), color = Color(0xCC000000)) {
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                    Text(instruction(status, draft, room != null, fatal, installPending), color = Color.White, style = MaterialTheme.typography.titleSmall)
-                    if (fatal == null) Text("Punti: ${draft.points.size}", color = Color.White, style = MaterialTheme.typography.bodySmall)
-                    message?.let { Text(it, color = Color(0xFFFFC107), style = MaterialTheme.typography.bodySmall) }
-                    if (draft.closed && room == null) {
+                    Text(
+                        instruction(status, draft.points.size, walls.size, effective.closed, room != null, fatal, installPending),
+                        color = Color.White, style = MaterialTheme.typography.titleSmall,
+                    )
+                    if (fatal == null) {
                         Text(
-                            "Il perimetro si incrocia o è troppo piccolo: annulla l'ultimo punto e correggi.",
+                            "Pareti rilevate: ${walls.size}" + if (draft.points.isNotEmpty()) " · Punti: ${draft.points.size}" else "",
+                            color = Color(0xFFFF8AD8), style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (draft.points.isEmpty() && layout.closed == null && !chainClosed && layout.closableChain != null) {
+                        Text(
+                            "Se una parete non si riesce a inquadrare, premi Chiudi: il perimetro si chiude con un lato dritto.",
+                            color = Color.White, style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    message?.let { Text(it, color = Color(0xFFFFC107), style = MaterialTheme.typography.bodySmall) }
+                    if (effective.closed && room == null) {
+                        Text(
+                            "Il perimetro si incrocia o è troppo piccolo: annulla e correggi.",
                             color = Color(0xFFFF8A80), style = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -222,37 +255,60 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
 
         Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth(), color = Color(0xE6101010)) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val lengths = draft.edgeLengthsCm
-                if (lengths.isNotEmpty()) {
-                    Column(Modifier.heightIn(max = 96.dp).verticalScroll(rememberScrollState())) {
+                val lengths = effective.edgeLengthsCm
+                if (walls.isNotEmpty() || lengths.isNotEmpty()) {
+                    Column(Modifier.heightIn(max = 110.dp).verticalScroll(rememberScrollState())) {
+                        for ((i, w) in walls.withIndex()) {
+                            val height = status.floorY?.let { f ->
+                                " · da terra ${formatMeters(w.bottomAboveFloor(f) * 100)} – ${formatMeters(w.topAboveFloor(f) * 100)}"
+                            } ?: ""
+                            Text(
+                                "Parete ${i + 1}: ${formatMeters(w.length * 100)}$height",
+                                color = Color(0xFFFF8AD8), style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                         for ((i, l) in lengths.withIndex()) {
-                            val to = if (i + 1 < draft.points.size) i + 2 else 1
+                            val to = if (i + 1 < effective.points.size) i + 2 else 1
                             Text("Lato ${i + 1} → $to: ${formatMeters(l)}", color = Color.White, style = MaterialTheme.typography.bodySmall)
                         }
-                        if (draft.closed) {
+                        if (effective.closed) {
                             Text(
-                                "Perimetro ${formatMeters(draft.perimeterCm)} · Area ${formatSquareMeters(draft.areaM2)}",
+                                "Perimetro ${formatMeters(effective.perimeterCm)} · Area ${formatSquareMeters(effective.areaM2)}",
                                 color = Color(0xFF80CBC4), style = MaterialTheme.typography.bodySmall,
                             )
                         }
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = { draft = draft.undoLast() }, enabled = draft.points.isNotEmpty(), modifier = Modifier.weight(1f)) {
-                        Text("↶ Annulla punto")
-                    }
-                    OutlinedButton(onClick = { draft = draft.clear() }, enabled = draft.points.isNotEmpty(), modifier = Modifier.weight(1f)) {
-                        Text("Cancella")
-                    }
-                    OutlinedButton(onClick = { draft = draft.close() }, enabled = draft.canClose, modifier = Modifier.weight(1f)) {
-                        Text("Chiudi")
-                    }
+                    OutlinedButton(
+                        onClick = {
+                            when {
+                                draft.points.isNotEmpty() -> draft = draft.undoLast()
+                                chainClosed -> chainClosed = false
+                                else -> wallScan = wallScan.removeNewest()
+                            }
+                        },
+                        enabled = draft.points.isNotEmpty() || chainClosed || walls.isNotEmpty(),
+                        modifier = Modifier.weight(1f),
+                    ) { Text("↶ Annulla") }
+                    OutlinedButton(
+                        onClick = { draft = ScanDraft(); wallScan = wallScan.clear(); chainClosed = false },
+                        enabled = draft.points.isNotEmpty() || !wallScan.isEmpty || chainClosed,
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Cancella") }
+                    OutlinedButton(
+                        onClick = { if (draft.canClose) draft = draft.close() else chainClosed = true },
+                        enabled = draft.canClose || canCloseChain,
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Chiudi") }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     TextButton(onClick = { onResult(null) }, modifier = Modifier.weight(1f)) { Text("Esci") }
-                    Button(onClick = { room?.let { onResult(ScanResult(it)) } }, enabled = room != null, modifier = Modifier.weight(2f)) {
-                        Text("Conferma stanza")
-                    }
+                    Button(
+                        onClick = { room?.let { onResult(ScanResult(it, walls.map { w -> w.toScanned(status.floorY) })) } },
+                        enabled = room != null,
+                        modifier = Modifier.weight(2f),
+                    ) { Text("Conferma stanza") }
                 }
             }
         }
@@ -290,15 +346,24 @@ private fun Marker(text: String, at: ArScanView.ScreenPoint, density: androidx.c
     }
 }
 
-private fun instruction(status: ArScanView.Status, draft: ScanDraft, valid: Boolean, fatal: String?, installPending: Boolean): String = when {
+private fun instruction(
+    status: ArScanView.Status,
+    manualPoints: Int,
+    wallCount: Int,
+    closed: Boolean,
+    valid: Boolean,
+    fatal: String?,
+    installPending: Boolean,
+): String = when {
     fatal != null -> "Scansione non disponibile"
     installPending -> "Sto installando ARCore: completa l'installazione e torna qui"
     !status.tracking -> status.trackingHint ?: "Muovi lentamente il telefono per rilevare il pavimento"
     !status.floorDetected -> "Muovi lentamente il telefono per rilevare il pavimento"
-    draft.closed && valid -> "Perimetro chiuso: controlla le misure e conferma"
-    draft.closed -> "Perimetro chiuso, ma non valido"
-    draft.points.size < 3 -> "Pavimento rilevato ✓ — Tocca gli angoli della stanza, a terra"
-    else -> "Continua con gli angoli, poi tocca il primo punto o premi Chiudi"
+    closed && valid -> if (manualPoints > 0) "Perimetro chiuso: controlla le misure e conferma" else "Perimetro ricostruito dalle pareti: controlla le misure e conferma"
+    closed -> "Perimetro chiuso, ma non valido"
+    manualPoints > 0 -> if (manualPoints < 3) "Tocca gli angoli della stanza, a terra" else "Continua con gli angoli, poi tocca il primo punto o premi Chiudi"
+    wallCount == 0 -> "Pavimento rilevato ✓ — Muovi lentamente il telefono lungo le pareti (o tocca gli angoli a terra)"
+    else -> "Muovi lentamente il telefono lungo le pareti"
 }
 
 /** Centimetri → "3,42 m". */
