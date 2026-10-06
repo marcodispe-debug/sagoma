@@ -57,6 +57,8 @@ import com.sagoma.planimetria.scan.WallScan
 import com.sagoma.planimetria.scanner.ArScanView
 import com.sagoma.planimetria.scanner.ArSupport
 import com.sagoma.planimetria.scanner.ArSupportCheck
+import com.sagoma.planimetria.scanner.ScanRecorder
+import java.io.File
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -166,6 +168,19 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
     var fatal by remember { mutableStateOf<String?>(null) }
     var installPending by remember { mutableStateOf(false) }
     val view = remember { ArScanView(activity) }
+    // Registrazione per l'analisi (solo debug): non cambia la scansione.
+    val platform = LocalPlatform.current
+    var recStats by remember { mutableStateOf<ScanRecorder.Stats?>(null) }
+    var lastRecording by remember { mutableStateOf<File?>(ScanRecorder.latest(activity)) }
+    var exportStatus by remember { mutableStateOf<String?>(null) }
+    var depthSupported by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(view) {
+        while (true) {
+            recStats = view.recordingStats()
+            depthSupported = view.depthSupported
+            delay(500)
+        }
+    }
 
     DisposableEffect(view) {
         view.listener = object : ArScanView.Listener {
@@ -210,6 +225,30 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
     }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { view.stop() }
 
+    // Registrazione: stato a schermo ed esportazione (si ferma prima, se serve, così il file è completo).
+    val rec = recStats
+    val recText = if (rec == null) "Registrazione ferma" else {
+        "● REC · frame ${rec.frames} · piani verticali ${rec.verticalPlanes} · punti ${rec.pointSamples}" +
+            (if (rec.full) " · limite raggiunto" else "")
+    }
+    val depthText = when (depthSupported) {
+        true -> "disponibile (non usato)"
+        false -> "non disponibile"
+        null -> "?"
+    }
+    fun exportRecording() {
+        if (view.recordingStats() != null) lastRecording = view.stopRecording()
+        recStats = view.recordingStats()
+        val file = lastRecording
+        if (file == null || !file.exists()) { exportStatus = "Nessuna registrazione da esportare: premi \"Registra\"."; return }
+        val bytes = try { file.readBytes() } catch (e: Exception) { exportStatus = "Non riesco a leggere ${file.name}: ${e.message}"; return }
+        exportStatus = "Scegli dove salvare ${file.name}…"
+        platform.saveFile(file.name, "application/octet-stream", bytes) { ok ->
+            exportStatus = if (ok) "Registrazione esportata: ${file.name} (${bytes.size / 1024} KB)" else "Esportazione annullata o non riuscita."
+            platform.toast(if (ok) "Registrazione esportata" else "Esportazione non riuscita")
+        }
+    }
+
     val density = LocalDensity.current
     Box(Modifier.fillMaxSize()) {
         AndroidView(factory = { view }, modifier = Modifier.fillMaxSize())
@@ -243,6 +282,29 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
                         )
                     }
                     message?.let { Text(it, color = Color(0xFFFFC107), style = MaterialTheme.typography.bodySmall) }
+                    // Registrazione per l'analisi sul computer (debug): avvio/stop ed esportazione, sempre in vista.
+                    Text(
+                        "$recText · Depth: $depthText",
+                        color = if (rec != null) Color(0xFFFF8A80) else Color(0xFFB0BEC5), style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                if (rec != null) lastRecording = view.stopRecording()
+                                else if (view.startRecording() != null) { exportStatus = null; lastRecording = null }
+                                else message = "Registrazione non avviata: aspetta che la fotocamera parta."
+                                recStats = view.recordingStats()
+                            },
+                            modifier = Modifier.weight(1f),
+                        ) { Text(if (rec != null) "■ Ferma" else "● Registra") }
+                        Button(
+                            onClick = { exportRecording() },
+                            enabled = rec != null || lastRecording != null,
+                            modifier = Modifier.weight(1.4f),
+                        ) { Text("Esporta registrazione") }
+                    }
+                    exportStatus?.let { Text(it, color = Color(0xFF80CBC4), style = MaterialTheme.typography.bodySmall) }
+                    lastRecording?.let { Text("File: ${it.absolutePath}", color = Color(0xFFB0BEC5), style = MaterialTheme.typography.labelSmall) }
                     if (effective.closed && room == null) {
                         Text(
                             "Il perimetro si incrocia o è troppo piccolo: annulla e correggi.",

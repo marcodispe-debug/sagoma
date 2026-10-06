@@ -6,6 +6,7 @@ import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
+import android.os.Build
 import android.util.Log
 import android.view.MotionEvent
 import android.view.ViewConfiguration
@@ -32,6 +33,15 @@ import com.sagoma.planimetria.scan.ArXZ
 import com.sagoma.planimetria.scan.DetectedWall
 import com.sagoma.planimetria.scan.ScanDraft
 import com.sagoma.planimetria.scan.WallObservation
+import com.sagoma.planimetria.scan.recording.ArCoreInfo
+import com.sagoma.planimetria.scan.recording.DeviceInfo
+import com.sagoma.planimetria.scan.recording.RecordingHeader
+import com.sagoma.planimetria.scan.recording.ScreenInfo
+import com.sagoma.planimetria.scan.recording.SessionInfo
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -112,6 +122,15 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
     @Volatile
     var walls: List<DetectedWall> = emptyList()
 
+    /** Il telefono supporta la profondità automatica? null finché non si è creata la sessione. Per ora la profondità non è usata. */
+    @Volatile
+    var depthSupported: Boolean? = null
+        private set
+
+    /** Registrazione in corso (solo per raccogliere dati e analizzarli sul computer: non cambia la scansione). */
+    @Volatile
+    private var recorder: ScanRecorder? = null
+
     @Volatile
     private var session: Session? = null
     private var installRequested = false
@@ -176,6 +195,7 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
                     depthMode = Config.DepthMode.DISABLED
                 }
                 s.configure(config)
+                depthSupported = try { s.isDepthModeSupported(Config.DepthMode.AUTOMATIC) } catch (e: Exception) { null }
                 session = s
                 cameraTextureAttached = false
             } catch (e: UnavailableUserDeclinedInstallationException) {
@@ -215,9 +235,59 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
 
     /** Libera la sessione: dopo, la vista non si usa più. */
     fun release() {
+        stopRecording()
         session?.close()
         session = null
         planeKeys.clear()
+    }
+
+    // ---------- Registrazione per l'analisi ----------
+
+    /** Inizia a registrare la sessione in un file (cartella `scan-recordings` dei file dell'app). Null se non è possibile. */
+    fun startRecording(): ScanRecorder? {
+        val s = session ?: return null
+        if (recorder != null) return recorder
+        return try {
+            val dir = ScanRecorder.directory(context)
+            val name = "scan-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".jsonl"
+            val created = ScanRecorder(File(dir, name), recordingHeader(s), depthSupported)
+            recorder = created
+            created
+        } catch (e: Exception) {
+            Log.e(TAG, "Registrazione non avviata", e)
+            null
+        }
+    }
+
+    /** Ferma la registrazione e restituisce il file (null se non si registrava). */
+    fun stopRecording(): File? {
+        val r = recorder ?: return null
+        recorder = null
+        return r.close()
+    }
+
+    fun recordingStats(): ScanRecorder.Stats? = recorder?.stats()
+
+    private fun recordingHeader(s: Session): RecordingHeader {
+        @Suppress("DEPRECATION")
+        val services = try { context.packageManager.getPackageInfo("com.google.ar.core", 0).versionName } catch (e: Exception) { null }
+        val image = try { s.cameraConfig.imageSize } catch (e: Exception) { null }
+        val cfg = try { s.config } catch (e: Exception) { null }
+        return RecordingHeader(
+            createdAtMillis = System.currentTimeMillis(),
+            recordIntervalMs = ScanRecorder.DEFAULT_INTERVAL_MS,
+            device = DeviceInfo(Build.MANUFACTURER, Build.MODEL, Build.VERSION.SDK_INT),
+            arcore = ArCoreInfo(sdkVersion = ARCORE_SDK_VERSION, servicesVersion = services),
+            screen = ScreenInfo(
+                widthPx = viewportWidth, heightPx = viewportHeight, displayRotation = displayRotation(),
+                densityDpi = resources.displayMetrics.densityDpi,
+                cameraImageWidth = image?.width, cameraImageHeight = image?.height,
+            ),
+            session = SessionInfo(
+                planeFindingMode = cfg?.planeFindingMode?.name, updateMode = cfg?.updateMode?.name, focusMode = cfg?.focusMode?.name,
+                lightEstimationMode = cfg?.lightEstimationMode?.name, depthMode = cfg?.depthMode?.name, depthSupported = depthSupported,
+            ),
+        )
     }
 
     // ---------- Tocco ----------
@@ -288,6 +358,7 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
                 lastStatus = status
                 post { listener?.onStatus(status) }
             }
+            recorder?.record(s, frame, camera, floorY)
             handleTaps(frame, tracking, floorY)
             publishWalls(verticals)
             if (!tracking) return
@@ -596,6 +667,8 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
 
     private companion object {
         const val TAG = "ArScanView"
+        /** Versione della libreria ARCore (deve coincidere con `arcore` in gradle/libs.versions.toml): finisce nell'intestazione del recording. */
+        const val ARCORE_SDK_VERSION = "1.44.0"
         const val NEAR = 0.05f
         const val FAR = 100f
         /** Un piano è "pavimento" se è abbastanza esteso (m²). */
