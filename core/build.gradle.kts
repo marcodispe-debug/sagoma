@@ -35,3 +35,21 @@ kotlin {
         }
     }
 }
+
+// Analisi offline di una registrazione di scansione (formato JSONL v1, vedi core/.../scan/recording): senza telefono né Android.
+//   ./gradlew :core:analyzeRecording -Prec=<file.jsonl> [-Pout=<cartella>] [-Pmin=<secondi>] [-PnoPoints]
+// Percorsi assoluti. Scrive report (tutti / 1 s / 5 s / 10 s), la vista dall'alto in SVG, planes.csv. Il file NON va aggiunto al repository.
+tasks.register<JavaExec>("analyzeRecording") {
+    group = "verification"
+    description = "Analizza una registrazione di scansione (-Prec=file.jsonl) e scrive report e SVG dall'alto."
+    val jvmMain = kotlin.targets.getByName("jvm").compilations.getByName("main")
+    dependsOn("jvmMainClasses")
+    classpath = files(jvmMain.output.allOutputs, jvmMain.runtimeDependencyFiles)
+    mainClass.set("com.sagoma.planimetria.scan.recording.analysis.AnalyzeRecordingCli")
+    args = listOfNotNull(
+        providers.gradleProperty("rec").orNull,
+        providers.gradleProperty("out").orNull?.let { "--out=$it" },
+        providers.gradleProperty("min").orNull?.let { "--min-persistence=$it" },
+        if (providers.gradleProperty("noPoints").isPresent) "--no-points" else null,
+    )
+}
