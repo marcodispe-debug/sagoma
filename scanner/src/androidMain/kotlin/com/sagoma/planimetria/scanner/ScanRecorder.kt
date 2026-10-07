@@ -55,6 +55,7 @@ class ScanRecorder internal constructor(
     private var closed = false
     private var full = false
     private var endedAt = 0L
+    private val depthActive = header.session.depthMode.let { it != null && it != "DISABLED" }
     private val planeKeys = HashMap<Plane, Int>()
     private val verticalKeys = HashSet<Int>()
 
@@ -94,7 +95,7 @@ class ScanRecorder internal constructor(
                 camera = recPose(camera.pose),
                 cameraDisplay = recPose(camera.displayOrientedPose),
                 floorY = floorY?.let { r5(it.toDouble()) },
-                depthInUse = false, // la configurazione ha la profondità disattivata
+                depthInUse = depthActive, // la profondità è attiva se la sessione è stata configurata con AUTOMATIC (vedi l'intestazione)
                 planes = planes,
                 points = cloud,
             )

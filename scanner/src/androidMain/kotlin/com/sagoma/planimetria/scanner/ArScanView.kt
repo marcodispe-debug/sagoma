@@ -187,15 +187,17 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
                     ArCoreApk.InstallStatus.INSTALLED -> {}
                 }
                 val s = Session(activity)
+                // Profondità (solo per la registrazione dei dati): attiva se il telefono la supporta, altrimenti come prima.
+                val depthOk = try { s.isDepthModeSupported(Config.DepthMode.AUTOMATIC) } catch (e: Exception) { null }
                 val config = Config(s).apply {
                     planeFindingMode = Config.PlaneFindingMode.HORIZONTAL_AND_VERTICAL
                     updateMode = Config.UpdateMode.LATEST_CAMERA_IMAGE
                     focusMode = Config.FocusMode.AUTO
                     lightEstimationMode = Config.LightEstimationMode.DISABLED
-                    depthMode = Config.DepthMode.DISABLED
+                    depthMode = if (depthOk == true) Config.DepthMode.AUTOMATIC else Config.DepthMode.DISABLED
                 }
                 s.configure(config)
-                depthSupported = try { s.isDepthModeSupported(Config.DepthMode.AUTOMATIC) } catch (e: Exception) { null }
+                depthSupported = depthOk
                 session = s
                 cameraTextureAttached = false
             } catch (e: UnavailableUserDeclinedInstallationException) {
