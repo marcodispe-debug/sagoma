@@ -53,3 +53,20 @@ tasks.register<JavaExec>("analyzeRecording") {
         if (providers.gradleProperty("noPoints").isPresent) "--no-points" else null,
     )
 }
+
+// Esperimento M3.1 (offline): dalle candidate di parete di una registrazione al perimetro, con test sull'ordine e sulle soglie.
+//   ./gradlew :core:perimeterExperiment -Prec=<file.jsonl> [-Pout=<cartella>] [-Pperm=20] [-Pcandidates=<file.json>]
+tasks.register<JavaExec>("perimeterExperiment") {
+    group = "verification"
+    description = "Esperimento M3.1: perimetro dalle candidate di parete di una registrazione (-Prec=file.jsonl)."
+    val jvmMain = kotlin.targets.getByName("jvm").compilations.getByName("main")
+    dependsOn("jvmMainClasses")
+    classpath = files(jvmMain.output.allOutputs, jvmMain.runtimeDependencyFiles)
+    mainClass.set("com.sagoma.planimetria.scan.experiment.PerimeterExperimentCli")
+    args = listOfNotNull(
+        providers.gradleProperty("rec").orNull,
+        providers.gradleProperty("out").orNull?.let { "--out=$it" },
+        providers.gradleProperty("perm").orNull?.let { "--permutations=$it" },
+        providers.gradleProperty("candidates").orNull?.let { "--candidates=$it" },
+    )
+}
