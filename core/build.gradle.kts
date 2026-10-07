@@ -70,3 +70,18 @@ tasks.register<JavaExec>("perimeterExperiment") {
         providers.gradleProperty("candidates").orNull?.let { "--candidates=$it" },
     )
 }
+
+// Simulazione M2.0 della scansione assistita su una registrazione (offline, senza telefono).
+//   ./gradlew :core:assistedSimulation -Prec=<file.jsonl> [-Pout=<cartella>]
+tasks.register<JavaExec>("assistedSimulation") {
+    group = "verification"
+    description = "Simulazione M2.0: candidate di parete proposte dal motore assistito su una registrazione (-Prec=file.jsonl)."
+    val jvmMain = kotlin.targets.getByName("jvm").compilations.getByName("main")
+    dependsOn("jvmMainClasses")
+    classpath = files(jvmMain.output.allOutputs, jvmMain.runtimeDependencyFiles)
+    mainClass.set("com.sagoma.planimetria.scan.assisted.AssistedSimulationCli")
+    args = listOfNotNull(
+        providers.gradleProperty("rec").orNull,
+        providers.gradleProperty("out").orNull?.let { "--out=$it" },
+    )
+}
