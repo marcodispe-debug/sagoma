@@ -54,6 +54,7 @@ import com.sagoma.planimetria.scan.ScanResult
 import com.sagoma.planimetria.scan.WallObservation
 import com.sagoma.planimetria.scan.WallOutline
 import com.sagoma.planimetria.scan.WallScan
+import com.sagoma.planimetria.scan.recording.CaptureMode
 import com.sagoma.planimetria.scanner.ArScanView
 import com.sagoma.planimetria.scanner.ArSupport
 import com.sagoma.planimetria.scanner.ArSupportCheck
@@ -174,6 +175,7 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
     var lastRecording by remember { mutableStateOf<File?>(ScanRecorder.latest(activity)) }
     var exportStatus by remember { mutableStateOf<String?>(null) }
     var depthSupported by remember { mutableStateOf<Boolean?>(null) }
+    var captureMode by remember { mutableStateOf(view.captureMode) }
     LaunchedEffect(view) {
         while (true) {
             recStats = view.recordingStats()
@@ -227,8 +229,10 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
 
     // Registrazione: stato a schermo ed esportazione (si ferma prima, se serve, così il file è completo).
     val rec = recStats
-    val recText = if (rec == null) "Registrazione ferma" else {
-        "● REC · frame ${rec.frames} · piani verticali ${rec.verticalPlanes} · punti ${rec.pointSamples}" +
+    val recText = if (rec == null) "Registrazione ferma · modo ${if (captureMode == CaptureMode.OBJECT) "oggetto" else "ambiente"}" else {
+        "● REC ${rec.mode.lowercase()} · ARCore ${"%.0f".format(rec.arHz)} Hz · frame ${rec.frames} · RGB ${rec.rgb} · depth ${rec.depth}" +
+            (if (rec.droppedRgb + rec.droppedDepth > 0) " · scartati ${rec.droppedRgb + rec.droppedDepth}" else "") +
+            (if (rec.queueItems > 50) " · coda ${rec.queueItems}" else "") +
             (if (rec.full) " · limite raggiunto" else "")
     }
     val depthText = when (depthSupported) {
@@ -241,6 +245,17 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
         recStats = view.recordingStats()
         val file = lastRecording
         if (file == null || !file.exists()) { exportStatus = "Nessuna registrazione da esportare: premi \"Registra\"."; return }
+        // M0.2: una cartella (JSONL + immagini + depth) → un solo ZIP, scritto direttamente nel file scelto, senza caricarlo in memoria.
+        val android = platform as? AndroidPlatform
+        if (file.isDirectory && android != null) {
+            val name = file.name + ".zip"
+            exportStatus = "Scegli dove salvare $name…"
+            android.saveStream(name, "application/zip", { out -> ScanRecorder.writeZip(file, out) }) { ok ->
+                exportStatus = if (ok) "Registrazione esportata: $name" else "Esportazione annullata o non riuscita."
+                platform.toast(if (ok) "Registrazione esportata" else "Esportazione non riuscita")
+            }
+            return
+        }
         val bytes = try { file.readBytes() } catch (e: Exception) { exportStatus = "Non riesco a leggere ${file.name}: ${e.message}"; return }
         exportStatus = "Scegli dove salvare ${file.name}…"
         platform.saveFile(file.name, "application/octet-stream", bytes) { ok ->
@@ -303,6 +318,16 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
                             modifier = Modifier.weight(1.4f),
                         ) { Text("Esporta registrazione") }
                     }
+                    // Modalità della prossima registrazione (solo per raccogliere dati): ambiente o oggetto (immagini più grandi, meno spesso).
+                    OutlinedButton(
+                        onClick = {
+                            val next = if (captureMode == CaptureMode.OBJECT) CaptureMode.ENVIRONMENT else CaptureMode.OBJECT
+                            exportStatus = view.setCaptureMode(next)
+                            captureMode = view.captureMode
+                        },
+                        enabled = rec == null,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(if (captureMode == CaptureMode.OBJECT) "Modo: oggetto (tocca per ambiente)" else "Modo: ambiente (tocca per oggetto)") }
                     exportStatus?.let { Text(it, color = Color(0xFF80CBC4), style = MaterialTheme.typography.bodySmall) }
                     lastRecording?.let { Text("File: ${it.absolutePath}", color = Color(0xFFB0BEC5), style = MaterialTheme.typography.labelSmall) }
                     if (effective.closed && room == null) {

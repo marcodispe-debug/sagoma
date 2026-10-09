@@ -1,7 +1,7 @@
 package com.sagoma.planimetria.scan.recording.analysis
 
+import com.sagoma.planimetria.scan.recording.CaptureDatasetFiles
 import com.sagoma.planimetria.scan.recording.RecordingFormatException
-import com.sagoma.planimetria.scan.recording.ScanRecordingJson
 import java.io.File
 import java.io.PrintStream
 import kotlin.system.exitProcess
@@ -30,21 +30,26 @@ object AnalyzeRecordingCli {
             return 2
         }
         val file = File(input)
-        if (!file.isFile) { out.println("File non trovato: $input"); return 2 }
+        if (!file.exists()) { out.println("File non trovato: $input"); return 2 }
         val outDir = args.firstOrNull { it.startsWith("--out=") }?.removePrefix("--out=")?.let(::File)
             ?: File(file.absoluteFile.parentFile, "analysis-" + file.nameWithoutExtension)
         val minSeconds = args.firstOrNull { it.startsWith("--min-persistence=") }?.removePrefix("--min-persistence=")?.toDoubleOrNull() ?: 0.0
         val points = "--no-points" !in args
 
-        val recording = try {
-            ScanRecordingJson.decode(file.readText(Charsets.UTF_8))
+        // JSONL (M0), cartella o ZIP (M0.2).
+        val dataset = try {
+            CaptureDatasetFiles.open(file)
         } catch (e: RecordingFormatException) {
             out.println("Registrazione non valida: ${e.message}")
             return 1
         }
+        val recording = dataset.recording
         val analysis = RecordingAnalyzer.analyze(recording)
         outDir.mkdirs()
         val title = file.name
+        val capture = CaptureReport.text(CaptureReport.analyze(recording, dataset.files), title)
+        File(outDir, "capture-report.txt").writeText(capture)
+        out.println(capture)
         File(outDir, "report.txt").writeText(RecordingReport.text(analysis, 0, title))
         File(outDir, "planes.csv").writeText(RecordingReport.csv(analysis))
         for ((name, ms) in PersistenceFilters.ALL) {

@@ -12,7 +12,11 @@ import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.WindowManager
 import com.google.ar.core.ArCoreApk
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
 import com.google.ar.core.Camera
+import com.google.ar.core.CameraConfig
+import com.google.ar.core.CameraConfigFilter
 import com.google.ar.core.Config
 import com.google.ar.core.Coordinates2d
 import com.google.ar.core.Frame
@@ -34,6 +38,11 @@ import com.sagoma.planimetria.scan.DetectedWall
 import com.sagoma.planimetria.scan.ScanDraft
 import com.sagoma.planimetria.scan.WallObservation
 import com.sagoma.planimetria.scan.recording.ArCoreInfo
+import com.sagoma.planimetria.scan.recording.CameraConfigInfo
+import com.sagoma.planimetria.scan.recording.CameraIntrinsics
+import com.sagoma.planimetria.scan.recording.CameraModelInfo
+import com.sagoma.planimetria.scan.recording.CaptureMode
+import java.util.EnumSet
 import com.sagoma.planimetria.scan.recording.DeviceInfo
 import com.sagoma.planimetria.scan.recording.RecordingHeader
 import com.sagoma.planimetria.scan.recording.ScreenInfo
@@ -198,6 +207,8 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
                 }
                 s.configure(config)
                 depthSupported = depthOk
+                defaultCameraConfig = s.cameraConfig
+                logCameraConfigs(s)
                 session = s
                 cameraTextureAttached = false
             } catch (e: UnavailableUserDeclinedInstallationException) {
@@ -251,8 +262,8 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         if (recorder != null) return recorder
         return try {
             val dir = ScanRecorder.directory(context)
-            val name = "scan-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".jsonl"
-            val created = ScanRecorder(File(dir, name), recordingHeader(s), depthSupported)
+            val name = "scan-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+            val created = ScanRecorder(File(dir, name).apply { mkdirs() }, recordingHeader(s), depthSupported)
             recorder = created
             created
         } catch (e: Exception) {
@@ -275,9 +286,18 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         val services = try { context.packageManager.getPackageInfo("com.google.ar.core", 0).versionName } catch (e: Exception) { null }
         val image = try { s.cameraConfig.imageSize } catch (e: Exception) { null }
         val cfg = try { s.config } catch (e: Exception) { null }
+        val capture = ScanRecorder.settingsFor(captureMode)
+        val current = try { configInfo(s.cameraConfig) } catch (e: Exception) { null }
         return RecordingHeader(
             createdAtMillis = System.currentTimeMillis(),
-            recordIntervalMs = ScanRecorder.DEFAULT_INTERVAL_MS,
+            recordIntervalMs = capture.frameIntervalMs,
+            capture = capture,
+            cameraConfig = current,
+            availableCameraConfigs = try { supportedConfigs(s).map { configInfo(it) } } catch (e: Exception) { emptyList() },
+            camera = CameraModelInfo(
+                sensorOrientationDeg = current?.cameraId?.let { sensorOrientation(it) },
+                imageIntrinsics = lastImageIntrinsics, textureIntrinsics = lastTextureIntrinsics,
+            ),
             device = DeviceInfo(Build.MANUFACTURER, Build.MODEL, Build.VERSION.SDK_INT),
             arcore = ArCoreInfo(sdkVersion = ARCORE_SDK_VERSION, servicesVersion = services),
             screen = ScreenInfo(
@@ -291,6 +311,120 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
             ),
         )
     }
+
+    // ---------- Modalità di acquisizione e configurazione della fotocamera ----------
+
+    /** Modalità della prossima registrazione ([CaptureMode]); si cambia con [setCaptureMode]. */
+    @Volatile
+    var captureMode: String = CaptureMode.ENVIRONMENT
+        private set
+
+    /** La configurazione scelta da ARCore all'avvio (quella della modalità ambiente: non la si cambia). */
+    private var defaultCameraConfig: CameraConfig? = null
+
+    @Volatile private var lastImageIntrinsics: CameraIntrinsics? = null
+    @Volatile private var lastTextureIntrinsics: CameraIntrinsics? = null
+    private var lastIntrinsicsNs = 0L
+
+    /** Intrinseche correnti, per l'intestazione della registrazione (circa una volta al secondo: allocano). */
+    private fun rememberIntrinsics(camera: Camera) {
+        val now = System.nanoTime()
+        if (lastImageIntrinsics != null && now - lastIntrinsicsNs < 1_000_000_000L) return
+        lastIntrinsicsNs = now
+        try {
+            lastImageIntrinsics = ScanRecorder.intrinsics(camera.imageIntrinsics)
+            lastTextureIntrinsics = ScanRecorder.intrinsics(camera.textureIntrinsics)
+        } catch (e: Exception) {
+            Log.w(TAG, "Intrinseche non lette", e)
+        }
+    }
+
+    /** Tutte le configurazioni della fotocamera posteriore che ARCore offre su questo telefono (nessun filtro su fps e sensori). */
+    private fun supportedConfigs(s: Session): List<CameraConfig> {
+        val filter = CameraConfigFilter(s)
+            .setFacingDirection(CameraConfig.FacingDirection.BACK)
+            .setTargetFps(EnumSet.allOf(CameraConfig.TargetFps::class.java))
+            .setDepthSensorUsage(EnumSet.allOf(CameraConfig.DepthSensorUsage::class.java))
+            .setStereoCameraUsage(EnumSet.allOf(CameraConfig.StereoCameraUsage::class.java))
+        return s.getSupportedCameraConfigs(filter)
+    }
+
+    private fun configInfo(c: CameraConfig) = CameraConfigInfo(
+        cameraId = c.cameraId, facing = c.facingDirection.name,
+        imageWidth = c.imageSize.width, imageHeight = c.imageSize.height,
+        textureWidth = c.textureSize.width, textureHeight = c.textureSize.height,
+        fpsMin = c.fpsRange.lower, fpsMax = c.fpsRange.upper,
+        depthSensorUsage = c.depthSensorUsage.name, stereoCameraUsage = c.stereoCameraUsage.name,
+    )
+
+    private fun sensorOrientation(cameraId: String): Int? = try {
+        val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        manager.getCameraCharacteristics(cameraId).get(CameraCharacteristics.SENSOR_ORIENTATION)
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Nel registro (logcat, tag ArScanView) le configurazioni disponibili e quella in uso: per verificare cosa offre il telefono. */
+    private fun logCameraConfigs(s: Session) {
+        try {
+            val current = configInfo(s.cameraConfig)
+            Log.i(TAG, "Configurazione fotocamera in uso: $current")
+            for (c in supportedConfigs(s)) Log.i(TAG, "Configurazione disponibile: ${configInfo(c)}")
+        } catch (e: Exception) {
+            Log.w(TAG, "Configurazioni della fotocamera non lette", e)
+        }
+    }
+
+    /**
+     * La configurazione per la modalità oggetto: l'immagine CPU più grande offerta da ARCore; a parità, la stessa texture, lo
+     * stesso uso del sensore di profondità e la stessa frequenza della configurazione di partenza.
+     */
+    private fun objectConfig(s: Session): CameraConfig? {
+        val base = defaultCameraConfig ?: s.cameraConfig
+        return supportedConfigs(s).maxWithOrNull(
+            compareBy<CameraConfig> { it.imageSize.width.toLong() * it.imageSize.height }
+                .thenBy { if (it.textureSize == base.textureSize) 1 else 0 }
+                .thenBy { if (it.depthSensorUsage == base.depthSensorUsage) 1 else 0 }
+                .thenBy { if (it.fpsRange == base.fpsRange) 1 else 0 },
+        )
+    }
+
+    /**
+     * Cambia modalità di acquisizione (dal thread principale, a registrazione ferma). La modalità oggetto usa la configurazione
+     * della fotocamera con l'immagine CPU più grande; se è diversa da quella in uso, la sessione va messa in pausa, riconfigurata
+     * e ripresa: l'anteprima si ferma un attimo e il tracciamento può ripartire (le pareti già viste possono perdersi). Torna il
+     * messaggio da mostrare.
+     */
+    fun setCaptureMode(mode: String): String {
+        if (recorder != null) return "Ferma la registrazione prima di cambiare modalità."
+        val s = session
+        if (s == null) { captureMode = mode; return "Modalità ${modeName(mode)}." }
+        val target = (if (mode == CaptureMode.OBJECT) objectConfig(s) else defaultCameraConfig) ?: return "Configurazione della fotocamera non disponibile."
+        val before = configInfo(s.cameraConfig)
+        val after = configInfo(target)
+        if (before == after) { captureMode = mode; return "Modalità ${modeName(mode)} · immagine ${after.imageWidth}×${after.imageHeight} (già in uso)." }
+        onPause() // aspetta che il thread di disegno si fermi: nessuno usa la sessione mentre si riconfigura
+        return try {
+            s.pause()
+            s.cameraConfig = target
+            val depthOk = try { s.isDepthModeSupported(Config.DepthMode.AUTOMATIC) } catch (e: Exception) { null }
+            s.configure(s.config.apply { depthMode = if (depthOk == true) Config.DepthMode.AUTOMATIC else Config.DepthMode.DISABLED })
+            depthSupported = depthOk
+            s.resume()
+            viewportChanged = true
+            captureMode = mode
+            Log.i(TAG, "Modalità $mode: fotocamera $before → $after")
+            "Modalità ${modeName(mode)} · immagine ${after.imageWidth}×${after.imageHeight}."
+        } catch (e: Exception) {
+            Log.e(TAG, "Cambio di configurazione non riuscito", e)
+            try { s.resume() } catch (e2: Exception) { Log.e(TAG, "Sessione non ripresa", e2) }
+            "Non riesco a cambiare la configurazione della fotocamera (${e.javaClass.simpleName})."
+        } finally {
+            onResume()
+        }
+    }
+
+    private fun modeName(mode: String) = if (mode == CaptureMode.OBJECT) "oggetto" else "ambiente"
 
     // ---------- Tocco ----------
 
@@ -342,8 +476,11 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
                 s.setDisplayGeometry(displayRotation(), viewportWidth, viewportHeight)
                 viewportChanged = false
             }
+            val updateStart = System.nanoTime()
             val frame = s.update()
+            val updateNs = System.nanoTime() - updateStart
             val camera = frame.camera
+            rememberIntrinsics(camera)
             drawBackground(frame)
             val tracking = camera.trackingState == TrackingState.TRACKING
             val planes = if (tracking) floorPlanes(s) else emptyList()
@@ -360,7 +497,7 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
                 lastStatus = status
                 post { listener?.onStatus(status) }
             }
-            recorder?.record(s, frame, camera, floorY)
+            recorder?.onFrame(s, frame, camera, floorY, updateNs)
             handleTaps(frame, tracking, floorY)
             publishWalls(verticals)
             if (!tracking) return

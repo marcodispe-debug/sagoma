@@ -35,6 +35,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.text.DateFormat
 import java.util.Date
@@ -75,15 +76,23 @@ class AndroidPlatform(
         override fun parseResult(resultCode: Int, intent: Intent?): Uri? = intent?.data
     }
 
-    private var pendingSave: Pair<ByteArray, (Boolean) -> Unit>? = null
+    /** Salvataggio in attesa della scelta del file: cosa scrivere, se farlo in un thread a parte (file grandi), chi avvisare. */
+    private class PendingSave(val write: (OutputStream) -> Unit, val background: Boolean, val done: (Boolean) -> Unit)
+
+    private var pendingSave: PendingSave? = null
     private var pendingOpen: ((PickedFile?) -> Unit)? = null
 
     private val saveLauncher = activity.registerForActivityResult(Save()) { uri ->
-        val (bytes, done) = pendingSave ?: return@registerForActivityResult
+        val save = pendingSave ?: return@registerForActivityResult
         pendingSave = null
         if (uri == null) return@registerForActivityResult
-        val ok = runCatching { activity.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } != null }.getOrDefault(false)
-        done(ok)
+        fun write() = runCatching { activity.contentResolver.openOutputStream(uri)?.use { save.write(it) } != null }
+            .onFailure { android.util.Log.w("AndroidPlatform", "Salvataggio non riuscito", it) }.getOrDefault(false)
+        if (!save.background) { save.done(write()); return@registerForActivityResult }
+        Thread({
+            val ok = write()
+            activity.runOnUiThread { save.done(ok) }
+        }, "SaveFile").start()
     }
 
     private val openLauncher = activity.registerForActivityResult(Open()) { uri ->
@@ -97,7 +106,16 @@ class AndroidPlatform(
     override fun toast(message: String) = Toast.makeText(activity, message, Toast.LENGTH_SHORT).show()
 
     override fun saveFile(suggestedName: String, mimeType: String, bytes: ByteArray, onDone: (Boolean) -> Unit) {
-        pendingSave = bytes to onDone
+        pendingSave = PendingSave({ it.write(bytes) }, background = false, onDone)
+        saveLauncher.launch(suggestedName to mimeType)
+    }
+
+    /**
+     * "Salva con nome" per file grandi (per esempio lo ZIP di una registrazione): [write] scrive direttamente nel file scelto, in
+     * un thread a parte, senza tenere tutto in memoria; [onDone] arriva sul thread principale.
+     */
+    fun saveStream(suggestedName: String, mimeType: String, write: (OutputStream) -> Unit, onDone: (Boolean) -> Unit) {
+        pendingSave = PendingSave(write, background = true, onDone)
         saveLauncher.launch(suggestedName to mimeType)
     }
 

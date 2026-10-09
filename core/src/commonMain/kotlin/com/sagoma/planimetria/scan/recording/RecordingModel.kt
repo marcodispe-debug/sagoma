@@ -12,8 +12,12 @@ import kotlinx.serialization.Serializable
 object RecordingFormat {
     const val NAME = "sagoma-scan-recording"
 
-    /** Cresce quando il formato cambia in modo incompatibile. I file con una versione più nuova non si leggono. */
-    const val VERSION = 1
+    /**
+     * Cresce quando il formato cambia. I file con una versione più nuova non si leggono; le più vecchie sì.
+     * 1 = M0 (solo frame: pose, piani, punti). 2 = M0.2 (anche righe `pose`, `rgb`, `depth`, `missing`, `stats` e, nella
+     * cartella della registrazione, le immagini: vedi [CaptureDataset]); i campi nuovi dell'intestazione sono tutti facoltativi.
+     */
+    const val VERSION = 2
 
     const val COORDINATES: String =
         "Mondo ARCore: metri, destrorso, y verso l'ALTO (verticale), origine e direzione orizzontale arbitrarie (dipendono da come è " +
@@ -76,6 +80,14 @@ data class RecordingHeader(
     val screen: ScreenInfo = ScreenInfo(),
     val session: SessionInfo = SessionInfo(),
     val coordinates: String = RecordingFormat.COORDINATES,
+    /** M0.2: modalità e frequenze di acquisizione (null nelle registrazioni M0). */
+    val capture: CaptureSettings? = null,
+    /** M0.2: configurazione della fotocamera in uso (risoluzione dell'immagine CPU e della texture, fps, sensore di profondità). */
+    val cameraConfig: CameraConfigInfo? = null,
+    /** M0.2: tutte le configurazioni che ARCore offre su questo telefono (fotocamera posteriore). */
+    val availableCameraConfigs: List<CameraConfigInfo> = emptyList(),
+    /** M0.2: modello della fotocamera (intrinseche, orientamento del sensore, convenzioni di proiezione). */
+    val camera: CameraModelInfo? = null,
 ) {
     companion object { const val TYPE = "header" }
 }
@@ -148,6 +160,17 @@ data class RecordedFrame(
     val planes: List<RecordedPlane> = emptyList(),
     /** Presente solo nei frame in cui la nuvola di punti è cambiata. */
     val points: RecordedPointCloud? = null,
+    /** M0.2: numero progressivo del frame ARCore ([PoseSample.seq]) da cui viene questo frame. */
+    val frameSeq: Int? = null,
+    /**
+     * M0.2: punti della nuvola scartati perché avevano coordinate o confidenza non finite (NaN, ±∞): il JSON non le può
+     * rappresentare. Tutti gli altri punti restano. Vedi [RecordingSanitizer].
+     */
+    val invalidPoints: Int = 0,
+    /** M0.2: piani scartati per valori non finiti nella posa, nella normale, nelle estensioni o nel poligono. */
+    val invalidPlanes: Int = 0,
+    /** M0.2: la posa della camera (o quella orientata come lo schermo) aveva valori non finiti ed è stata tolta. */
+    val invalidCamera: Boolean = false,
 ) {
     companion object { const val TYPE = "frame" }
 }
@@ -159,9 +182,34 @@ data class RecordingEnd(
     val durationMs: Long = 0,
     val verticalPlanesObserved: Int = 0,
     val pointSamples: Int = 0,
+    /** M0.2: righe `pose` (frame ARCore distinti visti), keyframe RGB e depth scritti, campioni persi (null in M0). */
+    val poses: Int? = null,
+    val rgb: Int? = null,
+    val depth: Int? = null,
+    val droppedRgb: Int? = null,
+    val droppedDepth: Int? = null,
+    /** M0.2: la coda di scrittura è stata svuotata del tutto prima di chiudere (false = chiusa a forza, dati in coda persi). */
+    val drained: Boolean? = null,
+    /** M0.2: conteggi per stream ("frame", "rgb", "depth", "rawDepth", "confidence"): vedi [StreamCounts]. */
+    val streams: Map<String, StreamCounts>? = null,
 ) {
     companion object { const val TYPE = "end" }
 }
 
-/** Registrazione letta per intero. `end` manca se l'app è stata interrotta prima di chiuderla. */
-data class ScanRecording(val header: RecordingHeader, val frames: List<RecordedFrame>, val end: RecordingEnd? = null)
+/**
+ * Registrazione letta per intero. `end` manca se l'app è stata interrotta prima di chiuderla. Le liste M0.2 sono vuote nelle
+ * registrazioni M0. Ogni lista è nell'ordine del file, che è l'ordine di acquisizione.
+ */
+data class ScanRecording(
+    val header: RecordingHeader,
+    val frames: List<RecordedFrame>,
+    val end: RecordingEnd? = null,
+    val poses: List<PoseSample> = emptyList(),
+    val rgb: List<RgbKeyframe> = emptyList(),
+    val depth: List<DepthKeyframe> = emptyList(),
+    val missing: List<MissingSample> = emptyList(),
+    val stats: List<CaptureStats> = emptyList(),
+) {
+    /** La registrazione non è stata chiusa (app interrotta, batteria, crash): l'ultima parte può mancare. */
+    val truncated: Boolean get() = end == null
+}
