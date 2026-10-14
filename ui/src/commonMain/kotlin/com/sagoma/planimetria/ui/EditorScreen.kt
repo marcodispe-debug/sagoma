@@ -225,8 +225,12 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 }
             // Schede in alto (posizionamento, suggerimento, tutorial): la pianta si centra sotto di loro.
             var topCardsHeightPx by remember { mutableIntStateOf(0) }
+            // Percorso B: l'avviso "schizzo da misurare" sta tra le schede in alto (in basso coprirebbe la barra di porte e finestre).
+            val pendingSketch = if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.SKETCH_GUIDED_SCAN) && state.creation == null &&
+                state.wallDraw == null && state.sketchScanRoomId == null && placingHint == null
+            ) state.plan.rooms.firstOrNull { it.sketchPending && it.id !in state.dismissedSketchBanners } else null
             val hasTopCards = placingHint != null || state.tip != null || state.tutorial != null || state.measure != null || state.underlayTool != null || state.wallDraw != null || state.selectMode || state.pasting || state.saveError != null ||
-                state.dimensionDraw != null || state.textPlacing
+                state.dimensionDraw != null || state.textPlacing || pendingSketch != null
             val coveredTopPx = if (hasTopCards) topCardsHeightPx else 0
             Column(
                 Modifier.align(Alignment.TopCenter).onSizeChanged { topCardsHeightPx = it.height }.padding(8.dp).widthIn(max = 520.dp),
@@ -274,6 +278,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                         }
                     }
                 }
+                // Schizzo ancora da misurare: "Avvia scansione" / "Chiudi".
+                pendingSketch?.let { com.sagoma.planimetria.ui.sketch.SketchPendingBanner(it, vm) }
                 // Suggerimento al primo utilizzo della funzione appena usata.
                 state.tip?.let { TipCard(it, onDismiss = vm::dismissTip, onSkipAll = vm::skipAllTips) }
                 // Tutorial guidato: la scheda del passo corrente, finché non è completato.
@@ -304,6 +310,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             LaunchedEffect(coveredTopPx, coveredBottomPx) { vm.setCoveredEdges(coveredTopPx.toFloat(), coveredBottomPx.toFloat()) }
             LaunchedEffect(coveredBottomPx, coveredRightPx, coveredTopPx, state.selection, state.focusedRoomId, expanded, canvasWidthPx, canvasHeightPx) {
                 if (panelShown && panelSizePx == androidx.compose.ui.unit.IntSize.Zero) return@LaunchedEffect
+                // "Muro per muro" in corso: la vista la guida la scheda del disegno (stanza in costruzione al centro).
+                if (vm.state.value.wallDraw?.points?.isNotEmpty() == true) return@LaunchedEffect
                 // Se la selezione è nata iniziando a trascinare un angolo o un muro, la vista non si muove
                 // sotto il dito: si ricentra quando il trascinamento è finito.
                 vm.state.first { !it.dragging }
@@ -454,6 +462,11 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
     }
 
     state.creation?.let { CreationFlow(it, vm) }
+    // Percorso B (solo dove la funzione è disponibile): la scansione guidata a schermo intero. L'avviso "schizzo da misurare" è
+    // tra le schede in alto (vedi sopra): alla riapertura del progetto torna per la prima stanza-schizzo non ancora misurata.
+    if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.SKETCH_GUIDED_SCAN) && state.creation == null && state.wallDraw == null) {
+        state.plan.room(state.sketchScanRoomId)?.let { com.sagoma.planimetria.ui.sketch.SketchScanHost(it, vm) }
+    }
     state.floorDialog?.let { FloorEditDialog(it, state.fullBuilding, vm) }
 
     state.plan.room(state.confirmDeleteRoomId)?.let { DeleteRoomDialog(it, vm) }

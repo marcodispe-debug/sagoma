@@ -24,6 +24,7 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,19 +55,23 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel) {
     // Senza "Annulla" la prima volta: la finestra non si chiude né col tasto indietro né toccando fuori.
     val props = DialogProperties(dismissOnBackPress = step.cancellable, dismissOnClickOutside = step.cancellable)
     when (step) {
-        is CreationStep.PickShape -> AlertDialog(
+        // Dove la scansione guidata è disponibile si chiede prima "Conosci le misure?" (sketch/KnowMeasures.kt); con "Sì" si arriva
+        // al menu di sempre. Altrove (e per balconi e terrazze) il menu è quello di sempre, senza domanda.
+        is CreationStep.PickShape -> com.sagoma.planimetria.ui.sketch.PickShapeEntry(step, vm, props) { sketchMode, backToQuestion -> AlertDialog(
             onDismissRequest = vm::cancelCreation,
             properties = props,
-            title = { Text("Scegli la forma della stanza") },
+            title = { Text(if (sketchMode) com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.sketchShapeTitle else "Scegli la forma della stanza") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (sketchMode) Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.approximateMeasuresHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         ShapeOption("Quadrato", RoomFactory.rectangle(10.0, 10.0), Modifier.weight(1f)) { vm.pickShape(RoomShape.Square) }
                         ShapeOption("Rettangolo", RoomFactory.rectangle(14.0, 9.0), Modifier.weight(1f)) { vm.pickShape(RoomShape.Rectangle) }
                         ShapeOption("A L", lIcon(LOrientation.TopRight), Modifier.weight(1f)) { vm.pickShape(RoomShape.L) }
                     }
                     // Rilievo: lati e diagonali misurati sul posto, anche per stanze fuori squadra o con più lati.
-                    OutlinedCard(onClick = vm::pickSurvey, modifier = Modifier.fillMaxWidth()) {
+                    // (Non nello schizzo: richiede misure esatte.)
+                    if (!sketchMode) OutlinedCard(onClick = vm::pickSurvey, modifier = Modifier.fillMaxWidth()) {
                         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             ShapeIcon(listOf(Vec2(0.0, 0.0), Vec2(14.0, 1.5), Vec2(12.0, 10.0), Vec2(1.0, 9.0)), Modifier.size(48.dp))
                             Spacer(Modifier.size(12.dp))
@@ -80,23 +85,8 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel) {
                             }
                         }
                     }
-                    // Scansione con la fotocamera (solo dove la piattaforma la offre): si toccano gli angoli sul pavimento.
-                    if (LocalPlatform.current.roomScanner != null) {
-                        OutlinedCard(onClick = vm::pickScan, modifier = Modifier.fillMaxWidth()) {
-                            Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("📱", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.size(48.dp).padding(top = 6.dp))
-                                Spacer(Modifier.size(12.dp))
-                                Column {
-                                    Text("Scansiona con il telefono (prova)", style = MaterialTheme.typography.bodyLarge)
-                                    Text(
-                                        "Fotocamera e realtà aumentata: tocchi gli angoli sul pavimento e le misure si ricavano da sole",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    // La vecchia "Scansiona con il telefono (prova)" (angoli toccati sul pavimento) non è più nei menu: la sostituisce la
+                    // scansione guidata dallo schizzo ("Non conosco le misure"). Il suo codice resta (CreationStep.Scan).
                     // Disegno libero, come nei CAD: angolo dopo angolo sulla pianta, con agganci e misure scritte.
                     OutlinedCard(onClick = vm::startDrawWalls, modifier = Modifier.fillMaxWidth()) {
                         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -112,8 +102,9 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel) {
                             }
                         }
                     }
-                    // Un muro da solo (tramezzo): solo quando c'è già almeno una stanza in cui metterlo.
-                    if (step.cancellable) {
+                    // Un muro da solo (tramezzo): solo quando sul piano c'è già almeno una stanza in cui metterlo (non per la prima
+                    // stanza del progetto né per la prima di un piano nuovo).
+                    if (step.cancellable && !sketchMode && vm.state.value.plan.rooms.isNotEmpty()) {
                         OutlinedCard(onClick = vm::addFreeWall, modifier = Modifier.fillMaxWidth()) {
                             Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 ShapeIcon(RoomFactory.rectangle(14.0, 1.6), Modifier.size(48.dp))
@@ -132,8 +123,14 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel) {
                 }
             },
             confirmButton = {},
-            dismissButton = { if (step.cancellable) TextButton(onClick = vm::cancelCreation) { Text("Annulla") } },
+            dismissButton = {
+                Row {
+                    backToQuestion?.let { TextButton(onClick = it) { Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.back) } }
+                    if (step.cancellable) TextButton(onClick = vm::cancelCreation) { Text("Annulla") }
+                }
+            },
         )
+        }
 
         is CreationStep.PickLOrientation -> AlertDialog(
             onDismissRequest = vm::cancelCreation,
@@ -346,6 +343,10 @@ private fun MeasuresDialog(step: CreationStep.Measures, vm: EditorViewModel, pro
         },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Percorso B: nello schizzo le misure sono indicative (le correggerà la scansione).
+                if (vm.state.collectAsState().value.creationIntent?.isSketch == true) {
+                    Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.approximateMeasuresHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
                 Text("Tipo di stanza", style = MaterialTheme.typography.labelLarge)
                 RoomTypePicker(type) { type = it }
                 labels.forEachIndexed { i, label ->

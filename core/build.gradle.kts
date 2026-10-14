@@ -156,3 +156,20 @@ tasks.register<JavaExec>("assistedSimulation") {
         providers.gradleProperty("out").orNull?.let { "--out=$it" },
     )
 }
+
+// Percorso B: test di QUALITÀ su registrazioni reali (scan4 contro il riferimento R3, soglie approvate). Fuori dalla suite
+// normale (:core:jvmTest), così un limite non risolto della scansione non si confonde con un errore del codice; ma va SEMPRE
+// eseguito e il suo esito riportato, anche se rosso. Non si cambiano le soglie per farlo passare.
+//   ./gradlew :core:realDataQuality        (registrazione: ../test stanza1/scan4.zip, oppure SAGOMA_SCAN4_ZIP)
+val realDataPackage = "com.sagoma.planimetria.realdata.*"
+tasks.named<Test>("jvmTest") { filter { excludeTestsMatching(realDataPackage) } }
+tasks.register<Test>("realDataQuality") {
+    group = "verification"
+    description = "Qualità geometrica su registrazioni reali (scan4 contro R3): limiti NON risolti, sempre da riportare."
+    val jvmTest = tasks.named<Test>("jvmTest").get()
+    testClassesDirs = jvmTest.testClassesDirs
+    classpath = jvmTest.classpath
+    filter { includeTestsMatching(realDataPackage) }
+    maxHeapSize = "3g"
+    outputs.upToDateWhen { false }
+}

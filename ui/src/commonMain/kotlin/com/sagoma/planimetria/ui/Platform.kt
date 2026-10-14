@@ -107,7 +107,33 @@ interface RoomScanner {
     /** Schermata della scansione; `onResult(null)` se l'utente annulla o la scansione non è possibile. */
     @Composable
     fun Screen(onResult: (com.sagoma.planimetria.scan.ScanResult?) -> Unit)
+
+    /**
+     * Percorso B: scansione guidata dallo schizzo `room` (la stanza stessa). `onResult(null)` se l'utente esce; altrimenti gli
+     * angoli misurati (mondo AR, filo interno, ordine dei muri) e le posizioni delle aperture corrette nella revisione.
+     * Di default non c'è: solo la piattaforma che la sa fare la implementa.
+     */
+    @Composable
+    fun SketchScreen(room: com.sagoma.planimetria.model.Room, onResult: (SketchScanOutcome?) -> Unit) {
+        androidx.compose.runtime.LaunchedEffect(Unit) { onResult(null) }
+    }
+
+    /** PROTOTIPO: scansione ibrida (pavimento, soffitto, pareti dalla profondità) sulla stessa stanza. Di default non c'è. */
+    @Composable
+    fun HybridScreen(room: com.sagoma.planimetria.model.Room, onResult: (SketchScanOutcome?) -> Unit) {
+        androidx.compose.runtime.LaunchedEffect(Unit) { onResult(null) }
+    }
+
+    /** C'è il prototipo della scansione ibrida? */
+    val hasHybridPrototype: Boolean get() = false
 }
+
+/** Esito della scansione guidata dallo schizzo, da applicare alla stessa stanza con `EditorViewModel.applySketchScan`. */
+data class SketchScanOutcome(
+    val cornersAr: List<com.sagoma.planimetria.scan.ArXZ>,
+    val positionOverrides: Map<Long, Double>,
+    val widthOverrides: Map<Long, Double> = emptyMap(),
+)
 
 /** Tipo MIME che accetta qualsiasi file. */
 const val ANY_FILE = "*" + "/" + "*"

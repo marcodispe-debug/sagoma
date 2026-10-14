@@ -22,7 +22,6 @@ import com.google.ar.core.Coordinates2d
 import com.google.ar.core.Frame
 import com.google.ar.core.Plane
 import com.google.ar.core.Session
-import com.google.ar.core.TrackingFailureReason
 import com.google.ar.core.TrackingState
 import com.google.ar.core.exceptions.CameraNotAvailableException
 import com.google.ar.core.exceptions.UnavailableApkTooOldException
@@ -44,6 +43,7 @@ import com.sagoma.planimetria.scan.recording.CameraModelInfo
 import com.sagoma.planimetria.scan.recording.CaptureMode
 import java.util.EnumSet
 import com.sagoma.planimetria.scan.recording.DeviceInfo
+import com.sagoma.planimetria.scan.recording.RecordedFrame
 import com.sagoma.planimetria.scan.recording.RecordingHeader
 import com.sagoma.planimetria.scan.recording.ScreenInfo
 import com.sagoma.planimetria.scan.recording.SessionInfo
@@ -75,8 +75,8 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
     data class Status(
         /** La telecamera sta seguendo l'ambiente (senza, i punti toccati non sarebbero affidabili). */
         val tracking: Boolean = false,
-        /** Perché il tracciamento si è perso, in italiano (null se non si sa o va bene). */
-        val trackingHint: String? = null,
+        /** Perché il tracciamento si è perso, come codice (null se non si sa o va bene): il testo lo sceglie chi lo mostra. */
+        val trackingIssue: com.sagoma.planimetria.scan.TrackingIssue? = null,
         /** C'è almeno un pezzo di pavimento rilevato abbastanza grande. */
         val floorDetected: Boolean = false,
         /** Quota del pavimento nel mondo AR (m, arrotondata al centimetro), se rilevato. */
@@ -108,7 +108,32 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
          * [ScanDraft.edgeLengthsCm]); null se il punto è dietro la telecamera. Per scrivere le distanze sopra la scena.
          */
         fun onOverlay(corners: List<ScreenPoint?>, edgeMidpoints: List<ScreenPoint?>)
+
+        /**
+         * Scansione guidata ([assistedMode]): circa 10 volte al secondo il frame ridotto agli stessi dati della registrazione,
+         * per il motore della scansione assistita. Mai chiamato con la modalità spenta.
+         */
+        fun onAimFrame(frame: RecordedFrame) {}
+
+        /**
+         * Prototipo ibrido ([depthListening]): una profondità GREZZA nuova con la sua confidenza, la posa della camera del frame e le
+         * intrinseche della depth. Chiamato sul thread del disegno: chi ascolta passi il lavoro a un altro thread.
+         */
+        fun onDepth(depth: LiveDepth) {}
+
+        /**
+         * Prototipo ibrido ([depthListening]): tra due fotogrammi la camera si è spostata di [distanceM] metri o ruotata di
+         * [rotationDeg] gradi oltre le soglie ([poseJumpThresholdM], [poseJumpRotationDeg]), oppure il tracciamento è ripreso dopo
+         * un'interruzione ([afterPause]). Chiamato sul thread del disegno PRIMA della profondità dello stesso fotogramma.
+         */
+        fun onPoseJump(distanceM: Double, rotationDeg: Double, afterPause: Boolean) {}
     }
+
+    /** Profondità grezza dal vivo (mm, 0 = nessun dato), confidenza 0..255 (null se assente), intrinseche e posa. */
+    class LiveDepth(
+        val mm: IntArray, val confidence: ByteArray?, val k: CameraIntrinsics,
+        val pose: com.sagoma.planimetria.scan.recording.RecPose, val timestampNs: Long,
+    )
 
     /** Come è andato [start]. */
     sealed interface StartResult {
@@ -130,6 +155,59 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
     /** Pareti già riconosciute, da evidenziare sopra la scena; si può cambiare da qualsiasi thread. */
     @Volatile
     var walls: List<DetectedWall> = emptyList()
+
+    /** Scansione guidata (solo Pro): manda i frame di mira a [Listener.onAimFrame]. Spenta, la vista fa come prima. */
+    @Volatile
+    var assistedMode: Boolean = false
+
+    /** Scansione guidata: la parete proposta, disegnata con un colore diverso da quelle confermate ([walls]). */
+    @Volatile
+    var candidate: DetectedWall? = null
+
+    private var aimFrames: LiveAimFrames? = null
+
+    /** Prototipo ibrido: legge la profondità grezza dal vivo e la manda a [Listener.onDepth]. Spenta, la vista fa come prima. */
+    @Volatile
+    var depthListening: Boolean = false
+
+    /** Disegnare i piani di ARCore sopra la scena. Il prototipo ibrido li nasconde: lavora solo con la profondità. */
+    @Volatile
+    var drawArPlanes: Boolean = true
+
+    private var lastLiveDepthTs = Long.MIN_VALUE
+
+    /** Prototipo ibrido: spostamento tra due fotogrammi oltre il quale si segnala un salto di posizione. */
+    @Volatile
+    var poseJumpThresholdM: Double = 0.10
+
+    /** Prototipo ibrido: rotazione tra due fotogrammi oltre la quale si segnala una rotazione brusca. */
+    @Volatile
+    var poseJumpRotationDeg: Double = 10.0
+
+    private var lastCamPos: FloatArray? = null
+    private var wasTracking = false
+
+    /** Un quadrilatero da disegnare sopra la scena: 4 vertici (x, y, z del mondo ARCore) e colore RGBA. */
+    class OverlayQuad(val corners: FloatArray, val color: FloatArray)
+
+    /**
+     * Prototipo ibrido: superfici viste e superficie candidata, disegnate nell'ordine (l'ultima sopra); si può cambiare da qualsiasi
+     * thread. I quadrilateri dello stesso colore si disegnano insieme: le superfici viste sono centinaia.
+     */
+    @Volatile
+    var overlayQuads: List<OverlayQuad> = emptyList()
+        set(value) {
+            field = value
+            overlayBatches = value.groupBy { it.color.toList() }.map { (color, quads) ->
+                val tri = FloatArray(quads.size * 18)
+                var t = 0
+                for (q in quads) for (i in intArrayOf(0, 1, 2, 0, 2, 3)) { tri[t++] = q.corners[3 * i]; tri[t++] = q.corners[3 * i + 1]; tri[t++] = q.corners[3 * i + 2] }
+                tri to color.toFloatArray()
+            }
+        }
+
+    @Volatile
+    private var overlayBatches: List<Pair<FloatArray, FloatArray>> = emptyList()
 
     /** Il telefono supporta la profondità automatica? null finché non si è creata la sessione. Per ora la profondità non è usata. */
     @Volatile
@@ -488,7 +566,7 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
             val floorY = planes.minOfOrNull { it.centerPose.ty() }
             val status = Status(
                 tracking = tracking,
-                trackingHint = if (tracking) null else hint(camera),
+                trackingIssue = if (tracking) null else com.sagoma.planimetria.scan.TrackingIssue.fromArCore(camera.trackingFailureReason.name),
                 floorDetected = planes.any { it.extentX * it.extentZ >= MIN_FLOOR_AREA_M2 },
                 floorY = floorY?.let { (it * 100.0).roundToInt() / 100.0 },
                 verticalPlanes = verticals.size,
@@ -500,6 +578,29 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
             recorder?.onFrame(s, frame, camera, floorY, updateNs)
             handleTaps(frame, tracking, floorY)
             publishWalls(verticals)
+            if (assistedMode) {
+                val live = aimFrames ?: LiveAimFrames().also { aimFrames = it }
+                live.next(s, frame, camera, floorY)?.let { f -> post { listener?.onAimFrame(f) } }
+            } else aimFrames = null
+            if (depthListening) {
+                // Salti di posizione di ARCore: prima della profondità dello stesso fotogramma, sullo stesso thread.
+                if (tracking) {
+                    val q = camera.pose
+                    val cur = floatArrayOf(q.tx(), q.ty(), q.tz(), q.qx(), q.qy(), q.qz(), q.qw())
+                    val prev = lastCamPos
+                    if (prev != null) {
+                        val dx = cur[0] - prev[0]; val dy = cur[1] - prev[1]; val dz = cur[2] - prev[2]
+                        val d = kotlin.math.sqrt((dx * dx + dy * dy + dz * dz).toDouble())
+                        val dot = kotlin.math.abs(cur[3] * prev[3] + cur[4] * prev[4] + cur[5] * prev[5] + cur[6] * prev[6]).coerceAtMost(1f)
+                        val rot = Math.toDegrees(2.0 * kotlin.math.acos(dot.toDouble()))
+                        if (!wasTracking) listener?.onPoseJump(d, rot, true)
+                        else if (d > poseJumpThresholdM || rot > poseJumpRotationDeg) listener?.onPoseJump(d, rot, false)
+                    }
+                    lastCamPos = cur
+                }
+                wasTracking = tracking
+            }
+            if (depthListening && tracking) readLiveDepth(frame, camera)
             if (!tracking) return
             camera.getProjectionMatrix(projectionMatrix, 0, NEAR, FAR)
             camera.getViewMatrix(viewMatrix, 0)
@@ -507,15 +608,55 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
             GLES20.glDisable(GLES20.GL_DEPTH_TEST)
             GLES20.glEnable(GLES20.GL_BLEND)
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
-            for (p in planes) drawPlane(p, PLANE_COLOR, LIFT)
-            for (p in verticals) drawPlane(p, WALL_PLANE_COLOR, 0f)
-            drawWalls(walls, floorY)
+            if (drawArPlanes) {
+                for (p in planes) drawPlane(p, PLANE_COLOR, LIFT)
+                for (p in verticals) drawPlane(p, WALL_PLANE_COLOR, 0f)
+            }
+            drawWalls(walls, if (drawArPlanes) floorY else null) // prototipo ibrido: niente "piede" sul pavimento di ARCore
+            candidate?.let { drawWalls(listOf(it), floorY, CANDIDATE_WALL_COLOR, CANDIDATE_WALL_FOOT_COLOR) }
+            for ((tri, color) in overlayBatches) drawTriangles(tri, tri.size / 3, color)
             drawDraft(draft, floorY)
             publishOverlay(draft)
         } catch (e: CameraNotAvailableException) {
             Log.w(TAG, "Fotocamera non disponibile", e)
         } catch (e: Throwable) {
             Log.e(TAG, "Errore nel disegno della scansione", e)
+        }
+    }
+
+    /**
+     * Prototipo ibrido: la profondità GREZZA del frame se è nuova (timestamp diverso), con la confidenza. Nessun ripiego sulla
+     * depth filtrata né sui piani di ARCore: se non c'è, non arriva niente (e la schermata lo dice).
+     */
+    private fun readLiveDepth(frame: Frame, camera: Camera) {
+        try {
+            frame.acquireRawDepthImage16Bits().use { img ->
+                if (img.timestamp == lastLiveDepthTs) return
+                lastLiveDepthTs = img.timestamp
+                val w = img.width; val h = img.height
+                val p = img.planes[0]
+                val buf = p.buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN)
+                val start = buf.position()
+                val mm = IntArray(w * h) { i -> buf.getShort(start + (i / w) * p.rowStride + (i % w) * p.pixelStride).toInt() and 0xFFFF }
+                val conf = try {
+                    frame.acquireRawDepthConfidenceImage().use { c ->
+                        if (c.width != w || c.height != h) null else {
+                            val cp = c.planes[0]; val cb = cp.buffer.duplicate(); val cs = cb.position()
+                            ByteArray(w * h) { i -> cb.get(cs + (i / w) * cp.rowStride + (i % w) * cp.pixelStride) }
+                        }
+                    }
+                } catch (e: Exception) { null }
+                val k = com.sagoma.planimetria.scan.recording.DepthIntrinsics.fromTexture(ScanRecorder.intrinsics(camera.textureIntrinsics), w, h).first
+                val q = camera.pose
+                val pose = com.sagoma.planimetria.scan.recording.RecPose(
+                    q.tx().toDouble(), q.ty().toDouble(), q.tz().toDouble(), q.qx().toDouble(), q.qy().toDouble(), q.qz().toDouble(), q.qw().toDouble(),
+                )
+                listener?.onDepth(LiveDepth(mm, conf, k, pose, img.timestamp))
+            }
+        } catch (e: com.google.ar.core.exceptions.NotYetAvailableException) {
+            // Profondità non ancora pronta: si riprova al prossimo frame.
+        } catch (e: Exception) {
+            Log.w(TAG, "profondità grezza non disponibile", e)
         }
     }
 
@@ -562,14 +703,6 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
     /** Piani verticali seguiti, non assorbiti da un altro: candidati a parete (o a fronte di un mobile, di un'anta). */
     private fun verticalPlanes(s: Session): List<Plane> = s.getAllTrackables(Plane::class.java).filter {
         it.trackingState == TrackingState.TRACKING && it.subsumedBy == null && it.type == Plane.Type.VERTICAL
-    }
-
-    private fun hint(camera: Camera): String? = when (camera.trackingFailureReason) {
-        TrackingFailureReason.INSUFFICIENT_LIGHT -> "C'è poca luce: accendi le luci della stanza."
-        TrackingFailureReason.EXCESSIVE_MOTION -> "Muovi il telefono più lentamente."
-        TrackingFailureReason.INSUFFICIENT_FEATURES -> "Inquadra superfici con più dettagli (non solo pareti bianche)."
-        TrackingFailureReason.CAMERA_UNAVAILABLE -> "Fotocamera non disponibile."
-        else -> null
     }
 
     // ---------- Tocchi sul pavimento ----------
@@ -652,7 +785,12 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
     }
 
     /** Pareti riconosciute: la parte rilevata in altezza e la striscia sul pavimento, di colore diverso da pavimento e piani. */
-    private fun drawWalls(list: List<DetectedWall>, floorY: Float?) {
+    private fun drawWalls(
+        list: List<DetectedWall>,
+        floorY: Float?,
+        color: FloatArray = DETECTED_WALL_COLOR,
+        footColor: FloatArray = DETECTED_WALL_FOOT_COLOR,
+    ) {
         if (list.isEmpty()) return
         val quads = ArrayList<Float>()
         val feet = ArrayList<Float>()
@@ -665,8 +803,8 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
             for (i in intArrayOf(0, 1, 2, 0, 2, 3)) { quads.add(q[3 * i]); quads.add(q[3 * i + 1]); quads.add(q[3 * i + 2]) }
             if (floorY != null) addStrip(feet, ax, az, bx, bz, floorY + 3 * LIFT, WALL_FOOT_HALF_WIDTH_M)
         }
-        drawTriangles(quads.toFloatArray(), quads.size / 3, DETECTED_WALL_COLOR)
-        if (feet.isNotEmpty()) drawTriangles(feet.toFloatArray(), feet.size / 3, DETECTED_WALL_FOOT_COLOR)
+        drawTriangles(quads.toFloatArray(), quads.size / 3, color)
+        if (feet.isNotEmpty()) drawTriangles(feet.toFloatArray(), feet.size / 3, footColor)
     }
 
     // ---------- Disegno di piani e perimetro ----------
@@ -831,6 +969,9 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         /** Pareti riconosciute (raggruppate): magenta. */
         val DETECTED_WALL_COLOR = floatArrayOf(0.95f, 0.25f, 0.70f, 0.35f)
         val DETECTED_WALL_FOOT_COLOR = floatArrayOf(1.00f, 0.35f, 0.80f, 0.95f)
+        /** Scansione guidata: parete proposta, in attesa di conferma (giallo). */
+        val CANDIDATE_WALL_COLOR = floatArrayOf(1.00f, 0.85f, 0.10f, 0.35f)
+        val CANDIDATE_WALL_FOOT_COLOR = floatArrayOf(1.00f, 0.85f, 0.10f, 0.95f)
         val FILL_COLOR = floatArrayOf(0.25f, 0.55f, 1.00f, 0.25f)
         val LINE_COLOR = floatArrayOf(1.00f, 1.00f, 1.00f, 0.95f)
         val MARK_COLOR = floatArrayOf(1.00f, 0.65f, 0.05f, 1.00f)

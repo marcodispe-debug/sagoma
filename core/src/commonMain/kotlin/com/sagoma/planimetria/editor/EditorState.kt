@@ -76,6 +76,18 @@ data class PendingOpening(
 )
 
 /** Passi del flusso di creazione stanza (§1). */
+/** Come l'utente crea la stanza (risposta a "Conosci le misure?"). */
+enum class CreationIntent {
+    /** "Sì": misure note, creazione di sempre (percorso A). */
+    EXACT,
+    /** "No": forma e misure approssimative (schizzo), senza scansione subito; la scansione si può avviare dopo. */
+    APPROX,
+    /** "No": forma e misure approssimative + scansione: si disegna lo schizzo, poi si avvia la scansione con un tasto. */
+    APPROX_SCAN;
+
+    val isSketch: Boolean get() = this != EXACT
+}
+
 sealed interface CreationStep {
     val cancellable: Boolean
 
@@ -203,6 +215,15 @@ data class EditorUiState(
     val creation: CreationStep? = null,
     /** Tipo proposto nella creazione (es. balcone dal pulsante "+ Balcone o terrazza"); null = scelta libera. */
     val creationType: RoomType? = null,
+    /**
+     * Risposta a "Conosci le misure?" per la creazione in corso (null = domanda non ancora fatta). La UI la chiede solo dove la
+     * scansione guidata è disponibile; con [CreationIntent.EXACT] la creazione è quella di sempre (percorso A).
+     */
+    val creationIntent: CreationIntent? = null,
+    /** Scansione guidata dallo schizzo aperta su questa stanza. */
+    val sketchScanRoomId: Long? = null,
+    /** Avvisi "schizzo da misurare" chiusi con "Chiudi" in questa sessione (non salvati: alla riapertura l'avviso torna). */
+    val dismissedSketchBanners: Set<Long> = emptySet(),
     /** Trascinamento in corso sulla pianta: la vista non va ricentrata mentre il dito si muove. */
     val dragging: Boolean = false,
     /** Faretto a parete che si sta orientando con la maniglia 3D (null altrimenti). */

@@ -317,6 +317,7 @@ object AssistedScan {
             id = s.walls.size + 1, line = line, normalIn = inward(line, t.cameraAt), observedLengthM = line.length,
             floorGapM = null, qualityScore = q.first, quality = q.second, rmsM = snap.evidence.rmsM, pointSupport = snap.evidence.support,
             planeKeys = snap.planeKeys, confirmedAtMs = timeMs, cameraAt = t.cameraAt, advisories = snap.advisories,
+            supportAlongM = support(line, s.points, p),
         )
         return StepResult(s.copy(walls = s.walls + wall, candidate = null, track = null), listOf(AssistedEvent.Confirmed(timeMs, wall.id)))
     }
@@ -337,25 +338,45 @@ object AssistedScan {
     fun evidence(line: WallLine, points: Map<Int, PointRec>, p: AssistedParams): PointEvidence {
         if (points.isEmpty()) return PointEvidence(0, null, null, false)
         var n = 0; var sq = 0.0; var sum = 0.0
+        forEachSupporting(line, points, p) { _, perp -> n++; sq += perp * perp; sum += perp }
+        return if (n == 0) PointEvidence(0, null, null, true) else PointEvidence(n, sqrt(sq / n), sum / n, true)
+    }
+
+    /**
+     * Dove stanno lungo la linea i punti che la sostengono (metri da `line.a` verso `line.b`, in ordine); null senza nuvola.
+     * Non sposta la linea: serve al nucleo per non scambiare per "visto" un tratto che c'è solo nel poligono di ARCore.
+     */
+    fun support(line: WallLine, points: Map<Int, PointRec>, p: AssistedParams): List<Double>? {
+        if (points.isEmpty()) return null
+        val out = ArrayList<Double>()
+        forEachSupporting(line, points, p) { along, _ -> out += along }
+        return out.sorted()
+    }
+
+    /** Punti abbastanza sicuri entro [AssistedParams.pointSupportTolM] dalla linea, nel suo tratto (±20 cm) e nelle sue quote. */
+    private inline fun forEachSupporting(line: WallLine, points: Map<Int, PointRec>, p: AssistedParams, use: (along: Double, perp: Double) -> Unit) {
         val len = line.length
         for (pt in points.values) {
             if (pt.confidence < p.pointMinConfidence) continue
             val rx = pt.x - line.a.x; val rz = pt.z - line.a.z
             val along = rx * line.direction.x + rz * line.direction.z
             val perp = rx * line.normal.x + rz * line.normal.z
-            if (abs(perp) <= p.pointSupportTolM && along >= -0.2 && along <= len + 0.2 && pt.y >= line.minY - 0.1 && pt.y <= line.maxY + 0.1) { n++; sq += perp * perp; sum += perp }
+            if (abs(perp) <= p.pointSupportTolM && along >= -0.2 && along <= len + 0.2 && pt.y >= line.minY - 0.1 && pt.y <= line.maxY + 0.1) use(along, perp)
         }
-        return if (n == 0) PointEvidence(0, null, null, true) else PointEvidence(n, sqrt(sq / n), sum / n, true)
     }
 
     private fun advisories(line: WallLine, ev: PointEvidence, aimDist: Double?, floorY: Double?, cam: ArXZ?, walls: List<ConfirmedWall>, p: AssistedParams): List<Advisory> {
         val out = mutableListOf<Advisory>()
         if (floorY != null && line.minY - floorY > p.floorGapAdvisoryM) out += Advisory.NOT_REACHING_FLOOR
         if (cam != null) {
-            // Una parete confermata quasi parallela, dietro questa (più lontana dal telefono) e sovrapposta.
+            // Una parete confermata quasi parallela, dietro questa (più lontana dal telefono, DALLA STESSA PARTE) e sovrapposta.
+            // Distanze con segno lungo la normale che va dal telefono verso la candidata: la parete opposta, alle spalle del
+            // telefono, ha segno contrario e non conta (in una stanza piccola era scambiata per una parete "dietro").
+            val away = line.normal.let { n -> if (((line.a - cam) dot n) >= 0) n else n * -1.0 }
             val behind = walls.any { w ->
                 if (Aim.angleBetween(w.line, line) > p.sameAngleTolDeg) return@any false
-                val dCand = abs((cam - line.a).cross(line.direction)); val dWall = abs((cam - w.line.a).cross(w.line.direction))
+                val dCand = (line.a - cam) dot away
+                val dWall = ((w.line.a + w.line.b) * 0.5 - cam) dot away
                 val gap = dWall - dCand
                 val t0 = (w.line.a - line.a) dot line.direction; val t1 = (w.line.b - line.a) dot line.direction
                 val overlap = min(max(t0, t1), line.length) - max(min(t0, t1), 0.0)

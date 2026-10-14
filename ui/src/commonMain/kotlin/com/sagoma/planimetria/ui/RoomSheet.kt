@@ -296,6 +296,12 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
 
         // Misure calcolate.
         SectionTitle("Misure")
+        // Percorso B: SOLO le stanze create come schizzo (e non ancora misurate) offrono la scansione guidata.
+        if (room.sketchPending && FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.SKETCH_GUIDED_SCAN)) {
+            androidx.compose.material3.Button(onClick = { vm.startSketchScan(room.id) }) {
+                Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.startScan)
+            }
+        }
         // Lunghezze e perimetro sul lato interno dei muri, come l'area.
         val lengths = interiorLengths(room)
         val perimeter = lengths.sum()

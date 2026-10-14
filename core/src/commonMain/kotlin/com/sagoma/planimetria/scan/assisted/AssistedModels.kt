@@ -95,34 +95,42 @@ object AimFrames {
 
     fun from(frames: List<RecordedFrame>): List<AimFrame> {
         val sorted = frames.sortedWith(compareBy({ it.elapsedMs }, { it.index }))
-        val out = ArrayList<AimFrame>(sorted.size)
-        var prevPos: RecPose? = null
-        var prevNs = 0L
-        for (f in sorted) {
-            val pose = f.cameraDisplay ?: f.camera
-            val tracking = f.tracking == "TRACKING"
-            var speed: Double? = null
-            val cam = f.camera
-            if (tracking && cam != null) {
-                val p = prevPos
-                if (p != null) {
-                    val dt = (f.timestampNs - prevNs) / 1e9
-                    if (dt > 0) speed = sqrt((cam.x - p.x) * (cam.x - p.x) + (cam.y - p.y) * (cam.y - p.y) + (cam.z - p.z) * (cam.z - p.z)) / dt
-                }
-                prevPos = cam; prevNs = f.timestampNs
-            } else prevPos = null
-            val vertical = f.planes.filter { it.kind == "VERTICAL" && it.polygon.size >= 6 }.map { p ->
-                val local = List(p.polygon.size / 2) { p.polygon[2 * it] to p.polygon[2 * it + 1] }
-                AimPlane(p.key, p.tracking == "TRACKING", p.subsumedBy, p.pose, local, local.map { (x, z) -> p.pose.transformPoint(x, 0.0, z) })
+        val builder = AimFrameBuilder()
+        return sorted.map { builder.next(it) }
+    }
+}
+
+/**
+ * Lo stesso passaggio di [AimFrames.from], un frame alla volta: sul telefono i frame arrivano mentre si scansiona. La velocità
+ * dipende dal frame precedente, per questo il costruttore ricorda l'ultima posa. I frame vanno passati in ordine di tempo.
+ */
+class AimFrameBuilder {
+    private var prevPos: RecPose? = null
+    private var prevNs = 0L
+
+    fun next(f: RecordedFrame): AimFrame {
+        val pose = f.cameraDisplay ?: f.camera
+        val tracking = f.tracking == "TRACKING"
+        var speed: Double? = null
+        val cam = f.camera
+        if (tracking && cam != null) {
+            val p = prevPos
+            if (p != null) {
+                val dt = (f.timestampNs - prevNs) / 1e9
+                if (dt > 0) speed = sqrt((cam.x - p.x) * (cam.x - p.x) + (cam.y - p.y) * (cam.y - p.y) + (cam.z - p.z) * (cam.z - p.z)) / dt
             }
-            val points = f.points?.takeIf { it.isConsistent }?.let { pc ->
-                LinkedHashMap<Int, PointRec>().also { m -> for (i in 0 until pc.count) m[pc.ids[i]] = PointRec(pc.xyz[3 * i], pc.xyz[3 * i + 1], pc.xyz[3 * i + 2], pc.confidence[i]) }
-            }
-            out += AimFrame(
-                f.index, f.elapsedMs, tracking, pose?.let { ArPoint(it.x, it.y, it.z) }, pose?.rotate(0.0, 0.0, -1.0), speed, f.floorY, vertical, points,
-            )
+            prevPos = cam; prevNs = f.timestampNs
+        } else prevPos = null
+        val vertical = f.planes.filter { it.kind == "VERTICAL" && it.polygon.size >= 6 }.map { p ->
+            val local = List(p.polygon.size / 2) { p.polygon[2 * it] to p.polygon[2 * it + 1] }
+            AimPlane(p.key, p.tracking == "TRACKING", p.subsumedBy, p.pose, local, local.map { (x, z) -> p.pose.transformPoint(x, 0.0, z) })
         }
-        return out
+        val points = f.points?.takeIf { it.isConsistent }?.let { pc ->
+            LinkedHashMap<Int, PointRec>().also { m -> for (i in 0 until pc.count) m[pc.ids[i]] = PointRec(pc.xyz[3 * i], pc.xyz[3 * i + 1], pc.xyz[3 * i + 2], pc.confidence[i]) }
+        }
+        return AimFrame(
+            f.index, f.elapsedMs, tracking, pose?.let { ArPoint(it.x, it.y, it.z) }, pose?.rotate(0.0, 0.0, -1.0), speed, f.floorY, vertical, points,
+        )
     }
 }
 
@@ -220,6 +228,12 @@ data class ConfirmedWall(
     val confirmedAtMs: Long,
     val cameraAt: ArXZ?,
     val advisories: List<Advisory>,
+    /**
+     * Punti della nuvola che sostengono la parete alla conferma (stesso filtro di [AssistedScan.evidence]): posizione lungo la
+     * linea, in metri da `line.a` verso `line.b`, in ordine. Null se la nuvola non era disponibile. Servono a distinguere la parte
+     * davvero osservata dal poligono di ARCore, che si gonfia quando ARCore fonde piani diversi (anche di muri perpendicolari).
+     */
+    val supportAlongM: List<Double>? = null,
 )
 
 sealed interface AssistedEvent {

@@ -275,6 +275,12 @@ data class Room(
     val removedWalls: Set<Int> = emptySet(),
     /** Stato di fatto / progetto dei muri (indici): da demolire o nuovi; assente = esistente. */
     val wallPhases: Map<Int, Phase> = emptyMap(),
+    /**
+     * Stanza creata come SCHIZZO (forma e misure approssimative) e non ancora misurata con la scansione guidata: offre
+     * "Avvia scansione". Torna false quando la scansione aggiorna la stanza. Assente nei file vecchi = false; non viene scritta
+     * quando è false (i file delle stanze normali restano identici a prima).
+     */
+    val sketchPending: Boolean = false,
 ) {
     /** Stato del muro `i` (esistente, da demolire, nuovo). */
     fun phaseOf(i: Int): Phase = wallPhases[i] ?: Phase.Existing

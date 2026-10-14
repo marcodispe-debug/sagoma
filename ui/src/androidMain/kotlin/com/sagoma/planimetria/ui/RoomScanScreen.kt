@@ -67,6 +67,18 @@ import kotlin.math.roundToInt
 class AndroidRoomScanner(private val activity: ComponentActivity) : RoomScanner {
     @Composable
     override fun Screen(onResult: (ScanResult?) -> Unit) = RoomScanScreen(activity, onResult)
+
+    /** Percorso B: scansione guidata dallo schizzo (schermata a parte, RoomSketchScanScreen; questa sopra non cambia). */
+    @Composable
+    override fun SketchScreen(room: com.sagoma.planimetria.model.Room, onResult: (SketchScanOutcome?) -> Unit) =
+        RoomSketchScanScreen(activity, room, onResult)
+
+    /** PROTOTIPO: scansione ibrida dalla profondità (schermata a parte, RoomHybridScanScreen; la guidata non cambia). */
+    @Composable
+    override fun HybridScreen(room: com.sagoma.planimetria.model.Room, onResult: (SketchScanOutcome?) -> Unit) =
+        RoomHybridScanScreen(activity, room, onResult)
+
+    override val hasHybridPrototype: Boolean get() = true
 }
 
 private sealed interface ScanPhase {
@@ -444,7 +456,7 @@ private fun instruction(
 ): String = when {
     fatal != null -> "Scansione non disponibile"
     installPending -> "Sto installando ARCore: completa l'installazione e torna qui"
-    !status.tracking -> status.trackingHint ?: "Muovi lentamente il telefono per rilevare il pavimento"
+    !status.tracking -> LegacyScanText.trackingHint(status.trackingIssue) ?: "Muovi lentamente il telefono per rilevare il pavimento"
     !status.floorDetected -> "Muovi lentamente il telefono per rilevare il pavimento"
     closed && valid -> if (manualPoints > 0) "Perimetro chiuso: controlla le misure e conferma" else "Perimetro ricostruito dalle pareti: controlla le misure e conferma"
     closed -> "Perimetro chiuso, ma non valido"
