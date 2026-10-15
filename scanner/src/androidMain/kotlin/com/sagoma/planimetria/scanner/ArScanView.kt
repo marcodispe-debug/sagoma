@@ -44,6 +44,7 @@ import com.sagoma.planimetria.scan.recording.CameraModelInfo
 import com.sagoma.planimetria.scan.recording.CaptureMode
 import java.util.EnumSet
 import com.sagoma.planimetria.scan.recording.DeviceInfo
+import com.sagoma.planimetria.scan.recording.RecordedFrame
 import com.sagoma.planimetria.scan.recording.RecordingHeader
 import com.sagoma.planimetria.scan.recording.ScreenInfo
 import com.sagoma.planimetria.scan.recording.SessionInfo
@@ -108,6 +109,12 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
          * [ScanDraft.edgeLengthsCm]); null se il punto è dietro la telecamera. Per scrivere le distanze sopra la scena.
          */
         fun onOverlay(corners: List<ScreenPoint?>, edgeMidpoints: List<ScreenPoint?>)
+
+        /**
+         * Scansione guidata ([assistedMode]): circa 10 volte al secondo il frame ridotto agli stessi dati della registrazione,
+         * per il motore della scansione assistita. Mai chiamato con la modalità spenta.
+         */
+        fun onAimFrame(frame: RecordedFrame) {}
     }
 
     /** Come è andato [start]. */
@@ -130,6 +137,16 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
     /** Pareti già riconosciute, da evidenziare sopra la scena; si può cambiare da qualsiasi thread. */
     @Volatile
     var walls: List<DetectedWall> = emptyList()
+
+    /** Scansione guidata (prova M2.0, solo Pro): manda i frame di mira a [Listener.onAimFrame]. Spenta, la vista fa come prima. */
+    @Volatile
+    var assistedMode: Boolean = false
+
+    /** Scansione guidata: la parete proposta, disegnata con un colore diverso da quelle confermate ([walls]). */
+    @Volatile
+    var candidate: DetectedWall? = null
+
+    private var aimFrames: LiveAimFrames? = null
 
     /** Il telefono supporta la profondità automatica? null finché non si è creata la sessione. Per ora la profondità non è usata. */
     @Volatile
@@ -500,6 +517,10 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
             recorder?.onFrame(s, frame, camera, floorY, updateNs)
             handleTaps(frame, tracking, floorY)
             publishWalls(verticals)
+            if (assistedMode) {
+                val live = aimFrames ?: LiveAimFrames().also { aimFrames = it }
+                live.next(s, frame, camera, floorY)?.let { f -> post { listener?.onAimFrame(f) } }
+            } else aimFrames = null
             if (!tracking) return
             camera.getProjectionMatrix(projectionMatrix, 0, NEAR, FAR)
             camera.getViewMatrix(viewMatrix, 0)
@@ -510,6 +531,7 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
             for (p in planes) drawPlane(p, PLANE_COLOR, LIFT)
             for (p in verticals) drawPlane(p, WALL_PLANE_COLOR, 0f)
             drawWalls(walls, floorY)
+            candidate?.let { drawWalls(listOf(it), floorY, CANDIDATE_WALL_COLOR, CANDIDATE_WALL_FOOT_COLOR) }
             drawDraft(draft, floorY)
             publishOverlay(draft)
         } catch (e: CameraNotAvailableException) {
@@ -652,7 +674,12 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
     }
 
     /** Pareti riconosciute: la parte rilevata in altezza e la striscia sul pavimento, di colore diverso da pavimento e piani. */
-    private fun drawWalls(list: List<DetectedWall>, floorY: Float?) {
+    private fun drawWalls(
+        list: List<DetectedWall>,
+        floorY: Float?,
+        color: FloatArray = DETECTED_WALL_COLOR,
+        footColor: FloatArray = DETECTED_WALL_FOOT_COLOR,
+    ) {
         if (list.isEmpty()) return
         val quads = ArrayList<Float>()
         val feet = ArrayList<Float>()
@@ -665,8 +692,8 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
             for (i in intArrayOf(0, 1, 2, 0, 2, 3)) { quads.add(q[3 * i]); quads.add(q[3 * i + 1]); quads.add(q[3 * i + 2]) }
             if (floorY != null) addStrip(feet, ax, az, bx, bz, floorY + 3 * LIFT, WALL_FOOT_HALF_WIDTH_M)
         }
-        drawTriangles(quads.toFloatArray(), quads.size / 3, DETECTED_WALL_COLOR)
-        if (feet.isNotEmpty()) drawTriangles(feet.toFloatArray(), feet.size / 3, DETECTED_WALL_FOOT_COLOR)
+        drawTriangles(quads.toFloatArray(), quads.size / 3, color)
+        if (feet.isNotEmpty()) drawTriangles(feet.toFloatArray(), feet.size / 3, footColor)
     }
 
     // ---------- Disegno di piani e perimetro ----------
@@ -831,6 +858,9 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         /** Pareti riconosciute (raggruppate): magenta. */
         val DETECTED_WALL_COLOR = floatArrayOf(0.95f, 0.25f, 0.70f, 0.35f)
         val DETECTED_WALL_FOOT_COLOR = floatArrayOf(1.00f, 0.35f, 0.80f, 0.95f)
+        /** Scansione guidata: parete proposta, in attesa di conferma (giallo). */
+        val CANDIDATE_WALL_COLOR = floatArrayOf(1.00f, 0.85f, 0.10f, 0.35f)
+        val CANDIDATE_WALL_FOOT_COLOR = floatArrayOf(1.00f, 0.85f, 0.10f, 0.95f)
         val FILL_COLOR = floatArrayOf(0.25f, 0.55f, 1.00f, 0.25f)
         val LINE_COLOR = floatArrayOf(1.00f, 1.00f, 1.00f, 0.95f)
         val MARK_COLOR = floatArrayOf(1.00f, 0.65f, 0.05f, 1.00f)

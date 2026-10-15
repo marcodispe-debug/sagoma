@@ -3,6 +3,10 @@
 App Android nativa (Kotlin + Jetpack Compose) che implementa l'editor planimetria descritto in
 [docs/specifica-editor-planimetria.md](docs/specifica-editor-planimetria.md).
 
+La visione e le decisioni di prodotto (utenti, scansione, watermark, pagamenti, catalogo, rendering realistico e aziende su misura) sono raccolte in [docs/decisioni-prodotto.md](docs/decisioni-prodotto.md). Quel documento descrive il prodotto obiettivo; alcune funzioni sono ancora da sviluppare e l'architettura tecnica attuale può essere diversa.
+
+L'ordine consigliato per passare dal codice attuale al prodotto è in [docs/roadmap-sviluppo.md](docs/roadmap-sviluppo.md).
+
 ## Build
 
 Requisiti: Android SDK (platform 37) e JDK 17+ (va bene quello incluso in Android Studio).

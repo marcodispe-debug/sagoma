@@ -28,6 +28,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,7 +55,14 @@ import com.sagoma.planimetria.scan.ScanResult
 import com.sagoma.planimetria.scan.WallObservation
 import com.sagoma.planimetria.scan.WallOutline
 import com.sagoma.planimetria.scan.WallScan
+import com.sagoma.planimetria.scan.assisted.AimFrameBuilder
+import com.sagoma.planimetria.scan.assisted.AssistedEvent
+import com.sagoma.planimetria.scan.assisted.AssistedLog
+import com.sagoma.planimetria.scan.assisted.AssistedPerimeters
+import com.sagoma.planimetria.scan.assisted.AssistedSession
+import com.sagoma.planimetria.scan.assisted.CandidateState
 import com.sagoma.planimetria.scan.recording.CaptureMode
+import com.sagoma.planimetria.scan.recording.RecordedFrame
 import com.sagoma.planimetria.scanner.ArScanView
 import com.sagoma.planimetria.scanner.ArSupport
 import com.sagoma.planimetria.scanner.ArSupportCheck
@@ -176,6 +184,11 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
     var exportStatus by remember { mutableStateOf<String?>(null) }
     var depthSupported by remember { mutableStateOf<Boolean?>(null) }
     var captureMode by remember { mutableStateOf(view.captureMode) }
+    // Scansione guidata (prova M2.0): solo Pro, spenta a ogni apertura. Le pareti nascono solo da "Conferma parete" e il
+    // perimetro solo dalle pareti confermate; pareti automatiche e tocchi non contano finché è accesa.
+    var guided by remember { mutableStateOf(false) }
+    var assisted by remember { mutableStateOf(AssistedSession()) }
+    var aimBuilder by remember { mutableStateOf(AimFrameBuilder()) }
     LaunchedEffect(view) {
         while (true) {
             recStats = view.recordingStats()
@@ -187,10 +200,14 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
     DisposableEffect(view) {
         view.listener = object : ArScanView.Listener {
             override fun onStatus(s: ArScanView.Status) { status = s }
-            override fun onWallObservations(observations: List<WallObservation>) { wallScan = wallScan.update(observations) }
+            override fun onWallObservations(observations: List<WallObservation>) { if (!guided) wallScan = wallScan.update(observations) }
             override fun onFloorPoint(point: ArPoint) {
+                if (guided) return
                 draft = draft.add(point)
                 message = null
+            }
+            override fun onAimFrame(frame: RecordedFrame) {
+                if (guided) assisted = assisted.step(aimBuilder.next(frame))
             }
             override fun onTapRejected(reason: String) { message = reason }
             override fun onOverlay(c: List<ArScanView.ScreenPoint?>, edgeMidpoints: List<ArScanView.ScreenPoint?>) {
@@ -215,8 +232,36 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
     val room = effective.toScannedRoom()
     val canCloseChain = draft.points.isEmpty() && wallDraft == null && layout.closableChain != null
 
-    LaunchedEffect(effective) { view.draft = effective }
-    LaunchedEffect(walls) { view.walls = walls }
+    // Scansione guidata: pareti confermate, parete proposta e perimetro delle sole pareti confermate.
+    val guidedWalls = remember(assisted.walls) { assisted.walls.map(AssistedPerimeters::detected) }
+    val guidedPerimeter = assisted.perimeter
+    val guidedDraft = remember(guidedPerimeter, assisted.floorY) {
+        guidedPerimeter?.let { WallOutline.toDraft(it.corners, assisted.floorY ?: 0.0) } ?: ScanDraft()
+    }
+    val guidedResult = if (guided) assisted.result() else null
+    val proposed = assisted.candidate?.takeIf { it.state == CandidateState.PROPOSED }
+    LaunchedEffect(guided) {
+        view.assistedMode = guided
+        if (guided) {
+            assisted = AssistedSession()
+            aimBuilder = AimFrameBuilder()
+            android.util.Log.i(ASSISTED_TAG, "SESSIONE guidata avviata")
+        } else view.candidate = null
+    }
+    LaunchedEffect(proposed, guided) {
+        view.candidate = if (guided) proposed?.line?.let { com.sagoma.planimetria.scan.DetectedWall(it.a, it.b, it.minY, it.maxY, emptyList(), -1) } else null
+    }
+    LaunchedEffect(effective, guided, guidedDraft) { view.draft = if (guided) guidedDraft else effective }
+    LaunchedEffect(walls, guided, guidedWalls) { view.walls = if (guided) guidedWalls else walls }
+    LaunchedEffect(guidedPerimeter) { if (guided) guidedPerimeter?.let { android.util.Log.i(ASSISTED_TAG, AssistedLog.perimeter(it)) } }
+    fun logEvents(s: AssistedSession) {
+        for (e in s.events) when (e) {
+            is AssistedEvent.Confirmed -> s.walls.firstOrNull { it.id == e.wallId }?.let { android.util.Log.i(ASSISTED_TAG, AssistedLog.wall(it)) }
+            is AssistedEvent.Undone -> android.util.Log.i(ASSISTED_TAG, AssistedLog.undone(e.wallId))
+            is AssistedEvent.Rejected -> message = "Parete non confermata: ${e.why}"
+            else -> {}
+        }
+    }
     LaunchedEffect(message) { if (message != null) { delay(3000); message = null } }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         when (val r = view.start(activity)) {
@@ -273,24 +318,32 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
             if (c != null) Marker("${i + 1}", c, density, 24.dp, Color(0xFFE8A200))
         }
         for ((i, m) in mids.withIndex()) {
-            val length = effective.edgeLengthsCm.getOrNull(i)
+            val length = (if (guided) guidedDraft else effective).edgeLengthsCm.getOrNull(i)
             if (m != null && length != null) Marker(formatMeters(length), m, density, 76.dp, Color(0xCC000000))
         }
 
         Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp)) {
             Surface(shape = RoundedCornerShape(12.dp), color = Color(0xCC000000)) {
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                    if (platform.isPro && fatal == null) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Text("Scansione guidata (prova)", color = Color.White, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            Switch(checked = guided, onCheckedChange = { guided = it })
+                        }
+                    }
                     Text(
-                        instruction(status, draft.points.size, walls.size, effective.closed, room != null, fatal, installPending),
+                        if (guided) guidedInstruction(status, assisted, guidedResult != null, fatal, installPending)
+                        else instruction(status, draft.points.size, walls.size, effective.closed, room != null, fatal, installPending),
                         color = Color.White, style = MaterialTheme.typography.titleSmall,
                     )
                     if (fatal == null) {
                         Text(
-                            "Pareti rilevate: ${walls.size}" + if (draft.points.isNotEmpty()) " · Punti: ${draft.points.size}" else "",
+                            if (guided) "Pareti confermate: ${assisted.walls.size}"
+                            else "Pareti rilevate: ${walls.size}" + if (draft.points.isNotEmpty()) " · Punti: ${draft.points.size}" else "",
                             color = Color(0xFFFF8AD8), style = MaterialTheme.typography.bodySmall,
                         )
                     }
-                    if (draft.points.isEmpty() && layout.closed == null && !chainClosed && layout.closableChain != null) {
+                    if (!guided && draft.points.isEmpty() && layout.closed == null && !chainClosed && layout.closableChain != null) {
                         Text(
                             "Se una parete non si riesce a inquadrare, premi Chiudi: il perimetro si chiude con un lato dritto.",
                             color = Color.White, style = MaterialTheme.typography.bodySmall,
@@ -330,7 +383,7 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
                     ) { Text(if (captureMode == CaptureMode.OBJECT) "Modo: oggetto (tocca per ambiente)" else "Modo: ambiente (tocca per oggetto)") }
                     exportStatus?.let { Text(it, color = Color(0xFF80CBC4), style = MaterialTheme.typography.bodySmall) }
                     lastRecording?.let { Text("File: ${it.absolutePath}", color = Color(0xFFB0BEC5), style = MaterialTheme.typography.labelSmall) }
-                    if (effective.closed && room == null) {
+                    if (!guided && effective.closed && room == null) {
                         Text(
                             "Il perimetro si incrocia o è troppo piccolo: annulla e correggi.",
                             color = Color(0xFFFF8A80), style = MaterialTheme.typography.bodySmall,
@@ -340,7 +393,74 @@ private fun ScanningContent(activity: ComponentActivity, onResult: (ScanResult?)
             }
         }
 
-        Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth(), color = Color(0xE6101010)) {
+        // Scansione guidata: pannello proprio (mirino, conferma, pareti confermate, lati con la parte prolungata dichiarata).
+        if (guided) Box(Modifier.align(Alignment.Center).size(28.dp), contentAlignment = Alignment.Center) {
+            Text("+", color = if (proposed != null) Color(0xFFFFD91A) else Color.White, style = MaterialTheme.typography.headlineMedium)
+        }
+        if (guided) Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth(), color = Color(0xE6101010)) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val c = assisted.candidate
+                Text(
+                    when {
+                        c == null -> "Punta il centro dello schermo su una parete"
+                        c.state == CandidateState.PROPOSED && c.duplicateOf != null -> "Parete già confermata (${c.duplicateOf})"
+                        c.state == CandidateState.PROPOSED -> "Parete proposta: ${formatMeters(c.line.length * 100)} — conferma se è una parete vera"
+                        else -> "${c.state.label}…" + if (c.reasons.isNotEmpty()) " (${c.reasons.joinToString { it.label }})" else ""
+                    },
+                    color = if (c?.state == CandidateState.PROPOSED) Color(0xFFFFD91A) else Color.White, style = MaterialTheme.typography.bodyMedium,
+                )
+                c?.advisories?.takeIf { it.isNotEmpty() }?.let { a ->
+                    Text("Attenzione: " + a.joinToString("; ") { it.label }, color = Color(0xFFFFC107), style = MaterialTheme.typography.bodySmall)
+                }
+                Column(Modifier.heightIn(max = 130.dp).verticalScroll(rememberScrollState())) {
+                    for (w in assisted.walls) {
+                        Text(
+                            "Parete ${w.id}: ${formatMeters(w.observedLengthM * 100)} vista · qualità ${w.quality.label}" +
+                                if (w.advisories.isNotEmpty()) " · ${w.advisories.joinToString { it.label }}" else "",
+                            color = Color(0xFFFF8AD8), style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    guidedPerimeter?.let { p ->
+                        for (s in p.sides) {
+                            Text(
+                                "Lato sulla parete ${s.wallId}: ${formatMeters(s.lengthM * 100)} (visti ${formatMeters(s.observedM * 100)}, prolungati fino all'angolo ${formatMeters(s.extendedM * 100)})",
+                                color = Color.White, style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Text(
+                            "Perimetro ${formatMeters(p.perimeterM * 100)} · Area ${formatSquareMeters(p.areaM2)}" +
+                                if (p.unusedWallIds.isNotEmpty()) " · escluse: ${p.unusedWallIds.joinToString()}" else "",
+                            color = Color(0xFF80CBC4), style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { assisted = assisted.undo(assisted.state.lastTimeMs).also(::logEvents) },
+                        enabled = assisted.walls.isNotEmpty(),
+                        modifier = Modifier.weight(1f),
+                    ) { Text("↶ Annulla ultima") }
+                    Button(
+                        onClick = { assisted = assisted.confirm(assisted.state.lastTimeMs).also(::logEvents) },
+                        enabled = proposed != null && proposed.duplicateOf == null,
+                        modifier = Modifier.weight(1.4f),
+                    ) { Text("Conferma parete") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = { onResult(null) }, modifier = Modifier.weight(1f)) { Text("Esci") }
+                    Button(
+                        onClick = {
+                            val r = guidedResult ?: return@Button
+                            guidedPerimeter?.let { android.util.Log.i(ASSISTED_TAG, AssistedLog.perimeter(it)) }
+                            onResult(r)
+                        },
+                        enabled = guidedResult != null,
+                        modifier = Modifier.weight(2f),
+                    ) { Text("Conferma stanza") }
+                }
+            }
+        }
+        if (!guided) Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth(), color = Color(0xE6101010)) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val lengths = effective.edgeLengthsCm
                 if (walls.isNotEmpty() || lengths.isNotEmpty()) {
@@ -451,6 +571,19 @@ private fun instruction(
     manualPoints > 0 -> if (manualPoints < 3) "Tocca gli angoli della stanza, a terra" else "Continua con gli angoli, poi tocca il primo punto o premi Chiudi"
     wallCount == 0 -> "Pavimento rilevato ✓ — Muovi lentamente il telefono lungo le pareti (o tocca gli angoli a terra)"
     else -> "Muovi lentamente il telefono lungo le pareti"
+}
+
+/** Tag dei log della scansione guidata: `adb logcat -s SagomaAssisted`. */
+private const val ASSISTED_TAG = "SagomaAssisted"
+
+private fun guidedInstruction(status: ArScanView.Status, s: AssistedSession, valid: Boolean, fatal: String?, installPending: Boolean): String = when {
+    fatal != null -> "Scansione non disponibile"
+    installPending -> "Sto installando ARCore: completa l'installazione e torna qui"
+    !status.tracking -> status.trackingHint ?: "Muovi lentamente il telefono"
+    s.perimeter != null && valid -> "Stanza chiusa dalle pareti confermate: controlla le misure e conferma"
+    s.perimeter != null -> "Le pareti confermate si chiudono, ma il perimetro non è valido: annulla l'ultima"
+    s.walls.isEmpty() -> "Punta una parete col centro dello schermo e tieni fermo il telefono"
+    else -> "Punta la parete successiva: la stanza si chiude quando tutte le pareti sono confermate"
 }
 
 /** Centimetri → "3,42 m". */
