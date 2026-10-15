@@ -27,7 +27,8 @@ import java.util.zip.ZipFile;
  * Uso (JDK 17+):
  *   java PackModels.java polyhaven <cartella con una sottocartella per modello (.gltf)> <tabella.tsv> <uscita>
  *   java PackModels.java sh3d <file .sh3f o .zip> <uscita> [categorie ammesse separate da |] [file dei modelli esclusi]
- * Più esecuzioni sulla stessa uscita aggiungono modelli al catalogo.
+ * Più esecuzioni sulla stessa uscita aggiungono modelli al catalogo. Alla fine si riapplicano le correzioni a mano
+ * (voci nascoste, misure riscalate, nomi): java ApplyCatalogFixes.java catalog-fixes.tsv <uscita>/catalog.json
  */
 public class PackModels {
 

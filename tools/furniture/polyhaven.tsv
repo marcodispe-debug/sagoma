@@ -129,3 +129,18 @@ planter_pot_clay	Vaso di terracotta	Piante	Plant	0
 outdoor_table_chair_set_01	Tavolo e sedie da giardino	Esterni	Table	0
 wooden_picnic_table	Tavolo da picnic	Esterni	Table	0
 plastic_monobloc_chair_01	Sedia da giardino	Esterni	Chair	0
+# Aggiunti il 14 ottobre 2026 (miniature controllate; fuori: street_lamp_02, staffa al contrario)
+projector_screen	Telo per proiettore	Elettrodomestici e TV	Tv	0
+steel_frame_shelves_02	Scaffale metallico stretto	Garage e cantina	Cabinet	0
+worn_metal_rack	Scaffale in metallo	Garage e cantina	Cabinet	0
+metal_stool_02	Sgabello da officina	Garage e cantina	Chair	0
+stone_fire_pit	Braciere in pietra	Esterni	RoundTable	0
+exterior_aircon_unit	Unità esterne del condizionatore	Esterni	Appliance	0
+vintage_telephone_wall_clock	Orologio da parete a telefono	Decori	Cabinet	150
+dartboard	Bersaglio per freccette	Sport e hobby	Cabinet	150
+brass_candleholders	Candelabri in ottone	Decori	Lamp	80
+wooden_lantern_01	Lanterna in legno	Decori	Lamp	0
+tool_cart	Carrello porta attrezzi	Garage e cantina	Cabinet	0
+security_light	Faro da esterno	Esterni	Lamp	220
+electric_stove	Cucina elettrica	Cucina	Appliance	0
+garden_hose_wall_mounted_01	Avvolgitubo da giardino	Esterni	Appliance	60

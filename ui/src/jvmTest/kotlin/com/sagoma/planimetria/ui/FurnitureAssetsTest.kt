@@ -63,8 +63,12 @@ class FurnitureAssetsTest {
 
             FurnitureAssets.init(platform)
 
-            // Cataloghi letti dallo store; i tappeti nascono dai materiali (2 per materiale da tappeto).
-            assertEquals(models + 2, FurnitureCatalog.items.size)
+            // Cataloghi letti dallo store; i tappeti nascono dai materiali (2 per materiale da tappeto); in più i moduli della
+            // cucina e gli altri mobili su misura, generati senza file (uno per tipo).
+            val generated = com.sagoma.planimetria.model.KitchenModules.Kind.entries.size + com.sagoma.planimetria.model.ParametricFurniture.Kind.entries.size
+            assertEquals(models + 2 + generated, FurnitureCatalog.items.size)
+            assertEquals(null, FurnitureAssets.thumbnail(com.sagoma.planimetria.model.KitchenModules.catalogItems.first().model))
+            assertEquals(null, FurnitureAssets.thumbnail(com.sagoma.planimetria.model.ParametricFurniture.catalogItems.first().model))
             assertEquals(1, MaterialCatalog.items.size)
             assertEquals("M7", FurnitureCatalog.item("m7")!!.label)
 

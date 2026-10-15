@@ -63,7 +63,9 @@ internal fun DrawScope.drawFurniture(items: List<Furniture>, cam: Camera, select
                         drawRect(color, Offset(-w / 2, -d / 2), Size(w, d), style = stroke)
                     }
                 } else {
-                    furnitureSymbol(symbol, w, d, if (sel) FurnitureSelected else FurnitureLine, sel)
+                    val kitchen = com.sagoma.planimetria.model.KitchenModules.parse(f.model)
+                    if (kitchen != null) kitchenPlanSymbol(kitchen, w, d, if (sel) FurnitureSelected else FurnitureLine, sel)
+                    else furnitureSymbol(symbol, w, d, if (sel) FurnitureSelected else FurnitureLine, sel)
                 }
             }
             }

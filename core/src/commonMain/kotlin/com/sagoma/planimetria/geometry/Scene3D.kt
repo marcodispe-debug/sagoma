@@ -23,6 +23,7 @@ import com.sagoma.planimetria.model.Covering
 import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.MaterialCatalog
 import com.sagoma.planimetria.model.FurnitureCatalog
+
 import com.sagoma.planimetria.model.WallFinish
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Room
@@ -316,6 +317,28 @@ private class SceneBuilder(
         }
     }
 
+    /**
+     * Mobile generato alla misura (moduli della cucina, [ParametricGeometry]): ogni pezzo è un parallelepipedo che gira con il
+     * mobile (specchiato: sinistra ↔ destra). Il piano in marmo o pietra ha sopra la foto del materiale, che si sposta con il
+     * mobile. Per toccarlo basta la scatola dell'arredo: i pezzi non entrano tra i triangoli da colpire.
+     */
+    private fun generatedFurniture(f: com.sagoma.planimetria.model.Furniture, parts: List<KitchenGeometry.Part>, pick: Pick) {
+        val (u, v) = Furnishings.axes(f)
+        val sx = if (f.mirrored) -1.0 else 1.0
+        fun at(x: Double, z: Double) = f.center + u * (x * sx) + v * z
+        for (p in parts) {
+            if (p.x1 - p.x0 < 1e-3 || p.y1 - p.y0 < 1e-3 || p.z1 - p.z0 < 1e-3) continue
+            val outline = listOf(at(p.x0, p.z0), at(p.x1, p.z0), at(p.x1, p.z1), at(p.x0, p.z1))
+            val color = tint(Rgba.argb(p.argb), pick)
+            solid(outline, f.elevation + p.y0, f.elevation + p.y1, color, color, null)
+            val m = p.topMaterial?.let { MaterialCatalog.item(it) } ?: continue
+            val y = f.elevation + p.y1 + 0.05
+            fun uv(x: Double, z: Double) = Vec2(x / m.size, z / m.size)
+            texTri(m.id, outline[0].at(y), outline[1].at(y), outline[2].at(y), uv(p.x0, p.z0), uv(p.x1, p.z0), uv(p.x1, p.z1), Vec3.Up)
+            texTri(m.id, outline[0].at(y), outline[2].at(y), outline[3].at(y), uv(p.x0, p.z0), uv(p.x1, p.z1), uv(p.x0, p.z1), Vec3.Up)
+        }
+    }
+
     /** Rettangolo con un materiale sulla faccia di un muro (stesse coordinate di [wallFace]). */
     private fun texturedWallFace(material: String, s: Vec2, u: Vec2, side: Vec2, dist: Double, t0: Double, t1: Double, y0: Double, y1: Double) {
         if (t1 - t0 < 0.05 || y1 - y0 < 0.05) return
@@ -469,7 +492,9 @@ private class SceneBuilder(
             for (f in plan.furniture) {
                 val pick = Pick.Furniture(f.id)
                 val rug = FurnitureCatalog.rugOf(f.model)
+                val generated = GeneratedGeometry.parts(f.model, f.width, f.depth, f.height)
                 if (rug != null) rug(f, rug.first, rug.second, pick)
+                else if (generated != null) generatedFurniture(f, generated, pick)
                 else placed += Scene3D.PlacedFurniture(f.id, f.model, f.center.at(f.elevation), f.rotation, f.width, f.depth, f.height, current && pick == selected, f.mirrored)
                 // Le lampade del catalogo fanno luce: dal paralume (in alto) o, se appese, da sotto.
                 val item = FurnitureCatalog.item(f.model)
