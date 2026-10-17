@@ -2,18 +2,17 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.security.MessageDigest;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Stream;
 
 /**
- * Prepara il catalogo remoto degli asset della versione pro: la cartella da caricare così com'è sul server (per esempio un
- * bucket Cloudflare R2 o qualsiasi hosting di file statici).
+ * Prepara il catalogo remoto degli asset: la cartella da caricare così com'è sul server (per esempio un bucket Cloudflare R2
+ * o qualsiasi hosting di file statici). Di solito si lancia da Gradle: `gradlew :catalogo:preparaCatalogoRemoto`.
  *
- * Uso (JDK 17+): java BuildRemoteCatalog.java <cartella degli asset> <cartella di uscita> <catalogVersion> [releaseId]
+ * Uso (JDK 17+): java BuildRemoteCatalog.java [--solo-manifest] <cartella degli asset> <cartella di uscita> <catalogVersion> [releaseId]
  *   <cartella degli asset>  per esempio catalogo/src/main/assets (furniture/, materials/, env/)
  *   <catalogVersion>        intero che cresce a ogni pubblicazione (l'app rifiuta un manifest più vecchio di uno già visto)
+ *   --solo-manifest         scrive solo manifest.json, senza blob (è il manifest che l'app porta con sé)
  *
  * Scrive nell'uscita:
  *   manifest.json           l'elenco (schema 1, vedi core/.../assets/remote/ManifestParser.kt): ogni asset con i suoi file,
@@ -24,14 +23,17 @@ import java.util.stream.Stream;
  *
  * Un asset per arredo (modello 3D, miniatura, vista dall'alto), per materiale (colore, normali, ORM, campione), per luce
  * ambiente, più i due cataloghi. Gli id sono stabili ("furniture:<modello>", "material:<id>"…): il contenuto può cambiare.
- * Rilanciarlo con gli stessi file dà lo stesso manifest (tranne data e versione) e non ricopia i blob già presenti.
+ * Il manifest dipende solo dai file, dalla versione e dal releaseId (niente data): rilanciato con gli stessi dà lo stesso
+ * manifest byte per byte, e quello che l'app porta con sé coincide con quello sul server. I blob già presenti non si ricopiano.
  */
 public class BuildRemoteCatalog {
     record FileEntry(String role, String path, String sha256, long size, String mime) {}
     record Asset(String id, String kind, List<FileEntry> files) {}
 
     public static void main(String[] args) throws Exception {
-        if (args.length < 3) { System.err.println("Uso: java BuildRemoteCatalog.java <asset> <uscita> <catalogVersion> [releaseId]"); System.exit(1); }
+        boolean onlyManifest = Arrays.asList(args).contains("--solo-manifest");
+        args = Arrays.stream(args).filter(a -> !a.equals("--solo-manifest")).toArray(String[]::new);
+        if (args.length < 3) { System.err.println("Uso: java BuildRemoteCatalog.java [--solo-manifest] <asset> <uscita> <catalogVersion> [releaseId]"); System.exit(1); }
         Path in = Paths.get(args[0]).toAbsolutePath().normalize();
         Path out = Paths.get(args[1]).toAbsolutePath().normalize();
         long version = Long.parseLong(args[2]);
@@ -53,7 +55,7 @@ public class BuildRemoteCatalog {
             long size = Files.size(p);
             assets.computeIfAbsent(g[0], k -> new Asset(k, g[1], new ArrayList<>())).files().add(new FileEntry(g[2], rel, sha, size, mime(rel)));
             bytes += size;
-            if (blobs.add(sha)) {
+            if (blobs.add(sha) && !onlyManifest) {
                 Path blob = out.resolve("blobs").resolve(sha.substring(0, 2)).resolve(sha);
                 if (!Files.exists(blob) || Files.size(blob) != size) {
                     Files.createDirectories(blob.getParent());
@@ -70,9 +72,8 @@ public class BuildRemoteCatalog {
         }
 
         StringBuilder j = new StringBuilder();
-        j.append("{\n  \"schema\": 1,\n  \"catalog\": \"sagoma-pro\",\n  \"catalogVersion\": ").append(version)
+        j.append("{\n  \"schema\": 1,\n  \"catalog\": \"sagoma\",\n  \"catalogVersion\": ").append(version)
             .append(",\n  \"releaseId\": ").append(q(release))
-            .append(",\n  \"publishedAt\": ").append(q(Instant.now().truncatedTo(ChronoUnit.SECONDS).toString()))
             .append(",\n  \"minClient\": 0,\n  \"blobs\": {\"layout\": \"fanout2\"},\n  \"assets\": [\n");
         int i = 0;
         for (Asset a : assets.values()) {

@@ -68,6 +68,13 @@ class BuildRemoteCatalogToolTest {
             assertEquals("catalog", resolver.asset("catalog:furniture")?.kind)
             assertEquals(files.values.toSet().size, File(out, "blobs").walk().count { it.isFile })
 
+            // Stessi file e stessa versione: lo stesso manifest byte per byte (è quello che l'app porta con sé).
+            val first = File(out, "manifest.json").readText()
+            val app = File(root, "app")
+            run("--solo-manifest", assets.path, app.path, "3", "2026-10-14.1")
+            assertEquals(first, File(app, "manifest.json").readText())
+            assertTrue(!File(app, "blobs").exists())
+
             // Di nuovo con gli stessi file: niente da copiare.
             assertTrue("copiati ora: 0" in run(assets.path, out.path, "4"))
         } finally {

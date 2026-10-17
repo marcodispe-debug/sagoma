@@ -1,4 +1,5 @@
 import javax.inject.Inject
+import org.gradle.process.ExecOperations
 
 plugins {
     alias(libs.plugins.android.application)
@@ -14,6 +15,16 @@ plugins {
 val catalogoManifest = providers.gradleProperty("sagoma.catalogo.manifest").orNull?.trim().orEmpty()
 val catalogoBlobs = providers.gradleProperty("sagoma.catalogo.blobs").orNull?.trim().orEmpty()
 val catalogoRemoto = catalogoManifest.isNotEmpty() && catalogoBlobs.isNotEmpty()
+
+/** Versione del catalogo sul server (la stessa usata da `:catalogo:preparaCatalogoRemoto`): l'app porta con sé quel manifest. */
+val catalogoVersione = providers.gradleProperty("sagoma.catalogo.versione").orElse("1")
+
+if (catalogoRemoto) {
+    // Solo HTTPS: l'impronta di ogni file la dà il manifest, e il manifest aggiornato arriva dalla rete.
+    for (u in listOf(catalogoManifest, catalogoBlobs)) {
+        require(u.startsWith("https://")) { "sagoma.catalogo.manifest e sagoma.catalogo.blobs devono iniziare con https://: $u" }
+    }
+}
 
 /** Quello che resta nell'app quando il catalogo è sul server: elenchi, miniature, viste dall'alto e luci ambiente. */
 val catalogoLeggero = listOf("furniture/catalog.json", "furniture/*.png", "materials/materials.json", "materials/*_thumb.jpg", "env/*.ibl")
@@ -49,6 +60,45 @@ val catalogoLeggeroTask = tasks.register<CatalogoLeggero>("catalogoLeggero") {
     patterns.set(catalogoLeggero)
     files.from(catalogoRoot.asFileTree.matching { include(catalogoLeggero) })
     output.set(layout.buildDirectory.dir("generated/catalogo-leggero"))
+}
+
+/**
+ * Il manifest del catalogo che l'app porta con sé (assets/remote/manifest.json), scritto dallo stesso strumento che prepara
+ * la cartella per il server: con gli stessi file e la stessa versione coincidono byte per byte. Così l'app sa fin dal primo
+ * avvio, anche senza rete, quali file esistono e che impronta devono avere.
+ */
+abstract class ManifestoCatalogo @Inject constructor(private val exec: ExecOperations) : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val assets: DirectoryProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val tool: RegularFileProperty
+
+    @get:Input
+    abstract val version: Property<String>
+
+    @get:Input
+    abstract val java: Property<String>
+
+    @get:OutputDirectory
+    abstract val output: DirectoryProperty
+
+    @TaskAction
+    fun write() {
+        exec.exec {
+            commandLine(java.get(), tool.get().asFile.path, "--solo-manifest", assets.get().asFile.path, output.get().dir("remote").asFile.path, version.get())
+        }
+    }
+}
+
+val catalogoManifestTask = tasks.register<ManifestoCatalogo>("manifestoCatalogo") {
+    assets.set(catalogoRoot)
+    tool.set(rootProject.layout.projectDirectory.file("tools/remote/BuildRemoteCatalog.java"))
+    version.set(catalogoVersione)
+    java.set(File(System.getProperty("java.home"), "bin/java").path)
+    output.set(layout.buildDirectory.dir("generated/catalogo-manifest"))
 }
 
 android {
@@ -102,6 +152,7 @@ if (catalogoRemoto) {
     androidComponents {
         onVariants { variant ->
             variant.sources.assets?.addGeneratedSourceDirectory(catalogoLeggeroTask, CatalogoLeggero::output)
+            variant.sources.assets?.addGeneratedSourceDirectory(catalogoManifestTask, ManifestoCatalogo::output)
         }
     }
 }
