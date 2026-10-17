@@ -8,7 +8,8 @@ App Android nativa (Kotlin + Jetpack Compose) che implementa l'editor planimetri
 Requisiti: Android SDK (platform 37) e JDK 17+ (va bene quello incluso in Android Studio).
 
 ```bash
-./gradlew assembleDebug   # APK in app/build/outputs/apk/debug/
+./gradlew assembleDebug   # APK in app/build/outputs/apk/debug/ (in debug con tutto il catalogo dentro)
+./gradlew bundleRelease   # bundle per Google Play in app/build/outputs/bundle/release/
 ./gradlew testDebugUnitTest
 ./gradlew installDebug
 ```
@@ -26,6 +27,10 @@ C'è una sola app (`com.sagoma.planimetria`, "Sagoma") per privati e professioni
 | Motore 3D | Filament 1.77 (Google, Apache 2.0): materiali fisici, sole con ombre, luce ambiente, SSAO, MSAA+FXAA, tone mapping neutro; ripiega su OpenGL ES 2 (`GlSceneRenderer`) se il telefono non ha GLES 3 o Filament non parte |
 | Arredi | catalogo di 892 arredi (834 modelli 3D e 58 tappeti fatti con i materiali) (soggiorno, pranzo, cucina, camera, bagno, studio, luci, elettrodomestici, decori, piante, esterni) con ricerca e miniature; in pianta la vista dall'alto del modello; trascinamento con aggancio a muri e altri mobili (schienale al muro), maniglia di rotazione con scatto a 90°, misure/altezza da terra, duplica; nel 3D si toccano e bloccano chi cammina |
 
+- Catalogo (arredi, materiali, luci) nel modulo `catalogo`, un asset pack di Google Play "install-time": arriva con
+  l'app ma fuori dal pacchetto principale, che così resta sotto il limite di Play (misurato con bundletool: base ~13 MB,
+  download totale per telefono ~681 MB). Nell'app installata si legge con l'`AssetManager` come prima; gli APK di debug
+  lo contengono direttamente.
 - Cosa è sbloccato lo decide un solo punto, `core/.../access/Access.kt`: `Account` (privato o professionista, uscite
   acquistate per stanza e formato) e `Rights` (watermark, uscite senza watermark, operazioni con un diritto). Account e
   pagamenti veri non ci sono ancora: oggi l'account è sempre "privato senza acquisti"; sul computer
@@ -39,7 +44,7 @@ C'è una sola app (`com.sagoma.planimetria`, "Sagoma") per privati e professioni
 - `SceneRenderer` è l'interfaccia del disegno 3D: `FilamentSceneRenderer` (in `app`) e, di ripiego o dove Filament non
   c'è, `GlSceneRenderer`. La scena passa a Filament come glTF binario in memoria (`geometry/Glb`): tre oggetti
   (opachi, lampade senza ombreggiatura, vetri trasparenti); tocchi, selezione e camminata restano sulla CPU (`Scene3D`).
-- Modelli degli arredi, in `app/src/main/assets/furniture/` (~645 MB, APK ~650 MB): per ogni modello `<id>.glb`, `<id>.png`
+- Modelli degli arredi, in `catalogo/src/main/assets/furniture/` (~645 MB): per ogni modello `<id>.glb`, `<id>.png`
   (miniatura) e `<id>_top.png` (vista dall'alto), più `catalog.json` con nome, categoria, misure reali, fonte, autore e licenza.
   - **Poly Haven** (polyhaven.com), 130 modelli fotorealistici, licenza **CC0**.
   - **Sweet Home 3D**, librerie 1.9.3 da SourceForge: *BlendSwap-CC-0* (pubblico dominio) e *Scopia* (**CC-BY 3.0**:
@@ -67,11 +72,11 @@ C'è una sola app (`com.sagoma.planimetria`, "Sagoma") per privati e professioni
   alla luce del giorno) e dentro casa la luce ambiente diffusa si riduce. Plafoniere, faretti, lampadari, neon, strisce
   LED e le lampade del catalogo sono luci vere (`Scene3D.lights`), accese quando fa buio, sempre o mai.
 - Cielo e riflessi: foto a 360° di Poly Haven
-  (CC0: *kloofendal_48d_partly_cloudy_puresky*, *lilienstein*, *lebombo*) in `app/src/main/assets/env/*.ibl`, preparate
+  (CC0: *kloofendal_48d_partly_cloudy_puresky*, *lilienstein*, *lebombo*) in `catalogo/src/main/assets/env/*.ibl`, preparate
   con `tools/furniture/PackEnv.java` (armoniche sferiche per la luce diffusa + cubo per riflessi e cielo; i livelli
   ruvidi dei riflessi li calcola Filament all'avvio con `generatePrefilterMipmap`).
 - Materiali fotografici (pavimenti della stanza e rivestimento "Materiale fotografico" di pareti, facciata e muri
-  singoli, prato attorno alla casa): 188 materiali di ambientCG e Poly Haven (CC0) in `app/src/main/assets/materials/`
+  singoli, prato attorno alla casa): 188 materiali di ambientCG e Poly Haven (CC0) in `catalogo/src/main/assets/materials/`
   (1024 px, 118 MB; i tessuti e le moquette diventano anche tappeti rettangolari e tondi), preparati con `tools/furniture/PackMaterials.java` da `tools/furniture/materials.tsv` (nome, categoria,
   lato reale della foto). Nel 3D sono superfici a parte (`Scene3D.textured`, uv in ripetizioni della foto) disegnate
   da `TexturedSurfaces` con colore, rilievo e ruvidità; il renderer semplice usa il colore medio.

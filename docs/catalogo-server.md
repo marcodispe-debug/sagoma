@@ -6,7 +6,7 @@ L'app sa già scaricare arredi, materiali e luci da un server (`core/.../assets/
 ## Preparare i file
 
 ```
-java tools/remote/BuildRemoteCatalog.java app/src/main/assets <cartella di uscita> <catalogVersion> [releaseId]
+java tools/remote/BuildRemoteCatalog.java catalogo/src/main/assets <cartella di uscita> <catalogVersion> [releaseId]
 ```
 
 - `catalogVersion` cresce a ogni pubblicazione (1, 2, 3…): l'app rifiuta un manifest più vecchio di uno già visto.
@@ -17,7 +17,7 @@ java tools/remote/BuildRemoteCatalog.java app/src/main/assets <cartella di uscit
   790 MB. Il manifest risultante si legge senza errori.
 
 Prima, se il catalogo è stato rigenerato con `PackModels`, riapplicare le correzioni a mano:
-`java tools/furniture/ApplyCatalogFixes.java tools/furniture/catalog-fixes.tsv app/src/main/assets/furniture/catalog.json`.
+`java tools/furniture/ApplyCatalogFixes.java tools/furniture/catalog-fixes.tsv catalogo/src/main/assets/furniture/catalog.json`.
 
 ## Pubblicare (serve un account di hosting, da aprire a tuo nome)
 
@@ -31,6 +31,6 @@ Va bene qualsiasi hosting di file statici con HTTPS. Per esempio Cloudflare R2 (
 
 ## Cosa non fa ancora
 
-- Gli asset restano anche dentro l'APK (circa 690 MB). Toglierli per scaricarli solo quando servono è un passo a parte.
+- Gli asset arrivano anche con l'app, nell'asset pack `catalogo` (circa 670 MB scaricati all'installazione). Toglierli per scaricarli solo quando servono è un passo a parte.
 - Tutti gli asset sono pubblici (`access` assente = public): i modelli sono CC0 o CC-BY, quindi non serve proteggerli.
 - La firma del manifest è prevista dal formato ma l'app non la verifica ancora.

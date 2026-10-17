@@ -86,7 +86,7 @@ class FinishTest {
 
     @Test
     fun `i materiali fotografici hanno le loro mappe e misure sensate`() {
-        val dir = java.io.File("src/main/assets/materials")
+        val dir = java.io.File("../catalogo/src/main/assets/materials")
         com.sagoma.planimetria.model.MaterialCatalog.load(java.io.File(dir, "materials.json").readText())
         val items = com.sagoma.planimetria.model.MaterialCatalog.items
         assertTrue(items.size >= 30)

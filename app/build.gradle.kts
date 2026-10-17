@@ -34,6 +34,15 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // Catalogo di arredi, materiali e luci: sta nell'asset pack "catalogo" (modulo :catalogo), installato con l'app ma
+    // fuori dal pacchetto principale, così il bundle per Google Play rispetta il limite di dimensione. Nell'app installata
+    // i file si leggono con l'AssetManager come prima.
+    assetPacks += ":catalogo"
+
+    // Gli APK costruiti direttamente (assembleDebug, installDebug, Android Studio) non contengono gli asset pack: in debug
+    // il catalogo si aggiunge agli asset dell'app, così si prova come sempre.
+    sourceSets.getByName("debug").assets.directories += "../catalogo/src/main/assets"
 }
 
 dependencies {

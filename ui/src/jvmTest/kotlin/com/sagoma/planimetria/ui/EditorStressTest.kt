@@ -45,7 +45,7 @@ class EditorStressTest {
     }
 
     init {
-        File("../app/src/main/assets/furniture/catalog.json").takeIf { it.isFile }?.let { FurnitureCatalog.load(it.readText()) }
+        File("../catalogo/src/main/assets/furniture/catalog.json").takeIf { it.isFile }?.let { FurnitureCatalog.load(it.readText()) }
     }
 
     @Test

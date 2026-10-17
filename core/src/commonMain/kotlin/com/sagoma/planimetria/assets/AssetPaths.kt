@@ -1,7 +1,7 @@
 package com.sagoma.planimetria.assets
 
 /**
- * I percorsi logici degli asset, relativi alla radice (oggi `app/src/main/assets`). Stanno qui, e non sparsi
+ * I percorsi logici degli asset, relativi alla radice (oggi `catalogo/src/main/assets`). Stanno qui, e non sparsi
  * nei renderer e nell'interfaccia, perché sono il contratto tra il codice e chi fornisce i file: chi li
  * fornisce (cartella, APK, cache scaricata) può cambiare senza toccare chi li usa.
  */

@@ -28,7 +28,7 @@ class FurnitureTest {
 
     @Test
     fun `il catalogo ha per ogni modello misure, nome, licenza e i suoi file`() {
-        val dir = java.io.File("src/main/assets/furniture")
+        val dir = java.io.File("../catalogo/src/main/assets/furniture")
         FurnitureCatalog.load(java.io.File(dir, "catalog.json").readText())
         val items = FurnitureCatalog.items
         assertTrue(items.size >= 100)
@@ -43,7 +43,7 @@ class FurnitureTest {
 
     @Test
     fun `i mobili del vecchio catalogo diventano modelli esistenti, con le stesse misure`() {
-        FurnitureCatalog.load(java.io.File("src/main/assets/furniture/catalog.json").readText())
+        FurnitureCatalog.load(java.io.File("../catalogo/src/main/assets/furniture/catalog.json").readText())
         for ((old, new) in FurnitureCatalog.RENAMED) assertNotNull("$old → $new", FurnitureCatalog.item(new))
         val old = Furniture(1, "toiletSquare", Vec2(100.0, 100.0), 90.0, 38.0, 55.0, 80.0)
         val back = PlanJson.decode(PlanJson.encode(plan.copy(furniture = listOf(old)))).furniture.single()

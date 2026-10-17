@@ -34,8 +34,8 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "com.sagoma.planimetria.desktop.MainKt"
-        // Durante lo sviluppo gli arredi e i materiali si leggono dalla cartella della versione pro.
-        jvmArgs += "-Dsagoma.assets=${rootProject.file("app/src/main/assets").absolutePath}"
+        // Durante lo sviluppo gli arredi e i materiali si leggono dalla cartella del catalogo.
+        jvmArgs += "-Dsagoma.assets=${rootProject.file("catalogo/src/main/assets").absolutePath}"
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "Sagoma"

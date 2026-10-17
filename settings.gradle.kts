@@ -17,6 +17,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "Sagoma"
 include(":app")
+include(":catalogo")
 // Codice condiviso tra Android, web e (in futuro) iPhone: modello della casa, geometria, formato dei file.
 include(":core")
 // Interfaccia (Compose Multiplatform), uguale su Android, computer e browser.

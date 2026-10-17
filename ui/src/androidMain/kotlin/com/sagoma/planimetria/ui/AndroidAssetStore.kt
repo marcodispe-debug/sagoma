@@ -8,7 +8,7 @@ import com.sagoma.planimetria.assets.buildCachedAssetStore
 import java.io.File
 
 /**
- * Asset impacchettati nell'app (la cartella `app/src/main/assets`), letti con l'`AssetManager` di Android.
+ * Asset impacchettati nell'app (la cartella `catalogo/src/main/assets`, asset pack "catalogo" installato con l'app), letti con l'`AssetManager` di Android.
  */
 class AndroidAssetStore(private val assets: AssetManager) : AssetStore {
     override fun availability(path: String): AssetAvailability =

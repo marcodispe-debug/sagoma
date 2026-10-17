@@ -5,7 +5,7 @@ import java.io.IOException
 
 /**
  * Asset letti da una cartella del disco: `root/furniture/catalog.json`, `root/materials/…`. Sul computer è la
- * cartella `-Dsagoma.assets` (oggi `app/src/main/assets`); su Android e in futuro potrà essere una cache.
+ * cartella `-Dsagoma.assets` (oggi `catalogo/src/main/assets`); su Android e in futuro potrà essere una cache.
  * Un file che non c'è o non si legge è semplicemente non disponibile.
  */
 class DirectoryAssetStore(private val root: File) : AssetStore {

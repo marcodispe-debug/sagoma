@@ -12,7 +12,7 @@ import java.util.stream.Stream;
  * bucket Cloudflare R2 o qualsiasi hosting di file statici).
  *
  * Uso (JDK 17+): java BuildRemoteCatalog.java <cartella degli asset> <cartella di uscita> <catalogVersion> [releaseId]
- *   <cartella degli asset>  per esempio app/src/main/assets (furniture/, materials/, env/)
+ *   <cartella degli asset>  per esempio catalogo/src/main/assets (furniture/, materials/, env/)
  *   <catalogVersion>        intero che cresce a ogni pubblicazione (l'app rifiuta un manifest più vecchio di uno già visto)
  *
  * Scrive nell'uscita:

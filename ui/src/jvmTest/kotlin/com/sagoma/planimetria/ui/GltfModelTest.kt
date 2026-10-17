@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 class GltfModelTest {
     @Test
     fun `tutti gli arredi si leggono`() {
-        val dir = File("../app/src/main/assets/furniture")
+        val dir = File("../catalogo/src/main/assets/furniture")
         if (!dir.isDirectory) return // catalogo non presente
         val files = dir.listFiles { f -> f.name.endsWith(".glb") }!!.sortedBy { it.name }
         val failed = mutableListOf<String>()
