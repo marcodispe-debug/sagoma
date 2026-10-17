@@ -88,14 +88,13 @@ object Ceilings {
 
     /**
      * Pendenze del soffitto: una per ogni muro basso verso cui scende almeno una parete tagliata. Il piano
-     * sale dal muro basso (alla sua altezza) fino al soffitto alla distanza scelta (media delle pareti che
-     * scendono verso di lui) e vale solo nella fascia davanti a quel muro.
+     * sale dal muro basso (alla sua altezza) fino al soffitto alla distanza ortogonale `d` dei punti di inizio
+     * discesa (`startPoint`) dal muro basso, e vale solo nella fascia davanti a quel muro. I due muri laterali di
+     * una mansarda tengono lo stesso `d` (vedi [withCutStart]); se non fosse così (file salvati prima) vale la media.
      */
     private fun slopes(room: Room): List<Pair<HeightPlane, List<HeightPlane>>> {
         val sign = if (Polygon.signedArea(room.points) >= 0) 1.0 else -1.0
-        val byLowWall = (0 until room.wallCount).mapNotNull { i -> effectiveCut(room, i)?.let { lowWall(room, i, it) to it.start } }
-            .groupBy({ it.first }, { it.second })
-        return byLowWall.mapNotNull { (l, starts) ->
+        return cutWallsByLowWall(room).mapNotNull { (l, walls) ->
             val low = room.wallHeight(l)
             val full = room.ceilingHeight
             if (low >= full) return@mapNotNull null
@@ -105,7 +104,8 @@ object Ceilings {
             if (len < 1.0) return@mapNotNull null
             val u = (b - a) / len
             val n = u.perp() * sign
-            val d = starts.average()
+            val d = walls.map { (startPoint(room, it)!! - a) dot n }.average()
+            if (d < 1e-6) return@mapNotNull null
             val k = (full - low) / d
             val plane = HeightPlane(low - k * (a dot n), k * n.x, k * n.y)
             // Fascia davanti al muro basso: proiezione sul muro tra 0 e la sua lunghezza.
@@ -113,6 +113,11 @@ object Ceilings {
             plane to rules
         }
     }
+
+    /** Muri con taglio efficace, raggruppati per muro basso verso cui scendono (al più due: i muri accanto a quello basso). */
+    private fun cutWallsByLowWall(room: Room): Map<Int, List<Int>> =
+        (0 until room.wallCount).mapNotNull { i -> effectiveCut(room, i)?.let { lowWall(room, i, it) to i } }
+            .groupBy({ it.first }, { it.second })
 
     fun hasSlope(room: Room): Boolean = slopes(room).isNotEmpty()
 
@@ -165,18 +170,25 @@ object Ceilings {
         return room.interiorArea() * avg / 1_000_000.0
     }
 
-    /** Linea da cui il soffitto inizia a scendere, per ogni muro basso (per disegnarla sulla pianta). */
+    /**
+     * Linea da cui il soffitto inizia a scendere, per ogni muro basso (per disegnarla sulla pianta). Con due tagli alla stessa
+     * distanza dal muro basso (il caso normale: i due pallini sono allineati) è il segmento tra i due pallini, quindi passa
+     * esattamente da entrambi; altrimenti è la parallela al muro basso alla distanza di inizio discesa (media, se i due differiscono).
+     */
     fun slopeStartLines(room: Room): List<Pair<Vec2, Vec2>> {
         val sign = if (Polygon.signedArea(room.points) >= 0) 1.0 else -1.0
-        return (0 until room.wallCount).mapNotNull { i -> effectiveCut(room, i)?.let { lowWall(room, i, it) to it.start } }
-            .groupBy({ it.first }, { it.second })
-            .map { (l, starts) ->
-                val a = room.wallStart(l)
-                val b = room.wallEnd(l)
-                val n = (b - a).normalized().perp() * sign
-                val d = starts.average()
+        return cutWallsByLowWall(room).map { (l, walls) ->
+            val a = room.wallStart(l)
+            val b = room.wallEnd(l)
+            val n = (b - a).normalized().perp() * sign
+            val points = walls.map { startPoint(room, it)!! }
+            val dists = points.map { (it - a) dot n }
+            if (points.size == 2 && kotlin.math.abs(dists[0] - dists[1]) <= SAME_DISTANCE_CM) points[0] to points[1]
+            else {
+                val d = dists.average()
                 (a + n * d) to (b + n * d)
             }
+        }
     }
 
     /** Taglio di un poligono convesso con il semipiano diff(p) ≤ 0 (o < 0 se `strict`, per le parità). */
@@ -194,6 +206,54 @@ object Ceilings {
             if (pIn != qIn) out += p + (q - p) * (dp / (dp - dq))
         }
         return out
+    }
+
+    /** Due distanze dal muro basso che differiscono meno di così (cm) sono lo stesso inizio di falda. */
+    private const val SAME_DISTANCE_CM = 1e-3
+
+    /** L'altro lato della mansarda: l'altro muro con taglio efficace che scende verso lo stesso muro basso di `i`. */
+    fun partnerWall(room: Room, i: Int): Int? {
+        val cut = effectiveCut(room, i) ?: return null
+        val l = lowWall(room, i, cut)
+        return (0 until room.wallCount).firstOrNull { j -> j != i && effectiveCut(room, j)?.let { lowWall(room, j, it) } == l }
+    }
+
+    /** Quanto un cm lungo il muro `i`, dall'angolo basso, si allontana dal muro basso (ortogonalmente): 1 se è perpendicolare. */
+    private fun distancePerCm(room: Room, i: Int, cut: WallCut): Double {
+        val l = lowWall(room, i, cut)
+        val a = room.wallStart(l)
+        val sign = if (Polygon.signedArea(room.points) >= 0) 1.0 else -1.0
+        val n = (room.wallEnd(l) - a).normalized().perp() * sign
+        val other = if (cut.towardEnd) room.wallStart(i) else room.wallEnd(i)
+        return (other - lowCorner(room, i, cut)).normalized() dot n
+    }
+
+    /**
+     * Imposta l'inizio di discesa `start` (cm, lungo il muro `i` dal suo angolo basso) e porta l'altro lato della mansarda alla stessa
+     * distanza dal muro basso: i due pallini descrivono un solo inizio di falda e la linea passa da entrambi. Con muri laterali
+     * perpendicolari i due `start` coincidono; con muri obliqui cambiano per restare sulla stessa parallela. Rispetta i limiti di
+     * [clampStart] di tutti e due i muri. Senza l'altro lato (un solo taglio) cambia solo il muro `i`.
+     */
+    fun withCutStart(room: Room, i: Int, start: Double): Room {
+        val cut = room.wallCuts[i] ?: return room
+        val j = partnerWall(room, i)
+        val cutJ = j?.let { room.wallCuts[it] }
+        var si = clampStart(room, i, start)
+        if (j == null || cutJ == null) return room.copy(wallCuts = room.wallCuts + (i to cut.copy(start = si)))
+        val ki = distancePerCm(room, i, cut)
+        val kj = distancePerCm(room, j, cutJ)
+        if (ki <= 1e-6 || kj <= 1e-6) return room.copy(wallCuts = room.wallCuts + (i to cut.copy(start = si))) // muro che non entra nella stanza
+        var sj = clampStart(room, j, si * ki / kj)
+        si = clampStart(room, i, sj * kj / ki) // se l'altro muro è più corto, il limite vale anche per questo
+        sj = clampStart(room, j, si * ki / kj)
+        return room.copy(wallCuts = room.wallCuts + (i to cut.copy(start = si)) + (j to cutJ.copy(start = sj)))
+    }
+
+    /** Al taglio appena attivato sul muro `i` dà lo stesso inizio di falda dell'altro lato, se c'è; altrimenti non cambia niente. */
+    fun alignedToPartner(room: Room, i: Int): Room {
+        val j = partnerWall(room, i) ?: return room
+        val cutJ = room.wallCuts[j] ?: return room
+        return withCutStart(room, j, cutJ.start)
     }
 
     fun clampStart(room: Room, i: Int, start: Double) = start.coerceIn(10.0, max(10.0, room.wallLength(i)))

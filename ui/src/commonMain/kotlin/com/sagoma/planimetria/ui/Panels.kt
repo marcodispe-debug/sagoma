@@ -33,6 +33,7 @@ import com.sagoma.planimetria.geometry.RoomMerge
 import com.sagoma.planimetria.geometry.Ceilings
 import com.sagoma.planimetria.geometry.Collisions
 import com.sagoma.planimetria.geometry.WallCollision
+import com.sagoma.planimetria.geometry.SpotAim
 import com.sagoma.planimetria.model.WallCut
 import androidx.compose.material3.FilterChip
 import kotlin.math.roundToInt
@@ -263,12 +264,48 @@ private fun FurniturePanel(sel: Selection.Furniture, plan: FloorPlan, vm: Editor
             modifier = Modifier.padding(end = 8.dp),
         )
     }
+    val kitchen = com.sagoma.planimetria.model.KitchenModules.parse(f.model)
+    if (kitchen != null) KitchenFinishes(f.id, kitchen, plan, vm)
+    val parametric = com.sagoma.planimetria.model.ParametricFurniture.parse(f.model)
+    if (parametric != null) {
+        val finishes = com.sagoma.planimetria.model.ParametricFurniture.finishes
+        ColorPicker("Finitura", finishes.map { it.label to it.argb }, finishes.indexOf(parametric.finish), { k ->
+            update { it.copy(model = com.sagoma.planimetria.model.ParametricFurniture.model(parametric.copy(finish = finishes[k]))) }
+        })
+    }
     Text(
-        "Trascinalo per spostarlo: si accosta ai muri e agli altri mobili. Il pallino davanti lo fa girare (si raddrizza a 90°). " +
+        if (kitchen != null) "Trascinalo per spostarlo: si accosta ai muri e agli altri moduli. Allargandolo le ante si ridisegnano, " +
+            "niente si stira. «Duplica» ne mette uno uguale accanto."
+        else if (parametric != null) "Trascinalo per spostarlo: si accosta ai muri e agli altri mobili. Cambiando le misure ante, " +
+            "cassetti e ripiani si ridisegnano, niente si stira."
+        else "Trascinalo per spostarlo: si accosta ai muri e agli altri mobili. Il pallino davanti lo fa girare (si raddrizza a 90°). " +
             "Il modello 3D si adatta alle misure scritte qui.",
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.padding(end = 8.dp),
     )
+}
+
+/**
+ * Finiture di un modulo della cucina: colore delle ante e piano di lavoro (solo per le basi). Di solito si cambiano per tutta la
+ * cucina insieme (un solo passo da annullare); spegnendo "Tutta la cucina" vale solo per questo modulo.
+ */
+@Composable
+private fun KitchenFinishes(id: Long, spec: com.sagoma.planimetria.model.KitchenModules.Spec, plan: FloorPlan, vm: EditorViewModel) {
+    val modules = plan.furniture.count { com.sagoma.planimetria.model.KitchenModules.isModule(it.model) }
+    var all by remember { mutableStateOf(true) }
+    val fronts = com.sagoma.planimetria.model.KitchenModules.Front.entries
+    val tops = com.sagoma.planimetria.model.KitchenModules.Top.entries
+    ColorPicker("Ante", fronts.map { it.label to it.argb }, fronts.indexOf(spec.front), { k -> vm.setKitchenFinish(id, fronts[k], null, all && modules > 1) })
+    if (spec.kind.hasTop) {
+        ColorPicker("Piano di lavoro", tops.map { it.label to it.argb }, tops.indexOf(spec.top), { k -> vm.setKitchenFinish(id, null, tops[k], all && modules > 1) })
+    }
+    if (modules > 1) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(end = 8.dp)) {
+        androidx.compose.material3.Switch(checked = all, onCheckedChange = { all = it })
+        Text(
+            if (all) "Tutta la cucina ($modules moduli)" else "Solo questo modulo",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
 }
 
 /** Trave: larghezza e quanto sporge sotto il soffitto; la lunghezza si cambia trascinando le estremità. */
@@ -773,8 +810,23 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(vertical = 8.dp),
             )
-            FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint ->
+            FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint, FixtureKind.WallLight ->
                 NumberField("Da terra", f.elevation, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(elevation = v) } }
+            FixtureKind.WallSpot -> {
+                NumberField("Da terra", f.elevation, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(elevation = v) } }
+                // Valori di precisione: il fascio si orienta soprattutto trascinando la maniglia nella vista 3D.
+                NumberField("Direzione", f.aimYaw, Modifier.weight(1f), allowZero = true, suffix = "°") { v ->
+                    update { it.copy(aimYaw = SpotAim.normalizeYaw(v)) }
+                }
+                NumberField("Inclinazione", f.aimTilt, Modifier.weight(1f), allowZero = true, allowNegative = true, suffix = "°") { v ->
+                    update { it.copy(aimTilt = SpotAim.clampTilt(v)) }
+                }
+            }
+            FixtureKind.WallLedStrip -> {
+                // Segue il muro: lunghezza e altezza da terra, nessuna rotazione.
+                NumberField("Lunghezza", f.length, Modifier.weight(1f)) { v -> update { it.copy(length = v) } }
+                NumberField("Da terra", f.elevation, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(elevation = v) } }
+            }
             FixtureKind.Neon, FixtureKind.LedStrip -> {
                 NumberField("Lunghezza", f.length, Modifier.weight(1f)) { v -> update { it.copy(length = v) } }
                 NumberField("Rotazione", f.rotation, Modifier.weight(1f), allowZero = true, suffix = "°") { v ->
@@ -796,6 +848,11 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
                 else it.copy(radiatorModel = v)
             }
         }) { radiatorPreview(it) }
+        FixtureKind.WallSpot -> Text(
+            "Orienta il fascio trascinando la maniglia nella vista 3D (la direzione e l'inclinazione qui sono per ritoccarli con precisione).",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(vertical = 4.dp),
+        )
         FixtureKind.Chandelier -> ModelPicker("Modello", LampModel.entries, f.lampModel, { it.label }, { v -> update { it.copy(lampModel = v) } }) {
             lampPreview(it)
         }
@@ -814,15 +871,17 @@ private fun NumberField(
     modifier: Modifier,
     allowZero: Boolean = false,
     suffix: String = "cm",
+    allowNegative: Boolean = false,
     onValue: (Double) -> Unit,
 ) {
     var text by remember(value) { mutableStateOf(formatCm(value)) }
-    val parsed = text.replace(',', '.').toDoubleOrNull()?.takeIf { if (allowZero) it >= 0 else it > 0 }
+    val valid = { v: Double -> allowNegative || (if (allowZero) v >= 0 else v > 0) }
+    val parsed = text.replace(',', '.').toDoubleOrNull()?.takeIf(valid)
     SelectAllTextField(
         value = text,
         onValueChange = {
             text = it
-            it.replace(',', '.').toDoubleOrNull()?.takeIf { v -> if (allowZero) v >= 0 else v > 0 }?.let(onValue)
+            it.replace(',', '.').toDoubleOrNull()?.takeIf(valid)?.let(onValue)
         },
         label = label,
         numeric = true,

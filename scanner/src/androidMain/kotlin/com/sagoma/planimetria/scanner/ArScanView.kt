@@ -1,0 +1,1012 @@
+package com.sagoma.planimetria.scanner
+
+import android.app.Activity
+import android.content.Context
+import android.opengl.GLES11Ext
+import android.opengl.GLES20
+import android.opengl.GLSurfaceView
+import android.opengl.Matrix
+import android.os.Build
+import android.util.Log
+import android.view.MotionEvent
+import android.view.ViewConfiguration
+import android.view.WindowManager
+import com.google.ar.core.ArCoreApk
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import com.google.ar.core.Camera
+import com.google.ar.core.CameraConfig
+import com.google.ar.core.CameraConfigFilter
+import com.google.ar.core.Config
+import com.google.ar.core.Coordinates2d
+import com.google.ar.core.Frame
+import com.google.ar.core.Plane
+import com.google.ar.core.Session
+import com.google.ar.core.TrackingState
+import com.google.ar.core.exceptions.CameraNotAvailableException
+import com.google.ar.core.exceptions.UnavailableApkTooOldException
+import com.google.ar.core.exceptions.UnavailableArcoreNotInstalledException
+import com.google.ar.core.exceptions.UnavailableDeviceNotCompatibleException
+import com.google.ar.core.exceptions.UnavailableSdkTooOldException
+import com.google.ar.core.exceptions.UnavailableUserDeclinedInstallationException
+import com.sagoma.planimetria.geometry.Triangulation
+import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.scan.ArPoint
+import com.sagoma.planimetria.scan.ArXZ
+import com.sagoma.planimetria.scan.DetectedWall
+import com.sagoma.planimetria.scan.ScanDraft
+import com.sagoma.planimetria.scan.WallObservation
+import com.sagoma.planimetria.scan.recording.ArCoreInfo
+import com.sagoma.planimetria.scan.recording.CameraConfigInfo
+import com.sagoma.planimetria.scan.recording.CameraIntrinsics
+import com.sagoma.planimetria.scan.recording.CameraModelInfo
+import com.sagoma.planimetria.scan.recording.CaptureMode
+import java.util.EnumSet
+import com.sagoma.planimetria.scan.recording.DeviceInfo
+import com.sagoma.planimetria.scan.recording.RecordedFrame
+import com.sagoma.planimetria.scan.recording.RecordingHeader
+import com.sagoma.planimetria.scan.recording.ScreenInfo
+import com.sagoma.planimetria.scan.recording.SessionInfo
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.FloatBuffer
+import java.util.concurrent.ConcurrentLinkedQueue
+import javax.microedition.khronos.egl.EGLConfig
+import javax.microedition.khronos.opengles.GL10
+import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
+
+/**
+ * Vista della scansione: fotocamera, pavimento rilevato (piani orizzontali di ARCore) e perimetro toccato, disegnati con
+ * OpenGL ES 2. Non decide niente sulla stanza: gli angoli toccati arrivano a [listener] come punti AR in metri
+ * ([ArPoint]) e la bozza ([draft]) la possiede chi usa la vista, che qui viene solo disegnata.
+ *
+ * Uso: crearla, impostare [listener] e [draft], chiamare [start] quando l'attività riprende e [stop] quando va in pausa.
+ * I metodi di [Listener] sono chiamati sul thread principale.
+ */
+class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Renderer {
+
+    /** Stato della scansione, per i messaggi a schermo. */
+    data class Status(
+        /** La telecamera sta seguendo l'ambiente (senza, i punti toccati non sarebbero affidabili). */
+        val tracking: Boolean = false,
+        /** Perché il tracciamento si è perso, come codice (null se non si sa o va bene): il testo lo sceglie chi lo mostra. */
+        val trackingIssue: com.sagoma.planimetria.scan.TrackingIssue? = null,
+        /** C'è almeno un pezzo di pavimento rilevato abbastanza grande. */
+        val floorDetected: Boolean = false,
+        /** Quota del pavimento nel mondo AR (m, arrotondata al centimetro), se rilevato. */
+        val floorY: Double? = null,
+        /** Piani verticali (pareti) che ARCore sta seguendo in questo momento. */
+        val verticalPlanes: Int = 0,
+    )
+
+    /** Posizione sullo schermo (pixel della vista). */
+    data class ScreenPoint(val x: Float, val y: Float)
+
+    interface Listener {
+        fun onStatus(status: Status)
+
+        /** Angolo toccato sul pavimento. */
+        fun onFloorPoint(point: ArPoint)
+
+        /**
+         * Piani verticali seguiti da ARCore, ridotti a numeri (circa 4 volte al secondo): chi ascolta li accumula in pareti
+         * ([com.sagoma.planimetria.scan.WallScan]). Lo stesso piano ha sempre la stessa chiave.
+         */
+        fun onWallObservations(observations: List<WallObservation>)
+
+        /** Tocco non valido (non sul pavimento rilevato, tracciamento perso…), con il motivo da mostrare. */
+        fun onTapRejected(reason: String)
+
+        /**
+         * Dove cadono sullo schermo gli angoli e i punti medi dei lati della bozza (stesso ordine di [ScanDraft.points] e
+         * [ScanDraft.edgeLengthsCm]); null se il punto è dietro la telecamera. Per scrivere le distanze sopra la scena.
+         */
+        fun onOverlay(corners: List<ScreenPoint?>, edgeMidpoints: List<ScreenPoint?>)
+
+        /**
+         * Scansione guidata ([assistedMode]): circa 10 volte al secondo il frame ridotto agli stessi dati della registrazione,
+         * per il motore della scansione assistita. Mai chiamato con la modalità spenta.
+         */
+        fun onAimFrame(frame: RecordedFrame) {}
+
+        /**
+         * Prototipo ibrido ([depthListening]): una profondità GREZZA nuova con la sua confidenza, la posa della camera del frame e le
+         * intrinseche della depth. Chiamato sul thread del disegno: chi ascolta passi il lavoro a un altro thread.
+         */
+        fun onDepth(depth: LiveDepth) {}
+
+        /**
+         * Prototipo ibrido ([depthListening]): tra due fotogrammi la camera si è spostata di [distanceM] metri o ruotata di
+         * [rotationDeg] gradi oltre le soglie ([poseJumpThresholdM], [poseJumpRotationDeg]), oppure il tracciamento è ripreso dopo
+         * un'interruzione ([afterPause]). Chiamato sul thread del disegno PRIMA della profondità dello stesso fotogramma.
+         */
+        fun onPoseJump(distanceM: Double, rotationDeg: Double, afterPause: Boolean) {}
+    }
+
+    /** Profondità grezza dal vivo (mm, 0 = nessun dato), confidenza 0..255 (null se assente), intrinseche e posa. */
+    class LiveDepth(
+        val mm: IntArray, val confidence: ByteArray?, val k: CameraIntrinsics,
+        val pose: com.sagoma.planimetria.scan.recording.RecPose, val timestampNs: Long,
+    )
+
+    /** Come è andato [start]. */
+    sealed interface StartResult {
+        data object Started : StartResult
+
+        /** Si sta installando o aggiornando ARCore: [start] va richiamato al ritorno nell'app. */
+        data object InstallRequested : StartResult
+
+        data class Failed(val message: String) : StartResult
+    }
+
+    @Volatile
+    var listener: Listener? = null
+
+    /** Perimetro da disegnare; si può cambiare da qualsiasi thread. */
+    @Volatile
+    var draft: ScanDraft = ScanDraft()
+
+    /** Pareti già riconosciute, da evidenziare sopra la scena; si può cambiare da qualsiasi thread. */
+    @Volatile
+    var walls: List<DetectedWall> = emptyList()
+
+    /** Scansione guidata (solo Pro): manda i frame di mira a [Listener.onAimFrame]. Spenta, la vista fa come prima. */
+    @Volatile
+    var assistedMode: Boolean = false
+
+    /** Scansione guidata: la parete proposta, disegnata con un colore diverso da quelle confermate ([walls]). */
+    @Volatile
+    var candidate: DetectedWall? = null
+
+    private var aimFrames: LiveAimFrames? = null
+
+    /** Prototipo ibrido: legge la profondità grezza dal vivo e la manda a [Listener.onDepth]. Spenta, la vista fa come prima. */
+    @Volatile
+    var depthListening: Boolean = false
+
+    /** Disegnare i piani di ARCore sopra la scena. Il prototipo ibrido li nasconde: lavora solo con la profondità. */
+    @Volatile
+    var drawArPlanes: Boolean = true
+
+    private var lastLiveDepthTs = Long.MIN_VALUE
+
+    /** Prototipo ibrido: spostamento tra due fotogrammi oltre il quale si segnala un salto di posizione. */
+    @Volatile
+    var poseJumpThresholdM: Double = 0.10
+
+    /** Prototipo ibrido: rotazione tra due fotogrammi oltre la quale si segnala una rotazione brusca. */
+    @Volatile
+    var poseJumpRotationDeg: Double = 10.0
+
+    private var lastCamPos: FloatArray? = null
+    private var wasTracking = false
+
+    /** Un quadrilatero da disegnare sopra la scena: 4 vertici (x, y, z del mondo ARCore) e colore RGBA. */
+    class OverlayQuad(val corners: FloatArray, val color: FloatArray)
+
+    /**
+     * Prototipo ibrido: superfici viste e superficie candidata, disegnate nell'ordine (l'ultima sopra); si può cambiare da qualsiasi
+     * thread. I quadrilateri dello stesso colore si disegnano insieme: le superfici viste sono centinaia.
+     */
+    @Volatile
+    var overlayQuads: List<OverlayQuad> = emptyList()
+        set(value) {
+            field = value
+            overlayBatches = value.groupBy { it.color.toList() }.map { (color, quads) ->
+                val tri = FloatArray(quads.size * 18)
+                var t = 0
+                for (q in quads) for (i in intArrayOf(0, 1, 2, 0, 2, 3)) { tri[t++] = q.corners[3 * i]; tri[t++] = q.corners[3 * i + 1]; tri[t++] = q.corners[3 * i + 2] }
+                tri to color.toFloatArray()
+            }
+        }
+
+    @Volatile
+    private var overlayBatches: List<Pair<FloatArray, FloatArray>> = emptyList()
+
+    /** Il telefono supporta la profondità automatica? null finché non si è creata la sessione. Per ora la profondità non è usata. */
+    @Volatile
+    var depthSupported: Boolean? = null
+        private set
+
+    /** Registrazione in corso (solo per raccogliere dati e analizzarli sul computer: non cambia la scansione). */
+    @Volatile
+    private var recorder: ScanRecorder? = null
+
+    @Volatile
+    private var session: Session? = null
+    private var installRequested = false
+    @Volatile
+    private var cameraTextureAttached = false
+
+    private val taps = ConcurrentLinkedQueue<FloatArray>()
+    private var downX = 0f
+    private var downY = 0f
+    private var downTime = 0L
+
+    // Disegno.
+    private var cameraTexture = 0
+    private var backgroundProgram = 0
+    private var solidProgram = 0
+    private var viewportChanged = true
+    private var viewportWidth = 1
+    private var viewportHeight = 1
+    private val quadCoords = floatBuffer(floatArrayOf(-1f, -1f, -1f, 1f, 1f, -1f, 1f, 1f))
+    private val quadTexCoords = floatBuffer(FloatArray(8))
+    private var scratch: FloatBuffer = floatBuffer(FloatArray(4096))
+    private val viewMatrix = FloatArray(16)
+    private val projectionMatrix = FloatArray(16)
+    private val viewProjection = FloatArray(16)
+    private var lastStatus: Status? = null
+    private var lastWallPost = 0L
+    /** Chiave stabile di ogni piano di ARCore (lo stesso piano è uguale a se stesso tra un fotogramma e l'altro). */
+    private val planeKeys = HashMap<Plane, Int>()
+
+    init {
+        preserveEGLContextOnPause = true
+        setEGLContextClientVersion(2)
+        setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+        setRenderer(this)
+        renderMode = RENDERMODE_CONTINUOUSLY
+        setWillNotDraw(false)
+        keepScreenOn = true
+    }
+
+    // ---------- Sessione ----------
+
+    /**
+     * Crea (la prima volta) e avvia la sessione AR, poi la vista. Da chiamare quando l'attività è in primo piano e il permesso
+     * della fotocamera è già stato concesso.
+     */
+    fun start(activity: Activity): StartResult {
+        if (session == null) {
+            try {
+                when (ArCoreApk.getInstance().requestInstall(activity, !installRequested)) {
+                    ArCoreApk.InstallStatus.INSTALL_REQUESTED -> {
+                        installRequested = true
+                        return StartResult.InstallRequested
+                    }
+                    ArCoreApk.InstallStatus.INSTALLED -> {}
+                }
+                val s = Session(activity)
+                // Profondità (solo per la registrazione dei dati): attiva se il telefono la supporta, altrimenti come prima.
+                val depthOk = try { s.isDepthModeSupported(Config.DepthMode.AUTOMATIC) } catch (e: Exception) { null }
+                val config = Config(s).apply {
+                    planeFindingMode = Config.PlaneFindingMode.HORIZONTAL_AND_VERTICAL
+                    updateMode = Config.UpdateMode.LATEST_CAMERA_IMAGE
+                    focusMode = Config.FocusMode.AUTO
+                    lightEstimationMode = Config.LightEstimationMode.DISABLED
+                    depthMode = if (depthOk == true) Config.DepthMode.AUTOMATIC else Config.DepthMode.DISABLED
+                }
+                s.configure(config)
+                depthSupported = depthOk
+                defaultCameraConfig = s.cameraConfig
+                logCameraConfigs(s)
+                session = s
+                cameraTextureAttached = false
+            } catch (e: UnavailableUserDeclinedInstallationException) {
+                return StartResult.Failed("Senza ARCore non posso usare la realtà aumentata. Riprova e accetta l'installazione.")
+            } catch (e: UnavailableDeviceNotCompatibleException) {
+                return StartResult.Failed("Questo telefono non è compatibile con la realtà aumentata (ARCore).")
+            } catch (e: UnavailableArcoreNotInstalledException) {
+                return StartResult.Failed("ARCore (Servizi Google Play per la RA) non è installato.")
+            } catch (e: UnavailableApkTooOldException) {
+                return StartResult.Failed("ARCore è troppo vecchio: aggiorna \"Servizi Google Play per la RA\" dal Play Store.")
+            } catch (e: UnavailableSdkTooOldException) {
+                return StartResult.Failed("Questa versione di Sagoma è troppo vecchia per ARCore: aggiorna l'app.")
+            } catch (e: Exception) {
+                Log.e(TAG, "Sessione AR non creata", e)
+                return StartResult.Failed("Non riesco ad avviare la realtà aumentata (${e.javaClass.simpleName}).")
+            }
+        }
+        try {
+            session?.resume()
+        } catch (e: CameraNotAvailableException) {
+            session = null
+            return StartResult.Failed("La fotocamera è in uso da un'altra app: chiudila e riprova.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Sessione AR non ripresa", e)
+            session = null
+            return StartResult.Failed("Non riesco ad avviare la realtà aumentata (${e.javaClass.simpleName}).")
+        }
+        onResume()
+        return StartResult.Started
+    }
+
+    /** Ferma vista e sessione (prima la vista, così il thread di disegno non usa una sessione in pausa). */
+    fun stop() {
+        onPause()
+        session?.pause()
+    }
+
+    /** Libera la sessione: dopo, la vista non si usa più. */
+    fun release() {
+        stopRecording()
+        session?.close()
+        session = null
+        planeKeys.clear()
+    }
+
+    // ---------- Registrazione per l'analisi ----------
+
+    /** Inizia a registrare la sessione in un file (cartella `scan-recordings` dei file dell'app). Null se non è possibile. */
+    fun startRecording(): ScanRecorder? {
+        val s = session ?: return null
+        if (recorder != null) return recorder
+        return try {
+            val dir = ScanRecorder.directory(context)
+            val name = "scan-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+            val created = ScanRecorder(File(dir, name).apply { mkdirs() }, recordingHeader(s), depthSupported)
+            recorder = created
+            created
+        } catch (e: Exception) {
+            Log.e(TAG, "Registrazione non avviata", e)
+            null
+        }
+    }
+
+    /** Ferma la registrazione e restituisce il file (null se non si registrava). */
+    fun stopRecording(): File? {
+        val r = recorder ?: return null
+        recorder = null
+        return r.close()
+    }
+
+    fun recordingStats(): ScanRecorder.Stats? = recorder?.stats()
+
+    private fun recordingHeader(s: Session): RecordingHeader {
+        @Suppress("DEPRECATION")
+        val services = try { context.packageManager.getPackageInfo("com.google.ar.core", 0).versionName } catch (e: Exception) { null }
+        val image = try { s.cameraConfig.imageSize } catch (e: Exception) { null }
+        val cfg = try { s.config } catch (e: Exception) { null }
+        val capture = ScanRecorder.settingsFor(captureMode)
+        val current = try { configInfo(s.cameraConfig) } catch (e: Exception) { null }
+        return RecordingHeader(
+            createdAtMillis = System.currentTimeMillis(),
+            recordIntervalMs = capture.frameIntervalMs,
+            capture = capture,
+            cameraConfig = current,
+            availableCameraConfigs = try { supportedConfigs(s).map { configInfo(it) } } catch (e: Exception) { emptyList() },
+            camera = CameraModelInfo(
+                sensorOrientationDeg = current?.cameraId?.let { sensorOrientation(it) },
+                imageIntrinsics = lastImageIntrinsics, textureIntrinsics = lastTextureIntrinsics,
+            ),
+            device = DeviceInfo(Build.MANUFACTURER, Build.MODEL, Build.VERSION.SDK_INT),
+            arcore = ArCoreInfo(sdkVersion = ARCORE_SDK_VERSION, servicesVersion = services),
+            screen = ScreenInfo(
+                widthPx = viewportWidth, heightPx = viewportHeight, displayRotation = displayRotation(),
+                densityDpi = resources.displayMetrics.densityDpi,
+                cameraImageWidth = image?.width, cameraImageHeight = image?.height,
+            ),
+            session = SessionInfo(
+                planeFindingMode = cfg?.planeFindingMode?.name, updateMode = cfg?.updateMode?.name, focusMode = cfg?.focusMode?.name,
+                lightEstimationMode = cfg?.lightEstimationMode?.name, depthMode = cfg?.depthMode?.name, depthSupported = depthSupported,
+            ),
+        )
+    }
+
+    // ---------- Modalità di acquisizione e configurazione della fotocamera ----------
+
+    /** Modalità della prossima registrazione ([CaptureMode]); si cambia con [setCaptureMode]. */
+    @Volatile
+    var captureMode: String = CaptureMode.ENVIRONMENT
+        private set
+
+    /** La configurazione scelta da ARCore all'avvio (quella della modalità ambiente: non la si cambia). */
+    private var defaultCameraConfig: CameraConfig? = null
+
+    @Volatile private var lastImageIntrinsics: CameraIntrinsics? = null
+    @Volatile private var lastTextureIntrinsics: CameraIntrinsics? = null
+    private var lastIntrinsicsNs = 0L
+
+    /** Intrinseche correnti, per l'intestazione della registrazione (circa una volta al secondo: allocano). */
+    private fun rememberIntrinsics(camera: Camera) {
+        val now = System.nanoTime()
+        if (lastImageIntrinsics != null && now - lastIntrinsicsNs < 1_000_000_000L) return
+        lastIntrinsicsNs = now
+        try {
+            lastImageIntrinsics = ScanRecorder.intrinsics(camera.imageIntrinsics)
+            lastTextureIntrinsics = ScanRecorder.intrinsics(camera.textureIntrinsics)
+        } catch (e: Exception) {
+            Log.w(TAG, "Intrinseche non lette", e)
+        }
+    }
+
+    /** Tutte le configurazioni della fotocamera posteriore che ARCore offre su questo telefono (nessun filtro su fps e sensori). */
+    private fun supportedConfigs(s: Session): List<CameraConfig> {
+        val filter = CameraConfigFilter(s)
+            .setFacingDirection(CameraConfig.FacingDirection.BACK)
+            .setTargetFps(EnumSet.allOf(CameraConfig.TargetFps::class.java))
+            .setDepthSensorUsage(EnumSet.allOf(CameraConfig.DepthSensorUsage::class.java))
+            .setStereoCameraUsage(EnumSet.allOf(CameraConfig.StereoCameraUsage::class.java))
+        return s.getSupportedCameraConfigs(filter)
+    }
+
+    private fun configInfo(c: CameraConfig) = CameraConfigInfo(
+        cameraId = c.cameraId, facing = c.facingDirection.name,
+        imageWidth = c.imageSize.width, imageHeight = c.imageSize.height,
+        textureWidth = c.textureSize.width, textureHeight = c.textureSize.height,
+        fpsMin = c.fpsRange.lower, fpsMax = c.fpsRange.upper,
+        depthSensorUsage = c.depthSensorUsage.name, stereoCameraUsage = c.stereoCameraUsage.name,
+    )
+
+    private fun sensorOrientation(cameraId: String): Int? = try {
+        val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        manager.getCameraCharacteristics(cameraId).get(CameraCharacteristics.SENSOR_ORIENTATION)
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Nel registro (logcat, tag ArScanView) le configurazioni disponibili e quella in uso: per verificare cosa offre il telefono. */
+    private fun logCameraConfigs(s: Session) {
+        try {
+            val current = configInfo(s.cameraConfig)
+            Log.i(TAG, "Configurazione fotocamera in uso: $current")
+            for (c in supportedConfigs(s)) Log.i(TAG, "Configurazione disponibile: ${configInfo(c)}")
+        } catch (e: Exception) {
+            Log.w(TAG, "Configurazioni della fotocamera non lette", e)
+        }
+    }
+
+    /**
+     * La configurazione per la modalità oggetto: l'immagine CPU più grande offerta da ARCore; a parità, la stessa texture, lo
+     * stesso uso del sensore di profondità e la stessa frequenza della configurazione di partenza.
+     */
+    private fun objectConfig(s: Session): CameraConfig? {
+        val base = defaultCameraConfig ?: s.cameraConfig
+        return supportedConfigs(s).maxWithOrNull(
+            compareBy<CameraConfig> { it.imageSize.width.toLong() * it.imageSize.height }
+                .thenBy { if (it.textureSize == base.textureSize) 1 else 0 }
+                .thenBy { if (it.depthSensorUsage == base.depthSensorUsage) 1 else 0 }
+                .thenBy { if (it.fpsRange == base.fpsRange) 1 else 0 },
+        )
+    }
+
+    /**
+     * Cambia modalità di acquisizione (dal thread principale, a registrazione ferma). La modalità oggetto usa la configurazione
+     * della fotocamera con l'immagine CPU più grande; se è diversa da quella in uso, la sessione va messa in pausa, riconfigurata
+     * e ripresa: l'anteprima si ferma un attimo e il tracciamento può ripartire (le pareti già viste possono perdersi). Torna il
+     * messaggio da mostrare.
+     */
+    fun setCaptureMode(mode: String): String {
+        if (recorder != null) return "Ferma la registrazione prima di cambiare modalità."
+        val s = session
+        if (s == null) { captureMode = mode; return "Modalità ${modeName(mode)}." }
+        val target = (if (mode == CaptureMode.OBJECT) objectConfig(s) else defaultCameraConfig) ?: return "Configurazione della fotocamera non disponibile."
+        val before = configInfo(s.cameraConfig)
+        val after = configInfo(target)
+        if (before == after) { captureMode = mode; return "Modalità ${modeName(mode)} · immagine ${after.imageWidth}×${after.imageHeight} (già in uso)." }
+        onPause() // aspetta che il thread di disegno si fermi: nessuno usa la sessione mentre si riconfigura
+        return try {
+            s.pause()
+            s.cameraConfig = target
+            val depthOk = try { s.isDepthModeSupported(Config.DepthMode.AUTOMATIC) } catch (e: Exception) { null }
+            s.configure(s.config.apply { depthMode = if (depthOk == true) Config.DepthMode.AUTOMATIC else Config.DepthMode.DISABLED })
+            depthSupported = depthOk
+            s.resume()
+            viewportChanged = true
+            captureMode = mode
+            Log.i(TAG, "Modalità $mode: fotocamera $before → $after")
+            "Modalità ${modeName(mode)} · immagine ${after.imageWidth}×${after.imageHeight}."
+        } catch (e: Exception) {
+            Log.e(TAG, "Cambio di configurazione non riuscito", e)
+            try { s.resume() } catch (e2: Exception) { Log.e(TAG, "Sessione non ripresa", e2) }
+            "Non riesco a cambiare la configurazione della fotocamera (${e.javaClass.simpleName})."
+        } finally {
+            onResume()
+        }
+    }
+
+    private fun modeName(mode: String) = if (mode == CaptureMode.OBJECT) "oggetto" else "ambiente"
+
+    // ---------- Tocco ----------
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> { downX = event.x; downY = event.y; downTime = event.eventTime }
+            MotionEvent.ACTION_UP -> {
+                val slop = ViewConfiguration.get(context).scaledTouchSlop
+                val still = abs(event.x - downX) <= slop && abs(event.y - downY) <= slop
+                if (still && event.eventTime - downTime < 600) taps.offer(floatArrayOf(event.x, event.y))
+            }
+        }
+        return true
+    }
+
+    // ---------- Disegno ----------
+
+    override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
+        GLES20.glClearColor(0f, 0f, 0f, 1f)
+        val tex = IntArray(1)
+        GLES20.glGenTextures(1, tex, 0)
+        cameraTexture = tex[0]
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, cameraTexture)
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+        backgroundProgram = link(BACKGROUND_VERTEX, BACKGROUND_FRAGMENT)
+        solidProgram = link(SOLID_VERTEX, SOLID_FRAGMENT)
+        cameraTextureAttached = false
+    }
+
+    override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
+        GLES20.glViewport(0, 0, width, height)
+        viewportWidth = width.coerceAtLeast(1)
+        viewportHeight = height.coerceAtLeast(1)
+        viewportChanged = true
+    }
+
+    override fun onDrawFrame(gl: GL10?) {
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+        val s = session ?: return
+        try {
+            if (!cameraTextureAttached) {
+                s.setCameraTextureName(cameraTexture)
+                cameraTextureAttached = true
+            }
+            if (viewportChanged) {
+                s.setDisplayGeometry(displayRotation(), viewportWidth, viewportHeight)
+                viewportChanged = false
+            }
+            val updateStart = System.nanoTime()
+            val frame = s.update()
+            val updateNs = System.nanoTime() - updateStart
+            val camera = frame.camera
+            rememberIntrinsics(camera)
+            drawBackground(frame)
+            val tracking = camera.trackingState == TrackingState.TRACKING
+            val planes = if (tracking) floorPlanes(s) else emptyList()
+            val verticals = if (tracking) verticalPlanes(s) else emptyList()
+            val floorY = planes.minOfOrNull { it.centerPose.ty() }
+            val status = Status(
+                tracking = tracking,
+                trackingIssue = if (tracking) null else com.sagoma.planimetria.scan.TrackingIssue.fromArCore(camera.trackingFailureReason.name),
+                floorDetected = planes.any { it.extentX * it.extentZ >= MIN_FLOOR_AREA_M2 },
+                floorY = floorY?.let { (it * 100.0).roundToInt() / 100.0 },
+                verticalPlanes = verticals.size,
+            )
+            if (status != lastStatus) {
+                lastStatus = status
+                post { listener?.onStatus(status) }
+            }
+            recorder?.onFrame(s, frame, camera, floorY, updateNs)
+            handleTaps(frame, tracking, floorY)
+            publishWalls(verticals)
+            if (assistedMode) {
+                val live = aimFrames ?: LiveAimFrames().also { aimFrames = it }
+                live.next(s, frame, camera, floorY)?.let { f -> post { listener?.onAimFrame(f) } }
+            } else aimFrames = null
+            if (depthListening) {
+                // Salti di posizione di ARCore: prima della profondità dello stesso fotogramma, sullo stesso thread.
+                if (tracking) {
+                    val q = camera.pose
+                    val cur = floatArrayOf(q.tx(), q.ty(), q.tz(), q.qx(), q.qy(), q.qz(), q.qw())
+                    val prev = lastCamPos
+                    if (prev != null) {
+                        val dx = cur[0] - prev[0]; val dy = cur[1] - prev[1]; val dz = cur[2] - prev[2]
+                        val d = kotlin.math.sqrt((dx * dx + dy * dy + dz * dz).toDouble())
+                        val dot = kotlin.math.abs(cur[3] * prev[3] + cur[4] * prev[4] + cur[5] * prev[5] + cur[6] * prev[6]).coerceAtMost(1f)
+                        val rot = Math.toDegrees(2.0 * kotlin.math.acos(dot.toDouble()))
+                        if (!wasTracking) listener?.onPoseJump(d, rot, true)
+                        else if (d > poseJumpThresholdM || rot > poseJumpRotationDeg) listener?.onPoseJump(d, rot, false)
+                    }
+                    lastCamPos = cur
+                }
+                wasTracking = tracking
+            }
+            if (depthListening && tracking) readLiveDepth(frame, camera)
+            if (!tracking) return
+            camera.getProjectionMatrix(projectionMatrix, 0, NEAR, FAR)
+            camera.getViewMatrix(viewMatrix, 0)
+            Matrix.multiplyMM(viewProjection, 0, projectionMatrix, 0, viewMatrix, 0)
+            GLES20.glDisable(GLES20.GL_DEPTH_TEST)
+            GLES20.glEnable(GLES20.GL_BLEND)
+            GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+            if (drawArPlanes) {
+                for (p in planes) drawPlane(p, PLANE_COLOR, LIFT)
+                for (p in verticals) drawPlane(p, WALL_PLANE_COLOR, 0f)
+            }
+            drawWalls(walls, if (drawArPlanes) floorY else null) // prototipo ibrido: niente "piede" sul pavimento di ARCore
+            candidate?.let { drawWalls(listOf(it), floorY, CANDIDATE_WALL_COLOR, CANDIDATE_WALL_FOOT_COLOR) }
+            for ((tri, color) in overlayBatches) drawTriangles(tri, tri.size / 3, color)
+            drawDraft(draft, floorY)
+            publishOverlay(draft)
+        } catch (e: CameraNotAvailableException) {
+            Log.w(TAG, "Fotocamera non disponibile", e)
+        } catch (e: Throwable) {
+            Log.e(TAG, "Errore nel disegno della scansione", e)
+        }
+    }
+
+    /**
+     * Prototipo ibrido: la profondità GREZZA del frame se è nuova (timestamp diverso), con la confidenza. Nessun ripiego sulla
+     * depth filtrata né sui piani di ARCore: se non c'è, non arriva niente (e la schermata lo dice).
+     */
+    private fun readLiveDepth(frame: Frame, camera: Camera) {
+        try {
+            frame.acquireRawDepthImage16Bits().use { img ->
+                if (img.timestamp == lastLiveDepthTs) return
+                lastLiveDepthTs = img.timestamp
+                val w = img.width; val h = img.height
+                val p = img.planes[0]
+                val buf = p.buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN)
+                val start = buf.position()
+                val mm = IntArray(w * h) { i -> buf.getShort(start + (i / w) * p.rowStride + (i % w) * p.pixelStride).toInt() and 0xFFFF }
+                val conf = try {
+                    frame.acquireRawDepthConfidenceImage().use { c ->
+                        if (c.width != w || c.height != h) null else {
+                            val cp = c.planes[0]; val cb = cp.buffer.duplicate(); val cs = cb.position()
+                            ByteArray(w * h) { i -> cb.get(cs + (i / w) * cp.rowStride + (i % w) * cp.pixelStride) }
+                        }
+                    }
+                } catch (e: Exception) { null }
+                val k = com.sagoma.planimetria.scan.recording.DepthIntrinsics.fromTexture(ScanRecorder.intrinsics(camera.textureIntrinsics), w, h).first
+                val q = camera.pose
+                val pose = com.sagoma.planimetria.scan.recording.RecPose(
+                    q.tx().toDouble(), q.ty().toDouble(), q.tz().toDouble(), q.qx().toDouble(), q.qy().toDouble(), q.qz().toDouble(), q.qw().toDouble(),
+                )
+                listener?.onDepth(LiveDepth(mm, conf, k, pose, img.timestamp))
+            }
+        } catch (e: com.google.ar.core.exceptions.NotYetAvailableException) {
+            // Profondità non ancora pronta: si riprova al prossimo frame.
+        } catch (e: Exception) {
+            Log.w(TAG, "profondità grezza non disponibile", e)
+        }
+    }
+
+    private fun displayRotation(): Int {
+        @Suppress("DEPRECATION")
+        return (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.rotation
+    }
+
+    private fun drawBackground(frame: Frame) {
+        if (frame.hasDisplayGeometryChanged()) {
+            quadCoords.rewind()
+            quadTexCoords.rewind()
+            frame.transformCoordinates2d(
+                Coordinates2d.OPENGL_NORMALIZED_DEVICE_COORDINATES, quadCoords,
+                Coordinates2d.TEXTURE_NORMALIZED, quadTexCoords,
+            )
+        }
+        if (frame.timestamp == 0L) return // ancora nessuna immagine
+        GLES20.glDisable(GLES20.GL_DEPTH_TEST)
+        GLES20.glDepthMask(false)
+        GLES20.glUseProgram(backgroundProgram)
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, cameraTexture)
+        GLES20.glUniform1i(GLES20.glGetUniformLocation(backgroundProgram, "u_Texture"), 0)
+        val pos = GLES20.glGetAttribLocation(backgroundProgram, "a_Position")
+        val tex = GLES20.glGetAttribLocation(backgroundProgram, "a_TexCoord")
+        quadCoords.rewind()
+        quadTexCoords.rewind()
+        GLES20.glVertexAttribPointer(pos, 2, GLES20.GL_FLOAT, false, 0, quadCoords)
+        GLES20.glVertexAttribPointer(tex, 2, GLES20.GL_FLOAT, false, 0, quadTexCoords)
+        GLES20.glEnableVertexAttribArray(pos)
+        GLES20.glEnableVertexAttribArray(tex)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        GLES20.glDisableVertexAttribArray(pos)
+        GLES20.glDisableVertexAttribArray(tex)
+        GLES20.glDepthMask(true)
+    }
+
+    /** Piani orizzontali rivolti verso l'alto, seguiti, non assorbiti da un altro: candidati a pavimento (o tavoli, ripiani). */
+    private fun floorPlanes(s: Session): List<Plane> = s.getAllTrackables(Plane::class.java).filter {
+        it.trackingState == TrackingState.TRACKING && it.subsumedBy == null && it.type == Plane.Type.HORIZONTAL_UPWARD_FACING
+    }
+
+    /** Piani verticali seguiti, non assorbiti da un altro: candidati a parete (o a fronte di un mobile, di un'anta). */
+    private fun verticalPlanes(s: Session): List<Plane> = s.getAllTrackables(Plane::class.java).filter {
+        it.trackingState == TrackingState.TRACKING && it.subsumedBy == null && it.type == Plane.Type.VERTICAL
+    }
+
+    // ---------- Tocchi sul pavimento ----------
+
+    private fun handleTaps(frame: Frame, tracking: Boolean, floorY: Float?) {
+        while (true) {
+            val tap = taps.poll() ?: return
+            if (!tracking) { reject("Aspetta che la fotocamera si orienti, poi tocca di nuovo."); continue }
+            val hit = frame.hitTest(tap[0], tap[1]).firstOrNull {
+                val t = it.trackable
+                t is Plane && t.type == Plane.Type.HORIZONTAL_UPWARD_FACING && t.isPoseInPolygon(it.hitPose)
+            }
+            if (hit == null) { reject("Tocca il pavimento già rilevato (zona colorata)."); continue }
+            val pose = hit.hitPose
+            // Un tavolo o un ripiano è un piano orizzontale come il pavimento: si accetta solo ciò che sta alla quota del pavimento.
+            if (floorY != null && pose.ty() > floorY + MAX_ABOVE_FLOOR_M) { reject("Quel punto non è sul pavimento: tocca a terra."); continue }
+            val p = ArPoint(pose.tx().toDouble(), pose.ty().toDouble(), pose.tz().toDouble())
+            post { listener?.onFloorPoint(p) }
+        }
+    }
+
+    private fun reject(reason: String) {
+        post { listener?.onTapRejected(reason) }
+    }
+
+    // ---------- Pareti (piani verticali) ----------
+
+    /** Circa 4 volte al secondo manda a chi ascolta i piani verticali seguiti, ridotti a numeri. */
+    private fun publishWalls(verticals: List<Plane>) {
+        val now = System.nanoTime()
+        if (now - lastWallPost < WALL_POST_INTERVAL_NS) return
+        lastWallPost = now
+        val list = verticals.mapNotNull { wallObservation(planeKeys.getOrPut(it) { planeKeys.size }, it) }
+        if (list.isNotEmpty()) post { listener?.onWallObservations(list) }
+    }
+
+    /**
+     * Il pezzo rilevato di un piano verticale come segmento in pianta + quote. Non si fa affidamento sugli assi locali del piano:
+     * i vertici del poligono si portano nel mondo, la normale del piano (asse Y locale) dà la direzione orizzontale della
+     * parete e i vertici si proiettano su quella direzione. Null se il piano non è abbastanza verticale o è minuscolo.
+     */
+    private fun wallObservation(key: Int, plane: Plane): WallObservation? {
+        val poly = plane.polygon
+        val n = poly.limit() / 2
+        if (n < 3) return null
+        val pose = plane.centerPose
+        val normal = pose.yAxis
+        val hx = normal[0].toDouble()
+        val hz = normal[2].toDouble()
+        val hl = sqrt(hx * hx + hz * hz)
+        if (hl < MIN_HORIZONTAL_NORMAL) return null // normale quasi verticale: è un piano orizzontale inclinato, non una parete
+        val nx = hx / hl
+        val nz = hz / hl
+        val tx = -nz
+        val tz = nx
+        var smin = Double.MAX_VALUE
+        var smax = -Double.MAX_VALUE
+        var offset = 0.0
+        var ymin = Double.MAX_VALUE
+        var ymax = -Double.MAX_VALUE
+        val world = FloatArray(3)
+        for (i in 0 until n) {
+            pose.transformPoint(floatArrayOf(poly.get(2 * i), 0f, poly.get(2 * i + 1)), 0, world, 0)
+            val x = world[0].toDouble()
+            val y = world[1].toDouble()
+            val z = world[2].toDouble()
+            val s = x * tx + z * tz
+            smin = minOf(smin, s); smax = maxOf(smax, s)
+            offset += x * nx + z * nz
+            ymin = minOf(ymin, y); ymax = maxOf(ymax, y)
+        }
+        offset /= n
+        if (smax - smin < MIN_PLANE_LENGTH_M || ymax - ymin < MIN_PLANE_HEIGHT_M) return null
+        return WallObservation(
+            key,
+            ArXZ(tx * smin + nx * offset, tz * smin + nz * offset),
+            ArXZ(tx * smax + nx * offset, tz * smax + nz * offset),
+            ymin, ymax,
+        )
+    }
+
+    /** Pareti riconosciute: la parte rilevata in altezza e la striscia sul pavimento, di colore diverso da pavimento e piani. */
+    private fun drawWalls(
+        list: List<DetectedWall>,
+        floorY: Float?,
+        color: FloatArray = DETECTED_WALL_COLOR,
+        footColor: FloatArray = DETECTED_WALL_FOOT_COLOR,
+    ) {
+        if (list.isEmpty()) return
+        val quads = ArrayList<Float>()
+        val feet = ArrayList<Float>()
+        for (w in list) {
+            val ax = w.a.x.toFloat(); val az = w.a.z.toFloat()
+            val bx = w.b.x.toFloat(); val bz = w.b.z.toFloat()
+            val y0 = w.bottomY.toFloat()
+            val y1 = w.topY.toFloat()
+            val q = floatArrayOf(ax, y0, az, bx, y0, bz, bx, y1, bz, ax, y1, az)
+            for (i in intArrayOf(0, 1, 2, 0, 2, 3)) { quads.add(q[3 * i]); quads.add(q[3 * i + 1]); quads.add(q[3 * i + 2]) }
+            if (floorY != null) addStrip(feet, ax, az, bx, bz, floorY + 3 * LIFT, WALL_FOOT_HALF_WIDTH_M)
+        }
+        drawTriangles(quads.toFloatArray(), quads.size / 3, color)
+        if (feet.isNotEmpty()) drawTriangles(feet.toFloatArray(), feet.size / 3, footColor)
+    }
+
+    // ---------- Disegno di piani e perimetro ----------
+
+    private fun drawPlane(plane: Plane, color: FloatArray, lift: Float) {
+        val poly = plane.polygon
+        val n = poly.limit() / 2
+        if (n < 3) return
+        val pose = plane.centerPose
+        val c = pose.translation
+        val v = FloatArray(n * 9)
+        // Vertici del poligono: x, z nel sistema del piano → mondo.
+        val pts = Array(n) { i ->
+            FloatArray(3).also { pose.transformPoint(floatArrayOf(poly.get(2 * i), 0f, poly.get(2 * i + 1)), 0, it, 0) }
+        }
+        var k = 0
+        for (i in 0 until n) {
+            val a = pts[i]
+            val b = pts[(i + 1) % n]
+            v[k++] = c[0]; v[k++] = c[1] + lift; v[k++] = c[2]
+            v[k++] = a[0]; v[k++] = a[1] + lift; v[k++] = a[2]
+            v[k++] = b[0]; v[k++] = b[1] + lift; v[k++] = b[2]
+        }
+        drawTriangles(v, k / 3, color)
+    }
+
+    private fun drawDraft(d: ScanDraft, floorY: Float?) {
+        val pts = d.points
+        if (pts.isEmpty()) return
+        val y = (floorY ?: pts.first().y.toFloat()) + 2 * LIFT
+        val fill = ArrayList<Float>()
+        val lines = ArrayList<Float>()
+        val marks = ArrayList<Float>()
+        if (d.closed && pts.size >= 3) {
+            val flat = pts.map { Vec2(it.x, it.z) }
+            for ((a, b, c) in Triangulation.triangulate(flat)) {
+                for (i in intArrayOf(a, b, c)) { fill.add(pts[i].x.toFloat()); fill.add(y); fill.add(pts[i].z.toFloat()) }
+            }
+        }
+        val n = pts.size
+        val edges = if (d.closed) n else n - 1
+        for (i in 0 until edges) {
+            val a = pts[i]
+            val b = pts[(i + 1) % n]
+            addStrip(lines, a.x.toFloat(), a.z.toFloat(), b.x.toFloat(), b.z.toFloat(), y, LINE_HALF_WIDTH_M)
+        }
+        for (p in pts) addSquare(marks, p.x.toFloat(), p.z.toFloat(), y + LIFT, MARK_HALF_SIZE_M)
+        if (fill.isNotEmpty()) drawTriangles(fill.toFloatArray(), fill.size / 3, FILL_COLOR)
+        if (lines.isNotEmpty()) drawTriangles(lines.toFloatArray(), lines.size / 3, LINE_COLOR)
+        drawTriangles(marks.toFloatArray(), marks.size / 3, MARK_COLOR)
+    }
+
+    /** Striscia sottile sul pavimento tra due punti (x, z), larga 2 × `half` metri. */
+    private fun addStrip(out: MutableList<Float>, x0: Float, z0: Float, x1: Float, z1: Float, y: Float, half: Float) {
+        val dx = x1 - x0
+        val dz = z1 - z0
+        val len = kotlin.math.sqrt(dx * dx + dz * dz)
+        if (len < 1e-4f) return
+        val nx = -dz / len * half
+        val nz = dx / len * half
+        val q = floatArrayOf(x0 + nx, z0 + nz, x0 - nx, z0 - nz, x1 - nx, z1 - nz, x1 + nx, z1 + nz)
+        for (i in intArrayOf(0, 1, 2, 0, 2, 3)) { out.add(q[2 * i]); out.add(y); out.add(q[2 * i + 1]) }
+    }
+
+    private fun addSquare(out: MutableList<Float>, x: Float, z: Float, y: Float, half: Float) {
+        val q = floatArrayOf(x - half, z - half, x + half, z - half, x + half, z + half, x - half, z + half)
+        for (i in intArrayOf(0, 1, 2, 0, 2, 3)) { out.add(q[2 * i]); out.add(y); out.add(q[2 * i + 1]) }
+    }
+
+    private fun drawTriangles(vertices: FloatArray, count: Int, color: FloatArray) {
+        if (count <= 0) return
+        if (scratch.capacity() < vertices.size) scratch = floatBuffer(FloatArray(vertices.size * 2))
+        scratch.clear()
+        scratch.put(vertices, 0, count * 3)
+        scratch.rewind()
+        GLES20.glUseProgram(solidProgram)
+        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(solidProgram, "u_Mvp"), 1, false, viewProjection, 0)
+        GLES20.glUniform4fv(GLES20.glGetUniformLocation(solidProgram, "u_Color"), 1, color, 0)
+        val pos = GLES20.glGetAttribLocation(solidProgram, "a_Position")
+        GLES20.glVertexAttribPointer(pos, 3, GLES20.GL_FLOAT, false, 0, scratch)
+        GLES20.glEnableVertexAttribArray(pos)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, count)
+        GLES20.glDisableVertexAttribArray(pos)
+    }
+
+    /** Posizione sullo schermo (pixel) di un punto del mondo, o null se sta dietro la telecamera. */
+    private fun project(x: Float, y: Float, z: Float): ScreenPoint? {
+        val m = viewProjection
+        val cw = m[3] * x + m[7] * y + m[11] * z + m[15]
+        if (cw <= 1e-4f) return null
+        val cx = m[0] * x + m[4] * y + m[8] * z + m[12]
+        val cy = m[1] * x + m[5] * y + m[9] * z + m[13]
+        return ScreenPoint((cx / cw + 1f) / 2f * viewportWidth, (1f - cy / cw) / 2f * viewportHeight)
+    }
+
+    private fun publishOverlay(d: ScanDraft) {
+        val pts = d.points
+        if (pts.isEmpty()) { post { listener?.onOverlay(emptyList(), emptyList()) }; return }
+        val corners = pts.map { project(it.x.toFloat(), it.y.toFloat(), it.z.toFloat()) }
+        val n = pts.size
+        val edges = if (d.closed) n else n - 1
+        val mids = (0 until edges).map {
+            val a = pts[it]
+            val b = pts[(it + 1) % n]
+            project(((a.x + b.x) / 2).toFloat(), ((a.y + b.y) / 2).toFloat(), ((a.z + b.z) / 2).toFloat())
+        }
+        post { listener?.onOverlay(corners, mids) }
+    }
+
+    // ---------- OpenGL ----------
+
+    private fun link(vertex: String, fragment: String): Int {
+        val vs = compile(GLES20.GL_VERTEX_SHADER, vertex)
+        val fs = compile(GLES20.GL_FRAGMENT_SHADER, fragment)
+        val program = GLES20.glCreateProgram()
+        GLES20.glAttachShader(program, vs)
+        GLES20.glAttachShader(program, fs)
+        GLES20.glLinkProgram(program)
+        val ok = IntArray(1)
+        GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, ok, 0)
+        check(ok[0] != 0) { "Programma OpenGL non collegato: ${GLES20.glGetProgramInfoLog(program)}" }
+        return program
+    }
+
+    private fun compile(type: Int, source: String): Int {
+        val shader = GLES20.glCreateShader(type)
+        GLES20.glShaderSource(shader, source)
+        GLES20.glCompileShader(shader)
+        val ok = IntArray(1)
+        GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, ok, 0)
+        check(ok[0] != 0) { "Shader OpenGL non compilato: ${GLES20.glGetShaderInfoLog(shader)}" }
+        return shader
+    }
+
+    private fun floatBuffer(values: FloatArray): FloatBuffer =
+        ByteBuffer.allocateDirect(values.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().apply { put(values); rewind() }
+
+    private companion object {
+        const val TAG = "ArScanView"
+        /** Versione della libreria ARCore (deve coincidere con `arcore` in gradle/libs.versions.toml): finisce nell'intestazione del recording. */
+        const val ARCORE_SDK_VERSION = "1.44.0"
+        const val NEAR = 0.05f
+        const val FAR = 100f
+        /** Un piano è "pavimento" se è abbastanza esteso (m²). */
+        const val MIN_FLOOR_AREA_M2 = 0.4f
+        /** Un punto toccato più in alto del pavimento di tanto (m) è su un mobile, non a terra. */
+        const val MAX_ABOVE_FLOOR_M = 0.12f
+        /** Sollevamento dei disegni dal pavimento (m), per non farli sparire dentro il piano. */
+        const val LIFT = 0.004f
+        const val LINE_HALF_WIDTH_M = 0.012f
+        const val MARK_HALF_SIZE_M = 0.035f
+        /** Ogni quanto (ns) si mandano i piani verticali a chi ascolta. */
+        const val WALL_POST_INTERVAL_NS = 250_000_000L
+        /** Un piano la cui normale è meno orizzontale di così non è una parete. */
+        const val MIN_HORIZONTAL_NORMAL = 0.5
+        const val MIN_PLANE_LENGTH_M = 0.3
+        const val MIN_PLANE_HEIGHT_M = 0.2
+        const val WALL_FOOT_HALF_WIDTH_M = 0.025f
+        val PLANE_COLOR = floatArrayOf(0.10f, 0.75f, 0.45f, 0.28f)
+        /** Piani verticali visti da ARCore: azzurro, per distinguerli dal pavimento (verde). */
+        val WALL_PLANE_COLOR = floatArrayOf(0.20f, 0.55f, 1.00f, 0.22f)
+        /** Pareti riconosciute (raggruppate): magenta. */
+        val DETECTED_WALL_COLOR = floatArrayOf(0.95f, 0.25f, 0.70f, 0.35f)
+        val DETECTED_WALL_FOOT_COLOR = floatArrayOf(1.00f, 0.35f, 0.80f, 0.95f)
+        /** Scansione guidata: parete proposta, in attesa di conferma (giallo). */
+        val CANDIDATE_WALL_COLOR = floatArrayOf(1.00f, 0.85f, 0.10f, 0.35f)
+        val CANDIDATE_WALL_FOOT_COLOR = floatArrayOf(1.00f, 0.85f, 0.10f, 0.95f)
+        val FILL_COLOR = floatArrayOf(0.25f, 0.55f, 1.00f, 0.25f)
+        val LINE_COLOR = floatArrayOf(1.00f, 1.00f, 1.00f, 0.95f)
+        val MARK_COLOR = floatArrayOf(1.00f, 0.65f, 0.05f, 1.00f)
+
+        const val BACKGROUND_VERTEX = """
+            attribute vec4 a_Position;
+            attribute vec2 a_TexCoord;
+            varying vec2 v_TexCoord;
+            void main() {
+                gl_Position = a_Position;
+                v_TexCoord = a_TexCoord;
+            }
+        """
+        const val BACKGROUND_FRAGMENT = """
+            #extension GL_OES_EGL_image_external : require
+            precision mediump float;
+            varying vec2 v_TexCoord;
+            uniform samplerExternalOES u_Texture;
+            void main() {
+                gl_FragColor = texture2D(u_Texture, v_TexCoord);
+            }
+        """
+        const val SOLID_VERTEX = """
+            uniform mat4 u_Mvp;
+            attribute vec3 a_Position;
+            void main() {
+                gl_Position = u_Mvp * vec4(a_Position, 1.0);
+            }
+        """
+        const val SOLID_FRAGMENT = """
+            precision mediump float;
+            uniform vec4 u_Color;
+            void main() {
+                gl_FragColor = u_Color;
+            }
+        """
+    }
+}

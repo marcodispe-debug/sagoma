@@ -23,6 +23,11 @@ interface SceneRenderer {
     fun Surface(modifier: Modifier)
 
     fun setScene(scene: Scene3D)
+    /**
+     * Cambiano solo le luci (per esempio orientando un faretto con la maniglia 3D): chi lo sa fare le aggiorna senza ricostruire
+     * la geometria e risponde `true`; il comportamento di base (`false`) lascia a chi chiama il ricaricamento della scena.
+     */
+    fun setLights(lights: List<Scene3D.SceneLight>): Boolean = false
     /** Telecamera: posizione, punto guardato, alto, apertura verticale (gradi), piano vicino (cm). */
     fun setCamera(eye: Vec3, center: Vec3, up: Vec3, fovY: Double, near: Double, walking: Boolean)
     /**

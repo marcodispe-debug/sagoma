@@ -32,6 +32,11 @@ object FurnitureCatalog {
         val source: String = "",
         val author: String = "",
         val license: String = "",
+        /**
+         * Tolto dalla scelta (misure o proporzioni sbagliate nel modello): non compare nel catalogo né nella ricerca, ma i
+         * progetti che lo usano già lo trovano e lo disegnano come prima.
+         */
+        val hidden: Boolean = false,
     ) {
         val symbolKind: FurnitureSymbol get() = FurnitureSymbol.entries.firstOrNull { it.name == symbol } ?: FurnitureSymbol.Cabinet
     }
@@ -78,10 +83,16 @@ object FurnitureCatalog {
     )
 
     /** Ordine delle categorie nel catalogo (quelle non elencate vanno in fondo). */
-    private val categoryOrder = listOf("Soggiorno", "Pranzo", "Cucina", "Camera", "Bagno", "Studio", "Luci", "Tappeti", "Elettrodomestici e TV", "Decori", "Piante", "Esterni")
+    private val categoryOrder = listOf("Soggiorno", "Pranzo", KitchenModules.CATEGORY, "Cucina", "Camera", "Bagno", "Studio", "Luci", "Tappeti", "Elettrodomestici e TV", "Decori", "Piante", "Esterni", "Sport e hobby", "Garage e cantina")
 
     var items: List<Item> = emptyList()
-        private set
+        private set(value) {
+            field = value
+            byModel = null
+        }
+
+    /** Indice per modello, costruito alla prima ricerca dopo ogni cambio del catalogo (a ogni disegno si cerca un arredo). */
+    private var byModel: Map<String, Item>? = null
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -107,6 +118,16 @@ object FurnitureCatalog {
 
     const val RUG = "tappeto:"
 
+    /** I moduli della cucina componibile ([KitchenModules]): generati alla misura, senza file 3D. */
+    fun addKitchen() {
+        items = items.filterNot { KitchenModules.isModule(it.model) } + KitchenModules.catalogItems
+    }
+
+    /** Armadi, letti, librerie, tavoli e gli altri mobili generati alla misura ([ParametricFurniture]), ognuno nella sua categoria. */
+    fun addParametric() {
+        items = items.filterNot { ParametricFurniture.isModel(it.model) } + ParametricFurniture.catalogItems
+    }
+
     /** Tappeto di materiale: (materiale, tondo) oppure null se il modello è un file 3D. */
     fun rugOf(model: String): Pair<String, Boolean>? {
         if (!model.startsWith(RUG)) return null
@@ -119,15 +140,29 @@ object FurnitureCatalog {
         items = list
     }
 
+    /** Le voci che si possono scegliere: tutte tranne quelle nascoste ([Item.hidden]). */
+    val visible: List<Item>
+        get() = items.filterNot { it.hidden }
+
     val categories: List<String>
-        get() = items.map { it.category }.distinct().sortedBy { c -> categoryOrder.indexOf(c).let { if (it < 0) Int.MAX_VALUE else it } }
+        get() = visible.map { it.category }.distinct().sortedBy { c -> categoryOrder.indexOf(c).let { if (it < 0) Int.MAX_VALUE else it } }
 
-    fun item(model: String): Item? = items.firstOrNull { it.model == model }
+    fun item(model: String): Item? {
+        // Moduli della cucina: la voce si ricava dal nome (tipo e finiture), anche per finiture che il catalogo non elenca.
+        if (KitchenModules.isModule(model)) return KitchenModules.item(model)
+        if (ParametricFurniture.isModel(model)) return ParametricFurniture.item(model)
+        val index = byModel ?: HashMap<String, Item>(items.size * 2).also { m ->
+            // Se un modello comparisse due volte vale il primo, come con la ricerca in elenco.
+            for (i in items) if (i.model !in m) m[i.model] = i
+            byModel = m
+        }
+        return index[model]
+    }
 
-    /** Ricerca per nome o categoria (senza distinguere maiuscole). */
+    /** Ricerca per nome o categoria (senza distinguere maiuscole), tra le voci che si possono scegliere. */
     fun search(query: String): List<Item> {
         val q = query.trim().lowercase()
-        if (q.isEmpty()) return items
-        return items.filter { q in it.label.lowercase() || q in it.category.lowercase() }
+        if (q.isEmpty()) return visible
+        return visible.filter { q in it.label.lowercase() || q in it.category.lowercase() }
     }
 }

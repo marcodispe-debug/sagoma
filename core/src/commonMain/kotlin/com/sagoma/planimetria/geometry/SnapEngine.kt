@@ -73,6 +73,19 @@ object SnapEngine {
     }
 
     /**
+     * Come [targets], più i punti notevoli del piano di sotto (angoli, estremi e punti medi dei muri, colonne), se c'è: sono
+     * riferimenti per posare le stanze di sopra proprio sopra quelle di sotto. Il piano di sotto non si modifica mai.
+     */
+    fun targetsWithBelow(
+        plan: FloorPlan, below: FloorPlan?, excludeRoom: Long? = null, excludeCornerOf: Pair<Long, Int>? = null, faces: Boolean = false,
+    ): Targets {
+        val own = targets(plan, excludeRoom, excludeCornerOf, faces)
+        if (below == null) return own
+        val lower = targets(below, faces = faces)
+        return Targets(own.endpoints + lower.endpoints, own.midpoints + lower.midpoints, own.centers + lower.centers)
+    }
+
+    /**
      * Aggancia `p`: prima a un punto (estremità, centro, punto medio) entro `tol`; altrimenti allinea x e/o y
      * con il punto più vicino sullo stesso asse. `rightAngleRefs`: i due vicini dell'angolo trascinato (se
      * allineato con entrambi è un angolo retto).

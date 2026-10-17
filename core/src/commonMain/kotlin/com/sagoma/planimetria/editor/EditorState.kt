@@ -76,6 +76,18 @@ data class PendingOpening(
 )
 
 /** Passi del flusso di creazione stanza (§1). */
+/** Come l'utente crea la stanza (risposta a "Conosci le misure?"). */
+enum class CreationIntent {
+    /** "Sì": misure note, creazione di sempre (percorso A). */
+    EXACT,
+    /** "No": forma e misure approssimative (schizzo), senza scansione subito; la scansione si può avviare dopo. */
+    APPROX,
+    /** "No": forma e misure approssimative + scansione: si disegna lo schizzo, poi si avvia la scansione con un tasto. */
+    APPROX_SCAN;
+
+    val isSketch: Boolean get() = this != EXACT
+}
+
 sealed interface CreationStep {
     val cancellable: Boolean
 
@@ -89,12 +101,23 @@ sealed interface CreationStep {
 
     /** Stanza da rilievo: lati e diagonali misurati sul posto. */
     data class Survey(override val cancellable: Boolean) : CreationStep
+
+    /** Scansione con la fotocamera (Android): perimetro toccato sul pavimento. */
+    data class Scan(override val cancellable: Boolean) : CreationStep
 }
+
+/**
+ * Orientamento di un faretto in corso: `basePlan` è la pianta com'era all'inizio del trascinamento. La vista 3D tiene la scena
+ * costruita su quella e aggiorna solo le luci (senza ricostruire la geometria a ogni movimento del dito).
+ */
+data class AimDrag(val roomId: Long, val fixtureId: Long, val basePlan: FloorPlan)
 
 /** Elemento afferrato con un trascinamento sulla pianta. */
 sealed interface DragTarget {
     data class Corner(val roomId: Long, val index: Int) : DragTarget
     data class Wall(val roomId: Long, val index: Int) : DragTarget
+    /** Maniglia 3D del fascio di un faretto a parete: si trascina per orientarlo (non sposta il faretto). */
+    data class SpotAim(val roomId: Long, val fixtureId: Long) : DragTarget
     /** Linea di un'apertura: si trascina lungo il proprio muro. */
     data class Opening(val roomId: Long, val openingId: Long) : DragTarget
     /** Impianto: a muro scorre lungo il muro, al soffitto si sposta liberamente. */
@@ -181,7 +204,7 @@ data class EditorUiState(
      * Tutti i piani. La pianta del piano corrente qui può essere vecchia: quella giusta è [plan]
      * (si aggiorna a ogni trascinamento); la casa completa è [fullBuilding].
      */
-    val building: Building = Building.single(FloorPlan()),
+    val building: Building = Building.single(FloorPlan(), autoLevel = true),
     /** Finestra per aggiungere o modificare un piano. */
     val floorDialog: FloorDialog? = null,
     /** Strumento "Distanza" attivo: i tocchi scelgono gli oggetti da misurare. */
@@ -192,8 +215,19 @@ data class EditorUiState(
     val creation: CreationStep? = null,
     /** Tipo proposto nella creazione (es. balcone dal pulsante "+ Balcone o terrazza"); null = scelta libera. */
     val creationType: RoomType? = null,
+    /**
+     * Risposta a "Conosci le misure?" per la creazione in corso (null = domanda non ancora fatta). La UI la chiede solo dove la
+     * scansione guidata è disponibile; con [CreationIntent.EXACT] la creazione è quella di sempre (percorso A).
+     */
+    val creationIntent: CreationIntent? = null,
+    /** Scansione guidata dallo schizzo aperta su questa stanza. */
+    val sketchScanRoomId: Long? = null,
+    /** Avvisi "schizzo da misurare" chiusi con "Chiudi" in questa sessione (non salvati: alla riapertura l'avviso torna). */
+    val dismissedSketchBanners: Set<Long> = emptySet(),
     /** Trascinamento in corso sulla pianta: la vista non va ricentrata mentre il dito si muove. */
     val dragging: Boolean = false,
+    /** Faretto a parete che si sta orientando con la maniglia 3D (null altrimenti). */
+    val aimDrag: AimDrag? = null,
     val pendingOpening: PendingOpening? = null,
     /**
      * Tendina delle informazioni aperta. Selezionando qualcosa compare solo la striscia "Info" in basso:

@@ -1,5 +1,6 @@
 package com.sagoma.planimetria.desktop
 
+import com.sagoma.planimetria.assets.AssetPaths
 import com.sagoma.planimetria.ui.GltfModel
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
@@ -29,7 +30,7 @@ internal class GlResources(private val readAsset: (String) -> ByteArray?) {
     }
 
     /** Texture di un materiale fotografico (`kind`: color, normal, orm). */
-    fun material(id: String, kind: String): Int = texture("mat:$id:$kind", { readAsset("materials/${id}_$kind.jpg") })
+    fun material(id: String, kind: String): Int = texture("mat:$id:$kind", { readAsset(AssetPaths.materialMap(id, kind)) })
 
     private fun upload(src: Image, maxSide: Int): Int {
         val k = minOf(1f, maxSide.toFloat() / max(src.width, src.height))
@@ -65,7 +66,7 @@ internal class GlResources(private val readAsset: (String) -> ByteArray?) {
 
     /** Modello di un arredo (null se il file manca o non si legge). */
     fun model(name: String): GpuModel? = models.getOrPut(name) {
-        val bytes = readAsset("furniture/$name.glb") ?: return@getOrPut null
+        val bytes = readAsset(AssetPaths.furnitureModel(name)) ?: return@getOrPut null
         val m = runCatching { GltfModel.parse(bytes) }.getOrNull() ?: return@getOrPut null
         val parts = m.parts.map { p ->
             val n = p.positions.size / 3

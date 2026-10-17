@@ -1,12 +1,13 @@
 package com.sagoma.planimetria.ui
 
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -19,6 +20,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,9 +51,13 @@ import androidx.compose.ui.unit.sp
 import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.WallArrow
+import com.sagoma.planimetria.editor.WallDirection
+import com.sagoma.planimetria.editor.WallDirectionProblem
 import com.sagoma.planimetria.editor.WallDraw
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
+import kotlin.math.abs
 
 private val DraftWall = Color(0xFF3A3F44)
 private val DraftPreview = Color(0xFF1D6FD1)
@@ -102,10 +108,23 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
     val wd = state.wallDraw ?: return
     var length by remember { mutableStateOf("") }
     var angle by remember { mutableStateOf("") }
+    var arrow by remember { mutableStateOf<WallArrow?>(null) }
+    val firstWall = wd.points.size < 2
+    val lengthCm = length.replace(',', '.').toDoubleOrNull()
+    val cornerDeg = angle.replace(',', '.').toDoubleOrNull().takeIf { arrow != null && !firstWall }
+    val typed = arrow?.let { vm.typedWallDirection(it, cornerDeg) }
+    val problem = (typed as? WallDirection.Result.Invalid)?.problem
+    // Anteprima tratteggiata del muro scritto, prima di "Aggiungi"; a ogni angolo messo (o tolto) e a ogni anteprima la
+    // vista segue la stanza in costruzione, sotto questa scheda.
+    LaunchedEffect(lengthCm, arrow, cornerDeg, wd.points.size) {
+        vm.drawWallsTypedPreview(lengthCm, arrow, cornerDeg)
+        followWallDraft(vm, includeCursor = arrow != null && lengthCm != null)
+    }
     fun add() {
-        val l = length.replace(',', '.').toDoubleOrNull() ?: return
-        vm.drawWallsTyped(l, angle.replace(',', '.').toDoubleOrNull())
-        length = ""
+        val l = lengthCm ?: return
+        if (vm.drawWallsTyped(l, arrow, cornerDeg)) {
+            length = ""; angle = ""; arrow = null
+        }
     }
     Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 3.dp, shadowElevation = 6.dp, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -118,29 +137,54 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
                 },
                 style = MaterialTheme.typography.bodySmall,
             )
-            if (wd.points.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                val keys = Modifier.onPreviewKeyEvent { e ->
-                    if (e.type == KeyEventType.KeyDown && (e.key == Key.Enter || e.key == Key.NumPadEnter)) { add(); true } else false
+            if (wd.points.isNotEmpty()) {
+                // Verso dove va il muro: la freccia che torna indietro sul muro precedente non si può scegliere.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Verso:", style = MaterialTheme.typography.labelLarge, modifier = Modifier.align(Alignment.CenterVertically))
+                    for (a in WallArrow.entries) {
+                        val back = vm.typedWallDirection(a, null) is WallDirection.Result.Invalid
+                        FilterChip(
+                            selected = arrow == a, enabled = !back,
+                            onClick = { arrow = if (arrow == a) null else a },
+                            label = { Text(arrowLabel(a)) },
+                        )
+                    }
                 }
-                OutlinedTextField(
-                    value = length, onValueChange = { length = it }, label = { Text("Lunghezza cm") }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { add() }),
-                    modifier = Modifier.width(140.dp).then(keys),
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val keys = Modifier.onPreviewKeyEvent { e ->
+                        if (e.type == KeyEventType.KeyDown && (e.key == Key.Enter || e.key == Key.NumPadEnter)) { add(); true } else false
+                    }
+                    OutlinedTextField(
+                        value = length, onValueChange = { length = it }, label = { Text("Lunghezza cm") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { add() }),
+                        modifier = Modifier.weight(1f).then(keys),
+                    )
+                    // L'angolo tra i muri ha senso dal secondo muro e con una freccia che dice da che parte girare.
+                    if (!firstWall) OutlinedTextField(
+                        value = angle, onValueChange = { angle = it }, label = { Text("Angolo tra i muri °") }, singleLine = true,
+                        enabled = arrow != null, placeholder = { Text("90") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { add() }),
+                        modifier = Modifier.weight(1f).then(keys),
+                    )
+                    Button(onClick = { add() }, enabled = lengthCm != null && lengthCm > 0 && problem == null) { Text("Aggiungi") }
+                }
+                Text(
+                    when {
+                        problem == WallDirectionProblem.ANGLE_OUT_OF_RANGE -> "L'angolo tra i muri va da 1° a 179°."
+                        problem == WallDirectionProblem.ANGLE_WITHOUT_SIDE ->
+                            "Con questa freccia il muro prosegue dritto: per girare scegli una freccia di lato, oppure togli l'angolo."
+                        problem == WallDirectionProblem.BACKWARDS -> "Questa freccia torna indietro sul muro precedente."
+                        arrow == null -> "Scegli verso dove va il muro. Senza freccia il muro va verso il puntatore (le direzioni dritte e a 45° si bloccano da sole)."
+                        firstWall -> "Il muro va dritto ${arrowWhere(arrow!!)}."
+                        else -> "Angolo tra questo muro e il precedente (90° = in squadra): il muro gira ${arrowWhere(arrow!!)}. " +
+                            "Senza angolo va dritto ${arrowWhere(arrow!!)}. La linea tratteggiata mostra il muro prima di aggiungerlo."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                OutlinedTextField(
-                    value = angle, onValueChange = { angle = it }, label = { Text("Angolo °") }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { add() }),
-                    modifier = Modifier.width(100.dp).then(keys),
-                )
-                Button(onClick = { add() }, enabled = length.isNotBlank()) { Text("Aggiungi") }
             }
-            if (wd.points.isNotEmpty()) Text(
-                "Senza angolo il muro va verso il puntatore (0°, 45° e 90° si bloccano da soli). 0° = destra, 90° = su.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = vm::drawWallsUndo, enabled = wd.points.isNotEmpty()) { Text("↶ Ultimo") }
                 TextButton(onClick = vm::drawWallsClose, enabled = wd.points.size >= 3) { Text("Chiudi stanza") }
@@ -149,6 +193,36 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
         }
     }
     if (wd.closing) WallDrawCloseDialog(vm)
+}
+
+/** Scorre (e se serve rimpicciolisce) la vista fino a [EditorViewModel.wallDraftCamera], con una breve animazione. */
+private suspend fun followWallDraft(vm: EditorViewModel, includeCursor: Boolean) {
+    val target = vm.wallDraftCamera(includeCursor) ?: return
+    val start = vm.state.value.camera
+    if (abs(target.offsetX - start.offsetX) < 1f && abs(target.offsetY - start.offsetY) < 1f && target.scale == start.scale) return
+    animate(0f, 1f, animationSpec = tween(durationMillis = 280)) { t, _ ->
+        vm.setCamera(
+            Camera(
+                scale = start.scale + (target.scale - start.scale) * t,
+                offsetX = start.offsetX + (target.offsetX - start.offsetX) * t,
+                offsetY = start.offsetY + (target.offsetY - start.offsetY) * t,
+            ),
+        )
+    }
+}
+
+private fun arrowLabel(a: WallArrow) = when (a) {
+    WallArrow.RIGHT -> "→ destra"
+    WallArrow.DOWN -> "↓ giù"
+    WallArrow.LEFT -> "← sinistra"
+    WallArrow.UP -> "↑ su"
+}
+
+private fun arrowWhere(a: WallArrow) = when (a) {
+    WallArrow.RIGHT -> "verso destra"
+    WallArrow.DOWN -> "verso il basso"
+    WallArrow.LEFT -> "verso sinistra"
+    WallArrow.UP -> "verso l'alto"
 }
 
 /** Forma chiusa: tipo di stanza, altezza del soffitto e spessore dei muri. */

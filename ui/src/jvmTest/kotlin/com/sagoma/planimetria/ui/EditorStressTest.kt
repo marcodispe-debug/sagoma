@@ -252,7 +252,11 @@ class EditorStressTest {
                 val o = Vec2(rv(800.0), rv(800.0))
                 val n = rnd.nextInt(2, 6)
                 repeat(n) { vm.drawWallsTap(o + Vec2(rv(400.0), rv(400.0))) }
-                if (rnd.nextBoolean()) vm.drawWallsTyped(rnd.nextDouble(50.0, 500.0), if (rnd.nextBoolean()) rnd.nextDouble(0.0, 360.0) else null)
+                if (rnd.nextBoolean()) vm.drawWallsTyped(
+                    rnd.nextDouble(50.0, 500.0),
+                    if (rnd.nextBoolean()) pick(com.sagoma.planimetria.editor.WallArrow.entries) else null,
+                    if (rnd.nextBoolean()) rnd.nextDouble(-10.0, 200.0) else null,
+                )
                 vm.drawWallsClose()
                 if (vm.state.value.wallDraw?.closing == true) vm.finishDrawWalls(pick(RoomType.entries)!!, 270.0, 25.0) else vm.cancelDrawWalls()
             },

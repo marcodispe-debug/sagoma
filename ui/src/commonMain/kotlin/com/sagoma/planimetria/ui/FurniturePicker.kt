@@ -31,6 +31,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +45,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.sagoma.planimetria.assets.AssetPaths
+import com.sagoma.planimetria.assets.remote.AssetPriority
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.model.FurnitureCatalog
 
@@ -64,10 +68,10 @@ private fun FurnitureCatalogDialog(onDismiss: () -> Unit, onPick: (FurnitureCata
     var category by remember { mutableStateOf(categories.firstOrNull().orEmpty()) }
     var query by remember { mutableStateOf("") }
     var credits by remember { mutableStateOf(false) }
-    val shown = if (query.isBlank()) FurnitureCatalog.items.filter { it.category == category } else FurnitureCatalog.search(query)
+    val shown = if (query.isBlank()) FurnitureCatalog.visible.filter { it.category == category } else FurnitureCatalog.search(query)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Arredi (${FurnitureCatalog.items.size})") },
+        title = { Text("Arredi (${FurnitureCatalog.visible.size})") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
@@ -104,9 +108,24 @@ private fun CatalogCard(item: FurnitureCatalog.Item, onClick: () -> Unit) {
     Surface(onClick = onClick, shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
         Column(Modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.size(width = 88.dp, height = 70.dp).background(Color(0xFFF6F5F2), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                // Leggere la versione fa ricomporre la scheda quando arriva un asset: la miniatura si rilegge, e se manca si richiede di nuovo.
+                val assetRequests = LocalPlatform.current.assetRequests
+                val assetsVersion by assetRequests.version.collectAsState()
                 val thumb = FurnitureAssets.thumbnail(item.model)
+                val kitchen = com.sagoma.planimetria.model.KitchenModules.parse(item.model)
+                val parts = if (kitchen == null) com.sagoma.planimetria.geometry.GeneratedGeometry.parts(item.model, item.width, item.depth, item.height) else null
+                // I mobili generati alla misura non hanno file da scaricare.
+                if (thumb == null && kitchen == null && parts == null) LaunchedEffect(item.model, assetsVersion) {
+                    assetRequests.request(AssetPaths.furnitureThumbnail(item.model), AssetPriority.Visible)
+                }
                 if (thumb != null) {
                     Image(thumb, contentDescription = item.label, contentScale = ContentScale.Fit, modifier = Modifier.size(width = 84.dp, height = 66.dp))
+                } else if (kitchen != null) Canvas(Modifier.size(width = 88.dp, height = 70.dp)) {
+                    // Modulo della cucina: visto dal davanti, con ante, cassetti e forno.
+                    kitchenFrontView(kitchen, item.width, item.height, 6.dp.toPx())
+                } else if (parts != null) Canvas(Modifier.size(width = 88.dp, height = 70.dp)) {
+                    // Mobile generato alla misura: visto dal davanti.
+                    partsFrontView(parts, item.width, item.height, 6.dp.toPx())
                 } else Canvas(Modifier.size(width = 88.dp, height = 70.dp)) {
                     // Senza miniatura: il simbolo in pianta, in scala.
                     val k = minOf((size.width - 16.dp.toPx()) / item.width.toFloat(), (size.height - 16.dp.toPx()) / item.depth.toFloat())

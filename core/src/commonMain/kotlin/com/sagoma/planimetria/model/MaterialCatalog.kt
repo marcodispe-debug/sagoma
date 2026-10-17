@@ -30,6 +30,12 @@ object MaterialCatalog {
         val forRug: Boolean get() = use == "tappeto" || category == "Moquette"
     }
 
+    /**
+     * Il materiale dell'erba che i renderer pro stendono attorno alla casa (e che quindi serve a ogni scena con una
+     * pianta): una sola definizione, per chi lo disegna e per chi calcola gli asset da preparare ([com.sagoma.planimetria.assets.AssetPlanner]).
+     */
+    const val GRASS = "grass005"
+
     var items: List<Item> = emptyList()
         private set
 

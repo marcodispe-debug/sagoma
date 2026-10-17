@@ -1,6 +1,5 @@
 package com.sagoma.planimetria.ui
 
-import android.content.Context
 import android.graphics.BitmapFactory
 import android.util.Log
 import com.google.android.filament.Box
@@ -18,6 +17,8 @@ import com.google.android.filament.TextureSampler
 import com.google.android.filament.VertexBuffer
 import com.google.android.filament.android.TextureHelper
 import com.google.android.filament.gltfio.MaterialProvider
+import com.sagoma.planimetria.assets.AssetPaths
+import com.sagoma.planimetria.assets.AssetStore
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -32,11 +33,11 @@ internal class TexturedSurfaces(
     private val engine: Engine,
     private val scene: Scene,
     private val provider: MaterialProvider,
+    private val assets: AssetStore,
 ) {
     private class Mat(val instance: MaterialInstance, val textures: List<Texture>)
     private class Surface(val entity: Int, val vb: VertexBuffer, val ib: IndexBuffer)
 
-    var context: Context? = null
     private val mats = HashMap<String, Mat?>()
     private val surfaces = mutableListOf<Surface>()
     private val sampler = TextureSampler(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR, TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.REPEAT).apply { anisotropy = 4f }
@@ -119,9 +120,9 @@ internal class TexturedSurfaces(
 
     /** Materiale del motore con le tre mappe di `materials/<id>_*.jpg`. */
     private fun load(id: String): Mat? = runCatching {
-        val ctx = context ?: return null
         fun texture(suffix: String, srgb: Boolean): Texture {
-            val bmp = ctx.assets.open("materials/${id}_$suffix.jpg").use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 }) }!!
+            val bytes = assets.peek(AssetPaths.materialMap(id, suffix)) ?: error("${AssetPaths.materialMap(id, suffix)} non trovato")
+            val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 })!!
             val t = Texture.Builder()
                 .width(bmp.width).height(bmp.height).levels(0xff)
                 .format(if (srgb) Texture.InternalFormat.SRGB8_A8 else Texture.InternalFormat.RGBA8)

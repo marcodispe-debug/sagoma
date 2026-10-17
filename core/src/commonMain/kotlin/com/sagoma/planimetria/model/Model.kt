@@ -156,9 +156,19 @@ enum class FixtureKind(val label: String, val mount: Mount, val linear: Boolean 
     Chandelier("Lampadario", Mount.Ceiling),
     CeilingLight("Plafoniera", Mount.Ceiling),
     LedStrip("Striscia LED", Mount.Ceiling, linear = true),
-    WaterPoint("Punto acqua", Mount.Wall);
+    WaterPoint("Punto acqua", Mount.Wall),
+    /** Plafoniera fissata verticalmente a una parete (a muro come presa e interruttore, ma è una luce). */
+    WallLight("Plafoniera a parete", Mount.Wall),
+    /** Faretto fissato a una parete, rivolto verso la stanza. */
+    WallSpot("Faretto a parete", Mount.Wall),
+    /** Striscia LED fissata a una parete: lunga `length`, segue il muro (nessuna rotazione), a `elevation` da terra. */
+    WallLedStrip("Striscia LED a parete", Mount.Wall);
 
-    val isLight get() = mount == Mount.Ceiling
+    /** Luce vera: a soffitto o a parete. */
+    val isLight get() = when (this) {
+        Spotlight, Neon, Chandelier, CeilingLight, LedStrip, WallLight, WallSpot, WallLedStrip -> true
+        Radiator, Outlet, Switch, WaterPoint -> false
+    }
 }
 
 /**
@@ -182,13 +192,30 @@ data class Fixture(
     /** Modello del termosifone e del lampadario. */
     val radiatorModel: RadiatorModel = RadiatorModel.Panel,
     val lampModel: LampModel = LampModel.Modern,
+    /**
+     * Faretto a parete: rotazione orizzontale del fascio (gradi, [0, 360), 0° = lungo la normale della parete) e inclinazione
+     * (gradi, da −90 a 90: 0° orizzontale, positivo verso il basso). I valori di default sono quelli di sempre (45° verso il basso).
+     */
+    val aimYaw: Double = 0.0,
+    val aimTilt: Double = DEFAULT_AIM_TILT,
 ) {
     companion object {
+        /** Inclinazione (gradi verso il basso) del fascio di un faretto a parete appena messo. */
+        const val DEFAULT_AIM_TILT = 45.0
+
+        /** Altezza da terra (cm) di plafoniere e faretti a parete appena messi. */
+        const val WALL_LIGHT_ELEVATION = 220.0
+        /** Striscia LED a parete appena messa: lunghezza e altezza da terra (cm). */
+        const val WALL_LED_LENGTH = 200.0
+        const val WALL_LED_ELEVATION = 250.0
+
         fun default(id: Long, kind: FixtureKind) = when (kind) {
             FixtureKind.Radiator -> Fixture(id, kind, length = 80.0, height = 60.0, elevation = 12.0)
             FixtureKind.Outlet -> Fixture(id, kind, elevation = 30.0)
             FixtureKind.Switch -> Fixture(id, kind, elevation = 110.0)
             FixtureKind.WaterPoint -> Fixture(id, kind, elevation = 50.0)
+            FixtureKind.WallLight, FixtureKind.WallSpot -> Fixture(id, kind, elevation = WALL_LIGHT_ELEVATION)
+            FixtureKind.WallLedStrip -> Fixture(id, kind, length = WALL_LED_LENGTH, elevation = WALL_LED_ELEVATION)
             FixtureKind.Neon -> Fixture(id, kind, length = 120.0)
             FixtureKind.LedStrip -> Fixture(id, kind, length = 200.0)
             else -> Fixture(id, kind)
@@ -248,6 +275,12 @@ data class Room(
     val removedWalls: Set<Int> = emptySet(),
     /** Stato di fatto / progetto dei muri (indici): da demolire o nuovi; assente = esistente. */
     val wallPhases: Map<Int, Phase> = emptyMap(),
+    /**
+     * Stanza creata come SCHIZZO (forma e misure approssimative) e non ancora misurata con la scansione guidata: offre
+     * "Avvia scansione". Torna false quando la scansione aggiorna la stanza. Assente nei file vecchi = false; non viene scritta
+     * quando è false (i file delle stanze normali restano identici a prima).
+     */
+    val sketchPending: Boolean = false,
 ) {
     /** Stato del muro `i` (esistente, da demolire, nuovo). */
     fun phaseOf(i: Int): Phase = wallPhases[i] ?: Phase.Existing
@@ -678,6 +711,8 @@ data class FloorPlan(
 /**
  * Un piano della casa. `levelHeight` è l'interpiano: dal pavimento di questo piano a quello del piano
  * di sopra (soffitto + solaio); è anche l'altezza che devono superare le sue scale.
+ * `autoLevel`: l'interpiano è calcolato (stanza al chiuso più alta + [SLAB]) e si aggiorna da solo con le
+ * stanze; `false` = valore scelto a mano, che non cambia. I file senza questo campo (anteriori) sono manuali.
  */
 @Serializable
 data class Floor(
@@ -685,11 +720,19 @@ data class Floor(
     val name: String,
     val plan: FloorPlan = FloorPlan(),
     val levelHeight: Double = DEFAULT_LEVEL_HEIGHT,
+    val autoLevel: Boolean = false,
 ) {
+    /** Con l'interpiano automatico, lo riporta al valore calcolato dalle stanze; altrimenti non cambia niente. */
+    fun synced(): Floor = if (autoLevel) autoLevelHeight(plan).let { if (it == levelHeight) this else copy(levelHeight = it) } else this
+
     companion object {
         const val DEFAULT_LEVEL_HEIGHT = 300.0
         /** Spessore del solaio tra un piano e l'altro, nel 3D. */
         const val SLAB = 30.0
+
+        /** Interpiano automatico: altezza della stanza al chiuso più alta (i balconi non contano) più il solaio. */
+        fun autoLevelHeight(plan: FloorPlan): Double =
+            (plan.rooms.filter { !it.outdoor }.maxOfOrNull { it.ceilingHeight } ?: Room.DEFAULT_CEILING_HEIGHT) + SLAB
     }
 }
 
@@ -713,13 +756,17 @@ data class Building(
     fun elevation(index: Int): Double = floors.take(index).sumOf { it.levelHeight }
 
     /** Stessa casa con la pianta del piano corrente sostituita. */
-    fun withPlan(plan: FloorPlan): Building =
-        if (floor.plan == plan) this else copy(floors = floors.mapIndexed { i, f -> if (i == current) f.copy(plan = plan) else f })
+    fun withPlan(plan: FloorPlan): Building {
+        val updated = floor.copy(plan = plan).synced() // con l'interpiano automatico segue le stanze
+        return if (updated == floor) this else copy(floors = floors.mapIndexed { i, f -> if (i == current) updated else f })
+    }
 
     val nextFloorId: Long get() = (floors.maxOfOrNull { it.id } ?: 0L) + 1
 
     companion object {
-        fun single(plan: FloorPlan) = Building(listOf(Floor(1, floorName(0), plan)))
+        /** Casa a un piano. `autoLevel`: l'interpiano segue le stanze (i progetti nuovi); i file vecchi sono manuali. */
+        fun single(plan: FloorPlan, autoLevel: Boolean = false) =
+            Building(listOf(Floor(1, floorName(0), plan, autoLevel = autoLevel).synced()))
 
         /** Nome proposto per il piano `index` (0 = piano terra). */
         fun floorName(index: Int): String = when (index) {

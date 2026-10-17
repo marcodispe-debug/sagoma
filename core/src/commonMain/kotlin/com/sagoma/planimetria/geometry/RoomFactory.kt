@@ -61,6 +61,36 @@ object RoomFactory {
     }
 
     /**
+     * Piano di sopra: la forma si posa con l'angolo in alto a sinistra su un angolo del piano di sotto, così muri e angoli si
+     * sovrappongono e il resto si regola con l'aggancio. Prima sceglie la prima stanza al chiuso di sotto ancora scoperta (nessuna
+     * stanza di sopra la copre); se sono tutte coperte (per esempio il piano nato con i muri copiati da quello di sotto) sceglie
+     * l'angolo di sotto più vicino a dove andrebbe di solito (accanto alle stanze di sopra). Mai sovrapposta alle stanze di sopra.
+     * Le dimensioni della forma non cambiano e il piano di sotto è solo letto. Null se non si può: allora vale [placeBeside].
+     */
+    fun placeAbove(plan: FloorPlan, below: FloorPlan?, shape: List<Vec2>): List<Vec2>? {
+        if (below == null) return null
+        val sb = Polygon.bounds(shape)
+        val existing = plan.rooms.map { Polygon.bounds(it.points) }
+        fun at(corner: Vec2) = shape.map { it - Vec2(sb.minX, sb.minY) + corner }
+        fun free(moved: List<Vec2>): Boolean {
+            val mb = Polygon.bounds(moved)
+            return existing.none { e -> mb.minX < e.maxX - 1.0 && e.minX < mb.maxX - 1.0 && mb.minY < e.maxY - 1.0 && e.minY < mb.maxY - 1.0 }
+        }
+        val indoor = below.rooms.filter { !it.outdoor }
+        for (lower in indoor) {
+            if (plan.rooms.any { Polygon.contains(it.points, Polygon.labelPoint(lower.points)) }) continue
+            val lb = Polygon.bounds(lower.points)
+            at(Vec2(lb.minX, lb.minY)).takeIf(::free)?.let { return it }
+        }
+        // Tutte coperte: l'angolo di sotto più vicino al posto di sempre.
+        val usual = Polygon.bounds(placeBeside(plan, shape)).let { Vec2(it.minX, it.minY) }
+        for (corner in indoor.flatMap { it.points }.distinct().sortedBy { it.distanceTo(usual) }) {
+            at(corner).takeIf(::free)?.let { return it }
+        }
+        return null
+    }
+
+    /**
      * Balcone o terrazza: appoggiato al muro verticale più lungo sul lato destro della casa, con il lato lungo
      * lungo il muro (così nasce già con il muro in comune). Se non c'è un muro adatto, accanto alla casa.
      */

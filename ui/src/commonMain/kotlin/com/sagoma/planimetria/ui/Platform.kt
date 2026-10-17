@@ -6,6 +6,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Density
+import com.sagoma.planimetria.assets.AssetRequests
+import com.sagoma.planimetria.assets.AssetStore
+import com.sagoma.planimetria.assets.NoAssetRequests
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.persistence.ProjectRepository
 
@@ -47,8 +50,17 @@ interface Platform {
     /** Condivide un testo con le altre app (mail, messaggi…). */
     fun shareText(subject: String, text: String)
 
-    /** File distribuito con l'app (catalogo arredi, miniature, materiali); null se non c'è. */
-    fun readAsset(path: String): ByteArray?
+    /**
+     * Da dove arrivano i file di arredi, materiali e luci (catalogo, miniature, modelli 3D, texture):
+     * nell'app, in una cartella o, più avanti, scaricati. Dove non ci sono è vuoto (EmptyAssetStore).
+     */
+    val assetStore: AssetStore
+
+    /**
+     * Come chiedere che un file diventi disponibile (e saperne l'arrivo) quando gli asset vengono da un sistema remoto; dove non
+     * c'è non fa niente.
+     */
+    val assetRequests: AssetRequests get() = NoAssetRequests
 
     /** Immagine (PNG, JPEG) da mostrare. */
     fun decodeImage(bytes: ByteArray): ImageBitmap?
@@ -71,6 +83,9 @@ interface Platform {
     /** Ora attuale in millisecondi. */
     fun now(): Long
 
+    /** Scansione delle stanze con la fotocamera; null dove non esiste. */
+    val roomScanner: RoomScanner? get() = null
+
     /** Chi disegna la vista 3D. */
     fun createSceneRenderer(): SceneRenderer
 
@@ -83,6 +98,42 @@ interface Platform {
     @Composable
     fun BackHandler(enabled: Boolean, onBack: () -> Unit) {}
 }
+
+/**
+ * Scansione di una stanza con la fotocamera (realtà aumentata): c'è solo dove la piattaforma la sa fare (Android); altrove
+ * [Platform.roomScanner] è null. Il risultato è in centimetri, nel sistema di Sagoma, senza tipi di ARCore.
+ */
+interface RoomScanner {
+    /** Schermata della scansione; `onResult(null)` se l'utente annulla o la scansione non è possibile. */
+    @Composable
+    fun Screen(onResult: (com.sagoma.planimetria.scan.ScanResult?) -> Unit)
+
+    /**
+     * Percorso B: scansione guidata dallo schizzo `room` (la stanza stessa). `onResult(null)` se l'utente esce; altrimenti gli
+     * angoli misurati (mondo AR, filo interno, ordine dei muri) e le posizioni delle aperture corrette nella revisione.
+     * Di default non c'è: solo la piattaforma che la sa fare la implementa.
+     */
+    @Composable
+    fun SketchScreen(room: com.sagoma.planimetria.model.Room, onResult: (SketchScanOutcome?) -> Unit) {
+        androidx.compose.runtime.LaunchedEffect(Unit) { onResult(null) }
+    }
+
+    /** PROTOTIPO: scansione ibrida (pavimento, soffitto, pareti dalla profondità) sulla stessa stanza. Di default non c'è. */
+    @Composable
+    fun HybridScreen(room: com.sagoma.planimetria.model.Room, onResult: (SketchScanOutcome?) -> Unit) {
+        androidx.compose.runtime.LaunchedEffect(Unit) { onResult(null) }
+    }
+
+    /** C'è il prototipo della scansione ibrida? */
+    val hasHybridPrototype: Boolean get() = false
+}
+
+/** Esito della scansione guidata dallo schizzo, da applicare alla stessa stanza con `EditorViewModel.applySketchScan`. */
+data class SketchScanOutcome(
+    val cornersAr: List<com.sagoma.planimetria.scan.ArXZ>,
+    val positionOverrides: Map<Long, Double>,
+    val widthOverrides: Map<Long, Double> = emptyMap(),
+)
 
 /** Tipo MIME che accetta qualsiasi file. */
 const val ANY_FILE = "*" + "/" + "*"

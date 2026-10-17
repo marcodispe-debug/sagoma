@@ -90,6 +90,21 @@ class Camera3D {
         return position to dir
     }
 
+    /**
+     * Punto 3D → coordinate dello schermo (x, y in pixel, come in [ray]); null se sta dietro la telecamera. È l'inverso di [ray]:
+     * serve a disegnare sulla vista 3D elementi (maniglie) legati a un punto della scena.
+     */
+    fun project(p: Vec3, w: Float, h: Float): Pair<Float, Float>? {
+        val v = p - position
+        val depth = v dot forward
+        if (depth <= 1e-6) return null
+        val t = tan(toRadians(fovY / 2))
+        val aspect = w.toDouble() / h
+        val ndcX = (v dot right) / (depth * t * aspect)
+        val ndcY = (v dot up) / (depth * t)
+        return ((ndcX + 1) / 2 * w).toFloat() to ((1 - ndcY) / 2 * h).toFloat()
+    }
+
     /** Intersezione di un raggio con il piano che passa per `point` con normale `normal` (null se parallelo o dietro). */
     fun rayPlane(origin: Vec3, dir: Vec3, point: Vec3, normal: Vec3): Vec3? {
         val den = dir dot normal

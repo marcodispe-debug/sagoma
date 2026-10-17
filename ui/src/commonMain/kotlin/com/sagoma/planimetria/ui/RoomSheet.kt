@@ -296,6 +296,12 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
 
         // Misure calcolate.
         SectionTitle("Misure")
+        // Percorso B: SOLO le stanze create come schizzo (e non ancora misurate) offrono la scansione guidata.
+        if (room.sketchPending && FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.SKETCH_GUIDED_SCAN)) {
+            androidx.compose.material3.Button(onClick = { vm.startSketchScan(room.id) }) {
+                Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.startScan)
+            }
+        }
         // Lunghezze e perimetro sul lato interno dei muri, come l'area.
         val lengths = interiorLengths(room)
         val perimeter = lengths.sum()
@@ -372,11 +378,8 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
 
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = { vm.requestDeleteRoom(room.id) }, enabled = plan.rooms.size > 1) {
-                Text(
-                    if (plan.rooms.size > 1) "Elimina stanza" else "Unica stanza (non eliminabile)",
-                    color = if (plan.rooms.size > 1) MaterialTheme.colorScheme.error else Color.Unspecified,
-                )
+            TextButton(onClick = { vm.requestDeleteRoom(room.id) }) {
+                Text("Elimina stanza", color = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -385,7 +388,8 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
 /** Dati principali di un impianto per l'elenco della stanza. */
 private fun fixtureSummary(f: Fixture): String = when (f.kind) {
     FixtureKind.Radiator -> "muro ${f.wallIndex + 1} · ${formatCm(f.length)}×${formatCm(f.height)} cm · da terra ${formatCm(f.elevation)}"
-    FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint -> "muro ${f.wallIndex + 1} · da terra ${formatCm(f.elevation)} cm"
+    FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint, FixtureKind.WallLight, FixtureKind.WallSpot -> "muro ${f.wallIndex + 1} · da terra ${formatCm(f.elevation)} cm"
+    FixtureKind.WallLedStrip -> "muro ${f.wallIndex + 1} · ${formatCm(f.length)} cm · da terra ${formatCm(f.elevation)} cm"
     FixtureKind.Neon, FixtureKind.LedStrip -> "${formatCm(f.length)} cm · ${formatCm(f.rotation)}°"
     else -> "soffitto"
 }

@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.Density
+import com.sagoma.planimetria.assets.AssetStore
+import com.sagoma.planimetria.assets.EmptyAssetStore
 import com.sagoma.planimetria.ui.ImportedImage
 import com.sagoma.planimetria.ui.PdfPage
 import com.sagoma.planimetria.ui.PickedFile
@@ -83,8 +85,8 @@ class WebPlatform : Platform {
         toast("Copiato negli appunti: incollalo dove vuoi")
     }
 
-    /** Arredi e materiali 3D arriveranno sul web con il catalogo online. */
-    override fun readAsset(path: String): ByteArray? = null
+    /** Nessun asset sul web per ora: arredi e materiali 3D arriveranno con il catalogo online (un altro [AssetStore]). */
+    override val assetStore: AssetStore = EmptyAssetStore
 
     override fun decodeImage(bytes: ByteArray): ImageBitmap? = SkiaImages.decode(bytes)
     override fun encodePng(image: ImageBitmap): ByteArray? = SkiaImages.encodePng(image)

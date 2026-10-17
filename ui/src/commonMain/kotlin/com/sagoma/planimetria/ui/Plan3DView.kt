@@ -1,5 +1,6 @@
 package com.sagoma.planimetria.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -33,6 +34,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.foundation.focusable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateSetOf
@@ -67,8 +69,10 @@ import com.sagoma.planimetria.geometry.Camera3D
 import com.sagoma.planimetria.geometry.Pick
 import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.Scene3D
+import com.sagoma.planimetria.geometry.SpotAim
 import com.sagoma.planimetria.geometry.Vec3
 import com.sagoma.planimetria.geometry.at
+import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Mount
 import com.sagoma.planimetria.model.Vec2
@@ -105,9 +109,25 @@ class View3DState {
     /** Cursore dell'ora aperto. */
     var timePanel by mutableStateOf(false)
 
+    /** Cambia a ogni movimento della telecamera: chi disegna sopra la scena (maniglie) la legge nel disegno per seguirla. */
+    var tick by mutableStateOf(0)
+        private set
+    private var tickCounter = 0
+
     fun refresh() {
+        tick = ++tickCounter
         renderer?.setDaylight(hour, lamps)
         renderer?.setCamera(camera.position, camera.position + camera.forward, camera.up, camera.fovY, camera.near, walking)
+    }
+
+    /**
+     * Solo le luci cambiano (faretto orientato con la maniglia): il renderer le aggiorna sul posto, senza ricostruire la scena;
+     * se non lo sa fare, riceve la scena corrente con le luci nuove.
+     */
+    fun setLights(lights: List<Scene3D.SceneLight>) {
+        val s = scene ?: return
+        val r = renderer ?: return
+        if (!r.setLights(lights)) r.setScene(s.withLights(lights))
     }
 
     /** Pulsante delle luci: automatiche → accese → spente → automatiche. */
@@ -344,15 +364,27 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     // Stato di fatto / progetto: il 3D mostra come sarà (progetto) o, nella vista "stato di fatto", com'è ora.
     val phase = if (state.phaseView == com.sagoma.planimetria.geometry.PhaseView.Existing) com.sagoma.planimetria.geometry.PhaseView.Existing
     else com.sagoma.planimetria.geometry.PhaseView.Project
-    val scene = remember(state.plan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, view.walking, noFurniture, phase) {
+    // Mentre si orienta un faretto la scena resta quella di prima (niente ricostruzione della geometria a ogni movimento del dito):
+    // cambiano solo le luci (vedi sotto). Alla fine del trascinamento la scena si ricostruisce con il nuovo orientamento.
+    val scenePlan = state.aimDrag?.basePlan ?: state.plan
+    val scene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, view.walking, noFurniture, phase) {
         fun shown(p: com.sagoma.planimetria.model.FloorPlan) = com.sagoma.planimetria.geometry.Phases.view(p, phase)
-        val plan = shown(if (noFurniture) state.plan.copy(furniture = emptyList()) else state.plan)
+        val plan = shown(if (noFurniture) scenePlan.copy(furniture = emptyList()) else scenePlan)
         Scene3D.build(
             plan, state.focusedRoomId, selectedPick, ceilings = view.walking, levelHeight = state.levelHeight,
             below = below.map { it.copy(plan = shown(it.plan)) }, above = above?.let { it.copy(plan = shown(it.plan)) },
         )
     }
     LaunchedEffect(scene) { view.setScene(scene) }
+    // Orientamento di un faretto in corso: la luce vera segue la maniglia, aggiornando solo le luci del renderer.
+    val aim = state.aimDrag
+    LaunchedEffect(aim, state.plan) {
+        if (aim == null) return@LaunchedEffect
+        val room = state.plan.room(aim.roomId) ?: return@LaunchedEffect
+        val f = room.fixture(aim.fixtureId) ?: return@LaunchedEffect
+        val dir = SpotAim.directionOf(room, f)
+        view.setLights(scene.lights.map { if (it.fixtureId == f.id) it.copy(direction = dir) else it })
+    }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { view.onPause() }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { view.onResume() }
 
@@ -392,6 +424,18 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
         val renderer = remember { view.attach(platform) }
         DisposableEffect(renderer) { onDispose { view.detach() } }
         renderer.Surface(Modifier.fillMaxSize())
+        // Maniglia del fascio del faretto a parete selezionato: disegnata sopra la scena (non fa parte della geometria 3D).
+        Canvas(Modifier.fillMaxSize()) {
+            @Suppress("UNUSED_EXPRESSION") view.tick // la telecamera si è mossa: si ridisegna
+            val g = spotGizmo(currentState, view.camera, size.width, size.height, view.walking) ?: return@Canvas
+            val a = Offset(g.first.first, g.first.second)
+            val b = Offset(g.second.first, g.second.second)
+            drawLine(Color.Black.copy(alpha = 0.35f), a, b, strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round)
+            drawLine(GizmoColor, a, b, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+            drawCircle(GizmoColor.copy(alpha = 0.25f), GIZMO_TOUCH_DP.dp.toPx() / 2, b) // area di tocco, almeno 44 dp
+            drawCircle(Color.White, 14.dp.toPx(), b)
+            drawCircle(GizmoColor, 11.dp.toPx(), b)
+        }
         // Gesti sopra la superficie 3D.
         Box(
             Modifier.fillMaxSize()
@@ -438,6 +482,28 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
                             ch.consume()
                         }
                         return@awaitEachGesture
+                    }
+                    // Maniglia del fascio di un faretto a parete selezionato: si controlla prima di qualunque oggetto della scena,
+                    // così trascinarla orienta il fascio e non sposta il faretto, la stanza o la vista.
+                    val gizmo = spotGizmo(currentState, cam, w, h, view.walking)
+                    val selected = currentState.selection as? Selection.Fixture
+                    if (gizmo != null && selected != null && currentState.pendingFixture == null && currentState.pendingOpening == null) {
+                        val handle = Offset(gizmo.second.first, gizmo.second.second)
+                        if ((down.position - handle).getDistance() <= GIZMO_TOUCH_DP.dp.toPx() / 2) {
+                            val aimTarget = DragTarget.SpotAim(selected.roomId, selected.fixtureId)
+                            vm.beginDrag(aimTarget, Vec2.Zero)
+                            down.consume()
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val ch = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!ch.pressed) break
+                                val (ro, rd) = cam.ray(ch.position.x, ch.position.y, w, h)
+                                vm.dragAim(aimTarget, ro, rd)
+                                ch.consume()
+                            }
+                            vm.endDrag()
+                            return@awaitEachGesture
+                        }
                     }
                     val (o0, d0) = cam.ray(down.position.x, down.position.y, w, h)
                     val hit = currentScene.hit(o0, d0)
@@ -511,6 +577,27 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
             },
         )
     }
+}
+
+private val GizmoColor = Color(0xFFE8A200)
+
+/** Area di tocco della maniglia (dp): almeno 44 per un dito. */
+private const val GIZMO_TOUCH_DP = 44f
+
+/**
+ * Gizmo del faretto a parete selezionato: (punto dello schermo del faretto, punto della maniglia) in pixel, con la maniglia a
+ * [SpotAim.HANDLE_LENGTH] cm dal faretto lungo il fascio. Null se non c'è un faretto selezionato, si cammina, o il punto è dietro la vista.
+ */
+private fun spotGizmo(state: EditorUiState, cam: Camera3D, w: Float, h: Float, walking: Boolean): Pair<Pair<Float, Float>, Pair<Float, Float>>? {
+    if (walking || w <= 0f || h <= 0f) return null
+    val sel = state.selection as? Selection.Fixture ?: return null
+    val room = state.plan.room(sel.roomId) ?: return null
+    val f = room.fixture(sel.fixtureId)?.takeIf { it.kind == FixtureKind.WallSpot && it.wallIndex < room.wallCount } ?: return null
+    val spot = SpotAim.position(room, f)
+    val tip = SpotAim.handle(spot, SpotAim.directionOf(room, f))
+    val a = cam.project(spot, w, h) ?: return null
+    val b = cam.project(tip, w, h) ?: return null
+    return a to b
 }
 
 /** Pulsante della vista 3D (in basso a destra, al posto della legenda): Cammina / Vista dall'alto. */

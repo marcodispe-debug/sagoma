@@ -192,4 +192,38 @@ class StairsTest {
         val far = hole.map { it + Vec2(1000.0, 0.0) }
         assertEquals(Polygon.area(tri), Clip.subtract(tri, far).sumOf { Polygon.area(it) }, 1e-6)
     }
+
+    /** Il corrimano è un profilo spesso circa 3 cm: la sua linea di mezzo è tagliata alla quota, i suoi spigoli sporgono un poco. */
+    private val RAIL_THICKNESS = 3.0
+
+    /** Quota massima dei triangoli del colore della ringhiera (grigio scuro 0,30 · 0,32 · 0,34) in una scena. */
+    private fun railTop(scene: com.sagoma.planimetria.geometry.Scene3D): Double? {
+        val a = scene.opaque
+        var top: Double? = null
+        var i = 0
+        while (i + 9 < a.size) {
+            if (Math.abs(a[i + 6] - 0.30f) < 0.005f && Math.abs(a[i + 7] - 0.32f) < 0.005f && Math.abs(a[i + 8] - 0.34f) < 0.005f) {
+                top = maxOf(top ?: -1e9, a[i + 1].toDouble())
+            }
+            i += 10
+        }
+        return top
+    }
+
+    @Test
+    fun `la ringhiera tagliata dal solaio si ferma alla faccia inferiore del solaio, non a quella superiore`() {
+        val room = Room(1, "Ingresso", RoomType.Altro, RoomFactory.rectangle(500.0, 600.0))
+        fun scene(railing: com.sagoma.planimetria.model.StairRailing, aboveFloor: Boolean): com.sagoma.planimetria.geometry.Scene3D {
+            val s = Stair(1, StairKind.Straight, Vec2(250.0, 300.0), railing = railing, railingAboveFloor = aboveFloor)
+            return com.sagoma.planimetria.geometry.Scene3D.build(FloorPlan(listOf(room), stairs = listOf(s)), null, null, ceilings = false, levelHeight = rise)
+        }
+        val slabBottom = rise - com.sagoma.planimetria.model.Floor.SLAB // 270: pavimento di sopra (300) meno lo spessore del solaio
+        val cut = railTop(scene(com.sagoma.planimetria.model.StairRailing.Metal, aboveFloor = false))
+        assertTrue("serve una ringhiera", cut != null)
+        assertTrue("tagliata a $cut: deve fermarsi a $slabBottom (parte bassa del solaio), non a $rise (parte alta)", cut!! <= slabBottom + RAIL_THICKNESS)
+        // La ringhiera arriva davvero fino alla quota di taglio (non è stata accorciata di più).
+        assertTrue(railTop(scene(com.sagoma.planimetria.model.StairRailing.Metal, aboveFloor = false))!! >= slabBottom - RAIL_THICKNESS)
+        // Se la ringhiera continua sopra il pavimento il comportamento è quello di prima: supera la quota del pavimento.
+        assertTrue(railTop(scene(com.sagoma.planimetria.model.StairRailing.Metal, aboveFloor = true))!! > rise)
+    }
 }

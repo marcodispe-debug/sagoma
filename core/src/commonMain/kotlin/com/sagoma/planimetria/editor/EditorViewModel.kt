@@ -19,6 +19,8 @@ import com.sagoma.planimetria.model.WallCut
 import com.sagoma.planimetria.geometry.Rulers
 import com.sagoma.planimetria.geometry.ShapeDimensions
 import com.sagoma.planimetria.geometry.Snapping
+import com.sagoma.planimetria.geometry.SpotAim
+import com.sagoma.planimetria.geometry.Vec3
 import com.sagoma.planimetria.geometry.SnapEngine
 import com.sagoma.planimetria.geometry.SnapGuide
 import com.sagoma.planimetria.geometry.SnapKind
@@ -79,7 +81,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     private val tutorial = Tutorial()
 
     // Il file è piccolo (pochi KB): lo si legge subito, così la prima schermata è già quella giusta.
-    private val loaded = store.load() ?: Building.single(FloorPlan())
+    private val loaded = store.load() ?: Building.single(FloorPlan(), autoLevel = true)
     private val loadedPlan = loaded.floor.plan
     private val _state = MutableStateFlow(
         EditorUiState(
@@ -274,13 +276,19 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val layers = _state.value.building.layers
         history.undo(_state.value.fullBuilding)?.let {
             setBuilding(it.copy(layers = layers))
+            dropStaleCreation()
             tutorialEvent(TutorialEvent.Undo)
         }
     }
 
     fun redo() {
         val layers = _state.value.building.layers
-        history.redo(_state.value.fullBuilding)?.let { setBuilding(it.copy(layers = layers)) }
+        history.redo(_state.value.fullBuilding)?.let { setBuilding(it.copy(layers = layers)); dropStaleCreation() }
+    }
+
+    /** La scelta obbligatoria della stanza iniziale non ha più senso se annullando (o ripetendo) il piano ha di nuovo delle stanze. */
+    private fun dropStaleCreation() = _state.update {
+        if (it.creation?.cancellable == false && it.plan.rooms.isNotEmpty()) it.copy(creation = null) else it
     }
 
     // ---------- Livelli ----------
@@ -331,14 +339,14 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
      * del piano più alto (solo i muri, senza aperture né impianti), da modificare; altrimenti è vuoto
      * e si apre subito la creazione della prima stanza.
      */
-    fun addFloor(name: String, levelHeight: Double, copyRooms: Boolean) {
+    fun addFloor(name: String, levelHeight: Double, copyRooms: Boolean, autoLevel: Boolean = false) {
         closeFloorDialog()
         commitBuilding { b ->
             val top = b.floors.last()
             val rooms = if (copyRooms) top.plan.rooms.map {
                 Room(it.id, it.name, it.type, it.points, ceilingHeight = it.ceilingHeight)
             } else emptyList()
-            val floor = Floor(b.nextFloorId, name.trim().ifBlank { Building.floorName(b.floors.size) }, FloorPlan(rooms), levelHeight)
+            val floor = Floor(b.nextFloorId, name.trim().ifBlank { Building.floorName(b.floors.size) }, FloorPlan(rooms), levelHeight, autoLevel).synced()
             b.copy(floors = b.floors + floor, current = b.floors.size)
         }
         if (!userAdjustedView) fitToView()
@@ -346,12 +354,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         showTip(Tip.Floors)
     }
 
-    /** Nome e interpiano di un piano. */
-    fun updateFloor(index: Int, name: String, levelHeight: Double) {
+    /** Nome e interpiano di un piano. `autoLevel`: l'interpiano è calcolato dalle stanze (`levelHeight` allora non conta). */
+    fun updateFloor(index: Int, name: String, levelHeight: Double, autoLevel: Boolean = false) {
         closeFloorDialog()
         commitBuilding { b ->
             val f = b.floors.getOrNull(index) ?: return@commitBuilding b
-            b.copy(floors = b.floors.mapIndexed { i, x -> if (i == index) f.copy(name = name.trim().ifBlank { f.name }, levelHeight = levelHeight) else x })
+            b.copy(floors = b.floors.mapIndexed { i, x -> if (i == index) f.copy(name = name.trim().ifBlank { f.name }, levelHeight = levelHeight, autoLevel = autoLevel).synced() else x })
         }
     }
 
@@ -467,6 +475,23 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     fun selectFurniture(id: Long) = _state.update { it.copy(focusedRoomId = null, selection = Selection.Furniture(id)) }
     fun updateFurniture(f: Furniture) = commit { it.replace(f) }
+
+    /**
+     * Finiture dei moduli della cucina ([com.sagoma.planimetria.model.KitchenModules]): ante e/o piano (null = invariato) del solo
+     * modulo `id` o, con `all`, di tutti i moduli del piano. Un solo passo da annullare.
+     */
+    fun setKitchenFinish(
+        id: Long,
+        front: com.sagoma.planimetria.model.KitchenModules.Front?,
+        top: com.sagoma.planimetria.model.KitchenModules.Top?,
+        all: Boolean,
+    ) = commit { plan ->
+        plan.copy(furniture = plan.furniture.map { f ->
+            val spec = com.sagoma.planimetria.model.KitchenModules.parse(f.model)
+            if (spec == null || (!all && f.id != id)) f
+            else f.copy(model = com.sagoma.planimetria.model.KitchenModules.model(spec.copy(front = front ?: spec.front, top = top ?: spec.top)))
+        })
+    }
 
     fun rotateFurniture(id: Long) = commit { plan ->
         val f = plan.furniture(id) ?: return@commit plan
@@ -600,10 +625,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     // ---------- Creazione stanza (§1) ----------
 
-    fun startAddRoom() = _state.update { it.copy(creation = CreationStep.PickShape(cancellable = true), creationType = null) }
+    fun startAddRoom() = _state.update { it.copy(creation = CreationStep.PickShape(cancellable = true), creationType = null, creationIntent = null) }
 
     /** "+ Balcone o terrazza": la creazione parte con il tipo già scelto. */
-    fun startAddOutdoor(type: RoomType) = _state.update { it.copy(creation = CreationStep.PickShape(cancellable = true), creationType = type) }
+    fun startAddOutdoor(type: RoomType) = _state.update { it.copy(creation = CreationStep.PickShape(cancellable = true), creationType = type, creationIntent = null) }
 
     /** Tipo e altezza del parapetto di un balcone o di una terrazza. */
     fun setParapet(roomId: Long, parapet: Parapet? = null, height: Double? = null) = commit { plan ->
@@ -612,7 +637,51 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     fun cancelCreation() = _state.update { s ->
-        if (s.creation?.cancellable == true) s.copy(creation = null) else s
+        if (s.creation?.cancellable == true) s.copy(creation = null, creationIntent = null) else s
+    }
+
+    // ---------- Percorso B: schizzo e scansione guidata (la UI li offre solo dove la funzione è disponibile) ----------
+
+    /**
+     * Risposta a "Conosci le misure?" (o al menu "approssimative / + scansione") durante la scelta della forma; null torna alla
+     * domanda. Fuori dalla scelta della forma non fa niente.
+     */
+    fun setCreationIntent(intent: CreationIntent?) = _state.update { s ->
+        if (s.creation is CreationStep.PickShape) s.copy(creationIntent = intent) else s
+    }
+
+    /** Chiude l'avviso "schizzo da misurare" per questa sessione: la stanza resta uno schizzo e la scheda offre la scansione. */
+    fun dismissSketchRoom(roomId: Long) = _state.update { it.copy(dismissedSketchBanners = it.dismissedSketchBanners + roomId) }
+
+    /** Apre la scansione guidata su una stanza creata come schizzo ([Room.sketchPending]); su altre stanze non fa niente. */
+    fun startSketchScan(roomId: Long) = _state.update { s ->
+        if (s.plan.room(roomId)?.sketchPending == true) s.copy(sketchScanRoomId = roomId) else s
+    }
+
+    /**
+     * Scansione annullata, uscita o impossibile (permesso, ARCore): lo schizzo resta com'è, con lo stesso id, e resta da misurare
+     * ([Room.sketchPending]) così la scansione si può riavviare.
+     */
+    fun cancelSketchScan() = _state.update { it.copy(sketchScanRoomId = null) }
+
+    /**
+     * Applica il risultato della scansione alla STESSA stanza (stesso id, stessi muri): vedi
+     * [com.sagoma.planimetria.scan.sketch.SketchApply]. Un solo passo di cronologia. Non fa niente (false) se la forma non è
+     * valida o un'apertura non entra nel suo muro.
+     */
+    fun applySketchScan(
+        roomId: Long,
+        cornersAr: List<com.sagoma.planimetria.scan.ArXZ>,
+        positionOverrides: Map<Long, Double> = emptyMap(),
+        widthOverrides: Map<Long, Double> = emptyMap(),
+    ): Boolean {
+        val room = _state.value.plan.room(roomId) ?: return false
+        val preview = com.sagoma.planimetria.scan.sketch.SketchApply.preview(room, cornersAr, positionOverrides, widthOverrides)
+        // Misurata: non è più uno schizzo (nello stesso passo di cronologia: "Annulla" la riporta schizzo, da misurare).
+        val updated = preview.room?.takeIf { preview.canApply }?.copy(sketchPending = false) ?: return false
+        commit { it.replace(updated) }
+        _state.update { it.copy(sketchScanRoomId = null, focusedRoomId = roomId, selection = null) }
+        return true
     }
 
     fun pickShape(shape: RoomShape) = _state.update { s ->
@@ -652,6 +721,32 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         s.copy(creation = CreationStep.Survey(c.cancellable))
     }
 
+    /** "Scansiona con il telefono": si apre la schermata della fotocamera. */
+    fun pickScan() = _state.update { s ->
+        val c = s.creation ?: return@update s
+        s.copy(creation = CreationStep.Scan(c.cancellable))
+    }
+
+    /** Scansione annullata o fallita: si torna alla scelta della forma. */
+    fun cancelScan() = _state.update { s ->
+        val c = s.creation as? CreationStep.Scan ?: return@update s
+        s.copy(creation = CreationStep.PickShape(c.cancellable))
+    }
+
+    /**
+     * Stanza dalla scansione: il perimetro interno scansionato (già in centimetri, assi di Sagoma) viene raddrizzato
+     * ([com.sagoma.planimetria.scan.ScanGeometry.alignedInterior]) e creato come una stanza qualsiasi, da modificare poi.
+     */
+    fun createRoomFromScan(
+        scan: com.sagoma.planimetria.scan.ScannedRoom,
+        type: RoomType = RoomType.Altro,
+        wallThickness: Double = Room.WALL_THICKNESS,
+    ) {
+        if (_state.value.creation !is CreationStep.Scan || scan.corners.size < 3) return
+        val interior = com.sagoma.planimetria.scan.ScanGeometry.alignedInterior(scan.corners)
+        addRoomFromInterior(type, interior, scan.ceilingHeight ?: Room.DEFAULT_CEILING_HEIGHT, wallThickness)
+    }
+
     /** Stanza dal rilievo: angoli sul filo interno calcolati da [com.sagoma.planimetria.geometry.Survey]. */
     fun createRoomFromSurvey(type: RoomType, interior: List<Vec2>, ceilingHeight: Double, wallThickness: Double) {
         if (_state.value.creation !is CreationStep.Survey || interior.size < 3) return
@@ -663,12 +758,19 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val shape = Polygon.fromInterior(interior, wallThickness)
         // Prima stanza di un piano superiore: nell'angolo del piano di sotto, così ci si allinea subito.
         val below = _state.value.planBelow?.let { Openings.planBounds(it) }
-        val points = if (plan.rooms.isEmpty() && below != null) {
+        // Piano di sopra: la stanza si posa sulla prima stanza di sotto ancora scoperta, con gli angoli coincidenti.
+        val above = if (type.outdoor) null else RoomFactory.placeAbove(plan, _state.value.planBelow, shape)
+        val points = if (above != null) above
+        else if (plan.rooms.isEmpty() && below != null) {
             val sb = Polygon.bounds(shape)
             shape.map { it - Vec2(sb.minX, sb.minY) + Vec2(below.minX, below.minY) }
         // Balconi e terrazze nascono già appoggiati alla casa (muro in comune), le stanze un po' distanti.
         } else if (type.outdoor) RoomFactory.placeAgainstHouse(plan, shape)
         else RoomFactory.placeBeside(plan, shape)
+        // Percorso B ("non conosco le misure"): solo dalla scelta della forma con misure indicative nasce uno SCHIZZO, che resta
+        // da misurare anche dopo la chiusura dell'app. La scansione NON parte da sola: si avvia con un tasto (avviso o scheda).
+        val intent = _state.value.creationIntent
+        val sketch = intent?.isSketch == true && _state.value.creation is CreationStep.Measures
         val room = Room(
             id = plan.nextId,
             name = RoomFactory.autoName(plan, type),
@@ -676,10 +778,17 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             points = points,
             ceilingHeight = ceilingHeight,
             wallThickness = wallThickness,
+            sketchPending = sketch,
         )
         val firstEver = _state.value.building.floors.size == 1 && plan.rooms.isEmpty()
         commit { it.copy(rooms = it.rooms + room) }
-        _state.update { it.copy(creation = null, focusedRoomId = room.id, selection = null) }
+        _state.update { s ->
+            s.copy(
+                creation = null, focusedRoomId = room.id, selection = null, creationIntent = null,
+                // Senza scansione subito: l'avviso non compare ora (resta il tasto nella scheda; torna alla riapertura).
+                dismissedSketchBanners = if (sketch && intent == CreationIntent.APPROX) s.dismissedSketchBanners + room.id else s.dismissedSketchBanners,
+            )
+        }
         fitToView()
         if (firstEver) welcome() else {
             tutorialEvent(TutorialEvent.RoomAdded)
@@ -1003,10 +1112,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         it.copy(creation = null, wallDraw = WallDraw(), selection = null, focusedRoomId = null, pendingOpening = null, pendingFixture = null, measure = null, view3d = false, infoExpanded = false)
     }
 
-    fun cancelDrawWalls() = _state.update { it.copy(wallDraw = null, snapGuides = emptyList()) }
+    fun cancelDrawWalls() = _state.update { it.copy(wallDraw = null, snapGuides = emptyList(), creationIntent = null) }
 
     private fun drawSnap(p: Vec2, wd: WallDraw) =
-        SnapEngine.snapDrawing(p, wd.points.lastOrNull(), wd.points.firstOrNull(), SnapEngine.targets(_state.value.plan), wd.points, snapTolerance())
+        SnapEngine.snapDrawing(p, wd.points.lastOrNull(), wd.points.firstOrNull(), SnapEngine.targetsWithBelow(_state.value.plan, _state.value.planBelow), wd.points, snapTolerance())
 
     /** Il puntatore si muove (mouse sul computer): anteprima del prossimo muro, già agganciata. */
     fun drawWallsCursor(p: Vec2) = _state.update { s ->
@@ -1026,16 +1135,42 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         _state.update { it.copy(wallDraw = wd.copy(points = wd.points + r.point, cursor = r.point), snapGuides = emptyList()) }
     }
 
+    /** Direzione del muro precedente nel "muro per muro" (null prima del secondo angolo). */
+    private fun previousWallDir(wd: WallDraw): Vec2? =
+        if (wd.points.size < 2) null else (wd.points.last() - wd.points[wd.points.size - 2]).normalized()
+
+    /** Freccia e angolo tra i muri scritti: la direzione del prossimo muro, o perché non va (vedi [WallDirection]). */
+    fun typedWallDirection(arrow: WallArrow, cornerDeg: Double?): WallDirection.Result? {
+        val wd = _state.value.wallDraw ?: return null
+        if (wd.points.isEmpty()) return null
+        return WallDirection.of(previousWallDir(wd), arrow, cornerDeg)
+    }
+
     /**
-     * Muro di lunghezza esatta (cm, in mezzeria) dall'ultimo angolo: nella direzione dell'angolo scritto (gradi,
-     * 0 = verso destra, 90 = verso l'alto) oppure verso il puntatore, bloccata a 0°/45°/90° se vicina.
+     * Anteprima del muro scritto (tratteggiata, con la lunghezza) prima di "Aggiungi": stessa direzione che userà
+     * [drawWallsTyped]. Senza freccia o con dati incompleti non cambia niente.
      */
-    fun drawWallsTyped(length: Double, angleDeg: Double?) {
-        val wd = _state.value.wallDraw ?: return
-        val last = wd.points.lastOrNull() ?: return
-        if (length <= 0) return
+    fun drawWallsTypedPreview(length: Double?, arrow: WallArrow?, cornerDeg: Double?) = _state.update { s ->
+        val wd = s.wallDraw ?: return@update s
+        val last = wd.points.lastOrNull() ?: return@update s
+        if (wd.closing || arrow == null || length == null || length <= 0) return@update s
+        val r = WallDirection.of(previousWallDir(wd), arrow, cornerDeg) as? WallDirection.Result.Ok ?: return@update s
+        s.copy(wallDraw = wd.copy(cursor = last + r.dir * length), snapGuides = emptyList())
+    }
+
+    /**
+     * Muro di lunghezza esatta (cm, in mezzeria) dall'ultimo angolo. Con la freccia: verso la freccia, oppure, con l'angolo
+     * TRA I DUE MURI, girando da quella parte rispetto al muro precedente ([WallDirection]). Senza freccia: verso il
+     * puntatore, bloccata a 0°/45°/90° se vicina. Restituisce false (e non aggiunge niente) se freccia e angolo non danno un muro.
+     */
+    fun drawWallsTyped(length: Double, arrow: WallArrow? = null, cornerDeg: Double? = null): Boolean {
+        val wd = _state.value.wallDraw ?: return false
+        val last = wd.points.lastOrNull() ?: return false
+        if (length <= 0) return false
+        val typed = arrow?.let { WallDirection.of(previousWallDir(wd), it, cornerDeg) }
+        if (typed is WallDirection.Result.Invalid) return false
         val dir = when {
-            angleDeg != null -> toRadians(angleDeg).let { Vec2(kotlin.math.cos(it), -kotlin.math.sin(it)) }
+            typed is WallDirection.Result.Ok -> typed.dir
             wd.cursor != null && wd.cursor.distanceTo(last) > 1e-6 -> {
                 val d = (wd.cursor - last).normalized()
                 val deg = toDegrees(kotlin.math.atan2(d.y, d.x))
@@ -1047,6 +1182,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         }
         val p = last + dir * length
         _state.update { it.copy(wallDraw = wd.copy(points = wd.points + p, cursor = p), snapGuides = emptyList()) }
+        return true
     }
 
     fun drawWallsUndo() = _state.update { s ->
@@ -1071,6 +1207,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val signed = pts.indices.sumOf { i -> val a = pts[i]; val b = pts[(i + 1) % pts.size]; a.x * b.y - b.x * a.y }
         if (signed < 0) pts = pts.reversed()
         val plan = _state.value.plan
+        // Percorso B disegnato muro per muro: anche questo è uno schizzo da misurare (la scansione si avvia con un tasto).
+        val intent = _state.value.creationIntent
+        val sketch = intent?.isSketch == true
         val room = Room(
             id = plan.nextId,
             name = RoomFactory.autoName(plan, type),
@@ -1078,9 +1217,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             points = pts,
             ceilingHeight = ceilingHeight,
             wallThickness = wallThickness,
+            sketchPending = sketch,
         )
         commit { it.copy(rooms = it.rooms + room) }
-        _state.update { it.copy(wallDraw = null, snapGuides = emptyList(), focusedRoomId = room.id, selection = null) }
+        _state.update { s ->
+            s.copy(
+                wallDraw = null, snapGuides = emptyList(), focusedRoomId = room.id, selection = null, creationIntent = null,
+                dismissedSketchBanners = if (sketch && intent == CreationIntent.APPROX) s.dismissedSketchBanners + room.id else s.dismissedSketchBanners,
+            )
+        }
         tutorialEvent(TutorialEvent.RoomAdded)
     }
 
@@ -1300,6 +1445,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.Wall -> selectWall(target.roomId, target.index)
             is DragTarget.Opening -> selectOpening(target.roomId, target.openingId)
             is DragTarget.Fixture -> selectFixture(target.roomId, target.fixtureId)
+            is DragTarget.SpotAim -> selectFixture(target.roomId, target.fixtureId)
             is DragTarget.CutStart -> selectWall(target.roomId, target.index)
             is DragTarget.Corner -> focusRoom(target.roomId)
             is DragTarget.RoomLabel -> focusRoom(target.roomId)
@@ -1455,14 +1601,16 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             ?: options.minByOrNull { room.wallHeight(Ceilings.lowWall(room, index, WallCut(it, 0.0))) }
             ?: return@commit plan
         val start = room.wallCuts[index]?.start ?: (room.wallLength(index) / 2)
-        plan.replace(room.copy(wallCuts = room.wallCuts + (index to WallCut(toward, Ceilings.clampStart(room, index, start)))))
+        val withCut = room.copy(wallCuts = room.wallCuts + (index to WallCut(toward, Ceilings.clampStart(room, index, start))))
+        // Se l'altro lato della mansarda ha già il taglio, l'inizio della falda è lo stesso.
+        plan.replace(Ceilings.alignedToPartner(withCut, index))
     }
 
     /** Distanza (cm, dal muro basso) da cui la parete inizia a scendere. */
     fun setWallCutStart(roomId: Long, index: Int, start: Double) = commit { plan ->
         val room = plan.room(roomId) ?: return@commit plan
-        val cut = room.wallCuts[index] ?: return@commit plan
-        plan.replace(room.copy(wallCuts = room.wallCuts + (index to cut.copy(start = Ceilings.clampStart(room, index, start)))))
+        if (room.wallCuts[index] == null) return@commit plan
+        plan.replace(Ceilings.withCutStart(room, index, start)) // e l'altro lato della mansarda segue
     }
 
     // ---------- Impianti ----------
@@ -1560,6 +1708,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.RulerRotate -> _state.update { it.copy(rotatingRulerId = target.rulerId) }
             is DragTarget.RulerEnd, is DragTarget.RulerBody -> Unit
             is DragTarget.CutStart -> selectWall(target.roomId, target.index)
+            is DragTarget.SpotAim -> selectFixture(target.roomId, target.fixtureId)
             is DragTarget.Stair -> selectStair(target.stairId)
             is DragTarget.Column -> selectColumn(target.columnId)
             is DragTarget.BeamBody -> selectBeam(target.beamId)
@@ -1578,7 +1727,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         dragTarget = target
         dragStartPlan = _state.value.plan
         history.record(_state.value.fullBuilding)
-        _state.update { it.copy(dragging = true) }
+        aimTrack = null
+        _state.update { it.copy(dragging = true, aimDrag = (target as? DragTarget.SpotAim)?.let { t -> AimDrag(t.roomId, t.fixtureId, it.plan) }) }
     }
 
     /** `totalDelta` è lo spostamento complessivo in cm dall'inizio del trascinamento. */
@@ -1593,7 +1743,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 // Aggancio CAD: estremità e punti medi delle altre stanze, allineamenti con tutti gli angoli.
                 val neighbors = listOf(room.points[(i - 1 + n) % n], room.points[(i + 1) % n])
                 val own = room.points.filterIndexed { k, _ -> k != i }
-                val r = SnapEngine.snap(room.points[i] + totalDelta, SnapEngine.targets(start, excludeRoom = room.id), snapTolerance(), neighbors, own)
+                val r = SnapEngine.snap(room.points[i] + totalDelta, SnapEngine.targetsWithBelow(start, _state.value.planBelow, excludeRoom = room.id), snapTolerance(), neighbors, own)
                 val moved = room.points.toMutableList().also { it[i] = r.point }
                 snapGuides = r.guides
                 start.replace(room.copy(points = if (r.snapped) Snapping.straighten(moved, i) else moved))
@@ -1605,18 +1755,20 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 val corner = Ceilings.lowCorner(room, target.index, cut)
                 val other = if (cut.towardEnd) room.wallStart(target.index) else room.wallEnd(target.index)
                 val away = (other - corner).normalized()
-                val moved = Ceilings.clampStart(room, target.index, cut.start + (totalDelta dot away))
-                start.replace(room.copy(wallCuts = room.wallCuts + (target.index to cut.copy(start = moved))))
+                // Un solo inizio di falda: l'altro lato della mansarda segue il pallino.
+                start.replace(Ceilings.withCutStart(room, target.index, cut.start + (totalDelta dot away)))
             }
             is DragTarget.Wall -> {
                 val room = start.room(target.roomId) ?: return
                 // Vicino a un muro parallelo di un'altra stanza scatta sulla sua linea: i due muri si sovrappongono.
-                val otherWalls = start.rooms.filter { it.id != room.id }.flatMap { Snapping.wallsOf(it) }
+                // Anche ai muri del piano di sotto (solo come riferimento): si allinea il muro di sopra con quello di sotto.
+                val otherWalls = (start.rooms.filter { it.id != room.id } + _state.value.planBelow?.rooms.orEmpty()).flatMap { Snapping.wallsOf(it) }
                 start.replace(room.copy(points = Snapping.moveWallSnapped(room.points, target.index, totalDelta, otherWalls)))
             }
             is DragTarget.RoomLabel -> {
                 val room = start.room(target.roomId) ?: return
-                val others = start.rooms.filter { it.id != room.id }
+                // Riferimenti: le altre stanze del piano e quelle del piano di sotto (solo lette, mai modificate).
+                val others = start.rooms.filter { it.id != room.id } + _state.value.planBelow?.rooms.orEmpty()
                 val d = Snapping.snapRoomTranslation(room, others, totalDelta)
                 // Con la stanza si spostano anche le luci al soffitto (aperture e impianti a muro seguono i muri).
                 start.replace(Fixtures.movedRoom(room, d))
@@ -1754,6 +1906,30 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         _state.update { it.copy(plan = plan, snapGuides = guides) }
     }
 
+    /** Direzione del fascio prima dell'ultimo passo del dito (per prolungare il moto al bordo della sfera). */
+    private var aimTrack: Vec3? = null
+
+    /**
+     * Orientamento del fascio di un faretto a parete durante il trascinamento della sua maniglia 3D (`beginDrag` con
+     * [DragTarget.SpotAim], poi questo a ogni movimento, poi `endDrag`): `rayOrigin` e `rayDir` sono il raggio della visuale sotto
+     * il dito. Cambia solo `aimYaw` e `aimTilt`: posizione, muro e quota del faretto restano quelli di prima.
+     */
+    fun dragAim(target: DragTarget.SpotAim, rayOrigin: Vec3, rayDir: Vec3) {
+        val start = dragStartPlan ?: return
+        val room = start.room(target.roomId) ?: return
+        val f = room.fixture(target.fixtureId)?.takeIf { it.kind == FixtureKind.WallSpot && it.wallIndex < room.wallCount } ?: return
+        val current = _state.value.plan.room(target.roomId)?.fixture(target.fixtureId) ?: f
+        val n = SpotAim.normal(room, f)
+        val spot = SpotAim.position(room, f)
+        val cur = SpotAim.direction(n, current.aimYaw, current.aimTilt)
+        // Moto del dito: serve a restare sullo stesso emisfero della sfera quando si passa dal suo profilo.
+        val predicted = aimTrack?.let { Vec3(cur.x * 2 - it.x, cur.y * 2 - it.y, cur.z * 2 - it.z) }
+        val aim = SpotAim.aimFromRay(n, spot, rayOrigin, rayDir, current.aimYaw, current.aimTilt, predicted) ?: return
+        if (SpotAim.rayHitsSphere(spot, rayOrigin, rayDir)) aimTrack = cur
+        val moved = f.copy(aimYaw = aim.yaw, aimTilt = aim.tilt)
+        _state.update { it.copy(plan = start.replace(room.copy(fixtures = room.fixtures.map { x -> if (x.id == f.id) moved else x }))) }
+    }
+
     /** Guide dell'aggancio del trascinamento in corso (le imposta [dragBy], le toglie [endDrag]). */
     private var snapGuides: List<SnapGuide> = emptyList()
 
@@ -1775,7 +1951,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val moved = _state.value.plan != start
         if (!moved) history.discardLast()
         snapGuides = emptyList()
-        _state.update { it.copy(canUndo = history.canUndo, canRedo = history.canRedo, rotatingRulerId = null, dragging = false, snapGuides = emptyList()) }
+        _state.update { it.copy(canUndo = history.canUndo, canRedo = history.canRedo, rotatingRulerId = null, dragging = false, aimDrag = null, snapGuides = emptyList()) }
         if (moved) when (dragTarget) {
             is DragTarget.Wall -> tutorialEvent(TutorialEvent.WallDragged)
             is DragTarget.Corner -> tutorialEvent(TutorialEvent.CornerDragged)
@@ -1939,7 +2115,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is Selection.Dimension -> removeDimension(sel.dimensionId)
             is Selection.Annotation -> removeAnnotation(sel.annotationId)
             is Selection.StairWell -> return false
-            null -> s.focusedRoomId?.let { if (s.plan.rooms.size > 1) requestDeleteRoom(it) else return false } ?: return false
+            null -> s.focusedRoomId?.let { requestDeleteRoom(it) } ?: return false
         }
         return true
     }
@@ -2114,12 +2290,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         plan.replace(room.copy(ceilingHeight = height))
     }
 
-    /** Una stanza si può eliminare solo se ne resta almeno un'altra (§1: deve sempre esistere una stanza). */
-    val canDeleteRoom: Boolean get() = _state.value.plan.rooms.size > 1
-
     /** Chiede conferma prima di eliminare (resta comunque annullabile). */
     fun requestDeleteRoom(id: Long) {
-        if (!canDeleteRoom || _state.value.plan.room(id) == null) return
+        if (_state.value.plan.room(id) == null) return
         _state.update { it.copy(confirmDeleteRoomId = id) }
     }
 
@@ -2127,9 +2300,14 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     fun deleteRoom(id: Long) {
         _state.update { it.copy(confirmDeleteRoomId = null) }
-        if (!canDeleteRoom) return
+        if (_state.value.plan.room(id) == null) return
         commit { it.copy(rooms = it.rooms.filter { r -> r.id != id }) }
         _state.update { it.copy(focusedRoomId = null, selection = null, pendingOpening = null) }
+        // Un piano di sopra può restare senza stanze. Il piano terra no: si riparte dalla scelta iniziale della stanza.
+        val s = _state.value
+        if (s.building.current == 0 && s.plan.rooms.isEmpty()) {
+            _state.update { it.copy(creation = CreationStep.PickShape(cancellable = false), creationType = null) }
+        }
     }
 
     // ---------- Eliminazione muro in comune: un unico ambiente ----------
@@ -2162,7 +2340,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         viewportH = h
         // Finché l'utente non ha zoomato o spostato la vista a mano, la pianta resta adattata all'area
         // anche quando questa cambia (barre di sistema che compaiono/spariscono, tastiera, rotazione).
-        if (first || rotated || !userAdjustedView) fitToView()
+        // "Muro per muro" in corso (anche la tastiera per la lunghezza cambia l'area): resta inquadrata la stanza in costruzione.
+        if (!first && _state.value.wallDraw?.points?.isNotEmpty() == true) wallDraftCamera(includeCursor = true)?.let(::setCamera)
+        else if (first || rotated || !userAdjustedView) fitToView()
     }
 
     fun pan(dx: Float, dy: Float) {
@@ -2199,7 +2379,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val topChanged = topPx != coveredTop
         coveredTop = topPx
         coveredBottom = bottomPx
-        if (topChanged && !userAdjustedView) fitToView()
+        // "Muro per muro" in corso: la vista resta sulla stanza in costruzione, non sull'intera pianta.
+        if (topChanged && _state.value.wallDraw?.points?.isNotEmpty() == true) wallDraftCamera(includeCursor = false)?.let(::setCamera)
+        else if (topChanged && !userAdjustedView) fitToView()
     }
 
     /** Ciò che la vista deve inquadrare: la pianta del piano, oppure (piano ancora vuoto) quella di sotto. */
@@ -2226,6 +2408,33 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             it.copy(camera = Camera(scale, viewportW / 2 - (c.x * scale).toFloat(), top + h / 2 - (c.y * scale).toFloat()))
         }
     }
+
+    /**
+     * "Muro per muro": la vista che mette la stanza in costruzione (angoli già messi e, con [includeCursor], il muro in
+     * anteprima) al centro dello spazio libero sotto la scheda, invece delle stanze già fatte. Lo zoom non aumenta mai;
+     * diminuisce solo se la stanza in costruzione non ci sta. Null se non si sta disegnando.
+     */
+    fun wallDraftCamera(includeCursor: Boolean): Camera? {
+        val s = _state.value
+        val wd = s.wallDraw ?: return null
+        if (viewportW <= 0f || viewportH <= 0f || wd.closing) return null
+        val pts = if (includeCursor && wd.cursor != null) wd.points + wd.cursor else wd.points
+        if (pts.isEmpty()) return null
+        val b = Polygon.bounds(pts)
+        // Spazio libero: sotto la scheda del disegno (se lascia abbastanza posto).
+        val top = coveredTop.takeIf { viewportH - it > viewportH / 4 } ?: 0f
+        val h = viewportH - top
+        val m = fitMarginPx.coerceAtMost(min(viewportW, h) / 4)
+        val fit = min(
+            (viewportW - 2 * m) / b.width.coerceAtLeast(1.0).toFloat(),
+            (h - 2 * m) / b.height.coerceAtLeast(1.0).toFloat(),
+        )
+        val scale = min(s.camera.scale, fit).coerceIn(Camera.MIN_SCALE, Camera.MAX_SCALE)
+        val c = b.center
+        return Camera(scale, viewportW / 2 - (c.x * scale).toFloat(), top + h / 2 - (c.y * scale).toFloat())
+    }
+
+    fun setCamera(camera: Camera) = _state.update { it.copy(camera = camera) }
 
     private companion object {
         const val AUTOSAVE_DELAY_MS = 400L

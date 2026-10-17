@@ -23,13 +23,16 @@ import com.sagoma.planimetria.model.Covering
 import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.MaterialCatalog
 import com.sagoma.planimetria.model.FurnitureCatalog
+
 import com.sagoma.planimetria.model.WallFinish
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 /** Punto/vettore 3D in cm. Convenzione: x e z sono le coordinate della pianta (z = y della pianta), y è l'altezza. */
@@ -136,7 +139,12 @@ class Scene3D(
         val position: Vec3, val direction: Vec3?, val lumens: Double, val warm: Boolean,
         /** Ingombro in pianta della stanza della lampada: la luce resta lì e non passa i muri (null = ovunque). */
         val room: Bounds? = null,
+        /** Impianto da cui viene la luce (per aggiornarne solo la direzione mentre si orienta), se c'è. */
+        val fixtureId: Long? = null,
     )
+
+    /** Stessa scena con altre luci: serve ad aggiornare solo le luci, senza ricostruire la geometria. */
+    fun withLights(newLights: List<SceneLight>) = Scene3D(opaque, transparent, picks, obstacles, bounds, furniture, textured, newLights, windows, roofs)
 
     /** Apertura vetrata: centro in cm, normale verso l'interno della stanza, misure in cm. */
     data class SceneWindow(val center: Vec3, val inward: Vec3, val width: Double, val height: Double)
@@ -183,6 +191,18 @@ class Scene3D(
         const val FLOATS_PER_VERTEX = 10
         /** Altezza degli occhi quando si cammina (cm). */
         const val EYE_HEIGHT = 160.0
+        /** Plafoniera a parete: larghezza, altezza e sporgenza dal muro (cm). */
+        const val WALL_LIGHT_WIDTH = 30.0
+        const val WALL_LIGHT_HEIGHT = 12.0
+        const val WALL_LIGHT_DEPTH = 8.0
+        /** Faretto a parete: lato della scatola e sporgenza dal muro (cm). */
+        const val WALL_SPOT_SIZE = 8.0
+        const val WALL_SPOT_DEPTH = 6.0
+        /** Striscia LED a parete: altezza e sporgenza dal muro (cm), flusso totale (lumen) e distanza tra i punti luce (cm). */
+        const val WALL_LED_HEIGHT = 2.0
+        const val WALL_LED_DEPTH = 1.5
+        const val WALL_LED_LUMENS = 1000.0
+        const val LED_LIGHT_SPACING = 80.0
 
         private fun rayTriangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3): Double? {
             val e1 = b - a
@@ -297,6 +317,28 @@ private class SceneBuilder(
         }
     }
 
+    /**
+     * Mobile generato alla misura (moduli della cucina, [ParametricGeometry]): ogni pezzo è un parallelepipedo che gira con il
+     * mobile (specchiato: sinistra ↔ destra). Il piano in marmo o pietra ha sopra la foto del materiale, che si sposta con il
+     * mobile. Per toccarlo basta la scatola dell'arredo: i pezzi non entrano tra i triangoli da colpire.
+     */
+    private fun generatedFurniture(f: com.sagoma.planimetria.model.Furniture, parts: List<KitchenGeometry.Part>, pick: Pick) {
+        val (u, v) = Furnishings.axes(f)
+        val sx = if (f.mirrored) -1.0 else 1.0
+        fun at(x: Double, z: Double) = f.center + u * (x * sx) + v * z
+        for (p in parts) {
+            if (p.x1 - p.x0 < 1e-3 || p.y1 - p.y0 < 1e-3 || p.z1 - p.z0 < 1e-3) continue
+            val outline = listOf(at(p.x0, p.z0), at(p.x1, p.z0), at(p.x1, p.z1), at(p.x0, p.z1))
+            val color = tint(Rgba.argb(p.argb), pick)
+            solid(outline, f.elevation + p.y0, f.elevation + p.y1, color, color, null)
+            val m = p.topMaterial?.let { MaterialCatalog.item(it) } ?: continue
+            val y = f.elevation + p.y1 + 0.05
+            fun uv(x: Double, z: Double) = Vec2(x / m.size, z / m.size)
+            texTri(m.id, outline[0].at(y), outline[1].at(y), outline[2].at(y), uv(p.x0, p.z0), uv(p.x1, p.z0), uv(p.x1, p.z1), Vec3.Up)
+            texTri(m.id, outline[0].at(y), outline[2].at(y), outline[3].at(y), uv(p.x0, p.z0), uv(p.x1, p.z1), uv(p.x0, p.z1), Vec3.Up)
+        }
+    }
+
     /** Rettangolo con un materiale sulla faccia di un muro (stesse coordinate di [wallFace]). */
     private fun texturedWallFace(material: String, s: Vec2, u: Vec2, side: Vec2, dist: Double, t0: Double, t1: Double, y0: Double, y1: Double) {
         if (t1 - t0 < 0.05 || y1 - y0 < 0.05) return
@@ -358,6 +400,8 @@ private class SceneBuilder(
     private val ceilingColor = Rgba(0.97f, 0.97f, 0.96f)
     /** Tetto piano sopra i piani di sotto (dove il piano di sopra non li copre): guaina grigio chiaro. */
     private val slabTop = Rgba(0.72f, 0.71f, 0.69f)
+    /** Spessore del solaio visto di lato (fascia sotto il pavimento di sopra, bordi dei vani scala): cemento, più scuro dell'intonaco. */
+    private val slabEdge = Rgba(0.60f, 0.59f, 0.57f)
     private val lightColor = Rgba(1f, 0.93f, 0.62f)
     private val skirting = Rgba(0.80f, 0.78f, 0.74f)
     private val SKIRTING = 8.0
@@ -417,6 +461,8 @@ private class SceneBuilder(
                 for (o in room.openings) if (o.wallIndex < room.wallCount) openingModel(room, o)
                 for (f in room.fixtures) fixture(room, f)
             }
+            // Vuoto della scala nel pavimento: si vede lo spessore del solaio (non nel piano di sopra visto da sotto, senza pavimento).
+            if (!aboveCurrent && previous != null && holes.isNotEmpty()) floorHoleSides()
             // Camminando si vede il vano scala nel soffitto: i suoi bordi nello spessore del solaio.
             if (ceilings && current) wellSides()
             for (s in plan.stairs) stair(s, level.levelHeight)
@@ -446,7 +492,9 @@ private class SceneBuilder(
             for (f in plan.furniture) {
                 val pick = Pick.Furniture(f.id)
                 val rug = FurnitureCatalog.rugOf(f.model)
+                val generated = GeneratedGeometry.parts(f.model, f.width, f.depth, f.height)
                 if (rug != null) rug(f, rug.first, rug.second, pick)
+                else if (generated != null) generatedFurniture(f, generated, pick)
                 else placed += Scene3D.PlacedFurniture(f.id, f.model, f.center.at(f.elevation), f.rotation, f.width, f.depth, f.height, current && pick == selected, f.mirrored)
                 // Le lampade del catalogo fanno luce: dal paralume (in alto) o, se appese, da sotto.
                 val item = FurnitureCatalog.item(f.model)
@@ -632,8 +680,9 @@ private class SceneBuilder(
             StairRailing.Wood -> tint(Rgba(0.54f, 0.37f, 0.23f), pick)
             else -> tint(railColor, pick)
         }
-        // Tagliata a filo del pavimento del piano di sopra (a scelta): niente sopra quella quota.
-        val cap = if (s.railingAboveFloor) Double.MAX_VALUE else rise
+        // Tagliata dal solaio (a scelta): niente sopra la faccia inferiore del solaio, cioè sotto lo spessore di [Floor.SLAB]
+        // che sta tra il soffitto e il pavimento del piano di sopra (non a filo del pavimento, che è la faccia superiore).
+        val cap = if (s.railingAboveFloor) Double.MAX_VALUE else rise - Floor.SLAB
         for ((a, b, st) in runs) {
             if (st.top >= cap) continue
             val ha = railAt(a)
@@ -1004,28 +1053,70 @@ private class SceneBuilder(
     }
 
     /**
-     * Bordi del vano scala nel soffitto: fasce verticali dal soffitto della stanza fino al pavimento di sopra
-     * (lo spessore del solaio), sui lati del vuoto che non confinano con un altro pezzo del vuoto.
+     * Tratti del contorno del vuoto formato dai `pieces` (i pezzi di una o più scale, anche adiacenti o sovrapposti): per ogni
+     * tratto, i due estremi e la direzione verso l'interno del vuoto. I tratti in comune tra due pezzi non sono contorno.
+     * Si valuta un punto per centimetro di lato, perché un lato può essere solo in parte in comune con un altro pezzo.
      */
-    private fun wellSides() {
-        val plaster = Rgba(0.93f, 0.92f, 0.90f)
-        for ((pi, piece) in holesAbove.withIndex()) {
-            val center = piece.fold(Vec2(0.0, 0.0)) { acc, p -> acc + p } / piece.size.toDouble()
+    private fun holeEdgeRuns(pieces: List<List<Vec2>>): List<Triple<Vec2, Vec2, Vec2>> {
+        val out = mutableListOf<Triple<Vec2, Vec2, Vec2>>()
+        for ((pi, piece) in pieces.withIndex()) {
             for (k in piece.indices) {
                 val a = piece[k]
                 val b = piece[(k + 1) % piece.size]
-                val mid = (a + b) / 2.0
-                val inner = holesAbove.withIndex().any { (qi, q) ->
-                    qi != pi && (Polygon.contains(q, mid) || q.indices.any { j -> Polygon.distanceToSegment(mid, q[j], q[(j + 1) % q.size]) < 0.5 })
+                val len = a.distanceTo(b)
+                if (len < 1.0) continue
+                val d = (b - a).normalized().perp()
+                val n = kotlin.math.ceil(len).toInt()
+                var runStart = -1
+                var runIn = d
+                fun close(end: Int) {
+                    if (runStart >= 0) out += Triple(a + (b - a) * (runStart.toDouble() / n), a + (b - a) * (end.toDouble() / n), runIn)
+                    runStart = -1
                 }
-                if (inner) continue
-                // Il soffitto sotto il solaio è quello della stanza più alta lì (una stanza bassa ricavata dentro
-                // un'altra, come un ripostiglio sotto la scala, ha il suo soffitto più in basso: non conta).
-                val y0 = plan.rooms.filter { !it.outdoor && Polygon.contains(it.points, mid) }.maxOfOrNull { Ceilings.heightAt(it, mid) } ?: continue
-                if (levelHeight - y0 < 1.0) continue
-                val n = Vec3((center - mid).x, 0.0, (center - mid).y).normalized()
-                quad(a.at(y0), b.at(y0), b.at(levelHeight), a.at(levelHeight), n, plaster, null)
+                for (i in 0 until n) {
+                    val p = a + (b - a) * ((i + 0.5) / n)
+                    // Il lato verso l'interno del pezzo e quello verso l'esterno; il tratto è contorno se fuori non c'è un altro pezzo.
+                    val inside = if (Polygon.contains(piece, p + d * 0.5)) d else d * -1.0
+                    val outsidePoint = p - inside * 0.5
+                    val shared = pieces.withIndex().any { (qi, q) -> qi != pi && Polygon.contains(q, outsidePoint) }
+                    if (shared) close(i) else {
+                        if (runStart < 0) { runStart = i; runIn = inside }
+                    }
+                }
+                close(n)
             }
+        }
+        return out
+    }
+
+    /**
+     * Bordi del vano scala nel soffitto: fasce verticali dal soffitto della stanza fino al pavimento di sopra
+     * (lo spessore del solaio), sul contorno del vuoto (non dove due pezzi del vuoto confinano).
+     */
+    private fun wellSides() {
+        val plaster = slabEdge
+        for ((a, b, inward) in holeEdgeRuns(holesAbove)) {
+            val mid = (a + b) / 2.0
+            // Il soffitto sotto il solaio è quello della stanza più alta lì (una stanza bassa ricavata dentro
+            // un'altra, come un ripostiglio sotto la scala, ha il suo soffitto più in basso: non conta).
+            val y0 = plan.rooms.filter { !it.outdoor && Polygon.contains(it.points, mid) }.maxOfOrNull { Ceilings.heightAt(it, mid) } ?: continue
+            if (levelHeight - y0 < 1.0) continue
+            val n = Vec3(inward.x, 0.0, inward.y)
+            quad(a.at(y0), b.at(y0), b.at(levelHeight), a.at(levelHeight), n, plaster, null)
+        }
+    }
+
+    /**
+     * Bordi del vuoto della scala nel pavimento di questo piano: lo spessore del solaio ([Floor.SLAB], da sotto il pavimento
+     * a filo del pavimento) visto dall'alto. Solo sul contorno del vuoto (mai dove due pezzi confinano) e dentro una stanza del piano.
+     */
+    private fun floorHoleSides() {
+        for ((a, b, inward) in holeEdgeRuns(holes)) {
+            if (plan.rooms.none { !it.outdoor && Polygon.contains(it.points, (a + b) / 2.0) }) continue
+            val n = Vec3(inward.x, 0.0, inward.y)
+            // Appena dentro il vuoto, così non si sovrappone alla faccia di un muro contro cui sta la scala.
+            val lift = inward * 0.2
+            quad((a + lift).at(-Floor.SLAB), (b + lift).at(-Floor.SLAB), (b + lift).at(0.0), (a + lift).at(0.0), n, slabEdge, null)
         }
     }
 
@@ -1216,11 +1307,17 @@ private class SceneBuilder(
             if (finish.covering != Covering.None) ranges = ranges.flatMap { r ->
                 if (coverTop > r.start + 0.05 && coverTop < r.endInclusive - 0.05) listOf(r.start..coverTop, coverTop..r.endInclusive) else listOf(r)
             }
+            // Lo spessore del solaio (sotto il pavimento del piano di sopra) si distingue solo sulla faccia interna del muro, che si vede
+            // dai vuoti del pavimento (scale): la facciata esterna resta del colore della parete, senza fasce.
+            if (interior && wallBottom < -0.5) ranges = ranges.flatMap { r ->
+                if (r.start < -0.01 && r.endInclusive > 0.01) listOf(r.start..0.0, 0.0..r.endInclusive) else listOf(r)
+            }
             var blocks = false
             for (r in ranges) {
                 if (r.endInclusive - r.start < 0.05) continue
-                val covered = finish.covering != Covering.None && r.start < coverTop - 0.01
-                val color = tint(if (covered) coveringBase(finish) else paint, pick)
+                val slabBand = interior && r.endInclusive <= 0.01 && r.start < -0.01
+                val covered = !slabBand && finish.covering != Covering.None && r.start < coverTop - 0.01
+                val color = tint(if (slabBand) slabEdge else if (covered) coveringBase(finish) else paint, pick)
                 val atTop = r.endInclusive >= h - 0.01
                 val topColor = if (atTop) wallTop else color
                 // Sopra un varco ad arco il bordo inferiore segue l'arco da un capo all'altro della fettina.
@@ -1722,6 +1819,39 @@ private class SceneBuilder(
 
     // ---------- Impianti ----------
 
+    /**
+     * Luce fissata a una parete: scatola luminosa appena fuori dal muro (sul filo interno, verso la stanza), centrata
+     * all'altezza dell'impianto; la luce vera sta davanti, un poco staccata, e punta lungo la normale della parete.
+     */
+    /** Scatola luminosa sulla parete: larga `width` lungo il muro, alta `height` attorno alla quota, sporgente `depth` dal filo interno. */
+    private fun wallGlow(f: Fixture, p: Vec2, n: Vec2, along: Vec2, width: Double, height: Double, depth: Double, pick: Pick) {
+        val c = p + n * (depth / 2 + 0.5)
+        box(c - along * (width / 2), c + along * (width / 2), depth / 2, f.elevation - height / 2, f.elevation + height / 2, tint(lightColor, pick), pick, emissive = true)
+    }
+
+    /**
+     * Striscia LED a parete: striscia sottile lungo il muro e, come quella a soffitto, più luci puntiformi neutre (senza direzione:
+     * il renderer le fa diffuse) distribuite sulla sua lunghezza, un poco davanti alla parete; il flusso totale si divide tra i punti.
+     */
+    private fun wallLedStrip(room: Room, f: Fixture, p: Vec2, n: Vec2, along: Vec2, pick: Pick) {
+        wallGlow(f, p, n, along, f.length, Scene3D.WALL_LED_HEIGHT, Scene3D.WALL_LED_DEPTH, pick)
+        if (!current) return
+        val count = maxOf(1, (f.length / Scene3D.LED_LIGHT_SPACING).toInt())
+        val front = p + n * (Scene3D.WALL_LED_DEPTH + 4.0)
+        for (k in 0 until count) {
+            val t = f.length * ((k + 0.5) / count) - f.length / 2
+            lights += Scene3D.SceneLight((front + along * t).at(f.elevation), null, Scene3D.WALL_LED_LUMENS / count, warm = false, room = Polygon.bounds(room.points))
+        }
+    }
+
+    private fun wallLamp(room: Room, f: Fixture, p: Vec2, n: Vec2, along: Vec2, width: Double, height: Double, depth: Double, lumens: Double, pick: Pick) {
+        wallGlow(f, p, n, along, width, height, depth, pick)
+        // La plafoniera è una luce diffusa davanti alla parete (senza direzione: il renderer la fa puntiforme, come la plafoniera a
+        // soffitto). Il faretto è un fascio orientato secondo `aimYaw` e `aimTilt` rispetto alla normale della parete (SpotAim).
+        val direction = if (f.kind == FixtureKind.WallSpot) SpotAim.direction(n, f.aimYaw, f.aimTilt) else null
+        if (current) lights += Scene3D.SceneLight((p + n * (depth + 1.0)).at(f.elevation), direction, lumens, warm = true, room = Polygon.bounds(room.points), fixtureId = f.id)
+    }
+
     private fun fixture(room: Room, f: Fixture) {
         val pick = Pick.Fixture(room.id, f.id)
         if (f.kind.mount == Mount.Wall) {
@@ -1737,6 +1867,9 @@ private class SceneBuilder(
                 FixtureKind.Outlet -> onWall(8.0, 8.0, 1.5, f.elevation - 4, Rgba(0.78f, 0.87f, 1f))
                 FixtureKind.Switch -> onWall(8.0, 12.0, 1.5, f.elevation - 6, Rgba(0.88f, 0.92f, 1f))
                 FixtureKind.WaterPoint -> onWall(6.0, 6.0, 5.0, f.elevation - 3, Rgba(0.18f, 0.6f, 0.7f))
+                FixtureKind.WallLight -> wallLamp(room, f, p, n, along, Scene3D.WALL_LIGHT_WIDTH, Scene3D.WALL_LIGHT_HEIGHT, Scene3D.WALL_LIGHT_DEPTH, 800.0, pick)
+                FixtureKind.WallSpot -> wallLamp(room, f, p, n, along, Scene3D.WALL_SPOT_SIZE, Scene3D.WALL_SPOT_SIZE, Scene3D.WALL_SPOT_DEPTH, 400.0, pick)
+                FixtureKind.WallLedStrip -> wallLedStrip(room, f, p, n, along, pick)
                 else -> Unit
             }
             return

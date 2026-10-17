@@ -29,6 +29,7 @@ import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.FloorDialog
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.Floor
+import com.sagoma.planimetria.model.FloorPlan
 
 /**
  * Pulsante del piano, in alto a sinistra: mostra il piano che si sta modificando e apre il menu per
@@ -74,9 +75,12 @@ fun FloorEditDialog(dialog: FloorDialog, building: Building, vm: EditorViewModel
     val existing = index?.let { building.floors.getOrNull(it) }
     var name by remember(dialog) { mutableStateOf(existing?.name ?: Building.floorName(building.floors.size)) }
     var level by remember(dialog) { mutableStateOf(formatCm(existing?.levelHeight ?: building.floors.last().levelHeight)) }
+    var auto by remember(dialog) { mutableStateOf(existing?.autoLevel ?: true) }
     var copyRooms by remember(dialog) { mutableStateOf(true) }
     var confirmDelete by remember(dialog) { mutableStateOf(false) }
-    val levelValue = parsePositive(level)?.takeIf { it in 150.0..1000.0 }
+    // Automatico: altezza della stanza più alta più il solaio. Un piano nuovo parte dalle stanze che copia (o dal valore standard).
+    val autoValue = Floor.autoLevelHeight(existing?.plan ?: if (copyRooms) building.floors.last().plan else FloorPlan())
+    val levelValue = if (auto) autoValue else parsePositive(level)?.takeIf { it in 150.0..1000.0 }
 
     if (confirmDelete && existing != null && index != null) {
         AlertDialog(
@@ -95,15 +99,31 @@ fun FloorEditDialog(dialog: FloorDialog, building: Building, vm: EditorViewModel
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SelectAllTextField(name, { name = it }, "Nome", Modifier.fillMaxWidth())
-                SelectAllTextField(
-                    level, { level = it }, "Interpiano", Modifier.fillMaxWidth(),
-                    numeric = true, suffix = "cm", isError = levelValue == null,
-                )
-                Text(
-                    "Dal pavimento di questo piano a quello del piano di sopra: l'altezza del soffitto più lo spessore del solaio (di solito ${Floor.SLAB.toInt()} cm). " +
-                        "Le scale di questo piano salgono di questa altezza.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = auto, onCheckedChange = { on ->
+                        auto = on
+                        if (!on) level = formatCm(autoValue) // passando a manuale si parte dal valore calcolato
+                    })
+                    Text("Interpiano automatico", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 4.dp))
+                }
+                if (auto) {
+                    Text("Interpiano: ${formatCm(autoValue)} cm", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Calcolato come altezza della stanza più alta del piano più ${Floor.SLAB.toInt()} cm di solaio: si aggiorna se cambi l'altezza delle stanze.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    SelectAllTextField(
+                        level, { level = it }, "Interpiano", Modifier.fillMaxWidth(),
+                        numeric = true, suffix = "cm", isError = levelValue == null,
+                    )
+                    Text(
+                        "Dal pavimento di questo piano a quello del piano di sopra: l'altezza del soffitto più lo spessore del solaio (di solito ${Floor.SLAB.toInt()} cm). " +
+                            "Resta quello che scrivi, anche se cambi l'altezza delle stanze.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Text("Le scale di questo piano salgono di questa altezza.", style = MaterialTheme.typography.bodySmall)
                 if (existing == null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = copyRooms, onCheckedChange = { copyRooms = it })
@@ -124,7 +144,7 @@ fun FloorEditDialog(dialog: FloorDialog, building: Building, vm: EditorViewModel
                 enabled = levelValue != null,
                 onClick = {
                     val h = levelValue ?: return@TextButton
-                    if (index == null) vm.addFloor(name, h, copyRooms) else vm.updateFloor(index, name, h)
+                    if (index == null) vm.addFloor(name, h, copyRooms, auto) else vm.updateFloor(index, name, h, auto)
                 },
             ) { Text(if (existing == null) "Aggiungi" else "Salva") }
         },

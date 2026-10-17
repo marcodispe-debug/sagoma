@@ -5,6 +5,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.Density
+import com.sagoma.planimetria.assets.AssetStore
+import com.sagoma.planimetria.assets.ClasspathAssetStore
+import com.sagoma.planimetria.assets.CompositeAssetStore
+import com.sagoma.planimetria.assets.DirectoryAssetStore
+import com.sagoma.planimetria.assets.buildCachedAssetStore
+import com.sagoma.planimetria.assets.codeSourceStamp
+import com.sagoma.planimetria.assets.directoryFingerprint
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.persistence.ProjectRepository
 import com.sagoma.planimetria.ui.ImportedImage
@@ -28,6 +35,11 @@ class DesktopPlatform(
     override val projects: ProjectRepository,
     override val tips: TipStore,
     private val assets: File?,
+    /**
+     * Cartella della cache su disco degli asset; `null` = nessuna cache (come nelle prove). Deve stare fuori dalla
+     * cartella degli asset (`-Dsagoma.assets`), che non si tocca mai: se ci sta dentro la cache non si usa.
+     */
+    assetCacheDir: File? = null,
 ) : Platform {
     /** Finestra principale (per le finestre di dialogo). */
     var frame: Frame? = null
@@ -71,10 +83,21 @@ class DesktopPlatform(
         toast("Copiato negli appunti: incollalo dove vuoi")
     }
 
-    override fun readAsset(path: String): ByteArray? {
-        assets?.let { dir -> File(dir, path).takeIf { it.isFile }?.let { return it.readBytes() } }
-        return javaClass.getResourceAsStream("/$path")?.use { it.readBytes() }
-    }
+    /**
+     * Come prima: prima la cartella `-Dsagoma.assets` (se c'è), poi le risorse del programma; davanti, se c'è
+     * `assetCacheDir`, la cache su disco. La cache vale per questa versione della sorgente (impronta della
+     * cartella degli asset e del programma): se cambiano si riparte da una cache nuova.
+     */
+    override val assetStore: AssetStore = buildCachedAssetStore(
+        source = CompositeAssetStore(
+            listOfNotNull(assets?.let { DirectoryAssetStore(it) }, ClasspathAssetStore(javaClass.classLoader)),
+        ),
+        cacheBaseDir = assetCacheDir,
+        sourceStamp = if (assetCacheDir == null) null
+        else "assets=" + (assets?.let { directoryFingerprint(it) } ?: "none") + ";" + codeSourceStamp(DesktopPlatform::class.java),
+        maxBytes = DESKTOP_ASSET_CACHE_BYTES,
+        protectedDirs = listOfNotNull(assets),
+    )
 
     override fun decodeImage(bytes: ByteArray): ImageBitmap? = SkiaImages.decode(bytes)
     override fun encodePng(image: ImageBitmap): ByteArray? = SkiaImages.encodePng(image)
@@ -90,7 +113,10 @@ class DesktopPlatform(
 
     override fun now(): Long = System.currentTimeMillis()
 
-    override fun createSceneRenderer(): SceneRenderer = runCatching { DesktopGlSceneRenderer(::readAsset) }.getOrElse {
+    override fun createSceneRenderer(): SceneRenderer = runCatching { DesktopGlSceneRenderer(assetStore::peek) }.getOrElse {
         UnavailableSceneRenderer("La vista 3D non è disponibile su questo computer (OpenGL non trovato).")
     }
 }
+
+/** Spazio massimo della cache su disco degli asset sul computer. */
+private const val DESKTOP_ASSET_CACHE_BYTES = 512L * 1024 * 1024
