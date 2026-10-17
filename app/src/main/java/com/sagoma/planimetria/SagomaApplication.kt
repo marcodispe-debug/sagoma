@@ -35,7 +35,7 @@ class SagomaApplication : Application() {
      * Il possesso resta qui, il lavoro bloccante gira fuori dal thread principale: parte in `onCreate` su `Dispatchers.IO` e il
      * risultato si ottiene una volta sola, anche se le `Activity` si ricreano mentre è in corso.
      *
-     * Vale `null` finché non sono configurati gli indirizzi (vedi `res/values/remote_assets.xml`: vuoti =
+     * Vale `null` finché non sono configurati gli indirizzi (proprietà Gradle `sagoma.catalogo.manifest` e `sagoma.catalogo.blobs`, vedi app/build.gradle.kts: vuoti =
      * nessun remoto, nessuna cache, nessun thread: il risultato è già pronto e non parte alcun lavoro), e se l'apertura fallisce.
      */
     lateinit var remoteAssets: Deferred<RemoteAssets?>

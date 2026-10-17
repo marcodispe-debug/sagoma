@@ -99,11 +99,10 @@ fun main() {
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
-@Suppress("UNUSED_PARAMETER") // lo usa la Platform nella tranche di collegamento
 private fun app(remote: RemoteAssets?) = application(exitProcessOnExit = false) {
     val dir = dataDir()
     val assets = System.getProperty("sagoma.assets")?.let(::File)?.takeIf { it.isDirectory }
-    val platform = DesktopPlatform(account = accountFromSystem(), projects = FileProjectRepository(dir), tips = FileTipStore(dir), assets = assets, assetCacheDir = assetCacheDir())
+    val platform = DesktopPlatform(account = accountFromSystem(), projects = FileProjectRepository(dir), tips = FileTipStore(dir), assets = assets, assetCacheDir = assetCacheDir(), remote = remote)
     FurnitureAssets.init(platform)
     // Errore nella finestra: lo si scrive nel registro, lo si dice all'utente e si chiude tutto (invece di
     // lasciare il programma vivo senza finestra).

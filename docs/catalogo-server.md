@@ -1,7 +1,14 @@
 # Catalogo degli arredi sul server
 
-L'app sa già scaricare arredi, materiali e luci da un server (`core/.../assets/remote`). Finché gli indirizzi in
-`app/src/main/res/values/remote_assets.xml` sono vuoti il sistema remoto è spento e l'app usa solo i file dentro l'APK.
+L'app sa scaricare arredi e materiali da un server (`core/.../assets/remote`) quando servono. Finché gli indirizzi
+(proprietà Gradle `sagoma.catalogo.manifest` e `sagoma.catalogo.blobs`) mancano, il sistema remoto è spento e il catalogo
+intero arriva con l'app nell'asset pack `catalogo`.
+
+Con gli indirizzi impostati:
+- nell'app restano solo la parte leggera del catalogo (elenchi, miniature, viste dall'alto, luci ambiente): download
+  iniziale da Google Play ~46 MB invece di ~681 MB (misurato con bundletool il 17 ottobre 2026);
+- la vista 3D chiede i modelli e le mappe dei materiali che le mancano e si ridisegna quando arrivano; restano in cache;
+- sul computer lo stesso con `-Dsagoma.remote.manifest=` e `-Dsagoma.remote.blobs=`.
 
 ## Preparare i file
 
@@ -25,12 +32,11 @@ Va bene qualsiasi hosting di file statici con HTTPS. Per esempio Cloudflare R2 (
 
 1. creare un bucket e renderlo leggibile pubblicamente (dominio `r2.dev` o un dominio proprio);
 2. caricare il contenuto della cartella di uscita così com'è (`manifest.json` e `blobs/`), per esempio con `rclone copy`;
-3. scrivere gli indirizzi in `remote_assets.xml`: `remote_manifest_url` = `https://…/manifest.json`,
-   `remote_blob_base_url` = `https://…/blobs`;
+3. scrivere gli indirizzi in `gradle.properties`: `sagoma.catalogo.manifest=https://…/manifest.json` e
+   `sagoma.catalogo.blobs=https://…/blobs` (o passarli con `-P` a Gradle);
 4. a ogni aggiornamento: rigenerare con una `catalogVersion` più alta e caricare prima i blob, poi il manifest.
 
 ## Cosa non fa ancora
 
-- Gli asset arrivano anche con l'app, nell'asset pack `catalogo` (circa 670 MB scaricati all'installazione). Toglierli per scaricarli solo quando servono è un passo a parte.
 - Tutti gli asset sono pubblici (`access` assente = public): i modelli sono CC0 o CC-BY, quindi non serve proteggerli.
 - La firma del manifest è prevista dal formato ma l'app non la verifica ancora.

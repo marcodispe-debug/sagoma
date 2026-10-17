@@ -20,7 +20,7 @@ import java.util.stream.Stream;
  *                           percorso logico, impronta SHA-256 e dimensione;
  *   blobs/<aa>/<sha256>     il contenuto di ogni file, una volta sola per contenuto (disposizione "fanout2").
  * Sul server: manifest all'indirizzo `remote_manifest_url`, la cartella blobs/ a `remote_blob_base_url`
- * (app/src/main/res/values/remote_assets.xml). I blob non cambiano mai nome: si possono mettere in cache per sempre.
+ * (proprietà Gradle sagoma.catalogo.manifest e sagoma.catalogo.blobs). I blob non cambiano mai nome: si possono mettere in cache per sempre.
  *
  * Un asset per arredo (modello 3D, miniatura, vista dall'alto), per materiale (colore, normali, ORM, campione), per luce
  * ambiente, più i due cataloghi. Gli id sono stabili ("furniture:<modello>", "material:<id>"…): il contenuto può cambiare.

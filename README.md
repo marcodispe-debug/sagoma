@@ -30,7 +30,9 @@ C'è una sola app (`com.sagoma.planimetria`, "Sagoma") per privati e professioni
 - Catalogo (arredi, materiali, luci) nel modulo `catalogo`, un asset pack di Google Play "install-time": arriva con
   l'app ma fuori dal pacchetto principale, che così resta sotto il limite di Play (misurato con bundletool: base ~13 MB,
   download totale per telefono ~681 MB). Nell'app installata si legge con l'`AssetManager` come prima; gli APK di debug
-  lo contengono direttamente.
+  lo contengono direttamente. Con gli indirizzi del server (`sagoma.catalogo.manifest` / `sagoma.catalogo.blobs`, vedi
+  [docs/catalogo-server.md](docs/catalogo-server.md)) nell'app resta solo la parte leggera (download iniziale ~46 MB) e la
+  vista 3D scarica modelli e materiali quando servono.
 - Cosa è sbloccato lo decide un solo punto, `core/.../access/Access.kt`: `Account` (privato o professionista, uscite
   acquistate per stanza e formato) e `Rights` (watermark, uscite senza watermark, operazioni con un diritto). Account e
   pagamenti veri non ci sono ancora: oggi l'account è sempre "privato senza acquisti"; sul computer

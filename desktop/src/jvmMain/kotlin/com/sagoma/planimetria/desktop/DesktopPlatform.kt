@@ -6,7 +6,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.Density
 import com.sagoma.planimetria.access.Account
+import com.sagoma.planimetria.assets.AssetRequests
 import com.sagoma.planimetria.assets.AssetStore
+import com.sagoma.planimetria.assets.NoAssetRequests
+import com.sagoma.planimetria.assets.remote.LateBoundAssetRequests
+import com.sagoma.planimetria.assets.remote.ManifestRefreshResult
+import com.sagoma.planimetria.assets.remote.RemoteAssets
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import com.sagoma.planimetria.assets.ClasspathAssetStore
 import com.sagoma.planimetria.assets.CompositeAssetStore
 import com.sagoma.planimetria.assets.DirectoryAssetStore
@@ -41,6 +50,8 @@ class DesktopPlatform(
      * cartella degli asset (`-Dsagoma.assets`), che non si tocca mai: se ci sta dentro la cache non si usa.
      */
     assetCacheDir: File? = null,
+    /** Catalogo scaricato a richiesta (`-Dsagoma.remote.manifest` e `-Dsagoma.remote.blobs`); `null` = nessuna rete. */
+    remote: RemoteAssets? = null,
 ) : Platform {
     /** Finestra principale (per le finestre di dialogo). */
     var frame: Frame? = null
@@ -87,7 +98,7 @@ class DesktopPlatform(
     /**
      * Come prima: prima la cartella `-Dsagoma.assets` (se c'è), poi le risorse del programma; davanti, se c'è
      * `assetCacheDir`, la cache su disco. La cache vale per questa versione della sorgente (impronta della
-     * cartella degli asset e del programma): se cambiano si riparte da una cache nuova.
+     * cartella degli asset e del programma): se cambiano si riparte da una cache nuova. Dietro, se c'è, il catalogo remoto.
      */
     override val assetStore: AssetStore = buildCachedAssetStore(
         source = CompositeAssetStore(
@@ -98,7 +109,17 @@ class DesktopPlatform(
         else "assets=" + (assets?.let { directoryFingerprint(it) } ?: "none") + ";" + codeSourceStamp(DesktopPlatform::class.java),
         maxBytes = DESKTOP_ASSET_CACHE_BYTES,
         protectedDirs = listOfNotNull(assets),
-    )
+    ).let { local -> if (remote == null) local else CompositeAssetStore(listOf(local, remote.store)) }
+
+    /** Richieste verso il catalogo remoto: ogni arrivo fa ricontrollare chi osserva (vista 3D, miniature). */
+    override val assetRequests: AssetRequests = if (remote == null) NoAssetRequests else LateBoundAssetRequests().also { requests ->
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        requests.bind(remote.prefetcher, scope)
+        // Il manifest si aggiorna in background: se ne arriva uno nuovo chi osserva richiede di nuovo ciò che gli manca.
+        scope.launch {
+            runCatching { remote.refreshManifest() }.onSuccess { if (it is ManifestRefreshResult.Updated) requests.invalidate() }
+        }
+    }
 
     override fun decodeImage(bytes: ByteArray): ImageBitmap? = SkiaImages.decode(bytes)
     override fun encodePng(image: ImageBitmap): ByteArray? = SkiaImages.encodePng(image)
