@@ -38,7 +38,7 @@ import java.nio.ByteBuffer
 import kotlin.math.pow
 
 /**
- * Versione pro: la scena disegnata con Filament (Google), con materiali fisici, sole con ombre morbide,
+ * La scena disegnata con Filament (Google), con materiali fisici, sole con ombre morbide,
  * luce ambiente, occlusione ambientale negli angoli (SSAO), antialiasing e resa dei colori naturale.
  * La scena arriva come glTF in memoria ([Glb]); si ridisegna solo quando cambia qualcosa.
  * Modelli, texture e luci ambiente li dà `assets` (da dove arrivino, qui non importa).

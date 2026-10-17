@@ -57,7 +57,6 @@ import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Parapet
 import com.sagoma.planimetria.model.FloorFinish
 import com.sagoma.planimetria.model.WallPaint
-import com.sagoma.planimetria.Edition
 import com.sagoma.planimetria.model.Room
 
 /** Trascinamento minimo (px) sulla striscia per aprire (verso l'alto) o chiudere (verso il basso) la tendina. */
@@ -276,23 +275,13 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
         ModelPicker("Pavimento", FloorFinish.entries, room.floorFinish, { it.label }, { vm.setRoomLook(room.id, floor = it) }) {
             floorPreview(it, Color(room.type.argb))
         }
-        if (Edition.isPro) {
-            // Pro: pavimento con un materiale fotografico (vince sulla finitura qui sopra).
+        // Pavimento con un materiale fotografico (vince sulla finitura qui sopra), dove ci sono i materiali.
+        if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS)) {
             MaterialPicker("Pavimento fotografico", room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
-            // Pro: colore qualsiasi e rivestimenti.
-            if (!room.outdoor) FinishPicker("Pareti interne", room.roomFinish, { vm.setRoomFinish(room.id, it) })
-            FinishPicker("Pareti esterne (facciata del piano)", plan.facadeOrPaint, { vm.setFacadeFinish(it) })
-        } else {
-            if (!room.outdoor) {
-                ColorPicker("Pareti interne", WallPaint.entries.map { it.label to it.argb }, room.wallPaint.ordinal, { k ->
-                    vm.setRoomLook(room.id, paint = WallPaint.entries[k])
-                })
-            }
-            // La facciata è una sola per tutto il piano: si cambia da qualunque stanza.
-            ColorPicker("Pareti esterne (facciata del piano)", WallPaint.entries.map { it.label to it.argb }, plan.facade.ordinal, { k ->
-                vm.setFacade(WallPaint.entries[k])
-            })
         }
+        // Colore qualsiasi e rivestimenti. La facciata è una sola per tutto il piano: si cambia da qualunque stanza.
+        if (!room.outdoor) FinishPicker("Pareti interne", room.roomFinish, { vm.setRoomFinish(room.id, it) })
+        FinishPicker("Pareti esterne (facciata del piano)", plan.facadeOrPaint, { vm.setFacadeFinish(it) })
 
         // Misure calcolate.
         SectionTitle("Misure")

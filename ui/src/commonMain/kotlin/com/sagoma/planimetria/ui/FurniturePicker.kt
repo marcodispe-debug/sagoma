@@ -50,7 +50,7 @@ import com.sagoma.planimetria.assets.remote.AssetPriority
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.model.FurnitureCatalog
 
-/** "+ Arredi" (versione pro): apre il catalogo dei mobili. */
+/** "+ Arredi": apre il catalogo dei mobili. */
 @Composable
 fun FurnitureButton(vm: EditorViewModel, buttonModifier: Modifier = Modifier, contentPadding: PaddingValues = ButtonDefaults.ContentPadding) {
     var open by remember { mutableStateOf(false) }

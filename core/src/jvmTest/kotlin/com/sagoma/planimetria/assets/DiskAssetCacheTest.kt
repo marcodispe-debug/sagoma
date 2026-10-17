@@ -390,7 +390,7 @@ class DiskAssetCacheTest {
 
     @Test
     fun `i file veri passano dalla cache uguali e rientrano nel limite`() {
-        val dir = File("../app/src/pro/assets/furniture")
+        val dir = File("../app/src/main/assets/furniture")
         assertTrue(dir.isDirectory, "Cartella degli asset non trovata: ${dir.absolutePath}")
         val models = dir.listFiles { f -> f.name.endsWith(".glb") }!!.sortedBy { it.name }.take(30)
         assertEquals(30, models.size)

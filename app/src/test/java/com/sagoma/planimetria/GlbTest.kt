@@ -15,7 +15,7 @@ import org.junit.Test
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/** Versione pro: la scena esportata in glTF binario per Filament. */
+/** La scena esportata in glTF binario per Filament. */
 class GlbTest {
 
     @Test

@@ -58,7 +58,7 @@ object RecentColors {
 }
 
 /**
- * Versione pro: finitura di una parete. Pittura di qualsiasi colore (tavolozza estesa, colori recenti o
+ * Finitura di una parete. Pittura di qualsiasi colore (tavolozza estesa, colori recenti o
  * selettore libero) e rivestimento (carta da parati, piastrelle, mattoni, pietra, boiserie, perlinato) con
  * il suo colore e fin dove arriva da terra.
  */
@@ -190,7 +190,7 @@ private fun CustomColorDialog(initial: Long, onDismiss: () -> Unit, onPick: (Lon
 }
 
 /**
- * Materiali fotografici della libreria (versione pro): categorie e campioni. `forFloor` mostra quelli
+ * Materiali fotografici della libreria: categorie e campioni. `forFloor` mostra quelli
  * adatti ai pavimenti, altrimenti quelli per le pareti; con `allowNone` c'è anche "Nessuno".
  */
 @Composable

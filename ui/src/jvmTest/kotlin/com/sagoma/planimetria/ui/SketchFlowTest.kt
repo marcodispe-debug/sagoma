@@ -251,7 +251,7 @@ class SketchFlowTest {
 
     // ---------- Disponibilità della funzione (separata da lingua e testi) ----------
 
-    private class FakePlatform(override val isPro: Boolean, private val scanner: RoomScanner?) : Platform {
+    private class FakePlatform(private val scanner: RoomScanner?) : Platform {
         override val assetStore: com.sagoma.planimetria.assets.AssetStore get() = error("non serve")
         override val roomScanner: RoomScanner? get() = scanner
         override val projects: ProjectRepository get() = error("non serve")
@@ -275,9 +275,8 @@ class SketchFlowTest {
     }
 
     @Test
-    fun `la funzione c'e solo con Pro e scanner - oggi dalle varianti, domani dai diritti`() {
-        assertFalse(FeatureAccess.isEnabled(FakePlatform(isPro = false, scanner = NoScanner), AppFeature.SKETCH_GUIDED_SCAN))
-        assertFalse(FeatureAccess.isEnabled(FakePlatform(isPro = true, scanner = null), AppFeature.SKETCH_GUIDED_SCAN))
-        assertTrue(FeatureAccess.isEnabled(FakePlatform(isPro = true, scanner = NoScanner), AppFeature.SKETCH_GUIDED_SCAN))
+    fun `la funzione c'e dove c'e lo scanner, per tutti gli account`() {
+        assertFalse(FeatureAccess.isEnabled(FakePlatform(scanner = null), AppFeature.SKETCH_GUIDED_SCAN))
+        assertTrue(FeatureAccess.isEnabled(FakePlatform(scanner = NoScanner), AppFeature.SKETCH_GUIDED_SCAN))
     }
 }

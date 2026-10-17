@@ -18,7 +18,8 @@ import androidx.compose.ui.window.WindowExceptionHandler
 import androidx.compose.ui.window.WindowExceptionHandlerFactory
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import com.sagoma.planimetria.Edition
+import com.sagoma.planimetria.access.Account
+import com.sagoma.planimetria.access.Profile
 import com.sagoma.planimetria.assets.remote.RemoteAssets
 import com.sagoma.planimetria.assets.remote.createJvmRemoteAssets
 import com.sagoma.planimetria.persistence.FileProjectRepository
@@ -38,6 +39,14 @@ private fun dataDir(): File {
     val appData = System.getenv("APPDATA")
     return (if (appData != null) File(appData, "Sagoma") else File(System.getProperty("user.home"), ".sagoma")).also { it.mkdirs() }
 }
+
+/**
+ * Account di prova finché non c'è la registrazione: privato, oppure professionista con `-Dsagoma.profilo=professionista`
+ * (per vedere l'app senza watermark).
+ */
+private fun accountFromSystem(): Account =
+    if (System.getProperty("sagoma.profilo").equals("professionista", ignoreCase = true)) Account(profile = Profile.Professional)
+    else Account.Guest
 
 /**
  * Cartella della cache degli asset: %LOCALAPPDATA%\Sagoma\asset-cache su Windows (non nel profilo "roaming",
@@ -94,8 +103,7 @@ fun main() {
 private fun app(remote: RemoteAssets?) = application(exitProcessOnExit = false) {
     val dir = dataDir()
     val assets = System.getProperty("sagoma.assets")?.let(::File)?.takeIf { it.isDirectory }
-    val platform = DesktopPlatform(isPro = true, projects = FileProjectRepository(dir), tips = FileTipStore(dir), assets = assets, assetCacheDir = assetCacheDir())
-    Edition.isPro = platform.isPro
+    val platform = DesktopPlatform(account = accountFromSystem(), projects = FileProjectRepository(dir), tips = FileTipStore(dir), assets = assets, assetCacheDir = assetCacheDir())
     FurnitureAssets.init(platform)
     // Errore nella finestra: lo si scrive nel registro, lo si dice all'utente e si chiude tutto (invece di
     // lasciare il programma vivo senza finestra).

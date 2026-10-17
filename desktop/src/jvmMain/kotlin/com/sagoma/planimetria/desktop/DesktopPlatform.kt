@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.Density
+import com.sagoma.planimetria.access.Account
 import com.sagoma.planimetria.assets.AssetStore
 import com.sagoma.planimetria.assets.ClasspathAssetStore
 import com.sagoma.planimetria.assets.CompositeAssetStore
@@ -31,7 +32,7 @@ import java.util.Date
 
 /** Servizi della piattaforma sul computer: finestre di dialogo di sistema per i file, Skia per immagini e PDF. */
 class DesktopPlatform(
-    override val isPro: Boolean,
+    override val account: Account = Account.Guest,
     override val projects: ProjectRepository,
     override val tips: TipStore,
     private val assets: File?,

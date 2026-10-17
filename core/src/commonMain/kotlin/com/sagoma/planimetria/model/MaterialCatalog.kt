@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * Materiali fotografici della versione pro (parquet, piastrelle, marmo, mattoni, intonaco, carta da
+ * Materiali fotografici (parquet, piastrelle, marmo, mattoni, intonaco, carta da
  * parati…), letti da `assets/materials/materials.json` (preparato con `tools/furniture/PackMaterials.java`).
  * Per ogni materiale ci sono `<id>_color.jpg`, `<id>_normal.jpg`, `<id>_orm.jpg` (ruvidità) e `<id>_thumb.jpg`.
  * Fonti: ambientCG e Poly Haven, licenza CC0. Gli id finiscono nel file salvato: non si rinominano.

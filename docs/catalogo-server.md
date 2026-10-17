@@ -1,12 +1,12 @@
 # Catalogo degli arredi sul server
 
-L'app pro sa già scaricare arredi, materiali e luci da un server (`core/.../assets/remote`). Finché gli indirizzi in
+L'app sa già scaricare arredi, materiali e luci da un server (`core/.../assets/remote`). Finché gli indirizzi in
 `app/src/main/res/values/remote_assets.xml` sono vuoti il sistema remoto è spento e l'app usa solo i file dentro l'APK.
 
 ## Preparare i file
 
 ```
-java tools/remote/BuildRemoteCatalog.java app/src/pro/assets <cartella di uscita> <catalogVersion> [releaseId]
+java tools/remote/BuildRemoteCatalog.java app/src/main/assets <cartella di uscita> <catalogVersion> [releaseId]
 ```
 
 - `catalogVersion` cresce a ogni pubblicazione (1, 2, 3…): l'app rifiuta un manifest più vecchio di uno già visto.
@@ -17,7 +17,7 @@ java tools/remote/BuildRemoteCatalog.java app/src/pro/assets <cartella di uscita
   790 MB. Il manifest risultante si legge senza errori.
 
 Prima, se il catalogo è stato rigenerato con `PackModels`, riapplicare le correzioni a mano:
-`java tools/furniture/ApplyCatalogFixes.java tools/furniture/catalog-fixes.tsv app/src/pro/assets/furniture/catalog.json`.
+`java tools/furniture/ApplyCatalogFixes.java tools/furniture/catalog-fixes.tsv app/src/main/assets/furniture/catalog.json`.
 
 ## Pubblicare (serve un account di hosting, da aprire a tuo nome)
 
@@ -31,6 +31,6 @@ Va bene qualsiasi hosting di file statici con HTTPS. Per esempio Cloudflare R2 (
 
 ## Cosa non fa ancora
 
-- Gli asset restano anche dentro l'APK (pro: circa 690 MB). Toglierli per scaricarli solo quando servono è un passo a parte.
+- Gli asset restano anche dentro l'APK (circa 690 MB). Toglierli per scaricarli solo quando servono è un passo a parte.
 - Tutti gli asset sono pubblici (`access` assente = public): i modelli sono CC0 o CC-BY, quindi non serve proteggerli.
 - La firma del manifest è prevista dal formato ma l'app non la verifica ancora.

@@ -35,7 +35,7 @@ class SagomaApplication : Application() {
      * Il possesso resta qui, il lavoro bloccante gira fuori dal thread principale: parte in `onCreate` su `Dispatchers.IO` e il
      * risultato si ottiene una volta sola, anche se le `Activity` si ricreano mentre è in corso.
      *
-     * Vale `null` nella versione free e finché non sono configurati gli indirizzi (vedi `res/values/remote_assets.xml`: vuoti =
+     * Vale `null` finché non sono configurati gli indirizzi (vedi `res/values/remote_assets.xml`: vuoti =
      * nessun remoto, nessuna cache, nessun thread: il risultato è già pronto e non parte alcun lavoro), e se l'apertura fallisce.
      */
     lateinit var remoteAssets: Deferred<RemoteAssets?>
@@ -45,7 +45,7 @@ class SagomaApplication : Application() {
      * Il negozio remoto da mettere dietro agli asset impacchettati, da consegnare subito a una `Platform` (nessuna attesa, nessun
      * `await`): vuoto finché `remoteAssets` non è pronto, poi risponde con lo store di quello. È collegato una sola volta, dallo
      * stesso lavoro che apre il sistema remoto, quindi vale per ogni `Platform` e `Activity`, anche se si ricreano nel frattempo.
-     * `null` dove il remoto è spento (free o indirizzi vuoti): allora non c'è niente da comporre.
+     * `null` dove il remoto è spento (indirizzi vuoti): allora non c'è niente da comporre.
      */
     var remoteStore: AssetStore? = null
         private set
@@ -65,7 +65,6 @@ class SagomaApplication : Application() {
 
     private fun openRemoteAssets(): Deferred<RemoteAssets?> {
         // Solo la lettura di due stringhe sul thread principale: se il remoto è spento non si avvia nulla.
-        if (!Flavor.isPro) return remoteDisabled()
         val manifestUrl = getString(R.string.remote_manifest_url).trim()
         val blobBaseUrl = getString(R.string.remote_blob_base_url).trim()
         if (manifestUrl.isEmpty() || blobBaseUrl.isEmpty()) return remoteDisabled()

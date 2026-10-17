@@ -103,7 +103,7 @@ class View3DState {
     var aspect = 1.0
 
     /** Manda la telecamera al renderer e ridisegna. */
-    /** Versione pro: ora del giorno (6:30 = 6.5) e luci della casa ("auto", "on", "off"). */
+    /** Ora del giorno (6:30 = 6.5) e luci della casa ("auto", "on", "off"). */
     var hour by mutableStateOf(11f)
     var lamps by mutableStateOf("auto")
     /** Cursore dell'ora aperto. */
@@ -603,8 +603,8 @@ private fun spotGizmo(state: EditorUiState, cam: Camera3D, w: Float, h: Float, w
 /** Pulsante della vista 3D (in basso a destra, al posto della legenda): Cammina / Vista dall'alto. */
 @Composable
 fun View3DControls(state: EditorUiState, view: View3DState, modifier: Modifier = Modifier) {
-    // Versione pro: ora del giorno (sole e luce dalle finestre) e luci della casa.
-    if (com.sagoma.planimetria.Edition.isPro) {
+    // Ora del giorno (sole e luce dalle finestre) e luci della casa.
+    run {
         val h = view.hour.toInt()
         val m = ((view.hour - h) * 60).roundToInt()
         val icon = if (view.hour < 6.5f || view.hour > 19.5f) "🌙" else if (view.hour < 8f || view.hour > 18f) "🌅" else "☀"
@@ -622,7 +622,7 @@ fun View3DControls(state: EditorUiState, view: View3DState, modifier: Modifier =
 }
 
 /**
- * Cursore dell'ora del giorno (versione pro). In verticale (telefono dritto) sta in alto, largo; su schermi
+ * Cursore dell'ora del giorno. In verticale (telefono dritto) sta in alto, largo; su schermi
  * larghi (computer, telefono girato) sta a sinistra, stretto e verticale (lungo `length`), per non coprire la vista.
  */
 @Composable

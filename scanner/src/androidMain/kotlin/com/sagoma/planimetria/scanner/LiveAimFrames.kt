@@ -14,7 +14,7 @@ import com.sagoma.planimetria.scan.recording.RecordingSanitizer
 import kotlin.math.round
 
 /**
- * Scansione guidata (M2.0, prova solo Pro): il frame di ARCore ridotto agli STESSI dati che la registrazione salva per ogni
+ * Scansione guidata (M2.0, prova): il frame di ARCore ridotto agli STESSI dati che la registrazione salva per ogni
  * frame (posa, piani, nuvola di punti; stessi arrotondamenti), così il motore riceve dal vivo quello che riceve rigiocando una
  * registrazione (`AimFrameBuilder`). Non registra nulla e non tocca [ScanRecorder]. Da usare sul thread di disegno.
  */

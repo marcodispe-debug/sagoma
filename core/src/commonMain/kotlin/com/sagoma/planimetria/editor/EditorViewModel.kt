@@ -463,7 +463,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         _state.update { it.copy(selection = null) }
     }
 
-    // ---------- Arredi (versione pro) ----------
+    // ---------- Arredi ----------
 
     /** Nuovo arredo del catalogo nella stanza selezionata (o al centro della vista), accostato a muri e mobili. */
     fun addFurniture(item: FurnitureCatalog.Item) {
@@ -2191,7 +2191,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         )
     }
 
-    // ---------- Versione pro: colori liberi e rivestimenti ----------
+    // ---------- Colori liberi e rivestimenti ----------
 
     /** Finitura (colore libero e rivestimento) delle pareti della stanza. */
     fun setRoomFinish(id: Long, finish: WallFinish) = commit { plan ->

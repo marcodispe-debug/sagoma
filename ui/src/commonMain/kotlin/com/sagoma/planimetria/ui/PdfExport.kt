@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sagoma.planimetria.access.OutputFormat
+import com.sagoma.planimetria.access.Rights
 import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.geometry.Openings
@@ -71,7 +73,8 @@ object PdfExport {
     /** Punti per dp nei disegni della pianta: testi e tratti un po' più fini che sullo schermo. */
     val drawDensity = Density(0.62f, 1f)
 
-    data class Options(val paper: Paper, val scale: Int?, val allFloors: Boolean, val takeoff: Boolean)
+    /** [watermark]: marchio del piano gratuito su ogni foglio (lo decide chi esporta, con [com.sagoma.planimetria.access.Rights]). */
+    data class Options(val paper: Paper, val scale: Int?, val allFloors: Boolean, val takeoff: Boolean, val watermark: Boolean = false)
 
     /** Riquadro utile per la pianta nella pagina (sopra al cartiglio). */
     private fun drawArea(p: Paper) = floatArrayOf(MARGIN + DIM_SPACE, MARGIN + DIM_SPACE, p.w - MARGIN - 12f, p.h - MARGIN - BLOCK_H - 16f)
@@ -88,11 +91,17 @@ object PdfExport {
         val floors = if (o.allFloors) building.floors.filter { it.plan.rooms.isNotEmpty() || it.plan.furniture.isNotEmpty() } else listOf(building.floor)
         val sheets = floors.size + if (o.takeoff) 1 else 0
         val result = floors.mapIndexed { i, fl ->
-            PdfPage(o.paper.w, o.paper.h) { drawPlanSheet(fl, info, o, measurer, i + 1, sheets, date, building.layers) }
+            PdfPage(o.paper.w, o.paper.h) {
+                drawPlanSheet(fl, info, o, measurer, i + 1, sheets, date, building.layers)
+                if (o.watermark) with(Watermark) { drawWatermark(measurer, Watermark.exportLetterPx(size.width, size.height)) }
+            }
         }.toMutableList()
         if (o.takeoff) {
             val res = Takeoff.of(building)
-            result += PdfPage(o.paper.w, o.paper.h) { drawTakeoffSheet(res, info, o.paper, sheets, measurer, date) }
+            result += PdfPage(o.paper.w, o.paper.h) {
+                drawTakeoffSheet(res, info, o.paper, sheets, measurer, date)
+                if (o.watermark) with(Watermark) { drawWatermark(measurer, Watermark.exportLetterPx(size.width, size.height)) }
+            }
         }
         return result
     }
@@ -371,7 +380,9 @@ fun PdfExportDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> U
     val auto = remember(paper, state.plan) { PdfExport.autoScale(state.plan, paper) }
 
     fun save() {
-        val opts = PdfExport.Options(paper, scale, allFloors, takeoff)
+        val rooms = (if (allFloors) state.fullBuilding.floors.map { it.plan } else listOf(state.plan)).flatMap { p -> p.rooms.map { it.id } }
+        val watermark = !Rights.cleanOutput(platform.account, OutputFormat.Plan, rooms)
+        val opts = PdfExport.Options(paper, scale, allFloors, takeoff, watermark)
         val pages = PdfExport.pages(state.fullBuilding, info, opts, measurer, platform.formatDate(platform.now()))
         val pdf = runCatching { platform.createPdf(pages, PdfExport.drawDensity) }.onFailure { it.printStackTrace() }.getOrNull()
         if (pdf == null) {
@@ -380,7 +391,7 @@ fun PdfExportDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> U
         }
         val name = (info?.name ?: "planimetria").replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifEmpty { "planimetria" }
         platform.saveFile("$name.pdf", "application/pdf", pdf) { ok ->
-            platform.toast(if (ok) "Tavola PDF salvata" else "Esportazione non riuscita")
+            platform.toast(if (!ok) "Esportazione non riuscita" else if (watermark) "Tavola PDF salvata con il marchio Sagoma" else "Tavola PDF salvata")
             if (ok) onDismiss()
         }
     }

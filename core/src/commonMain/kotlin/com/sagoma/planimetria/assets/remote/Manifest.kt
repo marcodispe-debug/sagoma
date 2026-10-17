@@ -6,7 +6,7 @@ const val SUPPORTED_MANIFEST_SCHEMA: Int = 1
 /** Ciclo di vita di un asset nel catalogo: un asset non si cancella, si ritira (e magari si rimpiazza). */
 enum class AssetStatus { Active, Deprecated, Withdrawn }
 
-/** Chi può scaricarlo: `Public` senza credenziali, `Protected` serve un accesso (per esempio la versione pro). */
+/** Chi può scaricarlo: `Public` senza credenziali, `Protected` serve un accesso. */
 enum class AssetAccess { Public, Protected }
 
 /**

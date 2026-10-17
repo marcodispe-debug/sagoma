@@ -259,11 +259,11 @@ data class Room(
     val wallPaint: WallPaint = WallPaint.White,
     /** Colore di singole pareti (lato interno), indicizzato per muro: vince su [wallPaint]. */
     val wallPaints: Map<Int, WallPaint> = emptyMap(),
-    /** Versione pro: colore libero e rivestimento delle pareti; vince su [wallPaint]. */
+    /** Colore libero e rivestimento delle pareti; vince su [wallPaint]. */
     val wallFinish: WallFinish? = null,
-    /** Versione pro: finitura di singole pareti, indicizzata per muro. */
+    /** Finitura di singole pareti, indicizzata per muro. */
     val wallFinishes: Map<Int, WallFinish> = emptyMap(),
-    /** Versione pro: pavimento con un materiale fotografico ([MaterialCatalog]); vince su [floorFinish] nel 3D. */
+    /** Pavimento con un materiale fotografico ([MaterialCatalog]); vince su [floorFinish] nel 3D. */
     val floorMaterial: String? = null,
     /** Spessore dei muri della stanza (cm) e di singoli muri che fanno eccezione (portanti, tramezzi). */
     val wallThickness: Double = WALL_THICKNESS,
@@ -378,7 +378,7 @@ data class Room(
     /** Colore del lato interno del muro `i`: il suo, oppure quello delle pareti della stanza. */
     fun paintOf(i: Int): WallPaint = wallPaints[i] ?: wallPaint
 
-    /** Finitura delle pareti della stanza (pro o colore di tavolozza). */
+    /** Finitura delle pareti della stanza (finitura libera o colore di tavolozza). */
     val roomFinish: WallFinish get() = wallFinish ?: WallFinish.of(wallPaint)
 
     /** Finitura del lato interno del muro `i`: la sua (pro o di tavolozza), oppure quella della stanza. */
@@ -597,7 +597,7 @@ data class FreeWall(
     val thickness: Double = 10.0,
     val height: Double? = null,
     val paint: WallPaint = WallPaint.White,
-    /** Versione pro: colore libero e rivestimento (sui due lati); vince su [paint]. */
+    /** Colore libero e rivestimento (sui due lati); vince su [paint]. */
     val finish: WallFinish? = null,
     /** Stato di fatto / progetto: esistente, da demolire, nuovo. */
     val phase: Phase = Phase.Existing,
@@ -608,7 +608,7 @@ data class FreeWall(
 }
 
 /**
- * Arredo (versione pro): un modello 3D del catalogo ([FurnitureCatalog]) appoggiato sul pavimento, o
+ * Arredo: un modello 3D del catalogo ([FurnitureCatalog]) appoggiato sul pavimento, o
  * alzato di `elevation` cm (pensili, lampade a soffitto). `width` × `depth` è l'ingombro in pianta,
  * `height` l'altezza: il modello si adatta a queste misure. `rotation` in gradi; a 0 il davanti del
  * mobile guarda verso il basso dello schermo.
@@ -657,9 +657,9 @@ data class FloorPlan(
     val facade: WallPaint = WallPaint.White,
     /** Muri singoli (tramezzi) che non chiudono una stanza. */
     val freeWalls: List<FreeWall> = emptyList(),
-    /** Versione pro: colore libero e rivestimento della facciata; vince su [facade]. */
+    /** Colore libero e rivestimento della facciata; vince su [facade]. */
     val facadeFinish: WallFinish? = null,
-    /** Versione pro: arredi. */
+    /** Arredi. */
     val furniture: List<Furniture> = emptyList(),
     /** Pianta esistente (foto, scansione, PDF) sotto al disegno, da ricalcare. */
     val underlay: Underlay? = null,

@@ -44,7 +44,7 @@ sealed interface Selection {
     data class FreeWall(val wallId: Long) : Selection {
         override val roomId: Long get() = NO_ROOM
     }
-    /** Arredo (versione pro). */
+    /** Arredo. */
     data class Furniture(val furnitureId: Long) : Selection {
         override val roomId: Long get() = NO_ROOM
     }

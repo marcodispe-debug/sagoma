@@ -11,7 +11,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeViewport
-import com.sagoma.planimetria.Edition
 import com.sagoma.planimetria.ui.FurnitureAssets
 import com.sagoma.planimetria.ui.SagomaApp
 import kotlinx.browser.document
@@ -20,7 +19,6 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
     val platform = WebPlatform()
-    Edition.isPro = platform.isPro
     FurnitureAssets.init(platform)
     document.getElementById("caricamento")?.remove()
     ComposeViewport(document.body!!) {

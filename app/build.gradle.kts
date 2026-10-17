@@ -16,20 +16,8 @@ android {
         versionName = "0.1.0"
     }
 
-    // Due versioni dallo stesso codice: "free" (l'app di sempre) e "pro" (app separata, con in più
-    // colori e rivestimenti liberi, il motore grafico Filament e la libreria di arredi 3D).
-    // Il codice in comune sta in src/main; quello di una sola versione in src/free o src/pro.
-    flavorDimensions += "edition"
-    productFlavors {
-        create("free") {
-            dimension = "edition"
-        }
-        create("pro") {
-            dimension = "edition"
-            applicationIdSuffix = ".pro"
-            versionNameSuffix = "-pro"
-        }
-    }
+    // Una sola app per privati e professionisti: cosa è sbloccato lo decidono i diritti dell'account
+    // (core, pacchetto `access`), non varianti di build separate.
 
     buildTypes {
         release {
@@ -64,9 +52,9 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     debugImplementation(libs.compose.ui.tooling)
 
-    // Solo nella versione pro: motore grafico Filament (Google, Apache 2.0) e caricatore di modelli glTF.
-    "proImplementation"(libs.filament.android)
-    "proImplementation"(libs.filament.gltfio)
+    // Motore grafico Filament (Google, Apache 2.0) e caricatore di modelli glTF.
+    implementation(libs.filament.android)
+    implementation(libs.filament.gltfio)
 
     testImplementation(libs.junit)
 }

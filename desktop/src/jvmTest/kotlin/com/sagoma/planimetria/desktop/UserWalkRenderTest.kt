@@ -15,7 +15,7 @@ class UserWalkRenderTest {
     @Test
     fun camminata() {
         val path = System.getenv("SAGOMA_PLAN") ?: return
-        val assets = File("../app/src/pro/assets")
+        val assets = File("../app/src/main/assets")
         fun read(p: String) = File(assets, p).takeIf { it.isFile }?.readBytes()
         read("furniture/catalog.json")?.let { FurnitureCatalog.load(it.decodeToString()) }
         read("materials/materials.json")?.let { MaterialCatalog.load(it.decodeToString()) }

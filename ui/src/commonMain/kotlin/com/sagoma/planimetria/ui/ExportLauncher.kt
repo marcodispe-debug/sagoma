@@ -3,6 +3,8 @@ package com.sagoma.planimetria.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.rememberTextMeasurer
+import com.sagoma.planimetria.access.OutputFormat
+import com.sagoma.planimetria.access.Rights
 import com.sagoma.planimetria.model.FloorPlan
 
 /**
@@ -15,10 +17,11 @@ fun rememberPngExporter(plan: FloorPlan, layers: com.sagoma.planimetria.model.La
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer()
     return {
-        val png = PlanExport.render(plan, measurer, density, layers = layers)?.let(platform::encodePng)
+        val watermark = !Rights.cleanOutput(platform.account, OutputFormat.Plan, plan.rooms.map { it.id })
+        val png = PlanExport.render(plan, measurer, density, layers = layers, watermark = watermark)?.let(platform::encodePng)
         if (png == null) platform.toast("Non c'è niente da esportare")
         else platform.saveFile("planimetria-${isoDate(platform.now())}.png", "image/png", png) { ok ->
-            platform.toast(if (ok) "Pianta esportata" else "Esportazione non riuscita")
+            platform.toast(if (!ok) "Esportazione non riuscita" else if (watermark) "Pianta esportata con il marchio Sagoma" else "Pianta esportata")
         }
     }
 }

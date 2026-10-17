@@ -355,7 +355,7 @@ class CachedAssetStoreTest {
 
     @Test
     fun `i file veri passano dallo store integrato byte per byte e la cartella degli asset non cambia`() {
-        val root = File("../app/src/pro/assets")
+        val root = File("../app/src/main/assets")
         assertTrue(root.isDirectory, "Cartella degli asset non trovata: ${root.absolutePath}")
         val fingerprintBefore = directoryFingerprint(root)
         val savedF = FurnitureCatalog.items

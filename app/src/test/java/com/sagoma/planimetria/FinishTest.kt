@@ -17,7 +17,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Versione pro: colori liberi e rivestimenti delle pareti. */
+/** Colori liberi e rivestimenti delle pareti. */
 class FinishTest {
 
     private val room = Room(1, "Bagno", RoomType.Bagno, RoomFactory.rectangle(300.0, 250.0))
@@ -85,8 +85,8 @@ class FinishTest {
     }
 
     @Test
-    fun `i materiali fotografici della versione pro hanno le loro mappe e misure sensate`() {
-        val dir = java.io.File("src/pro/assets/materials")
+    fun `i materiali fotografici hanno le loro mappe e misure sensate`() {
+        val dir = java.io.File("src/main/assets/materials")
         com.sagoma.planimetria.model.MaterialCatalog.load(java.io.File(dir, "materials.json").readText())
         val items = com.sagoma.planimetria.model.MaterialCatalog.items
         assertTrue(items.size >= 30)

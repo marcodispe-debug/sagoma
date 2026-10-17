@@ -6,7 +6,7 @@ import android.util.Log
 import com.sagoma.planimetria.assets.AssetStore
 
 /**
- * Versione pro: Filament, se il telefono ha OpenGL ES 3 (quasi tutti); altrimenti, o se Filament non
+ * Filament, se il telefono ha OpenGL ES 3 (quasi tutti); altrimenti, o se Filament non
  * parte, il renderer semplice.
  */
 object SceneRenderers {

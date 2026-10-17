@@ -52,7 +52,6 @@ import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.DoorModel
 import com.sagoma.planimetria.model.WallPaint
-import com.sagoma.planimetria.Edition
 import com.sagoma.planimetria.model.Beam
 import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.Column
@@ -224,8 +223,7 @@ private fun FreeWallPanel(sel: Selection.FreeWall, plan: FloorPlan, vm: EditorVi
         }
     }
     if (w.height != null) TextButton(onClick = { update { it.copy(height = null) } }) { Text("Fino al soffitto (${formatCm(ceiling)} cm)") }
-    if (Edition.isPro) FinishPicker("Finitura (sui due lati)", w.finishOrPaint, { vm.setFreeWallFinish(w.id, it) })
-    else ColorPicker("Colore", WallPaint.entries.map { it.label to it.argb }, w.paint.ordinal, { k -> update { it.copy(paint = WallPaint.entries[k], finish = null) } })
+    FinishPicker("Finitura (sui due lati)", w.finishOrPaint, { vm.setFreeWallFinish(w.id, it) })
     Text(
         "Trascinalo per spostarlo, i pallini alle estremità per allungarlo o girarlo: si aggancia alle facce degli altri muri, " +
             "alle estremità di altri muri singoli e si raddrizza a 90°.",
@@ -557,7 +555,7 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
         }
     }
     // Colore di questa sola parete (lato verso la stanza), diverso da quello delle altre.
-    if (!room.outdoor && Edition.isPro) {
+    if (!room.outdoor) {
         val own = room.hasOwnFinish(sel.index)
         FinishPicker(
             "Finitura di questa parete" + if (!own) " (come la stanza)" else "",
@@ -565,19 +563,6 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
             { vm.setWallFinish(room.id, sel.index, it) },
         )
         if (own) TextButton(onClick = { vm.setWallFinish(room.id, sel.index, null) }) { Text("Come le altre pareti della stanza") }
-    } else if (!room.outdoor) {
-        val own = room.wallPaints[sel.index]
-        ColorPicker(
-            "Colore di questa parete" + if (own == null) " (come la stanza)" else "",
-            WallPaint.entries.map { it.label to it.argb },
-            room.paintOf(sel.index).ordinal,
-            { k -> vm.setWallPaint(room.id, sel.index, WallPaint.entries[k]) },
-        )
-        if (own != null) {
-            TextButton(onClick = { vm.setWallPaint(room.id, sel.index, null) }) {
-                Text("Come le altre pareti (${room.wallPaint.label.lowercase()})")
-            }
-        }
     }
     // Spessore di questo muro (portante, tramezzo…) e forma libera: un angolo in più o in meno.
     if (!room.outdoor) {

@@ -111,7 +111,7 @@ enum class WallPaint(val label: String, val argb: Long) {
 }
 
 /**
- * Rivestimento di una parete (versione pro), disegnato nel 3D con le sue fughe. `defaultHeight`: fin dove
+ * Rivestimento di una parete, disegnato nel 3D con le sue fughe. `defaultHeight`: fin dove
  * arriva da terra se l'utente non lo cambia (null = tutta la parete). I nomi finiscono nel file salvato.
  */
 enum class Covering(val label: String, val defaultArgb: Long, val defaultHeight: Double?) {
@@ -123,12 +123,12 @@ enum class Covering(val label: String, val defaultArgb: Long, val defaultHeight:
     Stone("Pietra", 0xFFB9AE9A, null),
     Wainscot("Boiserie", 0xFFF3F0E8, 100.0),
     Boards("Perlinato", 0xFFD1AD7E, 110.0),
-    /** Materiale fotografico della libreria (versione pro): vedi [WallFinish.material]. */
+    /** Materiale fotografico della libreria: vedi [WallFinish.material]. */
     Material("Materiale fotografico", 0xFFC8C2B8, null),
 }
 
 /**
- * Finitura libera di una parete (versione pro): colore qualsiasi della pittura e, se c'è, rivestimento
+ * Finitura libera di una parete: colore qualsiasi della pittura e, se c'è, rivestimento
  * con il suo colore e la sua altezza da terra (null = quella tipica del rivestimento).
  */
 @Serializable
@@ -152,7 +152,7 @@ data class WallFinish(
     }
 }
 
-/** Tavolozza estesa della versione pro: bianchi, neutri, pastelli, terre, colori decisi. */
+/** Tavolozza estesa: bianchi, neutri, pastelli, terre, colori decisi. */
 object ProPalette {
     val colors: List<Pair<String, Long>> = WallPaint.entries.map { it.label to it.argb } + listOf(
         "Bianco puro" to 0xFFFAFAF8, "Latte" to 0xFFF5F1E8, "Panna" to 0xFFF1E6CF, "Lino" to 0xFFE8DECB,

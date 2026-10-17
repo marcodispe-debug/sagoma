@@ -7,7 +7,7 @@ import kotlinx.serialization.json.Json
 enum class FurnitureSymbol { Bed, Sofa, CornerSofa, Armchair, Table, RoundTable, Chair, Cabinet, Appliance, Hob, Sink, Toilet, Tub, Shower, Rug, RoundRug, Plant, Lamp, Desk, Tv }
 
 /**
- * Catalogo degli arredi della versione pro, letto da `assets/furniture/catalog.json` (preparato con
+ * Catalogo degli arredi, letto da `assets/furniture/catalog.json` (preparato con
  * `tools/furniture/PackModels.java`). Per ogni modello ci sono `<model>.glb` (3D), `<model>.png`
  * (miniatura) e `<model>_top.png` (vista dall'alto per la pianta).
  * Fonti: Poly Haven (CC0) e le librerie di Sweet Home 3D (pubblico dominio e CC-BY): autore e licenza

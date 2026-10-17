@@ -25,7 +25,7 @@ import kotlin.test.assertTrue
  * notte con le luci accese, e dentro camminando. Le immagini si salvano in build/ per controllarle a occhio.
  */
 class DesktopRendererTest {
-    private val assets = File("../app/src/pro/assets")
+    private val assets = File("../app/src/main/assets")
     private fun read(path: String): ByteArray? = File(assets, path).takeIf { it.isFile }?.readBytes()
 
     init {
