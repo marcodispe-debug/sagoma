@@ -1,0 +1,3 @@
+# Testo con terminazioni LF nel repository, anche se si lavora su Windows
+* text=auto eol=lf
+*.bat text eol=crlf

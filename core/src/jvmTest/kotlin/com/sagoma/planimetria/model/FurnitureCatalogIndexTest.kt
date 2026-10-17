@@ -47,6 +47,21 @@ class FurnitureCatalogIndexTest {
     }
 
     @Test
+    fun `le voci nascoste non si scelgono ma i progetti le trovano ancora`() {
+        val hidden = item("rotto", "Lavastoviglie").copy(category = "Cucina", hidden = true)
+        FurnitureCatalog.set(listOf(item("a", "Divano"), hidden, item("b", "Lavello").copy(category = "Bagno")))
+        assertSame(hidden, FurnitureCatalog.item("rotto"))
+        assertEquals(listOf("a", "b"), FurnitureCatalog.visible.map { it.model })
+        assertEquals(listOf("Soggiorno", "Bagno"), FurnitureCatalog.categories)
+        assertEquals(emptyList(), FurnitureCatalog.search("lavastoviglie"))
+        assertEquals(listOf("a", "b"), FurnitureCatalog.search("").map { it.model })
+        // Dal file: il campo manca nelle voci normali.
+        FurnitureCatalog.load("""[{"model":"c","label":"C","category":"Cucina","width":1.0,"depth":1.0,"height":1.0,"hidden":true},{"model":"d","label":"D","category":"Cucina","width":1.0,"depth":1.0,"height":1.0}]""")
+        assertEquals(true, FurnitureCatalog.item("c")!!.hidden)
+        assertEquals(listOf("d"), FurnitureCatalog.visible.map { it.model })
+    }
+
+    @Test
     fun `i tappeti aggiunti si trovano`() {
         FurnitureCatalog.set(listOf(item("a")))
         FurnitureCatalog.item("a") // costruisce l'indice

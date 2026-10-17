@@ -1,0 +1,103 @@
+# Correzioni a mano del catalogo degli arredi, applicate dopo PackModels con ApplyCatalogFixes.java.
+# Misure e proporzioni vengono dai file dei modelli (per Sketchfab dalla larghezza stimata in objaverse.tsv): qui si
+# correggono quelle sbagliate, controllate guardando le miniature (ottobre 2026).
+#  - nascondi: proporzioni impossibili (anta o cassetto aperto, oggetto coricato, profondità assurda). Il modello resta nel
+#    catalogo per i progetti che lo usano già, ma non si sceglie più.
+#  - misure LxPxA: scala UNIFORME (tutte e tre le misure per lo stesso fattore, niente si deforma), quando solo la scala era
+#    sbagliata. ApplyCatalogFixes controlla che il fattore sia uguale sulle tre misure.
+#  - nome, categoria: etichetta o categoria sbagliate (non cambiano il nome del modello, che sta nei progetti).
+#  - quota: altezza da terra di partenza (piani cottura, cappe e piccoli elettrodomestici sul piano di lavoro).
+# modello	correzione	valore	nota
+ob_7fc92abc3b6a449f	nascondi		Cucina a quattro fuochi 59×60×65: troppo bassa e tozza a qualsiasi scala
+ob_14b8ae60eae240ff	nascondi		Frigorifero americano 77×90×143: più profondo che largo
+ob_ab462630d90d45e2	nascondi		Lavastoviglie 60×32×60: proporzioni impossibili
+ob_4ecb4b2226e24233	nascondi		Madia scura 180×90×115: anta aperta, profondità gonfiata
+ob_ae8d2e995ea34c55	nascondi		Tavolino con brocca 120×120×172: tavolo e oggetti insieme, misure incoerenti
+ob_e782565e1f2349c3	nascondi		Tappetino in spugna 80×28×57: in piedi invece che steso
+ob_c36387d3c0e04b0b	nascondi		Tappetino rosa 80×80×16: superficie a bozzi alta 16 cm
+ob_aeb46a14b5e44f63	nascondi		Termoarredo 60×52×134: base che lo fa profondo 52 cm
+ob_2349ad91f4644907	nascondi		Armadio stretto 107×150×289: più profondo che largo
+ob_7838304674bf443c	nascondi		Armadio in ciliegio 150×102×234: profondo un metro
+ob_8cbc2e814ae642ab	nascondi		Comò scuro 103×110×104: cassetto aperto, profondità gonfiata
+ob_39059edc24d547f3	nascondi		Poltroncina bianca 50×39×19: alta 19 cm
+ph_woodenchair_01	nascondi		Sedia gotica 69×66×227: seduta a 90 cm, troppo stretta se riscalata
+ob_3c782b0787cc41f1	nascondi		Libreria grande 195×200×228: profonda 2 metri
+ob_c041c4bfae764134	nascondi		Libreria credenza 100×85×137: proporzioni incoerenti con il modello
+ob_147aa33aaa684853	nascondi		Pianoforte verticale scuro 150×142×136: profondo 142 cm
+ob_8e09e36becc84eb2	nascondi		Cornice scura 70×46×73: coricata
+ob_3bfc45bc729c434a	nascondi		Quadro in legno 80×24×61: inclinato
+ob_92c07eb07c134106	misure	103x54x90	Cucina con doppio forno (era 90×47×79)
+ob_7c5c9dec5c2e4ff9	misure	70x58x85	Cucina con forno (era 60×50×73)
+ob_68e164f1a9414c29	misure	82x74x100	Cucina retrò azzurra, con l'alzatina (era 60×54×73)
+ob_43ca47cd6473442c	misure	71x71x100	Lavatrice a carica dall'alto, all'americana (era 45×45×63)
+ob_4ff4cf0cedd54b1a	misure	60x65x100	Lavello bianco, mobile e rubinetto (era 83×90×139)
+ob_1501ea1ea68d4606	misure	72x55x82	Mobiletto in legno (era 120×91×136)
+ob_ebfe7e99963d475d	misure	139x246x75	Tavolo con panche (era 113×200×61)
+ob_8dcac6d785b342cf	misure	374x240x95	Tavolo grande con sedie, 10 posti (era 240×154×61)
+ph_vintage_microwave	misure	50x35x25	Microonde (era 107×75×53)
+ob_f93bb826f3744236	misure	70x64x101	Televisore in legno (era 100×91×144)
+ob_03765a7e66374ec7	misure	60x38x92	Televisore su gambe, con l'antenna (era 100×64×154)
+ob_4112e07e262842c6	misure	79x38x200	Colonna libreria (era 150×72×379)
+ph_chinese_commode	misure	200x52x90	Comò orientale (era 449×117×202)
+ob_0eba4cbc46c0487f	misure	130x74x180	Culla con giostrina (era 210×120×291)
+ph_painted_wooden_cabinet_02	misure	78x56x200	Mobile con mensole (era 100×72×257)
+ph_chinese_cabinet	misure	79x34x180	Mobile orientale (era 126×55×287)
+ph_gothiccabinet_01	misure	131x85x180	Mobiletto gotico (era 172×112×236)
+ph_painted_wooden_chair_02	misure	48x50x95	Sedia dipinta azzurra (era 64×66×126)
+ob_de117a96fe844cf3	misure	59x63x85	Sedia rustica (era 47×50×68)
+ob_dfb7c3b51e264b50	misure	61x58x75	Sedia scandinava (era 50×47×61)
+ob_b843c63d853a4b78	misure	67x51x85	Sedia Savonarola (era 50×38×63)
+ob_85e1abf52baa462a	misure	53x55x82	Sedia con braccioli (era 48×50×74)
+ob_d601c2907f114376	misure	58x61x85	Sedia bistrot (era 48×50×70)
+ob_5847113c458f4a24	misure	195x317x95	Set da pranzo bianco (era 123×200×60)
+ob_724d93a7f3644f96	misure	138x141x100	Set da pranzo grigio (era 196×200×142)
+ob_98413ebb22084d01	misure	123x129x100	Set da pranzo in ferro (era 152×160×124)
+ob_b7f753028d354b41	misure	202x292x95	Set da pranzo rustico (era 138×200×65)
+ob_b65f907196434f32	misure	56x54x75	Sgabello da bar in metallo (era 40×39×54)
+ob_9e19bc36beef4093	misure	124x266x76	Tavolo bianco classico (era 65×140×40)
+ph_painted_wooden_table	misure	191x90x76	Tavolo dipinto (era 241×114×96)
+ob_db9344bf45ca434f	misure	102x82x76	Tavolo grigio scuro (era 140×112×104)
+ob_d7afff23c741411c	misure	158x80x95	Tavolo in legno massello, con le bottiglie sopra (era 200×101×120)
+ph_woodentable_01	misure	249x91x76	Tavolo lungo (era 180×66×55)
+ph_round_wooden_table_01	misure	105x105x76	Tavolo rotondo (era 140×140×101)
+ob_595d93b528a64fdf	misure	187x87x76	Tavolo scuro (era 160×74×65)
+ph_classic_laptop	misure	33x25x27	Portatile (era 65×49×54)
+ph_small_wooden_table_01	misure	132x63x76	Scrivania in legno (era 92×44×53)
+ob_15997fe949024e51	misure	181x57x76	Scrivania antica (era 150×47×63)
+ob_b930438e1f804c40	misure	178x103x76	Scrivania in mogano (era 150×87×64)
+ob_2353e9b40c4d404d	misure	178x338x105	Scrivania ufficio a L, con il pannello (era 95×180×56)
+ph_schooldesk_01	misure	61x48x76	Scrivania semplice (era 71×55×88)
+ph_steel_frame_shelves_01	misure	110x50x214	Scaffale metallico: dieci volte più grande del vero (era 1097×502×2141)
+ob_81d13143d53145bd	misure	224x75x82	Divano a tre posti (era 150×50×55)
+ob_44c451ae01c04b14	misure	216x85x75	Divano Chesterfield (era 150×59×52)
+ob_d3e9bcba98f54409	misure	226x95x80	Divano a tre posti (era 150×63×53)
+ob_881e233eb56a47a9	misure	206x84x85	Divano con braccioli in legno (era 150×61×62)
+ob_24d8b2e005524aff	misure	106x56x95	Poltrona a dondolo in legno (era 65×34×58)
+ph_mid_century_lounge_chair	misure	76x90x88	Poltrona girevole (era 101×119×117)
+ob_897ce33a65d04bb6	misure	54x110x95	Sedia a dondolo imbottita (era 32×65×56)
+ob_db49335b96b94c4d	misure	82x49x110	Sedia a dondolo bianca (era 65×39×87)
+ob_381e38bcf5b142eb	misure	91x53x105	Sedia a dondolo grigia (era 65×38×75)
+ob_8d8bd092c4294c55	misure	98x76x76	Tavolo grigio (era 110×85×85)
+ob_81d13143d53145bd	nome	Divano antracite a tre posti	era «Divanetto antracite», ora è lungo 224 cm
+ob_44c451ae01c04b14	nome	Divano Chesterfield grigio	era «Divanetto Chesterfield grigio»
+ob_d3e9bcba98f54409	nome	Divano grigio chiaro	era «Divanetto grigio chiaro»
+ob_881e233eb56a47a9	nome	Divano con braccioli in legno	era «Divanetto con braccioli in legno»
+ob_8d8bd092c4294c55	nome	Tavolo grigio	era «Tavolino quadrato grigio»: è un tavolo da pranzo
+sh_blend_swap_cc_0_stove	nome	Piano cottura a gas a due fuochi	era «Stufa a gas»
+ob_8a983b17bc484fed	nome	Cucina a gas bianca	era «Piano cottura bianco»: è una cucina con forno
+ob_c66c5ca931344e44	nome	Tavolino tondo in noce	era «Tavolo ovale in noce»: tondo, alto 32 cm
+ob_c66c5ca931344e44	categoria	Soggiorno	era Pranzo
+ob_d53bd92890934d24	nome	Tavolino tondo scandinavo	era «Tavolo tondo scandinavo»: alto 48 cm
+ob_d53bd92890934d24	categoria	Soggiorno	era Pranzo
+sh_blend_swap_cc_0_stove	quota	89	sul piano di lavoro
+sh_blend_swap_cc_0_mano_cooktop	quota	89	sul piano di lavoro
+sh_scopia_induction_cooker_2_zones	quota	89	sul piano di lavoro
+sh_scopia_induction_cooker_4_zones	quota	89	sul piano di lavoro
+sh_blend_swap_cc_0_rangehood	quota	150	sopra i fuochi
+sh_scopia_kitchenhood	quota	150	sopra i fuochi
+sh_blend_swap_cc_0_coffeebrewer	quota	90	sul piano di lavoro
+sh_scopia_coffee_machine	quota	90	sul piano di lavoro
+sh_scopia_small_oven	quota	90	sul piano di lavoro
+sh_scopia_cooker	quota	90	sul piano di lavoro
+sh_scopia_toaster	quota	90	sul piano di lavoro
+sh_scopia_bowlwithfruits	quota	90	sul piano di lavoro

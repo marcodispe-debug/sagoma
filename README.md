@@ -78,7 +78,7 @@ Due app dallo stesso codice (flavor `edition`), installabili una accanto all'alt
 | `desktop` | Windows, Mac, Linux | `./gradlew :desktop:run`; installer con `:desktop:packageMsi` |
 | `web` | browser | `./gradlew :web:wasmJsBrowserDistribution` → `web/build/dist/wasmJs/productionExecutable` (sito statico) |
 
-Sul computer e nel browser per ora mancano la vista 3D, i PDF come pianta di sfondo e (solo web) il catalogo arredi e l'esportazione `.sagoma` completa. Il PDF delle tavole è a 300 dpi (200 nel browser) invece che vettoriale, sempre in scala esatta.
+Vista 3D: sul computer è fotorealistica (`DesktopGlSceneRenderer`: materiali, arredi, sole con ombre, SSAO), ma per ora solo su Windows (contesto `WglContext`, librerie native solo Windows); su Mac e Linux compare un avviso. Nel browser c'è il 3D semplice in WebGL (`WebGlSceneRenderer`). Mancano ancora i PDF come pianta di sfondo e (solo web) il catalogo arredi e l'esportazione `.sagoma` completa: il browser esporta e importa solo la casa in JSON, quindi un `.sagoma` fatto su telefono o computer non si apre. Il PDF delle tavole è a 300 dpi (200 nel browser) invece che vettoriale, sempre in scala esatta.
 
 ## Struttura
 

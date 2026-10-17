@@ -58,6 +58,8 @@ object AssetPlanner {
     fun forPlans(plans: List<FloorPlan>, priority: AssetPriority = AssetPriority.Soon): List<AssetRequest> {
         val plan = Plan()
         for (p in plans) for (f in p.furniture) {
+            // Mobili generati alla misura: senza file (le foto dei piani in marmo le chiede la scena).
+            if (com.sagoma.planimetria.model.GeneratedFurniture.isGenerated(f.model)) continue
             val rug = FurnitureCatalog.rugOf(f.model)
             if (rug != null) {
                 plan.add(AssetPaths.materialThumbnail(rug.first), rug.first, priority)

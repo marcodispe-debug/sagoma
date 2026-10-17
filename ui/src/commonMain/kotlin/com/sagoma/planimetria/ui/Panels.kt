@@ -264,12 +264,48 @@ private fun FurniturePanel(sel: Selection.Furniture, plan: FloorPlan, vm: Editor
             modifier = Modifier.padding(end = 8.dp),
         )
     }
+    val kitchen = com.sagoma.planimetria.model.KitchenModules.parse(f.model)
+    if (kitchen != null) KitchenFinishes(f.id, kitchen, plan, vm)
+    val parametric = com.sagoma.planimetria.model.ParametricFurniture.parse(f.model)
+    if (parametric != null) {
+        val finishes = com.sagoma.planimetria.model.ParametricFurniture.finishes
+        ColorPicker("Finitura", finishes.map { it.label to it.argb }, finishes.indexOf(parametric.finish), { k ->
+            update { it.copy(model = com.sagoma.planimetria.model.ParametricFurniture.model(parametric.copy(finish = finishes[k]))) }
+        })
+    }
     Text(
-        "Trascinalo per spostarlo: si accosta ai muri e agli altri mobili. Il pallino davanti lo fa girare (si raddrizza a 90°). " +
+        if (kitchen != null) "Trascinalo per spostarlo: si accosta ai muri e agli altri moduli. Allargandolo le ante si ridisegnano, " +
+            "niente si stira. «Duplica» ne mette uno uguale accanto."
+        else if (parametric != null) "Trascinalo per spostarlo: si accosta ai muri e agli altri mobili. Cambiando le misure ante, " +
+            "cassetti e ripiani si ridisegnano, niente si stira."
+        else "Trascinalo per spostarlo: si accosta ai muri e agli altri mobili. Il pallino davanti lo fa girare (si raddrizza a 90°). " +
             "Il modello 3D si adatta alle misure scritte qui.",
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.padding(end = 8.dp),
     )
+}
+
+/**
+ * Finiture di un modulo della cucina: colore delle ante e piano di lavoro (solo per le basi). Di solito si cambiano per tutta la
+ * cucina insieme (un solo passo da annullare); spegnendo "Tutta la cucina" vale solo per questo modulo.
+ */
+@Composable
+private fun KitchenFinishes(id: Long, spec: com.sagoma.planimetria.model.KitchenModules.Spec, plan: FloorPlan, vm: EditorViewModel) {
+    val modules = plan.furniture.count { com.sagoma.planimetria.model.KitchenModules.isModule(it.model) }
+    var all by remember { mutableStateOf(true) }
+    val fronts = com.sagoma.planimetria.model.KitchenModules.Front.entries
+    val tops = com.sagoma.planimetria.model.KitchenModules.Top.entries
+    ColorPicker("Ante", fronts.map { it.label to it.argb }, fronts.indexOf(spec.front), { k -> vm.setKitchenFinish(id, fronts[k], null, all && modules > 1) })
+    if (spec.kind.hasTop) {
+        ColorPicker("Piano di lavoro", tops.map { it.label to it.argb }, tops.indexOf(spec.top), { k -> vm.setKitchenFinish(id, null, tops[k], all && modules > 1) })
+    }
+    if (modules > 1) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(end = 8.dp)) {
+        androidx.compose.material3.Switch(checked = all, onCheckedChange = { all = it })
+        Text(
+            if (all) "Tutta la cucina ($modules moduli)" else "Solo questo modulo",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
 }
 
 /** Trave: larghezza e quanto sporge sotto il soffitto; la lunghezza si cambia trascinando le estremità. */

@@ -476,6 +476,23 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun selectFurniture(id: Long) = _state.update { it.copy(focusedRoomId = null, selection = Selection.Furniture(id)) }
     fun updateFurniture(f: Furniture) = commit { it.replace(f) }
 
+    /**
+     * Finiture dei moduli della cucina ([com.sagoma.planimetria.model.KitchenModules]): ante e/o piano (null = invariato) del solo
+     * modulo `id` o, con `all`, di tutti i moduli del piano. Un solo passo da annullare.
+     */
+    fun setKitchenFinish(
+        id: Long,
+        front: com.sagoma.planimetria.model.KitchenModules.Front?,
+        top: com.sagoma.planimetria.model.KitchenModules.Top?,
+        all: Boolean,
+    ) = commit { plan ->
+        plan.copy(furniture = plan.furniture.map { f ->
+            val spec = com.sagoma.planimetria.model.KitchenModules.parse(f.model)
+            if (spec == null || (!all && f.id != id)) f
+            else f.copy(model = com.sagoma.planimetria.model.KitchenModules.model(spec.copy(front = front ?: spec.front, top = top ?: spec.top)))
+        })
+    }
+
     fun rotateFurniture(id: Long) = commit { plan ->
         val f = plan.furniture(id) ?: return@commit plan
         plan.replace(Furnishings.snapped(plan, f.copy(rotation = (com.sagoma.planimetria.geometry.roundHalfUp(f.rotation / 90.0) * 90.0 + 90.0) % 360)))

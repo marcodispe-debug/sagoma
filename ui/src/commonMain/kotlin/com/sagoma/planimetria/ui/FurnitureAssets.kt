@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import com.sagoma.planimetria.assets.AssetPaths
 import com.sagoma.planimetria.assets.LruByteCache
 import com.sagoma.planimetria.model.FurnitureCatalog
+import com.sagoma.planimetria.model.GeneratedFurniture
 import com.sagoma.planimetria.model.MaterialCatalog
 
 /**
@@ -35,6 +36,11 @@ object FurnitureAssets {
         store.peek(AssetPaths.FURNITURE_CATALOG)?.let { runCatching { FurnitureCatalog.load(it.decodeToString()) } }
         store.peek(AssetPaths.MATERIAL_CATALOG)?.let { runCatching { MaterialCatalog.load(it.decodeToString()) } }
         FurnitureCatalog.addRugs(MaterialCatalog.items)
+        // Moduli della cucina: non hanno file, ma vanno con gli arredi (solo dove c'è il catalogo, cioè nella versione pro).
+        if (FurnitureCatalog.items.isNotEmpty()) {
+            FurnitureCatalog.addKitchen()
+            FurnitureCatalog.addParametric()
+        }
     }
 
     /** Campione di un materiale fotografico, per sceglierlo. */
@@ -45,11 +51,14 @@ object FurnitureAssets {
         return p.assetStore.peek(path)?.let { runCatching { p.decodeImage(it) }.getOrNull() }
     }
 
-    /** Miniatura in prospettiva, per il catalogo (per i tappeti di materiale, il campione del materiale). */
-    fun thumbnail(model: String): ImageBitmap? = FurnitureCatalog.rugOf(model)?.let { materialThumb(it.first) }
-        ?: thumbs.getOrLoad(model) { read(AssetPaths.furnitureThumbnail(model)) }
+    /**
+     * Miniatura in prospettiva, per il catalogo (per i tappeti di materiale, il campione del materiale). I mobili generati alla
+     * misura non ne hanno: si disegna la loro vista dal davanti.
+     */
+    fun thumbnail(model: String): ImageBitmap? = if (GeneratedFurniture.isGenerated(model)) null
+        else FurnitureCatalog.rugOf(model)?.let { materialThumb(it.first) } ?: thumbs.getOrLoad(model) { read(AssetPaths.furnitureThumbnail(model)) }
 
-    /** Vista dall'alto, per la pianta (il davanti del mobile in basso). */
-    fun top(model: String): ImageBitmap? = FurnitureCatalog.rugOf(model)?.let { materialThumb(it.first) }
-        ?: tops.getOrLoad(model) { read(AssetPaths.furnitureTop(model)) }
+    /** Vista dall'alto, per la pianta (il davanti del mobile in basso). I mobili generati alla misura hanno il loro simbolo. */
+    fun top(model: String): ImageBitmap? = if (GeneratedFurniture.isGenerated(model)) null
+        else FurnitureCatalog.rugOf(model)?.let { materialThumb(it.first) } ?: tops.getOrLoad(model) { read(AssetPaths.furnitureTop(model)) }
 }
