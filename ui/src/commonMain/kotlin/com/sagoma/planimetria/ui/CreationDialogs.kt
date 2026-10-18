@@ -49,9 +49,12 @@ import com.sagoma.planimetria.model.RoomShape
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Vec2
 
-/** Flusso di creazione stanza: forma → (orientamento L) → misure (§1). */
+/**
+ * Flusso di creazione stanza: forma → (orientamento L) → misure (§1). `onOpenProjects`: dalla scelta obbligatoria della prima stanza
+ * (senza "Annulla") si può comunque tornare all'elenco dei progetti.
+ */
 @Composable
-fun CreationFlow(step: CreationStep, vm: EditorViewModel) {
+fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() -> Unit)? = null) {
     // Senza "Annulla" la prima volta: la finestra non si chiude né col tasto indietro né toccando fuori.
     val props = DialogProperties(dismissOnBackPress = step.cancellable, dismissOnClickOutside = step.cancellable)
     when (step) {
@@ -111,7 +114,8 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel) {
                                 Column {
                                     Text("Ricalca una piantina", style = MaterialTheme.typography.bodyLarge)
                                     Text(
-                                        "Carichi la foto o il PDF della piantina, la metti in scala con una misura e ripassi i muri",
+                                        if (LocalPlatform.current.pdfAsBackground) "Carichi la foto o il PDF della piantina, la metti in scala con una misura e ripassi i muri"
+                                        else "Carichi la foto della piantina, la metti in scala con una misura e ripassi i muri",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -144,6 +148,7 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel) {
                 Row {
                     backToQuestion?.let { TextButton(onClick = it) { Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.back) } }
                     if (step.cancellable) TextButton(onClick = vm::cancelCreation) { Text("Annulla") }
+                    else if (onOpenProjects != null) TextButton(onClick = onOpenProjects) { Text("📁 Progetti") }
                 }
             },
         )

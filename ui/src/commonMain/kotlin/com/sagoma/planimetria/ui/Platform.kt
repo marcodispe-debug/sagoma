@@ -78,6 +78,9 @@ interface Platform {
      */
     suspend fun importImage(bytes: ByteArray, pdf: Boolean, maxSide: Int): ImportedImage?
 
+    /** Un PDF si può usare come pianta di sfondo ([importImage] con `pdf`)? Dove no, si offrono solo le immagini. */
+    val pdfAsBackground: Boolean get() = true
+
     /** PDF vettoriale con le pagine date (disegnate alla densità `density`); null se non supportato. */
     fun createPdf(pages: List<PdfPage>, density: Density): ByteArray?
 

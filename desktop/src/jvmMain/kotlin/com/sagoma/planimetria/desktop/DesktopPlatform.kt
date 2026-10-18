@@ -128,6 +128,9 @@ class DesktopPlatform(
     override suspend fun importImage(bytes: ByteArray, pdf: Boolean, maxSide: Int): ImportedImage? =
         if (pdf) null else SkiaImages.importImage(bytes, maxSide)
 
+    // Il PDF come sfondo non c'è ancora sul computer: solo immagini.
+    override val pdfAsBackground: Boolean get() = false
+
     override fun createPdf(pages: List<PdfPage>, density: Density): ByteArray = SkiaImages.rasterPdf(pages, density)
 
     override fun formatDate(epochMillis: Long, withTime: Boolean): String =

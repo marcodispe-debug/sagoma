@@ -469,7 +469,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         }
     }
 
-    state.creation?.let { CreationFlow(it, vm) }
+    state.creation?.let { CreationFlow(it, vm, onOpenProjects = { vm.saveNow(); onOpenProjects() }) }
     // Percorso B (solo dove la funzione è disponibile): la scansione guidata a schermo intero. L'avviso "schizzo da misurare" è
     // tra le schede in alto (vedi sopra): alla riapertura del progetto torna per la prima stanza-schizzo non ancora misurata.
     if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.SKETCH_GUIDED_SCAN) && state.creation == null && state.wallDraw == null) {

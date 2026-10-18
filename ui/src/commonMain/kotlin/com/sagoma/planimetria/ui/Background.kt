@@ -151,7 +151,8 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (tracing) {
                     Text(
-                        "Carica la piantina che hai (foto, scansione o PDF del catasto o del progetto).",
+                        if (platform.pdfAsBackground) "Carica la piantina che hai (foto, scansione o PDF del catasto o del progetto)."
+                        else "Carica la piantina che hai come immagine (foto, scansione, JPG o PNG). Per un PDF salvane la pagina come immagine.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
@@ -169,7 +170,9 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
                     Button(enabled = !loading, onClick = { platform.openFile(listOf("image/*")) { import(it, pdf = false) } }) {
                         Text(if (u == null) "Foto / immagine" else "Altra immagine")
                     }
-                    OutlinedButton(enabled = !loading, onClick = { platform.openFile(listOf("application/pdf")) { import(it, pdf = true) } }) { Text("PDF") }
+                    if (platform.pdfAsBackground) {
+                        OutlinedButton(enabled = !loading, onClick = { platform.openFile(listOf("application/pdf")) { import(it, pdf = true) } }) { Text("PDF") }
+                    }
                 }
                 if (loading) Text("Caricamento…", style = MaterialTheme.typography.bodySmall)
                 if (u != null) {

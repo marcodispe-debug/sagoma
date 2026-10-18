@@ -1252,6 +1252,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             wallThickness = wallThickness,
             sketchPending = sketch,
         )
+        val firstEver = _state.value.building.floors.size == 1 && plan.rooms.isEmpty()
         commit { it.copy(rooms = it.rooms + room) }
         _state.update { s ->
             s.copy(
@@ -1259,7 +1260,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 dismissedSketchBanners = if (sketch && intent == CreationIntent.APPROX) s.dismissedSketchBanners + room.id else s.dismissedSketchBanners,
             )
         }
-        tutorialEvent(TutorialEvent.RoomAdded)
+        // Prima stanza del progetto disegnata muro per muro (anche dal ricalco della piantina): tutorial o benvenuto come con le forme.
+        if (firstEver) welcome() else tutorialEvent(TutorialEvent.RoomAdded)
     }
 
     // ---------- Fuoco e selezione (§4, §10) ----------

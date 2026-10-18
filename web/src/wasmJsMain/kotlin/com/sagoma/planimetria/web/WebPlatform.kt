@@ -92,6 +92,9 @@ class WebPlatform : Platform {
     override suspend fun importImage(bytes: ByteArray, pdf: Boolean, maxSide: Int): ImportedImage? =
         if (pdf) null else SkiaImages.importImage(bytes, maxSide)
 
+    // Il PDF come sfondo non c'è ancora nel browser: solo immagini.
+    override val pdfAsBackground: Boolean get() = false
+
     override fun createPdf(pages: List<PdfPage>, density: Density): ByteArray = SkiaImages.rasterPdf(pages, density, dpi = 200)
 
     override fun formatDate(epochMillis: Long, withTime: Boolean): String = jsDate(epochMillis.toDouble(), withTime)
