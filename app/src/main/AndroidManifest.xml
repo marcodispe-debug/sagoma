@@ -4,6 +4,7 @@
 
     <!-- Scansione delle stanze (ARCore): la fotocamera serve solo lì. Nessun telefono è escluso dall'installazione:
          senza ARCore la funzione si spiega e basta, il resto dell'app funziona come prima. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
