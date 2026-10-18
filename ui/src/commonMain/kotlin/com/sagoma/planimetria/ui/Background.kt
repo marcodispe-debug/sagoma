@@ -107,10 +107,11 @@ internal fun DrawScope.drawCalibration(t: UnderlayTool.Calibrate, cam: Camera, m
 
 /**
  * "Pianta di sfondo": si carica una foto o un PDF della pianta esistente, la si tara su una misura nota e la
- * si sposta sotto al disegno; poi si ricalcano le stanze sopra.
+ * si sposta sotto al disegno; poi si ricalcano le stanze sopra. Con `tracing` è il primo passo di "Ricalca una piantina",
+ * scelto al posto della prima stanza.
  */
 @Composable
-fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long, onDismiss: () -> Unit) {
+fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long, tracing: Boolean = false, onDismiss: () -> Unit) {
     val platform = LocalPlatform.current
     val scope = rememberCoroutineScope()
     val u = state.plan.underlay
@@ -143,11 +144,23 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
     var opacity by remember(u?.file) { mutableFloatStateOf(u?.opacity?.toFloat() ?: 0.5f) }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Pianta di sfondo") },
+        // Mentre si legge il file non si chiude: l'immagine arriverebbe dopo, a finestra già chiusa.
+        onDismissRequest = { if (!loading) onDismiss() },
+        title = { Text(if (tracing) "Ricalca una piantina" else "Pianta di sfondo") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
+                if (tracing) {
+                    Text(
+                        "Carica la piantina che hai (foto, scansione o PDF del catasto o del progetto).",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        "Poi tocchi i due estremi di una misura che conosci e scrivi quanto è lunga: la piantina va in scala. " +
+                            "Infine ripassi i muri con \"Muro per muro\", angolo dopo angolo.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else Text(
                     "Metti sotto al disegno una pianta esistente (foto, scansione o PDF del catasto o del progetto), " +
                         "tarala su una misura che conosci e ricalca le stanze sopra.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -178,7 +191,7 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Chiudi") } },
+        confirmButton = { TextButton(enabled = !loading, onClick = onDismiss) { Text(if (tracing && u == null) "Indietro" else "Chiudi") } },
     )
 }
 

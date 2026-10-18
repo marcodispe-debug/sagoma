@@ -279,6 +279,11 @@ data class EditorUiState(
     val snapGuides: List<com.sagoma.planimetria.geometry.SnapGuide> = emptyList(),
     /** Pianta di sfondo: si sta spostando o tarando (i tocchi vanno a lei invece che al disegno). */
     val underlayTool: UnderlayTool? = null,
+    /**
+     * "Ricalca una piantina" scelto al posto della prima stanza: si carica e si tara lo sfondo, poi si disegna muro per muro.
+     * È la scelta della stanza a cui tornare se si rinuncia senza caricare nulla (null = nessun ricalco iniziale in corso).
+     */
+    val tracing: CreationStep? = null,
 ) {
     val fullBuilding: Building get() = building.withPlan(plan)
     /** Altezza che devono superare le scale di questo piano (interpiano). */

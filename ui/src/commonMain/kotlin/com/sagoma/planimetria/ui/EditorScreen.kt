@@ -119,7 +119,13 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
     )
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
-    if (showBackground) BackgroundDialog(state, vm, projectId, onDismiss = { showBackground = false })
+    // "Ricalca una piantina" al posto della prima stanza: la finestra resta aperta finché non si carica e si tara la piantina.
+    val tracingSetup = state.tracing != null && state.underlayTool == null
+    if (showBackground || tracingSetup) BackgroundDialog(state, vm, projectId, tracing = state.tracing != null, onDismiss = {
+        showBackground = false
+        // Chiusa senza tarare (o senza caricare nulla): si va avanti col ricalco, o si torna alla scelta della stanza.
+        vm.state.value.let { if (it.tracing != null && it.underlayTool == null) vm.endTracing() }
+    })
     if (showLayers) LayersDialog(state, vm, onDismiss = { showLayers = false })
     state.textDialogAt?.let { at -> NewTextDialog(at, vm) }
 

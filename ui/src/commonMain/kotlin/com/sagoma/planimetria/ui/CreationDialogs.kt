@@ -102,6 +102,23 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel) {
                             }
                         }
                     }
+                    // Prima stanza: chi ha già una piantina (catasto, progetto, foto) la mette sotto in scala e la ricalca.
+                    if (!sketchMode && vm.state.value.plan.rooms.isEmpty() && vm.state.value.creationType?.outdoor != true) {
+                        OutlinedCard(onClick = vm::startTracing, modifier = Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("🗺", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center, modifier = Modifier.size(48.dp))
+                                Spacer(Modifier.size(12.dp))
+                                Column {
+                                    Text("Ricalca una piantina", style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        "Carichi la foto o il PDF della piantina, la metti in scala con una misura e ripassi i muri",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
                     // Un muro da solo (tramezzo): solo quando sul piano c'è già almeno una stanza in cui metterlo (non per la prima
                     // stanza del progetto né per la prima di un piano nuovo).
                     if (step.cancellable && !sketchMode && vm.state.value.plan.rooms.isNotEmpty()) {

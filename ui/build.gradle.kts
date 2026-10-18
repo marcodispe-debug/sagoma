@@ -6,6 +6,10 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Scanner AR (ARCore) fuori dalla build normale: si rimette con `-Psagoma.scanner=true` (o in gradle.properties). Il codice resta
+// nel repository: le schermate in src/androidScanner, la sessione AR nel modulo `scanner`, i calcoli nel `core`.
+val conScanner = providers.gradleProperty("sagoma.scanner").orNull?.trim() == "true"
+
 // Tutta l'interfaccia dell'editor in Compose Multiplatform: la stessa su Android, sul computer e nel
 // browser. Quello che cambia da una piattaforma all'altra passa dall'interfaccia `Platform`.
 kotlin {
@@ -40,11 +44,14 @@ kotlin {
             // "Thread principale" delle coroutine (quello di Swing), per provare l'editor come sul computer.
             implementation(libs.kotlinx.coroutines.swing)
         }
-        androidMain.dependencies {
-            api(libs.androidx.activity.compose)
-            api(libs.androidx.core.ktx)
-            // Scansione delle stanze con ARCore: la schermata sta in questo modulo, la sessione AR in `scanner`.
-            implementation(project(":scanner"))
+        androidMain {
+            kotlin.srcDir(if (conScanner) "src/androidScanner/kotlin" else "src/androidNoScanner/kotlin")
+            dependencies {
+                api(libs.androidx.activity.compose)
+                api(libs.androidx.core.ktx)
+                // Scansione delle stanze con ARCore: la schermata sta in questo modulo, la sessione AR in `scanner`.
+                if (conScanner) implementation(project(":scanner"))
+            }
         }
     }
 }

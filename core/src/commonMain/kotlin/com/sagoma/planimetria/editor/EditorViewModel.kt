@@ -640,6 +640,26 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         if (s.creation?.cancellable == true) s.copy(creation = null, creationIntent = null) else s
     }
 
+    // ---------- Ricalco di una piantina al posto della prima stanza ----------
+
+    /** "Ricalca una piantina": si chiude la scelta della stanza (anche quella obbligatoria) e la UI apre la pianta di sfondo. */
+    fun startTracing() = _state.update { s ->
+        val back = s.creation as? CreationStep.PickShape ?: return@update s
+        s.copy(creation = null, creationIntent = null, tracing = back)
+    }
+
+    /**
+     * Fine della preparazione del ricalco (taratura fatta, "Fine" o finestra chiusa). Con lo sfondo caricato si passa subito a
+     * "Muro per muro" per ricalcare le stanze; senza sfondo si torna alla scelta della stanza.
+     */
+    fun endTracing() {
+        val s = _state.value
+        val back = s.tracing ?: return
+        _state.update { it.copy(tracing = null) }
+        if (s.plan.rooms.isNotEmpty()) return
+        if (s.plan.underlay == null) _state.update { it.copy(creation = back) } else startDrawWalls()
+    }
+
     // ---------- Percorso B: schizzo e scansione guidata (la UI li offre solo dove la funzione è disponibile) ----------
 
     /**
@@ -2229,8 +2249,11 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun setUnderlayVisible(visible: Boolean) = commit { p -> p.underlay?.let { p.copy(underlay = it.copy(visible = visible)) } ?: p }
 
     /** Sceglie lo strumento (spostare, tarare) o lo chiude (null). */
-    fun setUnderlayTool(tool: UnderlayTool?) = _state.update {
-        it.copy(underlayTool = tool, selection = null, focusedRoomId = null, pendingOpening = null, pendingFixture = null, measure = null, view3d = false, infoExpanded = false)
+    fun setUnderlayTool(tool: UnderlayTool?) {
+        _state.update {
+            it.copy(underlayTool = tool, selection = null, focusedRoomId = null, pendingOpening = null, pendingFixture = null, measure = null, view3d = false, infoExpanded = false)
+        }
+        if (tool == null) endTracing()
     }
 
     private var underlayMoveStart: Underlay? = null
@@ -2274,6 +2297,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             p.copy(underlay = u.copy(cmPerPx = u.cmPerPx * f, origin = a + (u.origin - a) * f))
         }
         _state.update { it.copy(underlayTool = null) }
+        endTracing()
     }
 
     /** Finitura della facciata del piano. */
