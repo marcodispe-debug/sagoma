@@ -4,7 +4,10 @@ import com.sagoma.planimetria.editor.CreationStep
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.UnderlayTool
 import com.sagoma.planimetria.model.Building
+import com.sagoma.planimetria.geometry.ShapeDimensions
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.RoomShape
+import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Underlay
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.persistence.PlanStore
@@ -78,5 +81,29 @@ class TracingStartTest {
         vm.endTracing()
         assertEquals(CreationStep.PickShape(cancellable = false), vm.state.value.creation)
         assertNull(vm.state.value.tracing)
+    }
+
+    @Test
+    fun `annullare la prima stanza riporta alla scelta iniziale, ripeterla la richiude`() {
+        val vm = emptyProject()
+        vm.pickShape(RoomShape.Rectangle)
+        vm.createRoom(RoomType.Camera, ShapeDimensions(300.0, 300.0), 270.0)
+        assertNull(vm.state.value.creation)
+        vm.undo()
+        assertEquals(0, vm.state.value.plan.rooms.size)
+        assertEquals(CreationStep.PickShape(cancellable = false), vm.state.value.creation)
+        vm.redo()
+        assertEquals(1, vm.state.value.plan.rooms.size)
+        assertNull(vm.state.value.creation)
+    }
+
+    @Test
+    fun `annullare muro per muro sulla pianta vuota riporta alla scelta iniziale`() {
+        val vm = emptyProject()
+        vm.startDrawWalls()
+        assertNull(vm.state.value.creation)
+        vm.cancelDrawWalls()
+        assertNull(vm.state.value.wallDraw)
+        assertEquals(CreationStep.PickShape(cancellable = false), vm.state.value.creation)
     }
 }

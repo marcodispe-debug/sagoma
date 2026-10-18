@@ -286,9 +286,18 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         history.redo(_state.value.fullBuilding)?.let { setBuilding(it.copy(layers = layers)); dropStaleCreation() }
     }
 
-    /** La scelta obbligatoria della stanza iniziale non ha più senso se annullando (o ripetendo) il piano ha di nuovo delle stanze. */
+    /**
+     * Scelta obbligatoria della stanza iniziale allineata al disegno: non serve più se annullando (o ripetendo) il piano ha di nuovo
+     * delle stanze; torna (forme, muro per muro, ricalco della piantina) se il piano terra resta vuoto e non si sta già disegnando
+     * o ricalcando.
+     */
     private fun dropStaleCreation() = _state.update {
-        if (it.creation?.cancellable == false && it.plan.rooms.isNotEmpty()) it.copy(creation = null) else it
+        when {
+            it.creation?.cancellable == false && it.plan.rooms.isNotEmpty() -> it.copy(creation = null)
+            it.creation == null && it.wallDraw == null && it.tracing == null && it.building.current == 0 && it.plan.rooms.isEmpty() ->
+                it.copy(creation = CreationStep.PickShape(cancellable = false), creationType = null, creationIntent = null)
+            else -> it
+        }
     }
 
     // ---------- Livelli ----------
@@ -1132,7 +1141,11 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         it.copy(creation = null, wallDraw = WallDraw(), selection = null, focusedRoomId = null, pendingOpening = null, pendingFixture = null, measure = null, view3d = false, infoExpanded = false)
     }
 
-    fun cancelDrawWalls() = _state.update { it.copy(wallDraw = null, snapGuides = emptyList(), creationIntent = null) }
+    fun cancelDrawWalls() {
+        _state.update { it.copy(wallDraw = null, snapGuides = emptyList(), creationIntent = null) }
+        // Annullato il disegno sulla pianta vuota: si torna alla scelta iniziale, non a un foglio bianco senza indicazioni.
+        dropStaleCreation()
+    }
 
     private fun drawSnap(p: Vec2, wd: WallDraw) =
         SnapEngine.snapDrawing(p, wd.points.lastOrNull(), wd.points.firstOrNull(), SnapEngine.targetsWithBelow(_state.value.plan, _state.value.planBelow), wd.points, snapTolerance())
