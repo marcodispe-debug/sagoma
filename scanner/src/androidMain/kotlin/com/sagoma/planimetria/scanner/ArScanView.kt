@@ -156,7 +156,7 @@ class ArScanView(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
     @Volatile
     var walls: List<DetectedWall> = emptyList()
 
-    /** Scansione guidata (solo Pro): manda i frame di mira a [Listener.onAimFrame]. Spenta, la vista fa come prima. */
+    /** Scansione guidata: manda i frame di mira a [Listener.onAimFrame]. Spenta, la vista fa come prima. */
     @Volatile
     var assistedMode: Boolean = false
 

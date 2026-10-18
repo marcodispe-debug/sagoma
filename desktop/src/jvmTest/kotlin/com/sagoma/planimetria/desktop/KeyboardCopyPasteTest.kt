@@ -48,7 +48,7 @@ class KeyboardCopyPasteTest {
             repo.markOpened(p.id)
             // Niente tutorial né suggerimenti: la schermata è quella di tutti i giorni.
             val tips = FileTipStore(dir).also { s -> s.save(Tip.entries.map { it.name }.toSet() + TipStore.TUTORIAL_DONE) }
-            val platform = DesktopPlatform(isPro = true, projects = repo, tips = tips, assets = null)
+            val platform = DesktopPlatform(projects = repo, tips = tips, assets = null)
             var t = 0L
             ImageComposeScene(1400, 900, Density(1f)).use { scene ->
                 scene.setContent { freshViewModels { SagomaApp(platform) } }

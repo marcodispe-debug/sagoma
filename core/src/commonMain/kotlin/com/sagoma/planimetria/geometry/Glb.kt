@@ -3,8 +3,8 @@ package com.sagoma.planimetria.geometry
 import kotlin.math.pow
 
 /**
- * La [Scene3D] come file glTF binario (GLB) in memoria, per i motori grafici che leggono glTF (Filament
- * nella versione pro). Tre oggetti, ognuno con il suo materiale:
+ * La [Scene3D] come file glTF binario (GLB) in memoria, per i motori grafici che leggono glTF (Filament).
+ * Tre oggetti, ognuno con il suo materiale:
  * - "lit": superfici opache illuminate (ruvide, non metalliche), più il terreno attorno alla casa;
  * - "unlit": superfici che emettono luce (lampade), senza ombreggiatura;
  * - "glass": vetri trasparenti, visibili dai due lati.

@@ -4,7 +4,7 @@ import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.scan.ArXZ
 
 /*
- * Percorso B (solo Pro): la stanza disegnata come schizzo e poi misurata con il telefono, lato per lato. Questo è il NUCLEO
+ * Percorso B: la stanza disegnata come schizzo e poi misurata con il telefono, lato per lato. Questo è il NUCLEO
  * GEOMETRICO: dati lo schizzo, le pareti confermate dall'utente e le misure a mano, calcola la pianta e la controlla.
  * Puro (niente Android, niente UI), deterministico, provabile sul computer.
  *

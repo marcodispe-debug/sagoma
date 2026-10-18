@@ -19,4 +19,4 @@ rem Copie vecchie non piu' in uso (quelle ancora aperte restano: Windows non le 
 del /q "%RUN%\Sagoma-*.jar" >nul 2>&1
 set "COPIA=%RUN%\Sagoma-%RANDOM%%RANDOM%.jar"
 copy /y "%JAR%" "%COPIA%" >nul
-start "" "%JAVA_HOME%\bin\javaw.exe" "-Dsagoma.assets=%~dp0app\src\pro\assets" -jar "%COPIA%"
+start "" "%JAVA_HOME%\bin\javaw.exe" "-Dsagoma.assets=%~dp0catalogo\src\main\assets" -jar "%COPIA%"

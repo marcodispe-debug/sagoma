@@ -9,12 +9,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Gli asset di oggi (`app/src/pro/assets`) letti attraverso [DirectoryAssetStore] e [AssetPaths], cioè come li
+ * Gli asset di oggi (`catalogo/src/main/assets`) letti attraverso [DirectoryAssetStore] e [AssetPaths], cioè come li
  * leggono i renderer e l'interfaccia. Se la cartella non c'è la prova FALLISCE (non passa in silenzio):
  * quando gli asset staranno altrove andrà detto a questo test dove cercarli.
  */
 class AssetCorpusTest {
-    private val root = File("../app/src/pro/assets")
+    private val root = File("../catalogo/src/main/assets")
     private val savedFurniture = FurnitureCatalog.items
     private val savedMaterials = MaterialCatalog.items
 

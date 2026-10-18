@@ -48,7 +48,6 @@ import kotlin.math.roundToInt
  */
 class AndroidPlatform(
     private val activity: ComponentActivity,
-    override val isPro: Boolean,
     override val projects: ProjectRepository,
     override val tips: TipStore,
     private val sceneRenderer: (Context, AssetStore) -> SceneRenderer,
@@ -129,7 +128,7 @@ class AndroidPlatform(
         activity.startActivity(Intent.createChooser(send, subject))
     }
 
-    override val assetStore: AssetStore = createAndroidAssetStore(activity, isPro).let { bundled ->
+    override val assetStore: AssetStore = createAndroidAssetStore(activity).let { bundled ->
         if (remoteStore == null) bundled else CompositeAssetStore(bundled, remoteStore)
     }
 

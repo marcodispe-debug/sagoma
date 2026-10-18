@@ -8,7 +8,7 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** Arredi (versione pro): ingombro, aggancio a muri e altri mobili, rotazione. */
+/** Arredi: ingombro, aggancio a muri e altri mobili, rotazione. */
 object Furnishings {
     /** Distanza entro cui un mobile si accosta a un muro o a un altro mobile. */
     const val SNAP = 15.0

@@ -46,7 +46,7 @@ class OverlapChooserTest {
             repo.planStore(p.id).save(Building.single(FloorPlan(listOf(room))))
             repo.markOpened(p.id)
             val tips = FileTipStore(dir).also { s -> s.save(Tip.entries.map { it.name }.toSet() + TipStore.TUTORIAL_DONE) }
-            val platform = DesktopPlatform(isPro = true, projects = repo, tips = tips, assets = null)
+            val platform = DesktopPlatform(projects = repo, tips = tips, assets = null)
             var t = 0L
             var found = false
             ImageComposeScene(1400, 900, Density(1f)).use { scene ->

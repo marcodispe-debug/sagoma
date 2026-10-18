@@ -113,10 +113,10 @@ class Scene3D(
     val picks: List<PickTri>,
     val obstacles: List<Obstacle>,
     val bounds: Bounds?,
-    /** Arredi da disegnare con i loro modelli 3D (li disegna il renderer della versione pro). */
+    /** Arredi da disegnare con i loro modelli 3D (li disegna Filament). */
     val furniture: List<PlacedFurniture> = emptyList(),
     /**
-     * Superfici con un materiale fotografico (versione pro), per materiale: 8 float per vertice
+     * Superfici con un materiale fotografico, per materiale: 8 float per vertice
      * (posizione, normale, uv in ripetizioni della foto). Stanno appena sopra le superfici colorate
      * normali, che il renderer semplice continua a disegnare.
      */
@@ -1365,7 +1365,7 @@ private class SceneBuilder(
         }
     }
 
-    // ---------- Rivestimenti delle pareti (versione pro) ----------
+    // ---------- Rivestimenti delle pareti ----------
 
     /** Colore di fondo della parte rivestita: sotto mattoni e pietre si vede la malta. */
     private fun coveringBase(f: WallFinish): Rgba {

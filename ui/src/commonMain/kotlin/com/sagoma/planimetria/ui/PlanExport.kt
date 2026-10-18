@@ -42,6 +42,8 @@ object PlanExport {
     fun render(
         plan: FloorPlan, measurer: TextMeasurer, density: Density, levelHeight: Double = Floor.DEFAULT_LEVEL_HEIGHT,
         layers: com.sagoma.planimetria.model.LayerSettings = com.sagoma.planimetria.model.LayerSettings(),
+        /** Marchio del piano gratuito su tutta l'immagine (lo decide chi esporta, con [com.sagoma.planimetria.access.Rights]). */
+        watermark: Boolean = false,
     ): ImageBitmap? {
         fun shown(l: com.sagoma.planimetria.model.Layer) = layers.visible(l)
         val b = contentBounds(plan) ?: return null
@@ -85,6 +87,7 @@ object PlanExport {
             )
             if (shown(com.sagoma.planimetria.model.Layer.Rulers)) for (r in plan.rulers) drawRuler(RulerGeom(r, cam, density), cam, rotating = false, measurer, showHandles = false)
             drawText(note, topLeft = Offset(margin, planH.toFloat()))
+            if (watermark) with(Watermark) { drawWatermark(measurer, Watermark.exportLetterPx(size.width, size.height)) }
         }
         return bitmap
     }

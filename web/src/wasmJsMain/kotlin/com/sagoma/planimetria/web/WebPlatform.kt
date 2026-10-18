@@ -59,7 +59,6 @@ private fun Uint8Array.toByteArray(): ByteArray = ByteArray(length) { this[it] }
 
 /** Servizi della piattaforma nel browser. */
 class WebPlatform : Platform {
-    override val isPro: Boolean = false
     override val projects = BrowserProjectRepository(::now)
     override val tips = BrowserTipStore()
 

@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Density
+import com.sagoma.planimetria.access.Account
 import com.sagoma.planimetria.assets.AssetRequests
 import com.sagoma.planimetria.assets.AssetStore
 import com.sagoma.planimetria.assets.NoAssetRequests
@@ -26,8 +27,11 @@ class PdfPage(val width: Int, val height: Int, val draw: DrawScope.() -> Unit)
  * dell'interfaccia è in comune. Si legge da [LocalPlatform].
  */
 interface Platform {
-    /** Versione pro: colori e rivestimenti liberi, arredi 3D, motore grafico avanzato. */
-    val isPro: Boolean
+    /**
+     * Chi usa l'app e cosa ha acquistato. Cosa è sbloccato lo decide [com.sagoma.planimetria.access.Rights], mai la piattaforma:
+     * qui si dice solo da dove si legge l'account (oggi locale, senza registrazione).
+     */
+    val account: Account get() = Account.Guest
 
     /** Archivio dei progetti. */
     val projects: ProjectRepository

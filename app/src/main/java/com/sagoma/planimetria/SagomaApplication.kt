@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -35,7 +36,7 @@ class SagomaApplication : Application() {
      * Il possesso resta qui, il lavoro bloccante gira fuori dal thread principale: parte in `onCreate` su `Dispatchers.IO` e il
      * risultato si ottiene una volta sola, anche se le `Activity` si ricreano mentre è in corso.
      *
-     * Vale `null` nella versione free e finché non sono configurati gli indirizzi (vedi `res/values/remote_assets.xml`: vuoti =
+     * Vale `null` finché non sono configurati gli indirizzi (proprietà Gradle `sagoma.catalogo.manifest` e `sagoma.catalogo.blobs`, vedi app/build.gradle.kts: vuoti =
      * nessun remoto, nessuna cache, nessun thread: il risultato è già pronto e non parte alcun lavoro), e se l'apertura fallisce.
      */
     lateinit var remoteAssets: Deferred<RemoteAssets?>
@@ -45,7 +46,7 @@ class SagomaApplication : Application() {
      * Il negozio remoto da mettere dietro agli asset impacchettati, da consegnare subito a una `Platform` (nessuna attesa, nessun
      * `await`): vuoto finché `remoteAssets` non è pronto, poi risponde con lo store di quello. È collegato una sola volta, dallo
      * stesso lavoro che apre il sistema remoto, quindi vale per ogni `Platform` e `Activity`, anche se si ricreano nel frattempo.
-     * `null` dove il remoto è spento (free o indirizzi vuoti): allora non c'è niente da comporre.
+     * `null` dove il remoto è spento (indirizzi vuoti): allora non c'è niente da comporre.
      */
     var remoteStore: AssetStore? = null
         private set
@@ -65,7 +66,6 @@ class SagomaApplication : Application() {
 
     private fun openRemoteAssets(): Deferred<RemoteAssets?> {
         // Solo la lettura di due stringhe sul thread principale: se il remoto è spento non si avvia nulla.
-        if (!Flavor.isPro) return remoteDisabled()
         val manifestUrl = getString(R.string.remote_manifest_url).trim()
         val blobBaseUrl = getString(R.string.remote_blob_base_url).trim()
         if (manifestUrl.isEmpty() || blobBaseUrl.isEmpty()) return remoteDisabled()
@@ -77,7 +77,10 @@ class SagomaApplication : Application() {
         return scope.async {
             try {
                 // Stessa cartella di base della cache degli asset impacchettati: le cartelle remote non vengono mai toccate dalla sua pulizia.
-                createJvmRemoteAssets(File(noBackupFilesDir, "asset-cache"), manifestUrl, blobBaseUrl, REMOTE_CACHE_BYTES)?.also { remote ->
+                createJvmRemoteAssets(
+                    File(noBackupFilesDir, "asset-cache"), manifestUrl, blobBaseUrl, REMOTE_CACHE_BYTES,
+                    bundledManifest = bundledManifest(),
+                )?.also { remote ->
                     // Una sola volta: questo è l'unico punto che collega.
                     late.bind(remote.store)
                     requests.bind(remote.prefetcher, scope)
@@ -92,18 +95,45 @@ class SagomaApplication : Application() {
         }
     }
 
-    /** Una volta all'avvio: se arriva un manifest nuovo chi osserva ricontrolla (le richieste fatte prima non avevano niente da scaricare). */
+    /**
+     * Il manifest che l'app porta con sé (assets/remote/manifest.json, vedi app/build.gradle.kts): dice fin dal primo avvio, anche
+     * senza rete, quali file esistono sul server e con che impronta. `null` se manca: allora si aspetta quello dalla rete.
+     */
+    private fun bundledManifest(): String? = try {
+        assets.open(BUNDLED_MANIFEST).use { it.readBytes().decodeToString() }
+    } catch (e: java.io.IOException) {
+        null
+    }
+
+    /**
+     * All'avvio: se arriva un manifest nuovo chi osserva ricontrolla (le richieste fatte prima non avevano niente da scaricare). Senza
+     * rete (o con il server che non risponde) si riprova con attese crescenti finché il processo vive; nel frattempo vale il manifest
+     * già noto (quello dell'app o l'ultimo salvato) e i file già in cache si usano senza rete. Un errore permanente non si ritenta.
+     */
     private suspend fun refreshManifest(remote: RemoteAssets, requests: LateBoundAssetRequests) {
-        try {
-            when (val r = remote.refreshManifest()) {
+        var wait = FIRST_RETRY_MS
+        while (true) {
+            val r = try {
+                remote.refreshManifest()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Aggiornamento del manifest remoto non riuscito", e)
+                return
+            }
+            when (r) {
                 is ManifestRefreshResult.Updated -> requests.invalidate()
-                is ManifestRefreshResult.Failed -> Log.w(TAG, "Manifest remoto non aggiornato: ${r.error}")
+                is ManifestRefreshResult.Failed -> {
+                    Log.w(TAG, "Manifest remoto non aggiornato: ${r.error}")
+                    if (r.error.isTransient) {
+                        delay(wait)
+                        wait = minOf(wait * 2, MAX_RETRY_MS)
+                        continue
+                    }
+                }
                 else -> {} // già aggiornato: lo store ha il manifest giusto fin dall'apertura
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.w(TAG, "Aggiornamento del manifest remoto non riuscito", e)
+            return
         }
     }
 
@@ -115,5 +145,9 @@ class SagomaApplication : Application() {
 
         /** Spazio massimo della cache dei blob remoti (valore di partenza, da tarare). */
         const val REMOTE_CACHE_BYTES = 512L * 1024 * 1024
+
+        const val BUNDLED_MANIFEST = "remote/manifest.json"
+        const val FIRST_RETRY_MS = 30_000L
+        const val MAX_RETRY_MS = 15 * 60_000L
     }
 }

@@ -86,7 +86,7 @@ internal fun isPortableAssetPath(path: String): Boolean {
 /** Comodo per `if`: il file è già disponibile adesso. */
 fun AssetStore.isAvailable(path: String): Boolean = availability(path) == AssetAvailability.Available
 
-/** Negozio senza file: dove gli asset non ci sono (versione free, browser). */
+/** Negozio senza file: dove gli asset non ci sono (browser). */
 object EmptyAssetStore : AssetStore {
     override fun availability(path: String): AssetAvailability = AssetAvailability.Unavailable
     override fun peek(path: String): ByteArray? = null

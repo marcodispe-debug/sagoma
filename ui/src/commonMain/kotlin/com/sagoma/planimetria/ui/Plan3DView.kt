@@ -19,6 +19,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +47,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.isSecondaryPressed
@@ -61,6 +63,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.layout.padding
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import com.sagoma.planimetria.assets.AssetPlanner
+import com.sagoma.planimetria.assets.isAvailable
 import com.sagoma.planimetria.editor.DragTarget
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
@@ -89,6 +93,9 @@ private val MOVE_KEYS = setOf(
     Key.PageUp, Key.PageDown, Key.Plus, Key.Equals, Key.NumPadAdd, Key.Minus, Key.NumPadSubtract,
 )
 
+/** Attesa prima di controllare i file della scena: più arrivi vicini diventano una sola ricarica. */
+private const val ASSET_RELOAD_DELAY_MS = 300L
+
 class View3DState {
     val camera = Camera3D()
     /** Renderer della superficie visibile (null quando la vista 3D è chiusa). */
@@ -103,7 +110,7 @@ class View3DState {
     var aspect = 1.0
 
     /** Manda la telecamera al renderer e ridisegna. */
-    /** Versione pro: ora del giorno (6:30 = 6.5) e luci della casa ("auto", "on", "off"). */
+    /** Ora del giorno (6:30 = 6.5) e luci della casa ("auto", "on", "off"). */
     var hour by mutableStateOf(11f)
     var lamps by mutableStateOf("auto")
     /** Cursore dell'ora aperto. */
@@ -155,6 +162,20 @@ class View3DState {
         scene = s
         renderer?.setScene(s)
         refresh()
+    }
+
+    /** File della scena che all'ultimo controllo non erano ancora sul dispositivo (catalogo scaricato a richiesta). */
+    private var missingAssets: Set<String> = emptySet()
+
+    /**
+     * Dopo un controllo dei file della scena: se è arrivato qualcosa che prima mancava, il renderer riceve di nuovo la scena e
+     * ridisegna con i modelli e i materiali nuovi (quelli già caricati li riusa). Dice se ha ricaricato.
+     */
+    fun assetsChecked(missingNow: Set<String>, isAvailable: (String) -> Boolean): Boolean {
+        val arrived = missingAssets.any { it !in missingNow && isAvailable(it) }
+        missingAssets = missingNow
+        if (arrived) scene?.let { s -> renderer?.setScene(s); refresh() }
+        return arrived
     }
 
     fun onPause() { renderer?.onPause() }
@@ -376,6 +397,17 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
         )
     }
     LaunchedEffect(scene) { view.setScene(scene) }
+    // Catalogo scaricato a richiesta: i file che servono alla scena e non sono ancora qui si chiedono; quando arrivano la scena
+    // si ridisegna. Arrivi ravvicinati fanno una sola ricarica (l'attesa si ricomincia a ogni versione nuova).
+    val scenePlatform = LocalPlatform.current
+    val assetsVersion by scenePlatform.assetRequests.version.collectAsState()
+    LaunchedEffect(scene, assetsVersion) {
+        delay(ASSET_RELOAD_DELAY_MS)
+        val store = scenePlatform.assetStore
+        val missing = AssetPlanner.forScene(scene).filter { !store.isAvailable(it.path) }
+        for (r in missing) scenePlatform.assetRequests.request(r.path, r.priority)
+        view.assetsChecked(missing.mapTo(HashSet()) { it.path }) { store.isAvailable(it) }
+    }
     // Orientamento di un faretto in corso: la luce vera segue la maniglia, aggiornando solo le luci del renderer.
     val aim = state.aimDrag
     LaunchedEffect(aim, state.plan) {
@@ -603,8 +635,8 @@ private fun spotGizmo(state: EditorUiState, cam: Camera3D, w: Float, h: Float, w
 /** Pulsante della vista 3D (in basso a destra, al posto della legenda): Cammina / Vista dall'alto. */
 @Composable
 fun View3DControls(state: EditorUiState, view: View3DState, modifier: Modifier = Modifier) {
-    // Versione pro: ora del giorno (sole e luce dalle finestre) e luci della casa.
-    if (com.sagoma.planimetria.Edition.isPro) {
+    // Ora del giorno (sole e luce dalle finestre) e luci della casa.
+    run {
         val h = view.hour.toInt()
         val m = ((view.hour - h) * 60).roundToInt()
         val icon = if (view.hour < 6.5f || view.hour > 19.5f) "🌙" else if (view.hour < 8f || view.hour > 18f) "🌅" else "☀"
@@ -622,7 +654,7 @@ fun View3DControls(state: EditorUiState, view: View3DState, modifier: Modifier =
 }
 
 /**
- * Cursore dell'ora del giorno (versione pro). In verticale (telefono dritto) sta in alto, largo; su schermi
+ * Cursore dell'ora del giorno. In verticale (telefono dritto) sta in alto, largo; su schermi
  * larghi (computer, telefono girato) sta a sinistra, stretto e verticale (lungo `length`), per non coprire la vista.
  */
 @Composable

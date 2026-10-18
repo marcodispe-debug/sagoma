@@ -9,7 +9,7 @@ import com.sagoma.planimetria.model.MaterialCatalog
 
 /**
  * Livello sottile sopra [com.sagoma.planimetria.assets.AssetStore] per l'interfaccia: carica i cataloghi
- * all'avvio (solo nella versione pro: senza file non succede nulla) e dà le immagini già decodificate di
+ * all'avvio (senza file, come nel browser, non succede nulla) e dà le immagini già decodificate di
  * miniature, viste dall'alto e campioni dei materiali. I file li fornisce [Platform.assetStore] (dove stiano
  * non importa qui); le immagini si leggono al primo uso e restano in memoria fino a un limite, poi si
  * butta via la meno usata di recente. Si usa dal solo thread dell'interfaccia.
@@ -28,7 +28,7 @@ object FurnitureAssets {
 
     private fun imageCache(maxBytes: Long) = LruByteCache<ImageBitmap>(maxBytes) { it.width.toLong() * it.height * 4 }
 
-    /** Da chiamare all'avvio: senza catalogo (versione free) non succede nulla. */
+    /** Da chiamare all'avvio: senza catalogo (browser) non succede nulla. */
     fun init(p: Platform) {
         if (platform != null) return
         platform = p
@@ -36,7 +36,7 @@ object FurnitureAssets {
         store.peek(AssetPaths.FURNITURE_CATALOG)?.let { runCatching { FurnitureCatalog.load(it.decodeToString()) } }
         store.peek(AssetPaths.MATERIAL_CATALOG)?.let { runCatching { MaterialCatalog.load(it.decodeToString()) } }
         FurnitureCatalog.addRugs(MaterialCatalog.items)
-        // Moduli della cucina: non hanno file, ma vanno con gli arredi (solo dove c'è il catalogo, cioè nella versione pro).
+        // Moduli della cucina: non hanno file, ma vanno con gli arredi (solo dove c'è il catalogo).
         if (FurnitureCatalog.items.isNotEmpty()) {
             FurnitureCatalog.addKitchen()
             FurnitureCatalog.addParametric()

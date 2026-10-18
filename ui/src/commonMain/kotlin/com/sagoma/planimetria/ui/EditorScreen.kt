@@ -217,6 +217,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             else androidx.compose.runtime.CompositionLocalProvider(LocalProjectId provides projectId) {
                 PlanCanvas(state, vm, Modifier.fillMaxSize(), onPointerDown = { keyFocus.requestFocusSafely() })
             }
+            // Marchio del piano gratuito sopra pianta e 3D (non sui pulsanti), così resta anche in uno screenshot.
+            WatermarkOverlay(Modifier.fillMaxSize())
             // Suggerimento durante il posizionamento di un'apertura o di un impianto.
             val placingHint = state.pendingOpening?.let { "Tocca il muro su cui posizionare: ${it.kind.label.lowercase()}" }
                 ?: state.pendingFixture?.let {
@@ -438,7 +440,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 VerticalDivider(Modifier.height(32.dp))
                 StructureButton(vm)
                 VerticalDivider(Modifier.height(32.dp))
-                if (com.sagoma.planimetria.Edition.isPro) {
+                if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.FURNITURE)) {
                     FurnitureButton(vm)
                     VerticalDivider(Modifier.height(32.dp))
                 }
@@ -647,7 +649,7 @@ private fun ActionRail(openingsEnabled: Boolean, vm: EditorViewModel, onGuide: (
         HorizontalDivider()
         StructureButton(vm, buttonModifier, pad, compact = true)
         HorizontalDivider()
-        if (com.sagoma.planimetria.Edition.isPro) {
+        if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.FURNITURE)) {
             FurnitureButton(vm, buttonModifier, pad)
             HorizontalDivider()
         }

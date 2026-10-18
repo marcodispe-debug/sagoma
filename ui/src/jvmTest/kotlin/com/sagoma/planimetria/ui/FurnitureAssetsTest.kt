@@ -22,7 +22,6 @@ import kotlin.test.assertNull
  */
 class FurnitureAssetsTest {
     private class FakePlatform(override val assetStore: AssetStore, root: File, private val decode: () -> ImageBitmap) : Platform {
-        override val isPro = true
         override val projects = FileProjectRepository(root)
         override val tips = FileTipStore(root)
         override fun toast(message: String) {}
