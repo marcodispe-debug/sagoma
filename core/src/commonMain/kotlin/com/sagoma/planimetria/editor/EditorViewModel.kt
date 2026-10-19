@@ -22,6 +22,7 @@ import com.sagoma.planimetria.geometry.Snapping
 import com.sagoma.planimetria.geometry.SpotAim
 import com.sagoma.planimetria.geometry.Vec3
 import com.sagoma.planimetria.geometry.SnapEngine
+import com.sagoma.planimetria.geometry.SnapResult
 import com.sagoma.planimetria.geometry.SnapGuide
 import com.sagoma.planimetria.geometry.SnapKind
 import com.sagoma.planimetria.geometry.GroupItem
@@ -1144,8 +1145,18 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         }
     }
 
-    private fun drawSnap(p: Vec2, wd: WallDraw) =
-        SnapEngine.snapDrawing(p, wd.points.lastOrNull(), wd.points.firstOrNull(), SnapEngine.targetsWithBelow(_state.value.plan, _state.value.planBelow), wd.points, snapTolerance())
+    /** Il disegno in corso ricalca la piantina: lo decide il primo angolo (vedi [WallDraw.onPlan]). */
+    private fun drawingOnPlan(wd: WallDraw) = if (wd.points.isEmpty()) _state.value.plan.underlay?.visible == true else wd.onPlan
+
+    /**
+     * Sopra la piantina niente agganci alle altre stanze: i loro angoli sono in mezzeria, a mezzo muro da quelli che si
+     * cliccano, e tirerebbero il punto fuori posto. Restano le direzioni bloccate, la chiusura e gli allineamenti col disegno.
+     */
+    private fun drawSnap(p: Vec2, wd: WallDraw): SnapResult {
+        val targets = if (drawingOnPlan(wd)) SnapEngine.Targets(emptyList(), emptyList(), emptyList())
+        else SnapEngine.targetsWithBelow(_state.value.plan, _state.value.planBelow)
+        return SnapEngine.snapDrawing(p, wd.points.lastOrNull(), wd.points.firstOrNull(), targets, wd.points, snapTolerance())
+    }
 
     /** Il puntatore si muove (mouse sul computer): anteprima del prossimo muro, già agganciata. */
     fun drawWallsCursor(p: Vec2) = _state.update { s ->
@@ -1162,7 +1173,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val r = drawSnap(p, wd)
         if (r.guides.any { it.kind == SnapKind.Close }) { drawWallsClose(); return }
         if (wd.points.lastOrNull()?.let { it.distanceTo(r.point) < 1.0 } == true) return
-        _state.update { it.copy(wallDraw = wd.copy(points = wd.points + r.point, cursor = r.point), snapGuides = emptyList()) }
+        _state.update { it.copy(wallDraw = wd.copy(points = wd.points + r.point, cursor = r.point, onPlan = drawingOnPlan(wd)), snapGuides = emptyList()) }
     }
 
     /** Direzione del muro precedente nel "muro per muro" (null prima del secondo angolo). */
@@ -1229,13 +1240,18 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     /** Torna al disegno dalla richiesta del tipo di stanza. */
     fun drawWallsResume() = _state.update { s -> s.wallDraw?.let { s.copy(wallDraw = it.copy(closing = false)) } ?: s }
 
-    /** Stanza con gli angoli disegnati (mezzeria dei muri), in ordine orario sullo schermo come tutte le stanze. */
+    /**
+     * Stanza con gli angoli disegnati, in ordine orario sullo schermo come tutte le stanze. Gli angoli sono la mezzeria dei muri;
+     * sopra la piantina sono il filo interno, e la mezzeria sta mezzo muro più in fuori: così le misure della stanza sono
+     * quelle cliccate (e quelle scritte sulla piantina), qualunque sia lo spessore.
+     */
     fun finishDrawWalls(type: RoomType, ceilingHeight: Double, wallThickness: Double) {
         val wd = _state.value.wallDraw ?: return
         if (wd.points.size < 3) return
         var pts = wd.points
         val signed = pts.indices.sumOf { i -> val a = pts[i]; val b = pts[(i + 1) % pts.size]; a.x * b.y - b.x * a.y }
         if (signed < 0) pts = pts.reversed()
+        if (wd.onPlan) pts = Polygon.inset(pts, -wallThickness / 2)
         val plan = _state.value.plan
         // Percorso B disegnato muro per muro: anche questo è uno schizzo da misurare (la scansione si avvia con un tasto).
         val intent = _state.value.creationIntent

@@ -204,7 +204,7 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
             }
         }
     }
-    if (wd.closing) WallDrawCloseDialog(vm)
+    if (wd.closing) WallDrawCloseDialog(vm, wd.onPlan)
 }
 
 /** Scorre (e se serve rimpicciolisce) la vista fino a [EditorViewModel.wallDraftCamera], con una breve animazione. */
@@ -239,7 +239,7 @@ private fun arrowWhere(a: WallArrow) = when (a) {
 
 /** Forma chiusa: tipo di stanza, altezza del soffitto e spessore dei muri. */
 @Composable
-private fun WallDrawCloseDialog(vm: EditorViewModel) {
+private fun WallDrawCloseDialog(vm: EditorViewModel, onPlan: Boolean) {
     var type by remember { mutableStateOf(RoomType.entries.first()) }
     var ceiling by remember { mutableStateOf(formatCm(Room.DEFAULT_CEILING_HEIGHT)) }
     var thickness by remember { mutableStateOf(formatCm(Room.WALL_THICKNESS)) }
@@ -258,6 +258,10 @@ private fun WallDrawCloseDialog(vm: EditorViewModel) {
                     SelectAllTextField(value = ceiling, onValueChange = { ceiling = it }, label = "Soffitto cm", modifier = Modifier.weight(1f))
                     SelectAllTextField(value = thickness, onValueChange = { thickness = it }, label = "Spessore muri cm", modifier = Modifier.weight(1f))
                 }
+                if (onPlan) Text(
+                    "Gli angoli che hai cliccato sono il filo interno dei muri: le misure restano quelle, lo spessore si aggiunge verso l'esterno.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         },
         confirmButton = {

@@ -176,7 +176,11 @@ sealed interface UnderlayTool {
  * Strumento "Disegna muri": angoli già messi (in mezzeria dei muri), punto sotto il puntatore (anteprima del
  * prossimo muro) e, a forma chiusa, la richiesta del tipo di stanza.
  */
-data class WallDraw(val points: List<Vec2> = emptyList(), val cursor: Vec2? = null, val closing: Boolean = false)
+/**
+ * `onPlan`: il primo angolo è stato cliccato sopra la piantina di sfondo. Lì si cliccano gli angoli che si vedono, cioè il filo
+ * interno dei muri (come le quote delle piantine): alla chiusura il muro si aggiunge verso l'esterno.
+ */
+data class WallDraw(val points: List<Vec2> = emptyList(), val cursor: Vec2? = null, val closing: Boolean = false, val onPlan: Boolean = false)
 
 /**
  * Appunti di "Copia": un impianto o un'apertura (si incollano toccando un muro, le luci dentro una stanza)
