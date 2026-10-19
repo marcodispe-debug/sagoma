@@ -2268,6 +2268,35 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         if (tool == null) endTracing()
     }
 
+    // ---------- Mostra/nascondi e trasparenza di piantina e disegno ----------
+
+    fun setDrawingVisible(visible: Boolean) = _state.update { it.copy(drawingVisible = visible) }
+
+    fun setDrawingOpacity(opacity: Double) = _state.update { it.copy(drawingOpacity = opacity.coerceIn(0.1, 1.0)) }
+
+    private var underlayOpacityStart: Underlay? = null
+
+    /** Inizio di una regolazione dal vivo della trasparenza della piantina: tutta la regolazione è un solo passo di Annulla. */
+    fun beginUnderlayOpacity() {
+        if (underlayOpacityStart != null) return
+        underlayOpacityStart = _state.value.plan.underlay ?: return
+        history.record(_state.value.fullBuilding)
+    }
+
+    /** Trasparenza mentre si trascina il cursore: la piantina cambia subito. */
+    fun previewUnderlayOpacity(opacity: Double) {
+        if (underlayOpacityStart == null) beginUnderlayOpacity()
+        val u = _state.value.plan.underlay ?: return
+        setPlan(_state.value.plan.copy(underlay = u.copy(opacity = opacity.coerceIn(0.05, 1.0))))
+    }
+
+    fun endUnderlayOpacity() {
+        val start = underlayOpacityStart ?: return
+        underlayOpacityStart = null
+        if (_state.value.plan.underlay == start) history.discardLast()
+        _state.update { it.copy(canUndo = history.canUndo, canRedo = history.canRedo) }
+    }
+
     private var underlayMoveStart: Underlay? = null
 
     fun beginUnderlayMove() {

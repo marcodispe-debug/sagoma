@@ -284,6 +284,12 @@ data class EditorUiState(
      * È la scelta della stanza a cui tornare se si rinuncia senza caricare nulla (null = nessun ricalco iniziale in corso).
      */
     val tracing: CreationStep? = null,
+    /**
+     * Vista del disegno sopra la piantina: nascosto o con trasparenza (1 = pieno). È un modo di guardare, non una modifica: niente
+     * Annulla e non si salva nel progetto.
+     */
+    val drawingVisible: Boolean = true,
+    val drawingOpacity: Double = 1.0,
 ) {
     val fullBuilding: Building get() = building.withPlan(plan)
     /** Altezza che devono superare le scale di questo piano (interpiano). */

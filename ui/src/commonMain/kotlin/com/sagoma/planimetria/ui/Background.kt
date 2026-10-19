@@ -17,7 +17,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -141,8 +140,6 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
         }
     }
 
-    var opacity by remember(u?.file) { mutableFloatStateOf(u?.opacity?.toFloat() ?: 0.5f) }
-
     AlertDialog(
         // Mentre si legge il file non si chiude: l'immagine arriverebbe dopo, a finestra già chiusa.
         onDismissRequest = { if (!loading) onDismiss() },
@@ -180,8 +177,12 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
                         Text("Visibile", Modifier.weight(1f))
                         Switch(checked = u.visible, onCheckedChange = { vm.setUnderlayVisible(it) })
                     }
-                    Text("Trasparenza: ${(opacity * 100).roundToInt()}%", style = MaterialTheme.typography.labelLarge)
-                    Slider(value = opacity, onValueChange = { opacity = it }, valueRange = 0.1f..1f, onValueChangeFinished = { vm.setUnderlayOpacity(opacity.toDouble()) })
+                    Text("Trasparenza: ${(u.opacity * 100).roundToInt()}%", style = MaterialTheme.typography.labelLarge)
+                    // Dal vivo: la piantina sotto la finestra cambia mentre si trascina.
+                    Slider(
+                        value = u.opacity.toFloat(), onValueChange = { vm.previewUnderlayOpacity(it.toDouble()) },
+                        valueRange = 0.1f..1f, onValueChangeFinished = vm::endUnderlayOpacity,
+                    )
                     Text(
                         "Scala attuale: 1 px = ${fmt2(u.cmPerPx)} cm · immagine ${fmt2(u.widthCm / 100)} × ${fmt2(u.heightCm / 100)} m",
                         style = MaterialTheme.typography.bodySmall,

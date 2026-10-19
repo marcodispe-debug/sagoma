@@ -380,6 +380,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             }
             // Legenda dei simboli: in basso a destra, sopra la striscia Info e a sinistra del pannello laterale.
             var showLegend by remember { mutableStateOf(false) }
+            var showVisibility by remember { mutableStateOf(false) }
             val cornerModifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(
@@ -397,6 +398,9 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 )
                 if (state.view3d) View3DControls(state, view3dState)
                 else {
+                    // Mostra/nascondi e trasparenza di piantina e disegno, regolate dal vivo.
+                    if (showVisibility) VisibilityPanel(state, vm, onLoadPlan = { showBackground = true })
+                    LegendButton(if (showVisibility) "◐ Chiudi" else "◐ Piantina e disegno", onClick = { showVisibility = !showVisibility })
                     PhaseLegend(state)
                     LegendButton("Legenda", onClick = { showLegend = true })
                 }
