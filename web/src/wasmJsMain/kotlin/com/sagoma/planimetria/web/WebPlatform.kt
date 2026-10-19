@@ -61,6 +61,7 @@ private fun Uint8Array.toByteArray(): ByteArray = ByteArray(length) { this[it] }
 class WebPlatform : Platform {
     override val projects = BrowserProjectRepository(::now)
     override val tips = BrowserTipStore()
+    override val theme = BrowserThemeStore()
 
     /** Messaggio breve mostrato in basso. */
     var message by mutableStateOf<String?>(null)

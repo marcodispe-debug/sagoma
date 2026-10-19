@@ -11,7 +11,9 @@ import com.sagoma.planimetria.assets.AssetRequests
 import com.sagoma.planimetria.assets.AssetStore
 import com.sagoma.planimetria.assets.NoAssetRequests
 import com.sagoma.planimetria.editor.TipStore
+import com.sagoma.planimetria.persistence.NoThemeStore
 import com.sagoma.planimetria.persistence.ProjectRepository
+import com.sagoma.planimetria.persistence.ThemeStore
 
 /** File scelto dall'utente: nome e contenuto. */
 class PickedFile(val name: String, val bytes: ByteArray)
@@ -38,6 +40,12 @@ interface Platform {
 
     /** Suggerimenti già visti e tutorial completato. */
     val tips: TipStore
+
+    /** Tema scelto (chiaro, scuro, come il sistema); dove non si salva l'app resta chiara. */
+    val theme: ThemeStore get() = NoThemeStore
+
+    /** Adatta le barre di sistema al tema dell'app (icone chiare sul tema scuro); non fa nulla dove non ci sono. */
+    fun setDarkTheme(dark: Boolean) {}
 
     /** Barra di stato nascosta (schermo basso, in orizzontale); non fa nulla dove non c'è. */
     fun setStatusBarHidden(hidden: Boolean) {}

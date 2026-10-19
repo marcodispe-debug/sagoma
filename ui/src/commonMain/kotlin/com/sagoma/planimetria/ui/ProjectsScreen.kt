@@ -48,6 +48,7 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
     var editing by remember { mutableStateOf<ProjectInfo?>(null) }
     var creating by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<ProjectInfo?>(null) }
+    var showTheme by remember { mutableStateOf(false) }
 
     fun export(p: ProjectInfo) {
         val bytes = runCatching { store.export(p.id) }.getOrNull()
@@ -69,6 +70,7 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { creating = true }) { Text("+ Nuovo progetto") }
             OutlinedButton(onClick = { import() }) { Text("Importa") }
+            OutlinedButton(onClick = { showTheme = true }) { Text("🌓 Tema") }
         }
         HorizontalDivider()
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -85,6 +87,7 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
         }
     }
 
+    if (showTheme) ThemeDialog(onDismiss = { showTheme = false })
     if (creating) ProjectInfoDialog(ProjectInfo(0, ""), title = "Nuovo progetto", onDismiss = { creating = false }) { p ->
         creating = false
         val created = store.create(p.name, p.client, p.address)

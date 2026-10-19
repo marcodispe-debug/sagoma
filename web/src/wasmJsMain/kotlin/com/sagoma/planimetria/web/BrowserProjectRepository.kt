@@ -6,6 +6,8 @@ import com.sagoma.planimetria.persistence.PlanJson
 import com.sagoma.planimetria.persistence.PlanStore
 import com.sagoma.planimetria.persistence.ProjectInfo
 import com.sagoma.planimetria.persistence.ProjectRepository
+import com.sagoma.planimetria.persistence.ThemeChoice
+import com.sagoma.planimetria.persistence.ThemeStore
 import kotlinx.browser.localStorage
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -116,4 +118,10 @@ class BrowserProjectRepository(private val now: () -> Long) : ProjectRepository 
 class BrowserTipStore : TipStore {
     override fun seen(): Set<String> = localStorage.getItem("sagoma/suggerimenti")?.split('\n')?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
     override fun save(seen: Set<String>) = localStorage.setItem("sagoma/suggerimenti", seen.joinToString("\n"))
+}
+
+/** Tema scelto, nella memoria del browser. */
+class BrowserThemeStore : ThemeStore {
+    override fun load() = localStorage.getItem("sagoma/tema")?.let { n -> ThemeChoice.entries.firstOrNull { it.name == n } } ?: ThemeChoice.Light
+    override fun save(choice: ThemeChoice) = localStorage.setItem("sagoma/tema", choice.name)
 }

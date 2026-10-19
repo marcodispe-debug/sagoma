@@ -24,7 +24,9 @@ import com.sagoma.planimetria.assets.buildCachedAssetStore
 import com.sagoma.planimetria.assets.codeSourceStamp
 import com.sagoma.planimetria.assets.directoryFingerprint
 import com.sagoma.planimetria.editor.TipStore
+import com.sagoma.planimetria.persistence.NoThemeStore
 import com.sagoma.planimetria.persistence.ProjectRepository
+import com.sagoma.planimetria.persistence.ThemeStore
 import com.sagoma.planimetria.ui.ImportedImage
 import com.sagoma.planimetria.ui.PdfPage
 import com.sagoma.planimetria.ui.PickedFile
@@ -45,6 +47,7 @@ class DesktopPlatform(
     override val account: Account = Account.Guest,
     override val projects: ProjectRepository,
     override val tips: TipStore,
+    override val theme: ThemeStore = NoThemeStore,
     private val assets: File?,
     /**
      * Cartella della cache su disco degli asset; `null` = nessuna cache (come nelle prove). Deve stare fuori dalla
