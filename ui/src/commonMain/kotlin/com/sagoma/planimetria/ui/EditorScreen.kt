@@ -381,6 +381,13 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             // Legenda dei simboli: in basso a destra, sopra la striscia Info e a sinistra del pannello laterale.
             var showLegend by remember { mutableStateOf(false) }
             var showVisibility by remember { mutableStateOf(false) }
+            // Piantina appena caricata (o cambiata): i comandi per vederla e regolarla si aprono da soli. Riaprendo il progetto no.
+            var underlayFile by remember { mutableStateOf(state.plan.underlay?.file) }
+            LaunchedEffect(state.plan.underlay?.file) {
+                val file = state.plan.underlay?.file
+                if (file != null && file != underlayFile) showVisibility = true
+                underlayFile = file
+            }
             val cornerModifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(
