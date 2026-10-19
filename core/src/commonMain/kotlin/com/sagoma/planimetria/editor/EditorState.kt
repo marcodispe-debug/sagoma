@@ -180,7 +180,17 @@ sealed interface UnderlayTool {
  * `onPlan`: il primo angolo è stato cliccato sopra la piantina di sfondo. Lì si cliccano gli angoli che si vedono, cioè il filo
  * interno dei muri (come le quote delle piantine): alla chiusura il muro si aggiunge verso l'esterno.
  */
-data class WallDraw(val points: List<Vec2> = emptyList(), val cursor: Vec2? = null, val closing: Boolean = false, val onPlan: Boolean = false)
+/**
+ * Disegno muro per muro in corso. `zoneRoomId`: invece di una stanza si disegna una zona non calpestabile di quella stanza
+ * (stessi tocchi, ma alla chiusura si chiede il nome della zona).
+ */
+data class WallDraw(
+    val points: List<Vec2> = emptyList(),
+    val cursor: Vec2? = null,
+    val closing: Boolean = false,
+    val onPlan: Boolean = false,
+    val zoneRoomId: Long? = null,
+)
 
 /**
  * Appunti di "Copia": un impianto o un'apertura (si incollano toccando un muro, le luci dentro una stanza)

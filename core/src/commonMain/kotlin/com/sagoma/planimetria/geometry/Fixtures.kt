@@ -49,5 +49,6 @@ object Fixtures {
     fun movedRoom(room: Room, d: Vec2): Room = room.copy(
         points = room.points.map { it + d },
         fixtures = room.fixtures.map { if (it.kind.mount == Mount.Ceiling) it.copy(point = it.point + d) else it },
+        excludedZones = room.excludedZones.map { z -> z.copy(points = z.points.map { it + d }) },
     )
 }

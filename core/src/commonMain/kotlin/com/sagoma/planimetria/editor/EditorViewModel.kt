@@ -3,6 +3,7 @@ package com.sagoma.planimetria.editor
 import androidx.lifecycle.ViewModel
 import com.sagoma.planimetria.geometry.Dimensions
 import com.sagoma.planimetria.geometry.Furnishings
+import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.interiorLengths
 import com.sagoma.planimetria.model.Furniture
 import com.sagoma.planimetria.model.FurnitureCatalog
@@ -48,6 +49,7 @@ import com.sagoma.planimetria.model.Parapet
 import com.sagoma.planimetria.model.FloorFinish
 import com.sagoma.planimetria.model.WallPaint
 import com.sagoma.planimetria.model.WallFinish
+import com.sagoma.planimetria.model.ExcludedZone
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomShape
 import com.sagoma.planimetria.model.RoomType
@@ -1145,16 +1147,25 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         }
     }
 
-    /** Il disegno in corso ricalca la piantina: lo decide il primo angolo (vedi [WallDraw.onPlan]). */
-    private fun drawingOnPlan(wd: WallDraw) = if (wd.points.isEmpty()) _state.value.plan.underlay?.visible == true else wd.onPlan
+    /** Il disegno in corso ricalca la piantina: lo decide il primo angolo (vedi [WallDraw.onPlan]). Le zone non lo sono mai. */
+    private fun drawingOnPlan(wd: WallDraw) = when {
+        wd.zoneRoomId != null -> false
+        wd.points.isEmpty() -> _state.value.plan.underlay?.visible == true
+        else -> wd.onPlan
+    }
 
     /**
      * Sopra la piantina niente agganci alle altre stanze: i loro angoli sono in mezzeria, a mezzo muro da quelli che si
      * cliccano, e tirerebbero il punto fuori posto. Restano le direzioni bloccate, la chiusura e gli allineamenti col disegno.
      */
     private fun drawSnap(p: Vec2, wd: WallDraw): SnapResult {
-        val targets = if (drawingOnPlan(wd)) SnapEngine.Targets(emptyList(), emptyList(), emptyList())
-        else SnapEngine.targetsWithBelow(_state.value.plan, _state.value.planBelow)
+        val plan = _state.value.plan
+        val targets = when {
+            // Zona non calpestabile: agganci al filo interno dei muri (dove cominciano i m²) e ai pilastri.
+            wd.zoneRoomId != null -> SnapEngine.Targets(plan.rooms.flatMap { it.interior() }, emptyList(), plan.columns.map { it.center })
+            drawingOnPlan(wd) -> SnapEngine.Targets(emptyList(), emptyList(), emptyList())
+            else -> SnapEngine.targetsWithBelow(plan, _state.value.planBelow)
+        }
         return SnapEngine.snapDrawing(p, wd.points.lastOrNull(), wd.points.firstOrNull(), targets, wd.points, snapTolerance())
     }
 
@@ -1275,6 +1286,40 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         }
         // Prima stanza del progetto disegnata muro per muro (anche dal ricalco della piantina): tutorial o benvenuto come con le forme.
         if (firstEver) welcome() else tutorialEvent(TutorialEvent.RoomAdded)
+    }
+
+    // ---------- Zone non calpestabili ----------
+
+    /** "Zona non calpestabile": si disegna come una stanza, toccando gli angoli, dentro la stanza `roomId`. */
+    fun startExcludedZone(roomId: Long) {
+        if (_state.value.plan.room(roomId) == null) return
+        _state.update {
+            it.copy(
+                wallDraw = WallDraw(zoneRoomId = roomId), creation = null, selection = null, focusedRoomId = roomId,
+                pendingOpening = null, pendingFixture = null, measure = null, view3d = false, infoExpanded = false,
+            )
+        }
+    }
+
+    /** Zona chiusa: entra nella stanza con il suo nome e si toglie dai m². */
+    fun finishExcludedZone(name: String) {
+        val wd = _state.value.wallDraw ?: return
+        val roomId = wd.zoneRoomId ?: return
+        if (wd.points.size < 3) return
+        val room = _state.value.plan.room(roomId) ?: return
+        val zone = ExcludedZone(
+            id = (room.excludedZones.maxOfOrNull { it.id } ?: 0) + 1,
+            points = wd.points,
+            name = name.trim().ifEmpty { ExcludedZone.DEFAULT_NAME },
+        )
+        commit { p -> p.room(roomId)?.let { p.replace(it.copy(excludedZones = it.excludedZones + zone)) } ?: p }
+        _state.update { it.copy(wallDraw = null, snapGuides = emptyList(), focusedRoomId = roomId, selection = null, infoExpanded = true) }
+    }
+
+    fun removeExcludedZone(roomId: Long, zoneId: Long) {
+        val room = _state.value.plan.room(roomId) ?: return
+        if (room.excludedZones.none { it.id == zoneId }) return
+        commit { p -> p.replace(room.copy(excludedZones = room.excludedZones.filter { it.id != zoneId })) }
     }
 
     // ---------- Fuoco e selezione (§4, §10) ----------
