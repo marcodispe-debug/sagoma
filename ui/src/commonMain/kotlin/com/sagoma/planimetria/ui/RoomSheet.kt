@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -230,17 +231,18 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
                 }
             }
         }
-        // Contenuto della scheda: scorre nello spazio rimasto.
-        Column(
-            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(top = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            when (tab) {
-                RoomTab.Measures -> MeasuresTab(room, vm)
-                RoomTab.Finishes -> FinishesTab(room, plan, vm)
-                RoomTab.Openings -> OpeningsTab(room, vm)
-                RoomTab.Project -> ProjectTab(room, vm)
+        // Contenuto della scheda: scorre nello spazio rimasto, con la barra di scorrimento a destra (ogni scheda riparte dall'alto).
+        val scroll = key(tab) { rememberScrollState() }
+        Box(Modifier.weight(1f, fill = false).padding(top = 8.dp)) {
+            Column(Modifier.verticalScroll(scroll).padding(end = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                when (tab) {
+                    RoomTab.Measures -> MeasuresTab(room, vm)
+                    RoomTab.Finishes -> FinishesTab(room, plan, vm)
+                    RoomTab.Openings -> OpeningsTab(room, vm)
+                    RoomTab.Project -> ProjectTab(room, vm)
+                }
             }
+            ScrollBar(scroll, Modifier.align(Alignment.TopEnd).offset(x = 6.dp))
         }
     }
 }
