@@ -58,6 +58,10 @@ import com.sagoma.planimetria.model.Parapet
 import com.sagoma.planimetria.model.FloorFinish
 import com.sagoma.planimetria.model.WallPaint
 import com.sagoma.planimetria.model.Room
+import com.sagoma.planimetria.model.RoomType
+import com.sagoma.planimetria.geometry.interiorArea
+import com.sagoma.planimetria.geometry.zoneArea
+import androidx.compose.ui.text.style.TextAlign
 
 /** Trascinamento minimo (px) sulla striscia per aprire (verso l'alto) o chiudere (verso il basso) la tendina. */
 private const val DRAG_THRESHOLD_PX = 24f
@@ -158,220 +162,294 @@ fun InfoSheet(
 }
 
 /**
- * Caratteristiche della stanza selezionata, nella tendina "Info": nome, tipo, altezza soffitto, misure,
- * muri, aperture, impianti, eliminazione. Le modifiche si applicano subito (e sono annullabili).
+ * Caratteristiche della stanza selezionata, nella tendina "Info": in alto Duplica ed Elimina, nome, tipo e misure
+ * principali; sotto le schede Misure, Finiture, Porte e impianti, Progetto. Le modifiche si applicano subito (e sono annullabili).
  */
 @Composable
 fun RoomInfo(room: Room, plan: FloorPlan, vm: EditorViewModel, modifier: Modifier = Modifier) {
     key(room.id) { RoomSheetContent(room, plan, vm, modifier) }
 }
 
+/** Schede della tendina della stanza. */
+private enum class RoomTab(val label: String) { Measures("Misure"), Finishes("Finiture"), Openings("Porte e impianti"), Project("Progetto") }
+
+/** Ultima scheda aperta: resta passando da una stanza all'altra (e riaprendo la tendina). */
+private var lastRoomTab by mutableStateOf(RoomTab.Measures)
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, modifier: Modifier = Modifier) {
     val focusManager = LocalFocusManager.current
-    Column(
-        modifier
-            .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // Copia intera della stanza (o del balcone), con porte, finestre e impianti.
-        PanelActions { DuplicateButton(vm) }
-        // Nome: si applica alla conferma o quando il campo perde il fuoco, non a ogni lettera
-        // (così la cronologia non si riempie di passi inutili).
-        var name by remember(room.name) { mutableStateOf(room.name) }
-        var nameFocused by remember { mutableStateOf(false) }
-        SelectAllTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = "Nome",
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { vm.renameRoom(room.id, name); focusManager.clearFocus() }),
-            modifier = Modifier.fillMaxWidth().onFocusChanged {
-                if (nameFocused && !it.isFocused) vm.renameRoom(room.id, name)
-                nameFocused = it.isFocused
-            },
-        )
-
-        Text("Tipo di stanza (rinomina automaticamente)", style = MaterialTheme.typography.labelLarge)
-        RoomTypePicker(room.type) { vm.changeRoomType(room.id, it) }
-
-        // Stato di fatto / progetto di tutti i muri insieme (es. stanza nuova, o tramezzi da demolire).
-        if (!room.outdoor) {
-            val phases = (0 until room.wallCount).map { room.phaseOf(it) }.distinct()
-            val all = phases.singleOrNull()
+    // Balconi e terrazze non hanno muri propri: niente scheda Progetto.
+    val tabs = if (room.outdoor) RoomTab.entries - RoomTab.Project else RoomTab.entries
+    val tab = lastRoomTab.takeIf { it in tabs } ?: RoomTab.Measures
+    Column(modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)) {
+        // Parte fissa: comandi della stanza, nome, tipo e misure principali.
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Copia intera della stanza (o del balcone), con porte, finestre e impianti; eliminazione. In cima, sempre a portata di mano.
+            PanelActions {
+                DuplicateButton(vm)
+                TextButton(onClick = { vm.requestDeleteRoom(room.id) }) { Text("Elimina stanza", color = MaterialTheme.colorScheme.error) }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Nome: si applica alla conferma o quando il campo perde il fuoco, non a ogni lettera
+                // (così la cronologia non si riempie di passi inutili).
+                var name by remember(room.name) { mutableStateOf(room.name) }
+                var nameFocused by remember { mutableStateOf(false) }
+                SelectAllTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = "Nome",
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { vm.renameRoom(room.id, name); focusManager.clearFocus() }),
+                    modifier = Modifier.weight(1f).onFocusChanged {
+                        if (nameFocused && !it.isFocused) vm.renameRoom(room.id, name)
+                        nameFocused = it.isFocused
+                    },
+                )
+                RoomTypeMenu(room.type) { vm.changeRoomType(room.id, it) }
+            }
+            // Lunghezze e perimetro sul lato interno dei muri, come l'area; con un sottotetto il soffitto in pendenza abbassa il volume.
+            val perimeter = interiorLengths(room).sum()
             Text(
-                "Muri della stanza: " + (all?.label?.lowercase() ?: "stati diversi (si cambiano muro per muro)"),
-                style = MaterialTheme.typography.labelLarge,
+                "${formatArea(room)} · perimetro ${formatCm(perimeter)} cm" +
+                    if (room.outdoor) " · all'aperto" else " · ${com.sagoma.planimetria.geometry.formatDecimal(Ceilings.volumeM3(room), 2)} m³",
+                style = MaterialTheme.typography.bodyMedium,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for ((p, label) in com.sagoma.planimetria.model.Phase.entries.zip(listOf("Tutti esistenti", "Tutti da demolire", "Tutti nuovi"))) {
-                    androidx.compose.material3.OutlinedButton(onClick = { vm.setRoomPhase(room.id, p) }, enabled = all != p, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) {
-                        Text(label, style = MaterialTheme.typography.labelMedium)
-                    }
+            // Schede a larghezza fissa: tutte visibili anche sul telefono ("Porte e impianti" va su due righe).
+            androidx.compose.material3.SecondaryTabRow(selectedTabIndex = tabs.indexOf(tab), containerColor = Color.Transparent) {
+                // Margini stretti: con quelli standard le parole si spezzano a metà nella tendina.
+                for (t in tabs) androidx.compose.material3.Tab(selected = t == tab, onClick = { lastRoomTab = t }) {
+                    Text(
+                        t.label,
+                        style = MaterialTheme.typography.labelLarge,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        modifier = Modifier.padding(horizontal = 2.dp, vertical = 10.dp),
+                    )
                 }
             }
         }
-
-        var ceiling by remember(room.ceilingHeight) { mutableStateOf(formatCm(room.ceilingHeight)) }
-        // Balcone o terrazza: niente soffitto, si sceglie il parapetto.
-        if (room.outdoor) {
-            Choice("Parapetto", Parapet.entries.map { it.label }, room.parapet.ordinal, Modifier.fillMaxWidth()) { k ->
-                vm.setParapet(room.id, parapet = Parapet.entries[k])
+        // Contenuto della scheda: scorre nello spazio rimasto.
+        Column(
+            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(top = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            when (tab) {
+                RoomTab.Measures -> MeasuresTab(room, vm)
+                RoomTab.Finishes -> FinishesTab(room, plan, vm)
+                RoomTab.Openings -> OpeningsTab(room, vm)
+                RoomTab.Project -> ProjectTab(room, vm)
             }
-            var parapetH by remember(room.parapetHeight) { mutableStateOf(formatCm(room.parapetHeight)) }
-            SelectAllTextField(
-                value = parapetH,
-                onValueChange = {
-                    parapetH = it
-                    parsePositive(it)?.let { h -> vm.setParapet(room.id, height = h) }
-                },
-                label = "Altezza del parapetto",
-                numeric = true,
-                suffix = "cm",
-                isError = parsePositive(parapetH) == null,
-                modifier = Modifier.fillMaxWidth(),
+        }
+    }
+}
+
+/** Tipo di stanza in un menu (rinomina automaticamente). */
+@Composable
+private fun RoomTypeMenu(selected: RoomType, onSelect: (RoomType) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        androidx.compose.material3.OutlinedButton(
+            onClick = { open = true },
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp),
+        ) {
+            Box(Modifier.size(10.dp).background(Color(selected.argb), CircleShape))
+            Spacer(Modifier.width(6.dp))
+            Text("${selected.label} ▾", maxLines = 1)
+        }
+        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            for (t in RoomType.entries) androidx.compose.material3.DropdownMenuItem(
+                text = { Text(t.label) },
+                leadingIcon = { Box(Modifier.size(10.dp).background(Color(t.argb), CircleShape)) },
+                onClick = { open = false; if (t != selected) onSelect(t) },
             )
-            Text(
-                "Il parapetto c'è sui lati verso l'esterno; dove il balcone tocca la casa resta il muro. " +
-                    "Per uscirci metti una porta-finestra (+ Infissi → Balcone) sul muro della stanza.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-        } else SelectAllTextField(
-            value = ceiling,
+        }
+    }
+}
+
+/** Scheda Misure: soffitto (o parapetto), spessore, muri e zone non calpestabili. */
+@Composable
+private fun MeasuresTab(room: Room, vm: EditorViewModel) {
+    // Percorso B: SOLO le stanze create come schizzo (e non ancora misurate) offrono la scansione guidata.
+    if (room.sketchPending && FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.SKETCH_GUIDED_SCAN)) {
+        androidx.compose.material3.Button(onClick = { vm.startSketchScan(room.id) }) {
+            Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.startScan)
+        }
+    }
+    if (room.outdoor) {
+        // Balcone o terrazza: niente soffitto, si sceglie il parapetto.
+        Choice("Parapetto", Parapet.entries.map { it.label }, room.parapet.ordinal, Modifier.fillMaxWidth()) { k ->
+            vm.setParapet(room.id, parapet = Parapet.entries[k])
+        }
+        var parapetH by remember(room.parapetHeight) { mutableStateOf(formatCm(room.parapetHeight)) }
+        SelectAllTextField(
+            value = parapetH,
             onValueChange = {
-                ceiling = it
-                parsePositive(it)?.let { h -> vm.setCeilingHeight(room.id, h) }
+                parapetH = it
+                parsePositive(it)?.let { h -> vm.setParapet(room.id, height = h) }
             },
-            label = "Altezza soffitto",
+            label = "Altezza del parapetto",
             numeric = true,
             suffix = "cm",
-            isError = parsePositive(ceiling) == null,
+            isError = parsePositive(parapetH) == null,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (!room.outdoor) {
-            var thick by remember(room.wallThickness) { mutableStateOf(formatCm(room.wallThickness)) }
+        Text(
+            "Il parapetto c'è sui lati verso l'esterno; dove il balcone tocca la casa resta il muro. " +
+                "Per uscirci metti una porta-finestra (+ Infissi → Balcone) sul muro della stanza.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    } else {
+        var ceiling by remember(room.ceilingHeight) { mutableStateOf(formatCm(room.ceilingHeight)) }
+        var thick by remember(room.wallThickness) { mutableStateOf(formatCm(room.wallThickness)) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SelectAllTextField(
+                value = ceiling,
+                onValueChange = {
+                    ceiling = it
+                    parsePositive(it)?.let { h -> vm.setCeilingHeight(room.id, h) }
+                },
+                label = "Altezza soffitto",
+                numeric = true,
+                suffix = "cm",
+                isError = parsePositive(ceiling) == null,
+                modifier = Modifier.weight(1f),
+            )
             SelectAllTextField(
                 value = thick,
                 onValueChange = {
                     thick = it
                     parsePositive(it)?.let { t -> vm.setRoomWallThickness(room.id, t) }
                 },
-                label = "Spessore dei muri",
+                label = "Spessore muri",
                 numeric = true,
                 suffix = "cm",
                 isError = parsePositive(thick)?.let { it in 3.0..120.0 } != true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                "Vale per tutti i muri della stanza; un singolo muro (per esempio un portante da 40 cm o un tramezzo da 10 cm) " +
-                    "si cambia toccandolo.",
-                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
             )
         }
-
-        // Aspetto nel 3D: pavimento e colore delle pareti.
-        SectionTitle("Finiture")
-        ModelPicker("Pavimento", FloorFinish.entries, room.floorFinish, { it.label }, { vm.setRoomLook(room.id, floor = it) }) {
-            floorPreview(it, Color(room.type.argb))
-        }
-        // Pavimento con un materiale fotografico (vince sulla finitura qui sopra), dove ci sono i materiali.
-        if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS)) {
-            MaterialPicker("Pavimento fotografico", room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
-        }
-        // Colore qualsiasi e rivestimenti. La facciata è una sola per tutto il piano: si cambia da qualunque stanza.
-        if (!room.outdoor) FinishPicker("Pareti interne", room.roomFinish, { vm.setRoomFinish(room.id, it) })
-        FinishPicker("Pareti esterne (facciata del piano)", plan.facadeOrPaint, { vm.setFacadeFinish(it) })
-
-        // Misure calcolate.
-        SectionTitle("Misure")
-        // Percorso B: SOLO le stanze create come schizzo (e non ancora misurate) offrono la scansione guidata.
-        if (room.sketchPending && FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.SKETCH_GUIDED_SCAN)) {
-            androidx.compose.material3.Button(onClick = { vm.startSketchScan(room.id) }) {
-                Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.startScan)
-            }
-        }
-        // Lunghezze e perimetro sul lato interno dei muri, come l'area.
-        val lengths = interiorLengths(room)
-        val perimeter = lengths.sum()
-        // Con un sottotetto il soffitto in pendenza abbassa il volume.
-        val volumeM3 = Ceilings.volumeM3(room)
         Text(
-            "Area ${formatArea(room)} · Perimetro ${formatCm(perimeter)} cm" +
-                if (room.outdoor) " · all'aperto" else " · Volume ${com.sagoma.planimetria.geometry.formatDecimal(volumeM3, 2)} m³",
-            style = MaterialTheme.typography.bodyMedium,
+            "Lo spessore vale per tutti i muri della stanza; un singolo muro (per esempio un portante da 40 cm o un tramezzo da 10 cm) " +
+                "si cambia toccandolo.",
+            style = MaterialTheme.typography.bodySmall,
         )
-        InteriorMeasuresNotice(Modifier.fillMaxWidth())
+    }
+    InteriorMeasuresNotice(Modifier.fillMaxWidth())
 
-        // Muri: lunghezza (come i campi sulla pianta) e altezza, anche personalizzata per mansarde (§2).
-        SectionTitle("Muri")
-        for (i in 0 until room.wallCount) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Muro ${i + 1}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(64.dp))
-                CommitNumberField(
-                    label = "Lunghezza",
-                    value = lengths[i],
-                    modifier = Modifier.weight(1f),
-                ) { vm.setWallLength(room.id, i, it) }
-                if (!room.outdoor) CommitNumberField(
-                    label = if (room.wallHeights.containsKey(i)) "Altezza (pers.)" else "Altezza",
-                    value = room.wallHeight(i),
-                    modifier = Modifier.weight(1f),
-                ) { vm.setWallHeight(room.id, i, it) }
-            }
+    // Muri: lunghezza (come i campi sulla pianta) e altezza, anche personalizzata per mansarde (§2).
+    SectionTitle("Muri")
+    val lengths = interiorLengths(room)
+    for (i in 0 until room.wallCount) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Muro ${i + 1}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(64.dp))
+            CommitNumberField(
+                label = "Lunghezza",
+                value = lengths[i],
+                modifier = Modifier.weight(1f),
+            ) { vm.setWallLength(room.id, i, it) }
+            if (!room.outdoor) CommitNumberField(
+                label = if (room.wallHeights.containsKey(i)) "Altezza (pers.)" else "Altezza",
+                value = room.wallHeight(i),
+                modifier = Modifier.weight(1f),
+            ) { vm.setWallHeight(room.id, i, it) }
         }
+    }
 
-        // Aperture: un tocco seleziona l'apertura e ne apre il riquadro caratteristiche.
-        SectionTitle("Aperture (${room.openings.size})")
-        if (room.openings.isEmpty()) {
-            Text("Nessuna. Usa + Porte o + Infissi in basso.", style = MaterialTheme.typography.bodySmall)
+    // Zone non calpestabili: si tolgono dai m² come nelle planimetrie (mansarde sotto 1,50 m, cavedi, pilastri).
+    SectionTitle("Zone non calpestabili")
+    if (room.excludedZones.isEmpty()) Text(
+        "Parti che non contano nei m², per esempio la zona non accessibile di una mansarda o un cavedio: si disegnano toccando gli angoli.",
+        style = MaterialTheme.typography.bodySmall,
+    )
+    for (z in room.excludedZones) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "${z.name} · −${com.sagoma.planimetria.geometry.formatDecimal(room.zoneArea(z) / 10_000.0, 2)} m²",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = { vm.removeExcludedZone(room.id, z.id) }) { Text("Togli", color = MaterialTheme.colorScheme.error) }
         }
-        for (o in room.openings) {
-            Surface(
-                onClick = { vm.selectOpening(room.id, o.id) },
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(openingLabel(o), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Text(
-                        "muro ${o.wallIndex + 1} · ${formatCm(o.width)}×${formatCm(o.height)} cm" +
-                            (if (o.kind.hasSill) " · da terra ${formatCm(o.sillHeight)}" else ""),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Text("  ›", style = MaterialTheme.typography.titleMedium)
-                }
-            }
-        }
+    }
+    if (room.excludedZones.isNotEmpty()) Text(
+        "Pavimento intero ${com.sagoma.planimetria.geometry.formatDecimal(room.interiorArea() / 10_000.0, 2)} m² (il computo usa questo).",
+        style = MaterialTheme.typography.bodySmall,
+    )
+    androidx.compose.material3.OutlinedButton(onClick = { vm.startExcludedZone(room.id) }) { Text("▧ Aggiungi zona non calpestabile") }
+}
 
-        // Impianti: un tocco seleziona l'impianto e ne apre il riquadro caratteristiche.
-        SectionTitle("Impianti (${room.fixtures.size})")
-        if (room.fixtures.isEmpty()) {
-            Text("Nessuno. Usa + Impianti per caloriferi, prese, interruttori, punti acqua e luci.", style = MaterialTheme.typography.bodySmall)
-        }
-        for (f in room.fixtures) {
-            Surface(
-                onClick = { vm.selectFixture(room.id, f.id) },
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(f.kind.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Text(fixtureSummary(f), style = MaterialTheme.typography.bodySmall)
-                    Text("  ›", style = MaterialTheme.typography.titleMedium)
-                }
-            }
-        }
+/** Scheda Finiture: aspetto nel 3D, pavimento e pareti. */
+@Composable
+private fun FinishesTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
+    ModelPicker("Pavimento", FloorFinish.entries, room.floorFinish, { it.label }, { vm.setRoomLook(room.id, floor = it) }) {
+        floorPreview(it, Color(room.type.argb))
+    }
+    // Pavimento con un materiale fotografico (vince sulla finitura qui sopra), dove ci sono i materiali.
+    if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS)) {
+        MaterialPicker("Pavimento fotografico", room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
+    }
+    // Colore qualsiasi e rivestimenti. La facciata è una sola per tutto il piano: si cambia da qualunque stanza.
+    if (!room.outdoor) FinishPicker("Pareti interne", room.roomFinish, { vm.setRoomFinish(room.id, it) })
+    FinishPicker("Pareti esterne (facciata del piano)", plan.facadeOrPaint, { vm.setFacadeFinish(it) })
+}
 
+/** Una riga dell'elenco: un tocco seleziona l'oggetto e ne apre il riquadro caratteristiche. */
+@Composable
+private fun ItemRow(title: String, detail: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text(detail, style = MaterialTheme.typography.bodySmall)
+            Text("  ›", style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = { vm.requestDeleteRoom(room.id) }) {
-                Text("Elimina stanza", color = MaterialTheme.colorScheme.error)
+/** Scheda Porte e impianti: elenco delle aperture e degli impianti della stanza. */
+@Composable
+private fun OpeningsTab(room: Room, vm: EditorViewModel) {
+    SectionTitle("Aperture (${room.openings.size})")
+    if (room.openings.isEmpty()) {
+        Text("Nessuna. Usa + Porte o + Infissi in basso.", style = MaterialTheme.typography.bodySmall)
+    }
+    for (o in room.openings) ItemRow(
+        openingLabel(o),
+        "muro ${o.wallIndex + 1} · ${formatCm(o.width)}×${formatCm(o.height)} cm" + (if (o.kind.hasSill) " · da terra ${formatCm(o.sillHeight)}" else ""),
+    ) { vm.selectOpening(room.id, o.id) }
+
+    SectionTitle("Impianti (${room.fixtures.size})")
+    if (room.fixtures.isEmpty()) {
+        Text("Nessuno. Usa + Impianti per caloriferi, prese, interruttori, punti acqua e luci.", style = MaterialTheme.typography.bodySmall)
+    }
+    for (f in room.fixtures) ItemRow(f.kind.label, fixtureSummary(f)) { vm.selectFixture(room.id, f.id) }
+}
+
+/** Scheda Progetto: stato di fatto / progetto di tutti i muri insieme (es. stanza nuova, o tramezzi da demolire). */
+@Composable
+private fun ProjectTab(room: Room, vm: EditorViewModel) {
+    val phases = (0 until room.wallCount).map { room.phaseOf(it) }.distinct()
+    val all = phases.singleOrNull()
+    Text(
+        "Muri della stanza: " + (all?.label?.lowercase() ?: "stati diversi (si cambiano muro per muro)"),
+        style = MaterialTheme.typography.labelLarge,
+    )
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for ((p, label) in com.sagoma.planimetria.model.Phase.entries.zip(listOf("Tutti esistenti", "Tutti da demolire", "Tutti nuovi"))) {
+            androidx.compose.material3.OutlinedButton(onClick = { vm.setRoomPhase(room.id, p) }, enabled = all != p, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) {
+                Text(label, style = MaterialTheme.typography.labelMedium)
             }
         }
     }
+    Text(
+        "Un singolo muro, porta o finestra si cambia toccandolo. Nella tavola comparativa i muri da demolire sono gialli, quelli nuovi rossi.",
+        style = MaterialTheme.typography.bodySmall,
+    )
 }
 
 /** Dati principali di un impianto per l'elenco della stanza. */
