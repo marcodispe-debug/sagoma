@@ -109,6 +109,10 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
     var length by remember { mutableStateOf("") }
     var angle by remember { mutableStateOf("") }
     var arrow by remember { mutableStateOf<WallArrow?>(null) }
+    // Sopra una piantina in scala basta cliccare gli angoli: frecce, lunghezza e angolo solo a richiesta ("Scrivi le misure").
+    var typing by remember { mutableStateOf(false) }
+    val tracing = state.plan.underlay?.visible == true
+    val simple = tracing && !typing
     val firstWall = wd.points.size < 2
     val lengthCm = length.replace(',', '.').toDoubleOrNull()
     val cornerDeg = angle.replace(',', '.').toDoubleOrNull().takeIf { arrow != null && !firstWall }
@@ -131,13 +135,15 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
             Text("✏ Muro per muro", style = MaterialTheme.typography.titleSmall)
             Text(
                 when {
+                    simple && wd.points.size < 3 -> "Clicca sugli angoli della piantina, uno dopo l'altro. Vicino alle direzioni dritte e a 45° il muro si blocca da solo."
+                    simple -> "Continua sugli angoli, poi clicca il primo angolo (cerchiato) o \"Chiudi stanza\" per finire."
                     wd.points.isEmpty() -> "Tocca (o clicca) dove inizia il primo muro."
                     wd.points.size < 3 -> "Tocca il prossimo angolo, oppure scrivi la lunghezza del muro. Misure sull'asse dei muri."
                     else -> "Continua, oppure tocca il primo angolo (cerchiato) o \"Chiudi stanza\" per finire."
                 },
                 style = MaterialTheme.typography.bodySmall,
             )
-            if (wd.points.isNotEmpty()) {
+            if (wd.points.isNotEmpty() && !simple) {
                 // Verso dove va il muro: la freccia che torna indietro sul muro precedente non si può scegliere.
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("Verso:", style = MaterialTheme.typography.labelLarge, modifier = Modifier.align(Alignment.CenterVertically))
@@ -185,10 +191,16 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
                     color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = vm::drawWallsUndo, enabled = wd.points.isNotEmpty()) { Text("↶ Ultimo") }
                 TextButton(onClick = vm::drawWallsClose, enabled = wd.points.size >= 3) { Text("Chiudi stanza") }
                 TextButton(onClick = vm::cancelDrawWalls) { Text("Esci") }
+                // Muro sbiadito o tagliato nella piantina: si può sempre scrivere la misura.
+                if (tracing && wd.points.isNotEmpty()) TextButton(onClick = {
+                    // Chiudendo le misure si toglie anche l'anteprima del muro scritto a metà.
+                    if (typing) { length = ""; angle = ""; arrow = null }
+                    typing = !typing
+                }) { Text(if (typing) "Nascondi misure" else "Scrivi le misure") }
             }
         }
     }
