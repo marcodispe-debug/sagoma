@@ -219,6 +219,11 @@ data class EditorUiState(
      * (si aggiorna a ogni trascinamento); la casa completa è [fullBuilding].
      */
     val building: Building = Building.single(FloorPlan(), autoLevel = true),
+    /**
+     * Agganci attivi (angoli, allineamenti, direzioni bloccate, accostamenti ai muri). Spenti, angoli e oggetti vanno
+     * esattamente dove li porta il dito o il mouse; resta solo la chiusura della stanza sul primo angolo.
+     */
+    val snapOn: Boolean = true,
     /** Finestra per aggiungere o modificare un piano. */
     val floorDialog: FloorDialog? = null,
     /** Strumento "Distanza" attivo: i tocchi scelgono gli oggetti da misurare. */

@@ -85,6 +85,8 @@ fun InfoSheet(
     onToggle: () -> Unit,
     onExpandedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    /** Comandi sempre visibili sulla striscia, prima di "Info" (per esempio gli agganci). */
+    actions: @Composable () -> Unit = {},
     content: @Composable (Modifier) -> Unit,
 ) {
     var dragged by remember { mutableFloatStateOf(0f) }
@@ -147,6 +149,7 @@ fun InfoSheet(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                actions()
                 TextButton(onClick = onToggle) { Text("Info") }
                 IconButton(onClick = onToggle) {
                     Text(if (expanded) "▼" else "▲", style = MaterialTheme.typography.titleMedium)
@@ -495,4 +498,15 @@ private fun CommitNumberField(label: String, value: Double, modifier: Modifier, 
             focused = it.isFocused
         },
     )
+}
+
+/**
+ * Agganci accesi o spenti: con la calamita accesa angoli e oggetti scattano su angoli, allineamenti, direzioni dritte e
+ * muri vicini; spenta, vanno esattamente dove li si porta.
+ */
+@Composable
+internal fun SnapToggle(on: Boolean, onChange: (Boolean) -> Unit, compact: Boolean = false) {
+    // Sulla striscia Info la versione corta, per lasciare spazio al nome di ciò che è selezionato.
+    val label = if (compact) (if (on) "🧲 Sì" else "🧲 No") else (if (on) "🧲 Agganci sì" else "🧲 Agganci no")
+    androidx.compose.material3.FilterChip(selected = on, onClick = { onChange(!on) }, label = { Text(label, maxLines = 1) })
 }

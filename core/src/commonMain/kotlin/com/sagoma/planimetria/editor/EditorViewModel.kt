@@ -1166,6 +1166,13 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             drawingOnPlan(wd) -> SnapEngine.Targets(emptyList(), emptyList(), emptyList())
             else -> SnapEngine.targetsWithBelow(plan, _state.value.planBelow)
         }
+        if (!_state.value.snapOn) {
+            // Senza agganci il punto resta dove si clicca; il primo angolo chiude comunque la stanza.
+            val first = wd.points.firstOrNull()
+            return if (first != null && wd.points.size >= 3 && p.distanceTo(first) <= snapTolerance(always = true))
+                SnapResult(first, listOf(SnapGuide(SnapKind.Close, first)))
+            else SnapResult(p, emptyList())
+        }
         return SnapEngine.snapDrawing(p, wd.points.lastOrNull(), wd.points.firstOrNull(), targets, wd.points, snapTolerance())
     }
 
@@ -1836,7 +1843,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 // Aggancio CAD: estremità e punti medi delle altre stanze, allineamenti con tutti gli angoli.
                 val neighbors = listOf(room.points[(i - 1 + n) % n], room.points[(i + 1) % n])
                 val own = room.points.filterIndexed { k, _ -> k != i }
-                val r = SnapEngine.snap(room.points[i] + totalDelta, SnapEngine.targetsWithBelow(start, _state.value.planBelow, excludeRoom = room.id), snapTolerance(), neighbors, own)
+                val r = if (snapOn) SnapEngine.snap(room.points[i] + totalDelta, SnapEngine.targetsWithBelow(start, _state.value.planBelow, excludeRoom = room.id), snapTolerance(), neighbors, own)
+                else SnapResult(room.points[i] + totalDelta, emptyList())
                 val moved = room.points.toMutableList().also { it[i] = r.point }
                 snapGuides = r.guides
                 start.replace(room.copy(points = if (r.snapped) Snapping.straighten(moved, i) else moved))
@@ -1855,14 +1863,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 val room = start.room(target.roomId) ?: return
                 // Vicino a un muro parallelo di un'altra stanza scatta sulla sua linea: i due muri si sovrappongono.
                 // Anche ai muri del piano di sotto (solo come riferimento): si allinea il muro di sopra con quello di sotto.
-                val otherWalls = (start.rooms.filter { it.id != room.id } + _state.value.planBelow?.rooms.orEmpty()).flatMap { Snapping.wallsOf(it) }
+                val otherWalls = if (!snapOn) emptyList()
+                else (start.rooms.filter { it.id != room.id } + _state.value.planBelow?.rooms.orEmpty()).flatMap { Snapping.wallsOf(it) }
                 start.replace(room.copy(points = Snapping.moveWallSnapped(room.points, target.index, totalDelta, otherWalls)))
             }
             is DragTarget.RoomLabel -> {
                 val room = start.room(target.roomId) ?: return
                 // Riferimenti: le altre stanze del piano e quelle del piano di sotto (solo lette, mai modificate).
                 val others = start.rooms.filter { it.id != room.id } + _state.value.planBelow?.rooms.orEmpty()
-                val d = Snapping.snapRoomTranslation(room, others, totalDelta)
+                val d = if (snapOn) Snapping.snapRoomTranslation(room, others, totalDelta) else totalDelta
                 // Con la stanza si spostano anche le luci al soffitto (aperture e impianti a muro seguono i muri).
                 start.replace(Fixtures.movedRoom(room, d))
             }
@@ -1896,20 +1905,25 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             }
             is DragTarget.Stair -> {
                 val st = start.stair(target.stairId) ?: return
-                start.replace(Stairs.snapped(start, st.copy(center = st.center + totalDelta), _state.value.levelHeight))
+                val moved = st.copy(center = st.center + totalDelta)
+                start.replace(if (snapOn) Stairs.snapped(start, moved, _state.value.levelHeight) else moved)
             }
             is DragTarget.Column -> {
                 val c = start.column(target.columnId) ?: return
-                start.replace(Structure.snapped(start, c.copy(center = c.center + totalDelta)))
+                val moved = c.copy(center = c.center + totalDelta)
+                start.replace(if (snapOn) Structure.snapped(start, moved) else moved)
             }
             is DragTarget.FreeWallBody -> {
                 val w = start.freeWall(target.wallId) ?: return
-                start.replace(Structure.snapped(start, w.copy(start = w.start + totalDelta, end = w.end + totalDelta)))
+                val moved = w.copy(start = w.start + totalDelta, end = w.end + totalDelta)
+                start.replace(if (snapOn) Structure.snapped(start, moved) else moved)
             }
             is DragTarget.FreeWallEnd -> {
                 val w = start.freeWall(target.wallId) ?: return
                 // Estremità trascinata: raddrizzata a 90° se ci è vicina, poi agganciata agli altri muri.
-                if (target.endIndex == 0) {
+                if (!snapOn) {
+                    start.replace(if (target.endIndex == 0) w.copy(start = w.start + totalDelta) else w.copy(end = w.end + totalDelta))
+                } else if (target.endIndex == 0) {
                     val p = Structure.snapAngle(w.start + totalDelta, w.end)
                     start.replace(w.copy(start = Structure.snapWallEnd(start, p, w.end, w.id)))
                 } else {
@@ -1922,7 +1936,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 // Prima l'allineamento con gli altri arredi (centri), poi l'accostamento ai muri, che vince.
                 val others = start.furniture.filter { it.id != f.id }.map { it.center }
                 val aligned = SnapEngine.snap(f.center + totalDelta, SnapEngine.Targets(emptyList(), emptyList(), emptyList()), snapTolerance(), alignOnly = others)
-                val placed = Furnishings.snapped(start, f.copy(center = aligned.point))
+                val placed = f.copy(center = aligned.point).let { if (snapOn) Furnishings.snapped(start, it) else it }
                 snapGuides = aligned.guides.filter { g ->
                     // Guida solo sugli assi rimasti allineati dopo l'accostamento al muro.
                     val from = g.from ?: return@filter false
@@ -1936,12 +1950,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             }
             is DragTarget.BeamBody -> {
                 val b = start.beam(target.beamId) ?: return
-                start.replace(Structure.snapped(start, b.copy(start = b.start + totalDelta, end = b.end + totalDelta)))
+                val moved = b.copy(start = b.start + totalDelta, end = b.end + totalDelta)
+                start.replace(if (snapOn) Structure.snapped(start, moved) else moved)
             }
             is DragTarget.BeamEnd -> {
                 val b = start.beam(target.beamId) ?: return
                 // L'estremità trascinata: raddrizzata se la trave è quasi orizzontale o verticale, poi appoggiata al muro.
-                if (target.endIndex == 0) {
+                if (!snapOn) {
+                    start.replace(if (target.endIndex == 0) b.copy(start = b.start + totalDelta) else b.copy(end = b.end + totalDelta))
+                } else if (target.endIndex == 0) {
                     val p = Structure.snapAngle(b.start + totalDelta, b.end)
                     start.replace(b.copy(start = Structure.snapBeamEnd(start, p, b.end, b.id)))
                 } else {
@@ -2026,8 +2043,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     /** Guide dell'aggancio del trascinamento in corso (le imposta [dragBy], le toglie [endDrag]). */
     private var snapGuides: List<SnapGuide> = emptyList()
 
+    private val snapOn get() = _state.value.snapOn
+
+    /** Agganci accesi o spenti (pulsante 🧲 nella tendina Info): vale per il disegno e per tutti i trascinamenti. */
+    fun setSnapOn(on: Boolean) = _state.update { it.copy(snapOn = on, snapGuides = if (on) it.snapGuides else emptyList()) }
+
     /** Tolleranza dell'aggancio in cm: circa 10 dp sullo schermo, qualunque sia lo zoom. */
-    private fun snapTolerance(): Double {
+    private fun snapTolerance(always: Boolean = false): Double {
+        // Agganci spenti: nessun punto è abbastanza vicino da attirare.
+        if (!always && !_state.value.snapOn) return 0.0
         val dp = if (fitMarginPx > 0f) fitMarginPx / 24f else 2.5f
         return (10f * dp / _state.value.camera.scale).toDouble().coerceIn(2.0, 60.0)
     }

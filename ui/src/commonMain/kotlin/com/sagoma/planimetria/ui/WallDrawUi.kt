@@ -141,6 +141,7 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
                     zone && simple && wd.points.size < 3 ->
                         "Clicca gli angoli della parte che non conta nei m² (zona non accessibile, cavedio, pilastro). Si agganciano agli angoli interni dei muri."
                     zone && simple -> "Continua sugli angoli, poi clicca il primo angolo (cerchiato) o \"Chiudi zona\" per finire."
+                    simple && wd.points.size < 3 && !state.snapOn -> "Clicca sugli angoli della piantina, uno dopo l'altro. Agganci spenti: ogni angolo va esattamente dove clicchi."
                     simple && wd.points.size < 3 -> "Clicca sugli angoli della piantina, uno dopo l'altro. Vicino alle direzioni dritte e a 45° il muro si blocca da solo."
                     simple -> "Continua sugli angoli, poi clicca il primo angolo (cerchiato) o \"Chiudi stanza\" per finire."
                     wd.points.isEmpty() -> "Tocca (o clicca) dove inizia il primo muro."
@@ -201,6 +202,8 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
                 TextButton(onClick = vm::drawWallsUndo, enabled = wd.points.isNotEmpty()) { Text("↶ Ultimo") }
                 TextButton(onClick = vm::drawWallsClose, enabled = wd.points.size >= 3) { Text(if (zone) "Chiudi zona" else "Chiudi stanza") }
                 TextButton(onClick = vm::cancelDrawWalls) { Text("Esci") }
+                // Agganci anche qui: mentre si disegna la tendina Info non c'è.
+                SnapToggle(state.snapOn, vm::setSnapOn)
                 // Muro sbiadito o tagliato nella piantina: si può sempre scrivere la misura.
                 if ((tracing || zone) && wd.points.isNotEmpty()) TextButton(onClick = {
                     // Chiudendo le misure si toglie anche l'anteprima del muro scritto a metà.
