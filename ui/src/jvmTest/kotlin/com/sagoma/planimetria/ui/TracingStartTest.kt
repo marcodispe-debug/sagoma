@@ -84,17 +84,32 @@ class TracingStartTest {
     }
 
     @Test
-    fun `annullare la prima stanza riporta alla scelta iniziale, ripeterla la richiude`() {
+    fun `Annulla toglie solo l'ultima modifica e si può ripetere`() {
         val vm = emptyProject()
         vm.pickShape(RoomShape.Rectangle)
         vm.createRoom(RoomType.Camera, ShapeDimensions(300.0, 300.0), 270.0)
         assertNull(vm.state.value.creation)
         vm.undo()
         assertEquals(0, vm.state.value.plan.rooms.size)
-        assertEquals(CreationStep.PickShape(cancellable = false), vm.state.value.creation)
+        // Nessuna finestra obbligatoria sopra: "Ripeti" resta a portata di mano.
+        assertNull(vm.state.value.creation)
         vm.redo()
         assertEquals(1, vm.state.value.plan.rooms.size)
         assertNull(vm.state.value.creation)
+    }
+
+    @Test
+    fun `Annulla durante muro per muro toglie l'ultimo angolo, non la piantina`() {
+        val vm = emptyProject()
+        vm.startTracing()
+        vm.setUnderlay(Underlay("sfondo.jpg", 1000, 600, cmPerPx = 1.2))
+        vm.setUnderlayTool(null) // "Fine": si passa a muro per muro
+        vm.drawWallsTap(Vec2(0.0, 0.0))
+        vm.drawWallsTap(Vec2(300.0, 0.0))
+        val before = vm.state.value.wallDraw!!.points.size
+        vm.undo()
+        assertEquals(before - 1, vm.state.value.wallDraw!!.points.size)
+        assertNotNull(vm.state.value.plan.underlay)
     }
 
     @Test

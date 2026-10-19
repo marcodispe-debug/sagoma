@@ -272,6 +272,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     fun undo() {
+        // Mentre si disegnano i muri l'ultima modifica è l'ultimo angolo messo: si toglie quello, come con "↶ Ultimo".
+        if (_state.value.wallDraw?.points?.isNotEmpty() == true) return drawWallsUndo()
         // I livelli (nascosti, bloccati) sono un modo di guardare il disegno, non una modifica: restano come sono.
         val layers = _state.value.building.layers
         history.undo(_state.value.fullBuilding)?.let {
@@ -286,18 +288,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         history.redo(_state.value.fullBuilding)?.let { setBuilding(it.copy(layers = layers)); dropStaleCreation() }
     }
 
-    /**
-     * Scelta obbligatoria della stanza iniziale allineata al disegno: non serve più se annullando (o ripetendo) il piano ha di nuovo
-     * delle stanze; torna (forme, muro per muro, ricalco della piantina) se il piano terra resta vuoto e non si sta già disegnando
-     * o ricalcando.
-     */
+    /** La scelta obbligatoria della stanza iniziale non ha più senso se annullando (o ripetendo) il piano ha di nuovo delle stanze. */
     private fun dropStaleCreation() = _state.update {
-        when {
-            it.creation?.cancellable == false && it.plan.rooms.isNotEmpty() -> it.copy(creation = null)
-            it.creation == null && it.wallDraw == null && it.tracing == null && it.building.current == 0 && it.plan.rooms.isEmpty() ->
-                it.copy(creation = CreationStep.PickShape(cancellable = false), creationType = null, creationIntent = null)
-            else -> it
-        }
+        if (it.creation?.cancellable == false && it.plan.rooms.isNotEmpty()) it.copy(creation = null) else it
     }
 
     // ---------- Livelli ----------
@@ -1143,8 +1136,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     fun cancelDrawWalls() {
         _state.update { it.copy(wallDraw = null, snapGuides = emptyList(), creationIntent = null) }
-        // Annullato il disegno sulla pianta vuota: si torna alla scelta iniziale, non a un foglio bianco senza indicazioni.
-        dropStaleCreation()
+        // Uscita dal disegno sulla pianta terra vuota: si torna alla scelta iniziale, non a un foglio bianco senza indicazioni.
+        _state.update {
+            if (it.creation == null && it.tracing == null && it.building.current == 0 && it.plan.rooms.isEmpty())
+                it.copy(creation = CreationStep.PickShape(cancellable = false), creationType = null)
+            else it
+        }
     }
 
     private fun drawSnap(p: Vec2, wd: WallDraw) =

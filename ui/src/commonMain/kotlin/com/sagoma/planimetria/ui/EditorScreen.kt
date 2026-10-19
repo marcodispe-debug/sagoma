@@ -180,7 +180,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         val view3dState = remember { View3DState() }
         val toolbar = @Composable { compact: Boolean ->
             Toolbar(
-                state.canUndo,
+                // Mentre si disegnano i muri Annulla toglie l'ultimo angolo (anche se la pianta non ha ancora modifiche da annullare).
+                state.canUndo || state.wallDraw?.points?.isNotEmpty() == true,
                 state.canRedo,
                 vm,
                 focusedRoom = state.plan.room(state.focusedRoomId),

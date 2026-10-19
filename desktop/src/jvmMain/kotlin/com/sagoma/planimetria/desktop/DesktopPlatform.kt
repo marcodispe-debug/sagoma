@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.sagoma.planimetria.assets.ClasspathAssetStore
 import com.sagoma.planimetria.assets.CompositeAssetStore
 import com.sagoma.planimetria.assets.DirectoryAssetStore
@@ -125,11 +126,11 @@ class DesktopPlatform(
     override fun encodePng(image: ImageBitmap): ByteArray? = SkiaImages.encodePng(image)
 
     /** Immagini sì; i PDF come sfondo arriveranno (per ora si usa una foto o uno screenshot del PDF). */
-    override suspend fun importImage(bytes: ByteArray, pdf: Boolean, maxSide: Int): ImportedImage? =
-        if (pdf) null else SkiaImages.importImage(bytes, maxSide)
-
-    // Il PDF come sfondo non c'è ancora sul computer: solo immagini.
-    override val pdfAsBackground: Boolean get() = false
+    override suspend fun importImage(bytes: ByteArray, pdf: Boolean, maxSide: Int): ImportedImage? = withContext(Dispatchers.IO) {
+        // Il PDF diventa prima un'immagine (prima pagina, PDFBox), poi passa per la stessa strada delle foto.
+        val image = if (pdf) PdfBackground.firstPagePng(bytes, maxSide) ?: return@withContext null else bytes
+        SkiaImages.importImage(image, maxSide)
+    }
 
     override fun createPdf(pages: List<PdfPage>, density: Density): ByteArray = SkiaImages.rasterPdf(pages, density)
 
