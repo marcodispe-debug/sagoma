@@ -201,6 +201,8 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
                     if (typing) { length = ""; angle = ""; arrow = null }
                     typing = !typing
                 }) { Text(if (typing) "Nascondi misure" else "Scrivi le misure") }
+                // Misure che non tornano: si ritara sulla piantina, gli angoli già messi la seguono.
+                if (tracing) TextButton(onClick = vm::recalibrateUnderlay) { Text("📏 Rifai taratura") }
             }
         }
     }

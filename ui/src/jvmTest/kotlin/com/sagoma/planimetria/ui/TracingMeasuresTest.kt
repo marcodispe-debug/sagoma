@@ -80,4 +80,43 @@ class TracingMeasuresTest {
         vm.finishDrawWalls(RoomType.entries.first(), 270.0, 15.0)
         assertEquals(listOf(385.0, 285.0, 385.0, 285.0), vm.state.value.plan.rooms.single().interiorLengths().map { kotlin.math.round(it * 1e6) / 1e6 })
     }
+
+    @Test
+    fun `rifai taratura a meta stanza - gli angoli gia messi seguono la piantina`() {
+        val vm = emptyProject()
+        vm.startTracing()
+        vm.setUnderlay(start)
+        vm.setUnderlayTool(UnderlayTool.Calibrate())
+        vm.underlayTap(vm.px(185.0, 500.0))
+        vm.underlayTap(vm.px(557.0, 500.0))
+        vm.calibrateUnderlay(300.0) // misura sbagliata
+        vm.drawWallsTap(vm.px(185.0, 350.0))
+        vm.drawWallsTap(vm.px(557.0, 350.0))
+
+        vm.recalibrateUnderlay()
+        assertEquals(UnderlayTool.Calibrate(), vm.state.value.underlayTool)
+        assertEquals(2, vm.state.value.wallDraw!!.points.size, "la stanza a metà resta")
+        vm.underlayTap(vm.px(185.0, 500.0))
+        vm.underlayTap(vm.px(557.0, 500.0))
+        vm.calibrateUnderlay(370.0)
+        assertEquals(null, vm.state.value.underlayTool)
+        val wd = vm.state.value.wallDraw!!
+        assertEquals(vm.px(557.0, 350.0).x, wd.points[1].x, 1e-6)
+        assertEquals(vm.px(557.0, 350.0).y, wd.points[1].y, 1e-6)
+
+        for ((x, y) in listOf(557.0 to 675.0, 185.0 to 675.0, 185.0 to 350.0)) vm.drawWallsTap(vm.px(x, y))
+        vm.finishDrawWalls(RoomType.entries.first(), 270.0, 15.0)
+        val l = vm.state.value.plan.rooms.single().interiorLengths()
+        assertEquals(370.0, l[0], 0.5)
+        assertEquals(370.0 * 325 / 372, l[1], 0.5)
+    }
+
+    @Test
+    fun `rifai taratura mostra la piantina nascosta`() {
+        val vm = traced(15.0)
+        vm.setUnderlayVisible(false)
+        vm.recalibrateUnderlay()
+        assertEquals(true, vm.state.value.plan.underlay!!.visible)
+        assertEquals(UnderlayTool.Calibrate(), vm.state.value.underlayTool)
+    }
 }

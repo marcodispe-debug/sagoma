@@ -42,6 +42,7 @@ fun VisibilityPanel(state: EditorUiState, vm: EditorViewModel, onLoadPlan: () ->
                 onOpacity = { vm.previewUnderlayOpacity(it.toDouble()) },
                 onOpacityDone = vm::endUnderlayOpacity,
             )
+            if (u != null) TextButton(onClick = vm::recalibrateUnderlay) { Text("📏 Rifai taratura") }
             VisibilityRow(
                 label = "Disegno",
                 visible = state.drawingVisible,

@@ -394,6 +394,8 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                     if (!dragging) {
                         val at = startCam.toWorld(down.position.x, down.position.y)
                         when {
+                            // "Rifai taratura" anche a metà di una stanza: i tocchi vanno alla taratura, non agli angoli.
+                            tool is UnderlayTool.Calibrate -> vm.underlayTap(at)
                             drawing -> when {
                                 currentState.dimensionDraw != null -> vm.dimensionTap(at)
                                 currentState.textPlacing -> vm.textTap(at)
@@ -415,7 +417,6 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                                 if (all.count { it !is DragTarget.Wall } >= 2) overlapChoice = at to all
                                 else vm.onTap(target, at)
                             }
-                            tool is UnderlayTool.Calibrate -> vm.underlayTap(at)
                             else -> {}
                         }
                     }

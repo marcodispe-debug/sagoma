@@ -1161,7 +1161,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     /** Il puntatore si muove (mouse sul computer): anteprima del prossimo muro, già agganciata. */
     fun drawWallsCursor(p: Vec2) = _state.update { s ->
         val wd = s.wallDraw ?: return@update s
-        if (wd.closing) return@update s
+        if (wd.closing || s.underlayTool != null) return@update s
         val r = drawSnap(p, wd)
         s.copy(wallDraw = wd.copy(cursor = r.point), snapGuides = r.guides)
     }
@@ -2353,8 +2353,19 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             val u = p.underlay ?: return@commit p
             p.copy(underlay = u.copy(cmPerPx = u.cmPerPx * f, origin = a + (u.origin - a) * f))
         }
-        _state.update { it.copy(underlayTool = null) }
+        // Angoli della stanza a metà ("Rifai taratura" durante il ricalco): sono punti della piantina, la seguono.
+        _state.update { s ->
+            s.copy(underlayTool = null, wallDraw = s.wallDraw?.let { wd -> wd.copy(points = wd.points.map { a + (it - a) * f }, cursor = null) })
+        }
         endTracing()
+    }
+
+    /** "Rifai taratura": di nuovo i due punti della misura nota, anche a metà del ricalco di una stanza (che resta). */
+    fun recalibrateUnderlay() {
+        val u = _state.value.plan.underlay ?: return
+        if (!u.visible) setUnderlayVisible(true)
+        setUnderlayTool(UnderlayTool.Calibrate())
+        _state.update { s -> s.copy(wallDraw = s.wallDraw?.copy(cursor = null), snapGuides = emptyList()) }
     }
 
     /** Finitura della facciata del piano. */

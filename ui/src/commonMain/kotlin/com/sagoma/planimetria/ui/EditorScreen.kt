@@ -266,8 +266,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 state.measure?.let { MeasureCard(it, state, vm) }
                 // Pianta di sfondo: taratura o spostamento in corso.
                 UnderlayToolCard(state, vm)
-                // Disegno dei muri, muro per muro.
-                WallDrawCard(state, vm)
+                // Disegno dei muri, muro per muro (non mentre si rifà la taratura: in alto c'è la sua scheda).
+                if (state.underlayTool == null) WallDrawCard(state, vm)
                 // Selezione multipla e suoi comandi.
                 MultiSelectionCard(state, vm)
                 // Incolla: cosa toccare per mettere le copie.
