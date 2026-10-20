@@ -69,6 +69,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.PendingOpening
 import com.sagoma.planimetria.editor.Tip
+import com.sagoma.planimetria.editor.TutorialCourse
 import com.sagoma.planimetria.editor.TutorialStep
 import com.sagoma.planimetria.editor.TutorialUi
 import androidx.compose.foundation.layout.widthIn
@@ -116,6 +117,10 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         "📄 Tavola PDF in scala…" to { showPdf = true },
         "🧮 Computo e lista arredi" to { showTakeoff = true },
         "🗺 Pianta di sfondo…" to { showBackground = true },
+        "🧭 Guida al ricalco" to {
+            if (state.plan.underlay == null) showBackground = true
+            vm.startTracingGuide()
+        },
     )
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
@@ -125,6 +130,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         showBackground = false
         // Chiusa senza tarare (o senza caricare nulla): si va avanti col ricalco, o si torna alla scelta della stanza.
         vm.state.value.let { if (it.tracing != null && it.underlayTool == null) vm.endTracing() }
+        // Guida al ricalco aperta dal menu e finestra chiusa senza caricare la piantina: la guida non ha niente da ricalcare.
+        if (vm.state.value.plan.underlay == null) vm.abandonTracingGuide()
     })
     if (showLayers) LayersDialog(state, vm, onDismiss = { showLayers = false })
     state.textDialogAt?.let { at -> NewTextDialog(at, vm) }
@@ -605,7 +612,7 @@ private fun TutorialCard(t: TutorialUi, vm: EditorViewModel) {
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     if (t.step.action) {
                         Text(
-                            "Tutorial · passo ${t.number} di ${t.total}",
+                            "${if (t.course == TutorialCourse.Tracing) "Guida al ricalco" else "Tutorial"} · passo ${t.number} di ${t.total}",
                             style = MaterialTheme.typography.labelMedium,
                             color = onColor.copy(alpha = 0.7f),
                         )
@@ -633,7 +640,7 @@ private fun TutorialCard(t: TutorialUi, vm: EditorViewModel) {
                         TextButton(onClick = { vm.finishTutorial(completed = false) }) { Text("No, grazie", color = onColor.copy(alpha = 0.7f)) }
                         TextButton(onClick = vm::nextTutorialStep) { Text("Inizia") }
                     }
-                    TutorialStep.Done -> TextButton(onClick = { vm.finishTutorial() }) { Text("Fine") }
+                    TutorialStep.Done, TutorialStep.TraceDone -> TextButton(onClick = { vm.finishTutorial() }) { Text("Fine") }
                     else -> {
                         TextButton(onClick = { vm.finishTutorial(completed = false) }) { Text("Esci", color = onColor.copy(alpha = 0.7f)) }
                         TextButton(onClick = vm::nextTutorialStep) { Text("Salta passo") }

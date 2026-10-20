@@ -43,6 +43,7 @@ import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.UnderlayTool
+import com.sagoma.planimetria.editor.TutorialStep
 import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.model.Underlay
 import com.sagoma.planimetria.model.Vec2
@@ -146,6 +147,13 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
         title = { Text(if (tracing) "Ricalca una piantina" else "Pianta di sfondo") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                state.tutorial?.takeIf { it.step == TutorialStep.TraceLoad }?.let { t ->
+                    Text(
+                        "Guida al ricalco · passo ${t.number} di ${t.total}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 if (tracing) {
                     Text(
                         if (platform.pdfAsBackground) "Carica la piantina che hai (foto, scansione o PDF del catasto o del progetto)."

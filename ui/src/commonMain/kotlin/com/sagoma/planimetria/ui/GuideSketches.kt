@@ -65,6 +65,12 @@ val TutorialStep.sketch: Sketch
         TutorialStep.Undo -> Sketch.Undo
         TutorialStep.Ruler -> Sketch.Ruler
         TutorialStep.Done -> Sketch.Done
+        TutorialStep.TraceLoad, TutorialStep.TraceFirstCorner, TutorialStep.TraceCorners, TutorialStep.TraceClose -> Sketch.Trace
+        TutorialStep.TraceCalibA, TutorialStep.TraceCalibB, TutorialStep.TraceCalibValue -> Sketch.Calibrate
+        TutorialStep.TraceCheck -> Sketch.OpenInfo
+        TutorialStep.TraceFade -> Sketch.PlanFade
+        TutorialStep.TraceNext -> Sketch.AddRoom
+        TutorialStep.TraceDone -> Sketch.Done
     }
 
 /** Animazione che accompagna un suggerimento al primo utilizzo. */

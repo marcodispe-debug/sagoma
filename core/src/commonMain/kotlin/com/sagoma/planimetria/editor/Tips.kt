@@ -133,6 +133,9 @@ interface TipStore {
     companion object {
         /** Tutorial guidato completato o saltato. */
         const val TUTORIAL_DONE = "tutorial"
+
+        /** Guida al ricalco di una piantina completata o chiusa con "Esci". */
+        const val TRACING_GUIDE_DONE = "guida-ricalco"
     }
 }
 
@@ -160,6 +163,14 @@ class TipQueue(private val store: TipStore) {
         get() = TipStore.TUTORIAL_DONE in stored
         set(value) {
             if (value) stored += TipStore.TUTORIAL_DONE else stored -= TipStore.TUTORIAL_DONE
+            store.save(stored)
+        }
+
+    /** Guida al ricalco già completata o chiusa. */
+    var tracingGuideDone: Boolean
+        get() = TipStore.TRACING_GUIDE_DONE in stored
+        set(value) {
+            if (value) stored += TipStore.TRACING_GUIDE_DONE else stored -= TipStore.TRACING_GUIDE_DONE
             store.save(stored)
         }
     private val waiting = ArrayDeque<Tip>()
