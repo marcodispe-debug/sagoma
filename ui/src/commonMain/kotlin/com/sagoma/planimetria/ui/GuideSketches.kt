@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -44,6 +45,7 @@ enum class Sketch {
     AddRoom, MoveRoom, Undo, Ruler, Done, WallCut, View3D,
     AtticIntro, AtticRoom, AtticLow, AtticCut, AtticStart, AtticRepeat, AtticCheck, Attic3D,
     AddStair, StairOptions, AddFloor, Floors3D, Outdoor, Structure, Measure, FreeWall,
+    Trace, Calibrate, PlanFade, Zone, Snap,
 }
 
 /** Animazione che accompagna un passo del tutorial. */
@@ -83,6 +85,12 @@ val Tip.sketch: Sketch
         Tip.Structure -> Sketch.Structure
         Tip.Measure -> Sketch.Measure
         Tip.FreeWall -> Sketch.FreeWall
+        Tip.Tracing, Tip.WallDraw -> Sketch.Trace
+        Tip.Calibrate -> Sketch.Calibrate
+        Tip.Underlay -> Sketch.PlanFade
+        Tip.ExcludedZone -> Sketch.Zone
+        Tip.RoomInfo -> Sketch.OpenInfo
+        Tip.Snap -> Sketch.Snap
     }
 
 /** Disegna `sketch` in loop (un giro ogni `durationMs`), centrato in un quadrato dentro `modifier`. */
@@ -190,7 +198,128 @@ private fun DrawScope.drawSketch(sketch: Sketch, f: Frame) = when (sketch) {
     Sketch.Structure -> structure(f)
     Sketch.Measure -> measure(f)
     Sketch.FreeWall -> freeWall(f)
+    Sketch.Trace -> trace(f)
+    Sketch.Calibrate -> calibrate(f)
+    Sketch.PlanFade -> planFade(f)
+    Sketch.Zone -> zone(f)
+    Sketch.Snap -> snap(f)
 }
+
+// ---- Ricalco di una piantina ----
+
+private val SkPlan = Color(0xFF868E96)
+
+/** Piantina di sfondo: muri grigi di una stanza a L, con una quota scritta. */
+private fun DrawScope.planUnderlay(f: Frame, alpha: Float = 1f) {
+    if (alpha <= 0f) return
+    val c = SkPlan.copy(alpha = alpha)
+    val pts = listOf(Offset(0.14f, 0.16f), Offset(0.62f, 0.16f), Offset(0.62f, 0.46f), Offset(0.86f, 0.46f), Offset(0.86f, 0.8f), Offset(0.14f, 0.8f))
+    val path = Path().apply {
+        pts.forEachIndexed { i, q -> val o = f.p(q); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) }
+        close()
+    }
+    drawPath(path, c, style = Stroke(f.l(0.05f)))
+    text(f, "370", Offset(0.38f, 0.25f), color = c, size = 0.06f)
+}
+
+/** Angoli interni della stanza della piantina, nell'ordine in cui si cliccano. */
+private val TraceCorners = listOf(Offset(0.165f, 0.185f), Offset(0.595f, 0.185f), Offset(0.595f, 0.485f), Offset(0.835f, 0.485f), Offset(0.835f, 0.775f), Offset(0.165f, 0.775f))
+
+/** Muro per muro sopra la piantina: si cliccano gli angoli uno dopo l'altro, poi il primo chiude la stanza. */
+private fun DrawScope.trace(f: Frame) {
+    planUnderlay(f, 0.6f)
+    val n = TraceCorners.size
+    val clickAt = List(n + 1) { 0.08f + it * 0.1f }
+    val done = clickAt.count { f.t > it }
+    if (done > n) polygon(f, TraceCorners, Color(0xFFD3DDFB).copy(alpha = 0.8f), alpha = f.lin(clickAt[n], clickAt[n] + 0.06f))
+    for (i in 1 until minOf(done, n)) drawLine(SkSel, f.p(TraceCorners[i - 1]), f.p(TraceCorners[i]), strokeWidth = f.l(0.02f))
+    if (done > n) drawLine(SkSel, f.p(TraceCorners[n - 1]), f.p(TraceCorners[0]), strokeWidth = f.l(0.02f))
+    for (i in 0 until minOf(done, n)) {
+        drawCircle(Color.White, f.l(0.022f), f.p(TraceCorners[i]))
+        drawCircle(SkSel, f.l(0.022f), f.p(TraceCorners[i]), style = Stroke(f.l(0.008f)))
+    }
+    if (done in 3..n) drawCircle(SkSel, f.l(0.045f), f.p(TraceCorners[0]), style = Stroke(f.l(0.008f)))
+    val keys = (0..n).map { k -> clickAt[k] - 0.05f to TraceCorners[k % n] }
+    val pos = along(f.t, *keys.toTypedArray())
+    finger(f, pos, f.shown(0.02f, clickAt[n] + 0.08f), f.tap(*clickAt.toFloatArray()))
+}
+
+/** Taratura: si toccano i due estremi della quota 370 sulla piantina e si scrive la misura. */
+private fun DrawScope.calibrate(f: Frame) {
+    planUnderlay(f, 0.7f)
+    val a = Offset(0.14f, 0.32f)
+    val b = Offset(0.62f, 0.32f)
+    val orange = Color(0xFFD9480F)
+    if (f.t > 0.2f) { drawCircle(orange, f.l(0.025f), f.p(a)); text(f, "A", Offset(a.x, a.y + 0.07f), color = orange, bold = true, size = 0.06f) }
+    val line = f.seg(0.42f, 0.5f)
+    if (line > 0f) drawLine(orange, f.p(a), f.p(mix(a, b, line)), strokeWidth = f.l(0.012f), pathEffect = PathEffect.dashPathEffect(floatArrayOf(f.l(0.025f), f.l(0.015f))))
+    if (f.t > 0.42f) { drawCircle(orange, f.l(0.025f), f.p(b)); text(f, "B", Offset(b.x, b.y + 0.07f), color = orange, bold = true, size = 0.06f) }
+    val box = f.lin(0.56f, 0.62f)
+    if (box > 0f) {
+        menu(f, "", Offset(0.5f, 0.6f), 0.5f, highlight = false, alpha = box)
+        val typed = "370 cm".take((f.lin(0.62f, 0.78f) * 6).roundToInt())
+        text(f, typed, Offset(0.5f, 0.6f), alpha = box, size = 0.07f, bold = true)
+    }
+    val pos = along(f.t, 0f to Offset(0.3f, 0.5f), 0.15f to a, 0.3f to a, 0.4f to b)
+    finger(f, pos, f.shown(0.02f, 0.52f), f.tap(0.18f, 0.42f))
+}
+
+/** Pannello "Piantina e disegno": il cursore abbassa la piantina, poi il disegno resta in primo piano. */
+private fun DrawScope.planFade(f: Frame) {
+    val k = 1f - 0.8f * pingPong(f.t)
+    planUnderlay(f, k)
+    polygon(f, TraceCorners, Color(0xFFD3DDFB).copy(alpha = 0.6f))
+    // Cursore della trasparenza in basso.
+    val y = 0.92f
+    drawLine(Color(0xFFADB5BD), f.p(0.2f, y), f.p(0.8f, y), strokeWidth = f.l(0.012f), cap = StrokeCap.Round)
+    drawLine(SkSel, f.p(0.2f, y), f.p(mix(0.2f, 0.8f, k), y), strokeWidth = f.l(0.012f), cap = StrokeCap.Round)
+    val knob = Offset(mix(0.2f, 0.8f, k), y)
+    drawCircle(SkSel, f.l(0.03f), f.p(knob))
+    finger(f, knob, 1f, 0f)
+}
+
+/** Zona non calpestabile: si cliccano gli angoli di una fascia, che diventa tratteggiata e si toglie dai m². */
+private fun DrawScope.zone(f: Frame) {
+    room(f, Rect(0.12f, 0.14f, 0.88f, 0.8f))
+    val pts = listOf(Offset(0.135f, 0.155f), Offset(0.36f, 0.155f), Offset(0.36f, 0.785f), Offset(0.135f, 0.785f))
+    val clickAt = listOf(0.1f, 0.2f, 0.3f, 0.4f, 0.5f)
+    val done = clickAt.count { f.t > it }
+    val closed = done > 4
+    if (closed) {
+        val path = Path().apply {
+            pts.forEachIndexed { i, q -> val o = f.p(q); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) }
+            close()
+        }
+        drawPath(path, Color(0xFF6C757D).copy(alpha = 0.2f))
+        clipPath(path) {
+            var x = 0f
+            while (x < 1.2f) { drawLine(Color(0xFF6C757D).copy(alpha = 0.6f), f.p(x - 0.7f, 0.8f), f.p(x, 0.1f), strokeWidth = f.l(0.006f)); x += 0.05f }
+        }
+        drawPath(path, Color(0xFF6C757D), style = Stroke(f.l(0.008f), pathEffect = PathEffect.dashPathEffect(floatArrayOf(f.l(0.025f), f.l(0.015f)))))
+        text(f, "−1,9 m²", Offset(0.25f, 0.47f), size = 0.055f, bold = true)
+    } else for (i in 1 until done) drawLine(SkSel, f.p(pts[i - 1]), f.p(pts[i]), strokeWidth = f.l(0.01f))
+    val m2 = if (f.t > 0.56f) "14,4 m²" else "16,3 m²"
+    text(f, m2, Offset(0.62f, 0.47f), bold = true, size = 0.075f, color = if (f.t > 0.56f) SkSel else SkText)
+    val keys = (0..4).map { k -> clickAt[k] - 0.05f to pts[k % 4] }
+    finger(f, along(f.t, *keys.toTypedArray()), f.shown(0.02f, 0.58f), f.tap(*clickAt.toFloatArray()))
+}
+
+/** Agganci: con 🧲 Sì l'angolo trascinato scatta sull'angolo vicino; con 🧲 No resta dove lo si lascia. */
+private fun DrawScope.snap(f: Frame) {
+    val on = f.t < 0.5f
+    val u = if (on) f.t / 0.5f else (f.t - 0.5f) / 0.5f
+    room(f, Rect(0.56f, 0.2f, 0.88f, 0.6f))
+    val target = Offset(0.56f, 0.2f)
+    val raw = mix(Offset(0.2f, 0.42f), Offset(0.53f, 0.24f), ease((u - 0.1f).coerceIn(0f, 0.6f) / 0.6f))
+    val snapped = on && raw.distanceTo(target) < 0.06f
+    val corner = if (snapped) target else raw
+    polygon(f, listOf(Offset(0.12f, 0.24f), corner, Offset(0.42f, 0.6f), Offset(0.12f, 0.6f)), SkFloor, sel = true)
+    if (snapped) drawCircle(Color(0xFFE64980), f.l(0.035f), f.p(target), style = Stroke(f.l(0.008f)))
+    button(f, if (on) "🧲 Sì" else "🧲 No", Offset(0.5f, 0.85f), 0.34f, pressed = false, filled = on)
+    finger(f, corner, (1 - f.lin(0.88f, 0.95f)).coerceAtMost(f.lin(0f, 0.05f) + if (on) 0f else 1f).coerceIn(0f, 1f), 0f)
+}
+
+private fun Offset.distanceTo(o: Offset) = kotlin.math.sqrt((x - o.x) * (x - o.x) + (y - o.y) * (y - o.y))
 
 /**
  * Muro singolo: compare attraverso la stanza; il pallino in basso viene trascinato verso l'alto e poi

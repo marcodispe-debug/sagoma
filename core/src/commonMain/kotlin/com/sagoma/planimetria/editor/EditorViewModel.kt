@@ -648,9 +648,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     // ---------- Ricalco di una piantina al posto della prima stanza ----------
 
     /** "Ricalca una piantina": si chiude la scelta della stanza (anche quella obbligatoria) e la UI apre la pianta di sfondo. */
-    fun startTracing() = _state.update { s ->
-        val back = s.creation as? CreationStep.PickShape ?: return@update s
-        s.copy(creation = null, creationIntent = null, tracing = back)
+    fun startTracing() {
+        val back = _state.value.creation as? CreationStep.PickShape ?: return
+        _state.update { it.copy(creation = null, creationIntent = null, tracing = back) }
+        showTip(Tip.Tracing)
     }
 
     /**
@@ -1133,8 +1134,11 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     // ---------- Disegna muri (muro per muro) ----------
 
     /** "Muro per muro": si chiude la scelta della forma e si disegnano gli angoli sulla pianta. */
-    fun startDrawWalls() = _state.update {
-        it.copy(creation = null, wallDraw = WallDraw(), selection = null, focusedRoomId = null, pendingOpening = null, pendingFixture = null, measure = null, view3d = false, infoExpanded = false)
+    fun startDrawWalls() {
+        _state.update {
+            it.copy(creation = null, wallDraw = WallDraw(), selection = null, focusedRoomId = null, pendingOpening = null, pendingFixture = null, measure = null, view3d = false, infoExpanded = false)
+        }
+        showTip(Tip.WallDraw)
     }
 
     fun cancelDrawWalls() {
@@ -1306,6 +1310,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 pendingOpening = null, pendingFixture = null, measure = null, view3d = false, infoExpanded = false,
             )
         }
+        showTip(Tip.ExcludedZone)
     }
 
     /** Zona chiusa: entra nella stanza con il suo nome e si toglie dai m². */
@@ -1448,6 +1453,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun setInfoExpanded(expanded: Boolean) {
         _state.update { it.copy(infoExpanded = expanded) }
         if (expanded) tutorialEvent(TutorialEvent.InfoOpened)
+        if (expanded && _state.value.selection == null && _state.value.focusedRoomId != null) showTip(Tip.RoomInfo)
     }
 
     /** Esegue `action` e, se ha cambiato stanza o oggetto selezionato, richiude la tendina (resta la striscia). */
@@ -2046,7 +2052,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     private val snapOn get() = _state.value.snapOn
 
     /** Agganci accesi o spenti (pulsante 🧲 nella tendina Info): vale per il disegno e per tutti i trascinamenti. */
-    fun setSnapOn(on: Boolean) = _state.update { it.copy(snapOn = on, snapGuides = if (on) it.snapGuides else emptyList()) }
+    fun setSnapOn(on: Boolean) {
+        _state.update { it.copy(snapOn = on, snapGuides = if (on) it.snapGuides else emptyList()) }
+        showTip(Tip.Snap)
+    }
 
     /** Tolleranza dell'aggancio in cm: circa 10 dp sullo schermo, qualunque sia lo zoom. */
     private fun snapTolerance(always: Boolean = false): Double {
@@ -2338,7 +2347,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     /** Nuova immagine di sfondo (o null per toglierla). */
     fun setUnderlay(u: Underlay?) {
         commit { it.copy(underlay = u) }
-        if (u == null) _state.update { it.copy(underlayTool = null) }
+        if (u == null) _state.update { it.copy(underlayTool = null) } else showTip(Tip.Underlay)
     }
 
     fun setUnderlayOpacity(opacity: Double) = commit { p -> p.underlay?.let { p.copy(underlay = it.copy(opacity = opacity.coerceIn(0.05, 1.0))) } ?: p }
@@ -2351,6 +2360,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             it.copy(underlayTool = tool, selection = null, focusedRoomId = null, pendingOpening = null, pendingFixture = null, measure = null, view3d = false, infoExpanded = false)
         }
         if (tool == null) endTracing()
+        if (tool is UnderlayTool.Calibrate) showTip(Tip.Calibrate)
     }
 
     // ---------- Mostra/nascondi e trasparenza di piantina e disegno ----------

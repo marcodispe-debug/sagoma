@@ -14,7 +14,8 @@ enum class Tip(val title: String, val text: String) {
     Room(
         "Stanza selezionata",
         "Trascina i pallini blu per spostare gli angoli e i muri per allungarla; trascinando il nome sposti tutta la stanza. " +
-            "Per nome, tipo e misure esatte dei lati premi Info o scorri in su la striscia in basso.",
+            "Per nome, tipo e misure esatte dei lati premi Info o scorri in su la striscia in basso. " +
+            "Se gli agganci ti tirano il punto dove non vuoi, spegnili con 🧲 sulla striscia.",
     ),
     Wall(
         "Muro",
@@ -81,6 +82,43 @@ enum class Tip(val title: String, val text: String) {
         "Piani",
         "Con il pulsante del piano, in alto a sinistra, passi da un piano all'altro e ne aggiungi di nuovi. Il piano di sotto si vede " +
             "in grigio per allineare i muri, e le sue scale compaiono come vuoto nel pavimento. In 3D vedi il piano scelto sopra quelli di sotto.",
+    ),
+    Tracing(
+        "Ricalca una piantina",
+        "Carica la foto o il PDF della piantina, poi tarala su una misura che conosci: dopo clicchi gli angoli delle stanze " +
+            "e le misure vengono da sole, come quelle scritte sulla piantina.",
+    ),
+    Calibrate(
+        "Taratura",
+        "Tocca i due estremi di una misura scritta sulla piantina (meglio la più lunga, per esempio una parete intera) e scrivi " +
+            "quanti cm sono. Se poi le misure non tornano, \"📏 Rifai taratura\" la corregge anche a metà stanza.",
+    ),
+    WallDraw(
+        "Muro per muro",
+        "Clicca gli angoli uno dopo l'altro; per finire clicca il primo angolo (cerchiato) o \"Chiudi stanza\". Sopra la piantina " +
+            "clicca gli angoli interni dei muri: lo spessore si aggiunge verso l'esterno. ↶ Ultimo toglie l'ultimo angolo, " +
+            "\"Scrivi le misure\" fa scegliere direzione e lunghezza di ogni muro.",
+    ),
+    Underlay(
+        "Piantina e disegno",
+        "Con il pannello \"◐ Piantina e disegno\", in basso a destra, mostri o nascondi la piantina e il tuo disegno e ne regoli " +
+            "la trasparenza, per vedere bene cosa stai ricalcando. Il disegno torna pieno quando riapri il progetto.",
+    ),
+    ExcludedZone(
+        "Zona non calpestabile",
+        "Clicca gli angoli della parte che non conta nei m², come la zona bassa di una mansarda o un cavedio: gli angoli si " +
+            "agganciano a quelli interni dei muri. Alla fine scegli il nome; i m² della stanza scendono, il pavimento resta intero.",
+    ),
+    RoomInfo(
+        "Scheda Info",
+        "In alto ci sono Duplica, Elimina, nome, tipo e misure principali. Sotto, le schede: Misure (altezze, spessori, muri e zone " +
+            "non calpestabili), Finiture (pavimento e pareti), Porte e impianti, Progetto (muri esistenti, da demolire o nuovi). " +
+            "La barra a destra fa scorrere il contenuto.",
+    ),
+    Snap(
+        "Agganci",
+        "Con 🧲 Sì angoli, muri e oggetti scattano su angoli, allineamenti, direzioni dritte e muri vicini. Con 🧲 No vanno " +
+            "esattamente dove li porti; la stanza si chiude comunque cliccando il primo angolo.",
     ),
 }
 
