@@ -1436,7 +1436,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
      * orizzontale, da 0 a `visibleBottomPx` in verticale), senza cambiare lo zoom: la stanza
      * selezionata se ne è aperta la tendina "Info", altrimenti l'intera pianta. In verticale il
      * riquadro sta in basso e la pianta sale; in orizzontale sta a destra e la pianta va a sinistra.
-     * Se la pianta non ci sta, scorre solo quanto serve e l'oggetto selezionato (muro, apertura)
+     * Un muro selezionato va sempre al centro. Se la pianta non ci sta, scorre solo quanto serve e l'oggetto selezionato (muro, apertura)
      * resta visibile. Null se non c'è niente da centrare.
      */
     fun centeredCamera(visibleRightPx: Float, visibleBottomPx: Float, marginPx: Float, visibleTopPx: Float = 0f): Camera? {
@@ -1452,6 +1452,11 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 offsetX = (visibleRightPx / 2 - rb.center.x * k).toFloat(),
                 offsetY = (midY - rb.center.y * k).toFloat(),
             )
+        }
+        // Muro selezionato: il suo centro va al centro dello spazio libero, con lo stesso zoom.
+        if (s.selection is Selection.Wall) focusAnchor(s)?.let { p ->
+            val k = s.camera.scale
+            return s.camera.copy(offsetX = (visibleRightPx / 2 - p.x * k).toFloat(), offsetY = (midY - p.y * k).toFloat())
         }
         val b = viewBounds(s) ?: return null
         val cam = s.camera

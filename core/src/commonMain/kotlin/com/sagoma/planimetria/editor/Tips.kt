@@ -60,7 +60,7 @@ enum class Tip(val title: String, val text: String) {
     Outdoor(
         "Balcone e terrazza",
         "È uno spazio all'aperto: al posto dei muri c'è il parapetto, contro la casa resta il muro della casa. Accostalo a un muro " +
-            "e mettici una porta-finestra (+ Infissi → Balcone) sul muro della stanza. Da Info scegli ringhiera, muretto o vetro e l'altezza.",
+            "e mettici una porta-finestra (Elementi architettonici → Porte-finestre) sul muro della stanza. Da Info scegli ringhiera, muretto o vetro e l'altezza.",
     ),
     Structure(
         "Colonne e travi",

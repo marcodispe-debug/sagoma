@@ -50,7 +50,7 @@ val AtticGuide = Guide(
         ),
         GuideStep(
             "1 · Disegna la stanza",
-            "Crea la stanza con \"+ Aggiungi stanza\" e sistema le misure dal pannello Info, come per qualsiasi altra stanza. " +
+            "Crea la stanza con «🧱 Elementi architettonici» → Stanza e sistema le misure dal pannello Info, come per qualsiasi altra stanza. " +
                 "L'altezza del soffitto della stanza è quella della parte più alta della mansarda.",
             Sketch.AtticRoom,
         ),
@@ -111,7 +111,7 @@ val TracingGuide = Guide(
         tip(Tip.Calibrate),
         GuideStep(
             "Ricalca gli angoli",
-            "Si apre «Muro per muro». " + Tip.WallDraw.text + " Per la stanza dopo: «+ Aggiungi stanza» → «Muro per muro».",
+            "Si apre «Muro per muro». " + Tip.WallDraw.text + " Per la stanza dopo: «🧱 Elementi architettonici» → Stanza → «Muro per muro».",
             Sketch.Trace,
         ),
         tip(Tip.Underlay),
@@ -170,7 +170,7 @@ val Guides: List<Guide> = listOf(
         listOf(
             GuideStep(
                 "Aggiungi un balcone o una terrazza",
-                "Premi + Balconi e terrazze e scegli il tipo, poi forma e misure come per una stanza. Nasce già appoggiato alla casa: " +
+                "Premi «🧱 Elementi architettonici» → Balconi e terrazze e scegli il tipo, poi forma e misure come per una stanza. Nasce già appoggiato alla casa: " +
                     "trascinalo dal nome lungo il muro fino al punto giusto, si aggancia da solo. Sui lati verso l'esterno c'è il parapetto, " +
                     "contro la casa resta il muro.",
                 Sketch.Outdoor,
@@ -188,7 +188,7 @@ val Guides: List<Guide> = listOf(
         listOf(
             GuideStep(
                 "Aggiungi una scala",
-                "Premi + Scale e scegli il tipo: rampa dritta, a L con pianerottolo, a U con due rampe o a chiocciola. " +
+                "Premi «🧱 Elementi architettonici» → Scale e scegli il tipo: rampa dritta, a L con pianerottolo, a U con due rampe o a chiocciola. " +
                     "La scala compare al centro della vista (o della stanza selezionata): trascinala dove serve, vicino a un muro ci si accosta da sola.",
                 Sketch.AddStair,
             ),

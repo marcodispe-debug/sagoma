@@ -84,6 +84,7 @@ import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.StairKind
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.ColumnShape
+import com.sagoma.planimetria.geometry.PhaseView
 import com.sagoma.planimetria.editor.MeasureState
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.geometry.Distances
@@ -228,7 +229,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         // In orizzontale i pulsanti di azione stanno in una colonna a sinistra: la larghezza abbonda,
         // l'altezza no, e così la pianta guadagna tutta l'altezza della barra in basso.
         if (compactHeight) {
-            ActionRail(state.plan.rooms.isNotEmpty(), vm, onGuide = { openGuide = it })
+            ActionRail(state, vm)
             VerticalDivider()
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
@@ -455,40 +456,18 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
 
         if (!compactHeight) {
             HorizontalDivider()
-            ScrollableBar(Modifier.fillMaxWidth().navigationBarsPadding()) {
-                Button(onClick = vm::startAddRoom) { Text("+ Aggiungi stanza") }
-                VerticalDivider(Modifier.height(32.dp))
-                if (state.selectMode) Button(onClick = vm::toggleSelectMode) { Text("☑ Seleziona") }
-                else OutlinedButton(onClick = vm::toggleSelectMode) { Text("☐ Seleziona") }
-                VerticalDivider(Modifier.height(32.dp))
-                // Stato di fatto / progetto: gialli e rossi, stato di fatto, stato di progetto.
-                PhaseViewButton(state, vm)
-                VerticalDivider(Modifier.height(32.dp))
-                OpeningButtons(enabled = state.plan.rooms.isNotEmpty(), vm)
-                VerticalDivider(Modifier.height(32.dp))
-                FixtureButton(enabled = state.plan.rooms.isNotEmpty(), vm)
-                VerticalDivider(Modifier.height(32.dp))
-                StairButton(vm)
-                VerticalDivider(Modifier.height(32.dp))
-                StructureButton(vm)
-                VerticalDivider(Modifier.height(32.dp))
-                if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.FURNITURE)) {
-                    FurnitureButton(vm)
-                    VerticalDivider(Modifier.height(32.dp))
+            // Tre gruppi, sempre tutti visibili: cosa si costruisce, cosa si arreda, con cosa si lavora sulla pianta.
+            // Su un telefono stretto i nomi si accorciano ("🧱 Elementi") per stare in una riga senza scorrere.
+            BoxWithConstraints(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp)) {
+                val narrow = maxWidth < 520.dp
+                val pad = PaddingValues(horizontal = if (narrow) 4.dp else 12.dp)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // Stretto: tre parti uguali; largo: i pulsanti restano della loro misura, a sinistra.
+                    val m = if (narrow) Modifier.weight(1f) else Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Max)
+                    ArchitectureButton(state.plan.rooms.isNotEmpty(), vm, m, pad, compact = narrow)
+                    if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.FURNITURE)) FurnitureButton(vm, m, pad)
+                    ToolsButton(state, vm, m, pad, compact = narrow)
                 }
-                OutdoorButton(vm)
-                VerticalDivider(Modifier.height(32.dp))
-                OutlinedButton(onClick = { openGuide = AtticGuide }) { Text("⌂ Mansarda") }
-                VerticalDivider(Modifier.height(32.dp))
-                OutlinedButton(onClick = vm::addRuler) { Text("📏 Metro") }
-                VerticalDivider(Modifier.height(32.dp))
-                OutlinedButton(onClick = vm::startMeasure) { Text("📐 Distanza") }
-                VerticalDivider(Modifier.height(32.dp))
-                // Quote manuali e testi del disegno (tavole).
-                if (state.dimensionDraw != null) Button(onClick = vm::cancelDimension) { Text("↔ Quota") }
-                else OutlinedButton(onClick = vm::startDimension) { Text("↔ Quota") }
-                if (state.textPlacing) Button(onClick = vm::cancelText) { Text("T Testo") }
-                else OutlinedButton(onClick = vm::startText) { Text("T Testo") }
             }
         }
     }
@@ -655,9 +634,9 @@ private fun TutorialCard(t: TutorialUi, vm: EditorViewModel) {
     }
 }
 
-/** Colonna di azioni a sinistra, usata in orizzontale al posto della barra in basso. */
+/** Colonna di azioni a sinistra, usata in orizzontale al posto della barra in basso: gli stessi tre gruppi. */
 @Composable
-private fun ActionRail(openingsEnabled: Boolean, vm: EditorViewModel, onGuide: (Guide) -> Unit) {
+private fun ActionRail(state: EditorUiState, vm: EditorViewModel) {
     val buttonModifier = Modifier.fillMaxWidth()
     val pad = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
     Column(
@@ -669,84 +648,151 @@ private fun ActionRail(openingsEnabled: Boolean, vm: EditorViewModel, onGuide: (
             .padding(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Button(onClick = vm::startAddRoom, modifier = buttonModifier, contentPadding = pad) { Text("+ Stanza", maxLines = 1) }
-        HorizontalDivider()
-        OpeningButtons(openingsEnabled, vm, compact = true, buttonModifier = buttonModifier)
-        HorizontalDivider()
-        FixtureButton(openingsEnabled, vm, buttonModifier = buttonModifier, contentPadding = pad)
-        HorizontalDivider()
-        StairButton(vm, buttonModifier, pad)
-        HorizontalDivider()
-        StructureButton(vm, buttonModifier, pad, compact = true)
-        HorizontalDivider()
-        if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.FURNITURE)) {
-            FurnitureButton(vm, buttonModifier, pad)
-            HorizontalDivider()
-        }
-        OutdoorButton(vm, buttonModifier, pad, compact = true)
-        HorizontalDivider()
-        OutlinedButton(onClick = { onGuide(AtticGuide) }, modifier = buttonModifier, contentPadding = pad) { Text("⌂ Mansarda", maxLines = 1) }
-        HorizontalDivider()
-        OutlinedButton(onClick = vm::addRuler, modifier = buttonModifier, contentPadding = pad) { Text("📏 Metro", maxLines = 1) }
-        HorizontalDivider()
-        OutlinedButton(onClick = vm::startMeasure, modifier = buttonModifier, contentPadding = pad) { Text("📐 Distanza", maxLines = 1) }
-        OutlinedButton(onClick = vm::startDimension, modifier = buttonModifier, contentPadding = pad) { Text("↔ Quota", maxLines = 1) }
-        OutlinedButton(onClick = vm::startText, modifier = buttonModifier, contentPadding = pad) { Text("T Testo", maxLines = 1) }
+        ArchitectureButton(state.plan.rooms.isNotEmpty(), vm, buttonModifier, pad, compact = true)
+        if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.FURNITURE)) FurnitureButton(vm, buttonModifier, pad)
+        ToolsButton(state, vm, buttonModifier, pad, compact = true)
     }
 }
 
-/** "+ Scale": rampa dritta, a L, a U, a chiocciola. La scala compare al centro della vista (o della stanza scelta). */
+/**
+ * "🧱 Elementi architettonici": stanza, porte, finestre, porte-finestre, impianti, scale, colonne e travi, balconi e terrazze.
+ * Porte, finestre e impianti vanno su un muro: senza stanze restano visibili ma spenti.
+ */
 @Composable
-private fun StairButton(
-    vm: EditorViewModel,
-    buttonModifier: Modifier = Modifier,
-    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
-) {
-    MenuButton(
-        "+ Scale",
-        true,
-        listOf(StairKind.Straight, StairKind.StraightLanding, StairKind.LTurn, StairKind.LWinder, StairKind.UTurn, StairKind.Spiral)
-            .map { k -> MenuEntry(k.label, { vm.addStair(k) }) },
-        buttonModifier,
-        contentPadding,
-    )
-}
-
-/** "+ Colonne e travi": colonna quadrata o rotonda, trave a soffitto. */
-@Composable
-private fun StructureButton(
+private fun ArchitectureButton(
+    hasRooms: Boolean,
     vm: EditorViewModel,
     buttonModifier: Modifier = Modifier,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     compact: Boolean = false,
 ) {
+    fun opening(kind: OpeningKind, style: PassageStyle = PassageStyle.Square, sliding: Boolean = false) =
+        { vm.startPlacingOpening(PendingOpening(kind, style, sliding)) }
+    fun fixture(kind: FixtureKind) = { vm.startPlacingFixture(kind) }
+    val lights = listOf(
+        FixtureKind.Spotlight, FixtureKind.Neon, FixtureKind.Chandelier, FixtureKind.CeilingLight, FixtureKind.LedStrip,
+        FixtureKind.WallLight, FixtureKind.WallSpot, FixtureKind.WallLedStrip,
+    )
+    // Ogni gruppo di aperture ha anche la versione scorrevole; battente/scorrevole si cambia comunque dopo da Info.
     MenuButton(
-        if (compact) "+ Colonne" else "+ Colonne e travi",
+        if (compact) "🧱 Elementi" else "🧱 Elementi architettonici",
         true,
         listOf(
-            MenuEntry("Colonna quadrata", { vm.addColumn(ColumnShape.Square) }),
-            MenuEntry("Colonna rotonda", { vm.addColumn(ColumnShape.Round) }),
-            MenuEntry("Trave a soffitto", { vm.addBeam() }),
+            MenuEntry("▭ Stanza", vm::startAddRoom),
+            MenuEntry(
+                "🚪 Porte",
+                enabled = hasRooms,
+                children = listOf(
+                    MenuEntry("Porta ad 1 anta", opening(OpeningKind.Door)),
+                    MenuEntry("Porta a 2 ante", opening(OpeningKind.Door2)),
+                    MenuEntry("Porta scorrevole", opening(OpeningKind.Door, sliding = true)),
+                    MenuEntry(
+                        "Apertura senza porta",
+                        children = PassageStyle.entries.map { st -> MenuEntry(st.label, opening(OpeningKind.Passage, st)) },
+                    ),
+                ),
+            ),
+            MenuEntry(
+                "🪟 Finestre",
+                enabled = hasRooms,
+                children = listOf(
+                    MenuEntry("Finestra ad 1 anta", opening(OpeningKind.Window1)),
+                    MenuEntry("Finestra a 2 ante", opening(OpeningKind.Window2)),
+                    MenuEntry("Finestra scorrevole", opening(OpeningKind.Window2, sliding = true)),
+                ),
+            ),
+            MenuEntry(
+                "🚪 Porte-finestre",
+                enabled = hasRooms,
+                children = listOf(
+                    MenuEntry("Balcone ad 1 anta", opening(OpeningKind.Balcony1)),
+                    MenuEntry("Balcone a 2 ante", opening(OpeningKind.Balcony2)),
+                    MenuEntry("Balcone scorrevole", opening(OpeningKind.Balcony2, sliding = true)),
+                ),
+            ),
+            MenuEntry(
+                "🔌 Impianti",
+                enabled = hasRooms,
+                children = listOf(
+                    MenuEntry("Calorifero", fixture(FixtureKind.Radiator)),
+                    MenuEntry("Presa di corrente", fixture(FixtureKind.Outlet)),
+                    MenuEntry("Interruttore", fixture(FixtureKind.Switch)),
+                    MenuEntry("Punto acqua", fixture(FixtureKind.WaterPoint)),
+                    MenuEntry("Luci", children = lights.map { MenuEntry(it.label, fixture(it)) }),
+                ),
+            ),
+            MenuEntry(
+                "🪜 Scale",
+                children = listOf(StairKind.Straight, StairKind.StraightLanding, StairKind.LTurn, StairKind.LWinder, StairKind.UTurn, StairKind.Spiral)
+                    .map { k -> MenuEntry(k.label, { vm.addStair(k) }) },
+            ),
+            MenuEntry(
+                "▣ Colonne e travi",
+                children = listOf(
+                    MenuEntry("Colonna quadrata", { vm.addColumn(ColumnShape.Square) }),
+                    MenuEntry("Colonna rotonda", { vm.addColumn(ColumnShape.Round) }),
+                    MenuEntry("Trave a soffitto", { vm.addBeam() }),
+                ),
+            ),
+            MenuEntry(
+                "🌿 Balconi e terrazze",
+                children = listOf(RoomType.Balcone, RoomType.Terrazza).map { t -> MenuEntry(t.label, { vm.startAddOutdoor(t) }) },
+            ),
         ),
         buttonModifier,
         contentPadding,
+        arrow = !compact,
     )
 }
 
-/** "+ Balconi e terrazze": si crea lo spazio all'aperto con il tipo già scelto. */
+/**
+ * "🛠 Strumenti": selezione multipla, vista gialli e rossi, distanza, quota, testo e metro. Con uno strumento in uso
+ * (o una vista diversa da gialli e rossi) il pulsante è pieno e ne mostra il nome; si esce dalla scheda in alto.
+ */
 @Composable
-private fun OutdoorButton(
+private fun ToolsButton(
+    state: EditorUiState,
     vm: EditorViewModel,
     buttonModifier: Modifier = Modifier,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     compact: Boolean = false,
 ) {
+    val active = when {
+        state.selectMode -> "Seleziona"
+        state.measure != null -> "Distanza"
+        state.dimensionDraw != null -> "Quota"
+        state.textPlacing -> "Testo"
+        state.phaseView != PhaseView.Compare -> state.phaseView.label
+        else -> null
+    }
     MenuButton(
-        if (compact) "+ Esterni" else "+ Balconi e terrazze",
+        if (compact || active == null) "🛠 Strumenti" else "🛠 Strumenti · $active",
         true,
-        listOf(RoomType.Balcone, RoomType.Terrazza).map { t -> MenuEntry(t.label, { vm.startAddOutdoor(t) }) },
+        listOf(
+            MenuEntry(if (state.selectMode) "☑ Seleziona più oggetti (in uso)" else "☐ Seleziona più oggetti", vm::toggleSelectMode),
+            MenuEntry(
+                "🟡🔴 Vista: ${state.phaseView.label}",
+                children = PhaseView.entries.map { v ->
+                    MenuEntry(
+                        (if (v == state.phaseView) "✓ " else "") + v.label,
+                        { vm.setPhaseView(v) },
+                        hint = when (v) {
+                            PhaseView.Compare -> "Tutto: demolizioni in giallo, costruzioni in rosso"
+                            PhaseView.Existing -> "Com'è ora, senza le parti nuove"
+                            PhaseView.Project -> "Come sarà, senza le parti demolite (anche nel 3D)"
+                        },
+                    )
+                },
+            ),
+            MenuEntry("📐 Distanza tra due oggetti", vm::startMeasure),
+            MenuEntry("↔ Quota", vm::startDimension),
+            MenuEntry("T Testo", vm::startText),
+            MenuEntry("📏 Metro", vm::addRuler),
+        ),
         buttonModifier,
         contentPadding,
+        filled = active != null,
+        arrow = !compact,
     )
 }
 
@@ -848,8 +894,14 @@ private fun FixtureButton(
     )
 }
 
-/** Voce di menu: esegue un'azione oppure, se ha figli, apre un sottomenu. */
-private class MenuEntry(val label: String, val action: (() -> Unit)? = null, val children: List<MenuEntry> = emptyList())
+/** Voce di menu: esegue un'azione oppure, se ha figli, apre un sottomenu; `hint` è una riga di spiegazione sotto. */
+private class MenuEntry(
+    val label: String,
+    val action: (() -> Unit)? = null,
+    val children: List<MenuEntry> = emptyList(),
+    val enabled: Boolean = true,
+    val hint: String? = null,
+)
 
 /**
  * Pulsante con menu a tendina a più livelli: una voce con figli ("Finestre ▸") sostituisce il
@@ -862,14 +914,21 @@ private fun MenuButton(
     items: List<MenuEntry>,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    /** Pulsante pieno: c'è qualcosa in uso dentro al menu. */
+    filled: Boolean = false,
+    /** "▾" dopo il nome (senza, dove lo spazio è poco). */
+    arrow: Boolean = true,
 ) {
     var open by remember { mutableStateOf(false) }
     // Percorso dei sottomenu aperti (vuoto = menu principale).
     var path by remember { mutableStateOf(emptyList<MenuEntry>()) }
     fun close() { open = false; path = emptyList() }
     Box(modifier) {
-        OutlinedButton(enabled = enabled, onClick = { open = true }, modifier = Modifier.fillMaxWidth(), contentPadding = contentPadding) {
-            Text("$label ▾", maxLines = 1)
+        if (filled) Button(enabled = enabled, onClick = { open = true }, modifier = Modifier.fillMaxWidth(), contentPadding = contentPadding) {
+            Text(if (arrow) "$label ▾" else label, maxLines = 1)
+        }
+        else OutlinedButton(enabled = enabled, onClick = { open = true }, modifier = Modifier.fillMaxWidth(), contentPadding = contentPadding) {
+            Text(if (arrow) "$label ▾" else label, maxLines = 1)
         }
         DropdownMenu(expanded = open, onDismissRequest = ::close) {
             val current = path.lastOrNull()
@@ -885,7 +944,13 @@ private fun MenuButton(
             }
             (current?.children ?: items).forEach { entry ->
                 DropdownMenuItem(
-                    text = { Text(if (entry.children.isNotEmpty()) "${entry.label}  ▸" else entry.label) },
+                    text = {
+                        Column {
+                            Text(if (entry.children.isNotEmpty()) "${entry.label}  ▸" else entry.label)
+                            entry.hint?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                        }
+                    },
+                    enabled = entry.enabled,
                     onClick = {
                         if (entry.children.isNotEmpty()) path = path + entry
                         else { close(); entry.action?.invoke() }

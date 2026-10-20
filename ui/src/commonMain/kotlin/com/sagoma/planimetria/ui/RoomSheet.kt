@@ -302,7 +302,7 @@ private fun MeasuresTab(room: Room, vm: EditorViewModel) {
         )
         Text(
             "Il parapetto c'è sui lati verso l'esterno; dove il balcone tocca la casa resta il muro. " +
-                "Per uscirci metti una porta-finestra (+ Infissi → Balcone) sul muro della stanza.",
+                "Per uscirci metti una porta-finestra (🧱 Elementi architettonici → Porte-finestre) sul muro della stanza.",
             style = MaterialTheme.typography.bodySmall,
         )
     } else {
@@ -421,7 +421,7 @@ private fun ItemRow(title: String, detail: String, onClick: () -> Unit) {
 private fun OpeningsTab(room: Room, vm: EditorViewModel) {
     SectionTitle("Aperture (${room.openings.size})")
     if (room.openings.isEmpty()) {
-        Text("Nessuna. Usa + Porte o + Infissi in basso.", style = MaterialTheme.typography.bodySmall)
+        Text("Nessuna. Usa 🧱 Elementi architettonici in basso: Porte, Finestre o Porte-finestre.", style = MaterialTheme.typography.bodySmall)
     }
     for (o in room.openings) ItemRow(
         openingLabel(o),
@@ -430,7 +430,7 @@ private fun OpeningsTab(room: Room, vm: EditorViewModel) {
 
     SectionTitle("Impianti (${room.fixtures.size})")
     if (room.fixtures.isEmpty()) {
-        Text("Nessuno. Usa + Impianti per caloriferi, prese, interruttori, punti acqua e luci.", style = MaterialTheme.typography.bodySmall)
+        Text("Nessuno. Usa 🧱 Elementi architettonici → Impianti per caloriferi, prese, interruttori, punti acqua e luci.", style = MaterialTheme.typography.bodySmall)
     }
     for (f in room.fixtures) ItemRow(f.kind.label, fixtureSummary(f)) { vm.selectFixture(room.id, f.id) }
 }

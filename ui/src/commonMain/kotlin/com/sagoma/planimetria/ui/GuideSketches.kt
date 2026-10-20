@@ -429,7 +429,7 @@ private fun DrawScope.outdoor(f: Frame) {
             style = Stroke(f.l(0.006f), pathEffect = PathEffect.dashPathEffect(floatArrayOf(f.l(0.02f), f.l(0.015f)))),
         )
     }
-    button(f, "+ Balconi e terrazze", Offset(0.5f, 0.9f), 0.8f, pressed = f.t in 0.04f..0.12f)
+    button(f, "🧱 Elementi", Offset(0.5f, 0.9f), 0.6f, pressed = f.t in 0.04f..0.12f)
     finger(f, Offset(0.5f, 0.9f), f.shown(0.0f, 0.14f), f.tap(0.05f))
 }
 
@@ -472,13 +472,13 @@ private fun DrawScope.stairPlan(f: Frame, x: Float, y: Float, w: Float, len: Flo
     }
 }
 
-/** "+ Scale" → tipo → la scala compare nella stanza; trascinata verso un muro, ci si accosta. */
+/** "🧱 Elementi" → Scale → tipo → la scala compare nella stanza; trascinata verso un muro, ci si accosta. */
 private fun DrawScope.addStair(f: Frame) {
     room(f, Rect(0.1f, 0.08f, 0.9f, 0.68f))
     val a = f.seg(0.34f, 0.44f)
     val x = mix(0.42f, 0.14f, f.seg(0.52f, 0.8f)).let { if (f.t > 0.8f) mix(it, 0.127f, f.seg(0.8f, 0.84f)) else it }
     stairPlan(f, x, 0.62f, 0.14f, 0.44f, if (f.t in 0.44f..0.86f) SkSel else SkWall, alpha = a)
-    button(f, "+ Scale", Offset(0.3f, 0.88f), 0.4f, pressed = f.t in 0.08f..0.16f)
+    button(f, "🧱 Elementi", Offset(0.32f, 0.88f), 0.56f, pressed = f.t in 0.08f..0.16f)
     menu(f, "Rampa dritta", Offset(0.36f, 0.76f), 0.5f, highlight = f.t in 0.26f..0.34f, alpha = f.lin(0.14f, 0.18f) * (1 - f.lin(0.34f, 0.38f)))
     val pos = if (f.t < 0.5f) along(f.t, 0f to Offset(0.3f, 0.88f), 0.16f to Offset(0.3f, 0.88f), 0.24f to Offset(0.36f, 0.76f), 0.4f to Offset(0.36f, 0.76f), 0.5f to Offset(0.49f, 0.4f))
     else Offset(x + 0.07f, 0.4f)
@@ -765,11 +765,11 @@ private fun DrawScope.moveCorner(f: Frame) {
     finger(f, br, f.shown(0.04f, 0.8f), f.tap(0.2f))
 }
 
-/** "+ Porte" → tipo di porta → tocco sul muro: la porta compare. */
+/** "🧱 Elementi" → Porte → tipo di porta → tocco sul muro: la porta compare. */
 private fun DrawScope.addDoor(f: Frame) {
     room(f, Rect(0.14f, 0.14f, 0.86f, 0.6f))
     door(f, 0.43f, 0.14f, 0.18f, SkDoor, open = f.seg(0.6f, 0.72f))
-    button(f, "+ Porte", Offset(0.3f, 0.88f), 0.4f, pressed = f.t in 0.1f..0.2f)
+    button(f, "🧱 Elementi", Offset(0.32f, 0.88f), 0.56f, pressed = f.t in 0.1f..0.2f)
     menu(f, "Porta 1 anta", Offset(0.36f, 0.72f), 0.5f, highlight = f.t in 0.34f..0.44f, alpha = f.lin(0.18f, 0.22f) * (1 - f.lin(0.44f, 0.48f)))
     val pos = along(f.t, 0f to Offset(0.3f, 0.88f), 0.24f to Offset(0.3f, 0.88f), 0.32f to Offset(0.36f, 0.72f), 0.44f to Offset(0.36f, 0.72f), 0.54f to Offset(0.52f, 0.15f))
     finger(f, pos, f.shown(0.02f, 0.76f), f.tap(0.12f, 0.35f, 0.56f))
@@ -783,17 +783,17 @@ private fun DrawScope.moveDoor(f: Frame) {
     finger(f, Offset(x + 0.1f, 0.2f), f.shown(0.04f, 0.8f), f.tap(0.18f))
 }
 
-/** "+ Impianti" → Presa → tocco sul muro: compare la presa. */
+/** "🧱 Elementi" → Impianti → Presa → tocco sul muro: compare la presa. */
 private fun DrawScope.addFixture(f: Frame) {
     room(f, Rect(0.14f, 0.12f, 0.86f, 0.6f))
     outlet(f, Offset(0.19f, 0.36f), f.seg(0.54f, 0.64f))
-    button(f, "+ Impianti", Offset(0.32f, 0.88f), 0.46f, pressed = f.t in 0.1f..0.2f)
+    button(f, "🧱 Elementi", Offset(0.32f, 0.88f), 0.56f, pressed = f.t in 0.1f..0.2f)
     menu(f, "Presa di corrente", Offset(0.4f, 0.72f), 0.6f, highlight = f.t in 0.32f..0.42f, alpha = f.lin(0.18f, 0.22f) * (1 - f.lin(0.42f, 0.46f)))
     val pos = along(f.t, 0f to Offset(0.32f, 0.88f), 0.22f to Offset(0.32f, 0.88f), 0.3f to Offset(0.4f, 0.72f), 0.42f to Offset(0.4f, 0.72f), 0.5f to Offset(0.15f, 0.36f))
     finger(f, pos, f.shown(0.02f, 0.74f), f.tap(0.12f, 0.33f, 0.52f))
 }
 
-/** "+ Aggiungi stanza": la nuova stanza compare accanto. */
+/** "🧱 Elementi" → Stanza: la nuova stanza compare accanto. */
 private fun DrawScope.addRoom(f: Frame) {
     room(f, Rect(0.06f, 0.2f, 0.46f, 0.62f), fill = SkKitchen, label = "Cucina")
     val a = f.seg(0.3f, 0.45f)
@@ -802,7 +802,7 @@ private fun DrawScope.addRoom(f: Frame) {
         val c = Offset(0.74f, 0.42f)
         room(f, Rect(c.x - 0.18f * k, c.y - 0.18f * k, c.x + 0.18f * k, c.y + 0.18f * k), fill = SkRoom2, sel = true, label = "Stanza 2", alpha = a)
     }
-    button(f, "+ Aggiungi stanza", Offset(0.5f, 0.88f), 0.72f, pressed = f.t in 0.12f..0.22f, filled = true)
+    button(f, "🧱 Elementi", Offset(0.5f, 0.88f), 0.6f, pressed = f.t in 0.12f..0.22f, filled = true)
     finger(f, Offset(0.5f, 0.88f), f.shown(0.02f, 0.3f), f.tap(0.14f))
 }
 
@@ -827,9 +827,9 @@ private fun DrawScope.undo(f: Frame) {
     finger(f, pos, f.shown(0.02f, 0.8f), f.tap(0.08f, 0.57f))
 }
 
-/** "📏 Metro": compare il righello, se ne trascina l'estremità e la misura cresce. */
+/** "🛠 Strumenti" → Metro: compare il righello, se ne trascina l'estremità e la misura cresce. */
 private fun DrawScope.ruler(f: Frame) {
-    button(f, "📏 Metro", Offset(0.5f, 0.88f), 0.44f, pressed = f.t in 0.08f..0.16f)
+    button(f, "🛠 Strumenti", Offset(0.5f, 0.88f), 0.6f, pressed = f.t in 0.08f..0.16f)
     val a = f.seg(0.14f, 0.22f)
     val y = 0.46f
     val ax = 0.14f

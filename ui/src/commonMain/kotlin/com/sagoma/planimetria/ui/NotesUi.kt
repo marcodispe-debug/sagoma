@@ -137,42 +137,6 @@ internal fun TextNotePanel(sel: Selection.Annotation, plan: FloorPlan, vm: Edito
     )
 }
 
-/** Scelta della vista stato di fatto / progetto (gialli e rossi, stato di fatto, stato di progetto). */
-@Composable
-fun PhaseViewButton(state: EditorUiState, vm: EditorViewModel) {
-    var open by remember { mutableStateOf(false) }
-    androidx.compose.foundation.layout.Box {
-        OutlinedButton(onClick = { open = true }) {
-            val icon = when (state.phaseView) {
-                com.sagoma.planimetria.geometry.PhaseView.Compare -> "🟡🔴"
-                com.sagoma.planimetria.geometry.PhaseView.Existing -> "◻"
-                com.sagoma.planimetria.geometry.PhaseView.Project -> "◼"
-            }
-            Text("$icon ${state.phaseView.label} ▾")
-        }
-        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            for (v in com.sagoma.planimetria.geometry.PhaseView.entries) {
-                androidx.compose.material3.DropdownMenuItem(
-                    text = {
-                        Column {
-                            Text(v.label)
-                            Text(
-                                when (v) {
-                                    com.sagoma.planimetria.geometry.PhaseView.Compare -> "Tutto: demolizioni in giallo, costruzioni in rosso"
-                                    com.sagoma.planimetria.geometry.PhaseView.Existing -> "Com'è ora, senza le parti nuove"
-                                    com.sagoma.planimetria.geometry.PhaseView.Project -> "Come sarà, senza le parti demolite (anche nel 3D)"
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    },
-                    onClick = { open = false; vm.setPhaseView(v) },
-                )
-            }
-        }
-    }
-}
-
 /** Legenda della tavola comparativa (quando nel piano c'è qualcosa da demolire o di nuovo). */
 @Composable
 fun PhaseLegend(state: EditorUiState, modifier: Modifier = Modifier) {

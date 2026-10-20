@@ -36,7 +36,7 @@ enum class TutorialStep(val title: String, val text: String, val action: Boolean
     ),
     AddDoor(
         "Aggiungi una porta",
-        "Premi + Porte, scegli un tipo e poi tocca il muro su cui metterla.",
+        "Premi «🧱 Elementi architettonici» → Porte, scegli un tipo e poi tocca il muro su cui metterla.",
     ),
     MoveDoor(
         "Sposta la porta",
@@ -44,11 +44,11 @@ enum class TutorialStep(val title: String, val text: String, val action: Boolean
     ),
     AddFixture(
         "Impianti",
-        "Premi + Impianti e scegli, ad esempio, Presa di corrente, poi tocca un muro. Le luci invece si mettono toccando un punto dentro la stanza.",
+        "Premi «🧱 Elementi architettonici» → Impianti e scegli, ad esempio, Presa di corrente, poi tocca un muro. Le luci invece si mettono toccando un punto dentro la stanza.",
     ),
     AddRoom(
         "Aggiungi una stanza",
-        "Premi + Aggiungi stanza (in orizzontale + Stanza), scegli forma e misure e conferma.",
+        "Premi «🧱 Elementi architettonici» → Stanza, scegli forma e misure e conferma.",
     ),
     MoveRoom(
         "Accosta le stanze",
@@ -60,7 +60,7 @@ enum class TutorialStep(val title: String, val text: String, val action: Boolean
     ),
     Ruler(
         "Il metro",
-        "Premi 📏 Metro: trascina le estremità per allungarlo, il centro per spostarlo, la maniglia tonda per ruotarlo; con × lo elimini.",
+        "Premi «🛠 Strumenti» → Metro: trascina le estremità per allungarlo, il centro per spostarlo, la maniglia tonda per ruotarlo; con × lo elimini.",
     ),
     Done(
         "Fatto!",
@@ -114,7 +114,7 @@ enum class TutorialStep(val title: String, val text: String, val action: Boolean
     ),
     TraceNext(
         "La stanza accanto",
-        "Premi «+ Aggiungi stanza», scegli «Muro per muro» e ricalca la stanza accanto, angolo dopo angolo come prima.",
+        "Premi «🧱 Elementi architettonici» → Stanza, scegli «Muro per muro» e ricalca la stanza accanto, angolo dopo angolo come prima.",
     ),
     TraceDone(
         "Fatto!",
