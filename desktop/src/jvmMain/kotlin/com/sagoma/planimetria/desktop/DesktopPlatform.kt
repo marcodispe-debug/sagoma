@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.sagoma.planimetria.assets.ClasspathAssetStore
 import com.sagoma.planimetria.assets.CompositeAssetStore
 import com.sagoma.planimetria.assets.DirectoryAssetStore
@@ -23,7 +24,9 @@ import com.sagoma.planimetria.assets.buildCachedAssetStore
 import com.sagoma.planimetria.assets.codeSourceStamp
 import com.sagoma.planimetria.assets.directoryFingerprint
 import com.sagoma.planimetria.editor.TipStore
+import com.sagoma.planimetria.persistence.NoThemeStore
 import com.sagoma.planimetria.persistence.ProjectRepository
+import com.sagoma.planimetria.persistence.ThemeStore
 import com.sagoma.planimetria.ui.ImportedImage
 import com.sagoma.planimetria.ui.PdfPage
 import com.sagoma.planimetria.ui.PickedFile
@@ -44,6 +47,7 @@ class DesktopPlatform(
     override val account: Account = Account.Guest,
     override val projects: ProjectRepository,
     override val tips: TipStore,
+    override val theme: ThemeStore = NoThemeStore,
     private val assets: File?,
     /**
      * Cartella della cache su disco degli asset; `null` = nessuna cache (come nelle prove). Deve stare fuori dalla
@@ -125,8 +129,11 @@ class DesktopPlatform(
     override fun encodePng(image: ImageBitmap): ByteArray? = SkiaImages.encodePng(image)
 
     /** Immagini sì; i PDF come sfondo arriveranno (per ora si usa una foto o uno screenshot del PDF). */
-    override suspend fun importImage(bytes: ByteArray, pdf: Boolean, maxSide: Int): ImportedImage? =
-        if (pdf) null else SkiaImages.importImage(bytes, maxSide)
+    override suspend fun importImage(bytes: ByteArray, pdf: Boolean, maxSide: Int): ImportedImage? = withContext(Dispatchers.IO) {
+        // Il PDF diventa prima un'immagine (prima pagina, PDFBox), poi passa per la stessa strada delle foto.
+        val image = if (pdf) PdfBackground.firstPagePng(bytes, maxSide) ?: return@withContext null else bytes
+        SkiaImages.importImage(image, maxSide)
+    }
 
     override fun createPdf(pages: List<PdfPage>, density: Density): ByteArray = SkiaImages.rasterPdf(pages, density)
 

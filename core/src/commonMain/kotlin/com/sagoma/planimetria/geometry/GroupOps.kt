@@ -161,6 +161,7 @@ object GroupOps {
             return r.copy(
                 points = pts,
                 fixtures = r.fixtures.map { f -> if (f.kind.mount == Mount.Ceiling) f.copy(point = x.point(f.point), rotation = x.rotate(f.rotation)) else f },
+                excludedZones = r.excludedZones.map { z -> z.copy(points = z.points.map(x.point)) },
             )
         }
         val n = pts.size
@@ -180,6 +181,8 @@ object GroupOps {
                 if (f.kind.mount == Mount.Ceiling) f.copy(point = x.point(f.point), rotation = x.rotate(f.rotation))
                 else f.copy(wallIndex = wall(f.wallIndex), position = r.wallLength(f.wallIndex) - f.position)
             },
+            // Specchiate: stesso verso di percorrenza della stanza.
+            excludedZones = r.excludedZones.map { z -> z.copy(points = z.points.map(x.point).reversed()) },
         )
     }
 
@@ -206,6 +209,7 @@ object GroupOps {
                         points = r.points.map { it + d },
                         openings = r.openings.map { it.copy(id = openingId++) },
                         fixtures = r.fixtures.map { f -> f.copy(id = fixtureId++, point = if (f.kind.mount == Mount.Ceiling) f.point + d else f.point) },
+                        excludedZones = r.excludedZones.map { z -> z.copy(points = z.points.map { it + d }) },
                     )
                     p = p.copy(rooms = p.rooms + copy); created += GroupItem.RoomItem(copy.id)
                 }

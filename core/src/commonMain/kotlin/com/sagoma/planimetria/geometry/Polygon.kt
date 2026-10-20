@@ -59,6 +59,49 @@ object Polygon {
         }
     }
 
+    /** Il poligono è convesso (tutti gli angoli girano dallo stesso lato; lati allineati ammessi). */
+    fun isConvex(pts: List<Vec2>): Boolean {
+        if (pts.size < 3) return false
+        var sign = 0.0
+        for (i in pts.indices) {
+            val a = pts[i]
+            val b = pts[(i + 1) % pts.size]
+            val c = pts[(i + 2) % pts.size]
+            val cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)
+            if (abs(cross) < 1e-9) continue
+            if (sign == 0.0) sign = cross else if (cross * sign < 0) return false
+        }
+        return true
+    }
+
+    /**
+     * Parte di `subject` (qualsiasi poligono semplice) che sta dentro il poligono convesso `clip` (Sutherland–Hodgman).
+     * Con un soggetto concavo possono restare lati sovrapposti, ma l'area è giusta.
+     */
+    fun clipConvex(subject: List<Vec2>, clip: List<Vec2>): List<Vec2> {
+        if (clip.size < 3) return emptyList()
+        val sign = if (signedArea(clip) >= 0) 1.0 else -1.0
+        var out = subject
+        for (k in clip.indices) {
+            if (out.isEmpty()) break
+            val a = clip[k]
+            val b = clip[(k + 1) % clip.size]
+            fun side(p: Vec2) = ((b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)) * sign
+            val input = out
+            out = buildList {
+                for (i in input.indices) {
+                    val p = input[i]
+                    val q = input[(i + 1) % input.size]
+                    val fp = side(p)
+                    val fq = side(q)
+                    if (fp >= 0) add(p)
+                    if ((fp >= 0) != (fq >= 0)) add(p + (q - p) * (fp / (fp - fq)))
+                }
+            }
+        }
+        return out
+    }
+
     /**
      * Area calpestabile in cm²: misurata sul filo interno dei muri, cioè sul contorno ristretto di
      * metà spessore (il poligono della stanza passa per la mezzeria dei muri).

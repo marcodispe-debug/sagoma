@@ -11,6 +11,9 @@ import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.exterior
 import com.sagoma.planimetria.geometry.interiorLengths
 import com.sagoma.planimetria.geometry.interiorArea
+import com.sagoma.planimetria.geometry.usableArea
+import com.sagoma.planimetria.geometry.zoneArea
+import com.sagoma.planimetria.model.ExcludedZone
 import com.sagoma.planimetria.geometry.Fixtures
 import com.sagoma.planimetria.model.Fixture
 import com.sagoma.planimetria.model.FixtureKind
@@ -99,6 +102,8 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     fun fill(r: Room) = Color(r.type.argb).copy(alpha = if (r.id == state.focusedRoomId) 0.30f else 0.13f)
 
     for (r in rooms) drawPath(paths.getValue(r.id), fill(r))
+    // Zone non calpestabili: grigie e tratteggiate, con quanto tolgono dai m².
+    for (r in rooms) for (z in r.excludedZones) drawExcludedZone(r, z, cam, measurer)
     // Balconi e terrazze: parapetto sottile, disegnato prima dei muri così contro la casa resta il muro pieno.
     // Solo sui tratti che danno sul vuoto: niente parapetto dove un balcone tocca un altro balcone o terrazza.
     // Due passate (prima il tratto pieno di tutti, poi il riempimento): dove due parapetti si incontrano non
@@ -187,6 +192,41 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     }
 }
 
+private val ZoneColor = Color(0xFF6C757D)
+
+/** Zona non calpestabile: riempimento grigio, righe a 45°, bordo tratteggiato e "nome / −x m²" al centro. */
+private fun DrawScope.drawExcludedZone(room: Room, zone: ExcludedZone, cam: Camera, measurer: TextMeasurer) {
+    if (zone.points.size < 3) return
+    val path = Path().apply {
+        zone.points.forEachIndexed { i, p -> val o = cam.o(p); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) }
+        close()
+    }
+    drawPath(path, ZoneColor.copy(alpha = 0.18f))
+    val b = path.getBounds()
+    val step = 8.dp.toPx()
+    clipPath(path) {
+        var x = b.left - b.height
+        while (x < b.right) {
+            drawLine(ZoneColor.copy(alpha = 0.55f), Offset(x, b.bottom), Offset(x + b.height, b.top), strokeWidth = 1f)
+            x += step
+        }
+    }
+    drawPath(path, ZoneColor, style = Stroke(width = 1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 3.dp.toPx()))))
+    val m2 = com.sagoma.planimetria.geometry.formatDecimal(room.zoneArea(zone) / 10_000.0, 2)
+    val text = measurer.measure("${zone.name}\n−$m2 m²", TextStyle(fontSize = 10.sp, color = LabelTextColor, textAlign = androidx.compose.ui.text.style.TextAlign.Center))
+    // Solo se ci sta: le zone piccole (un pilastro) restano senza scritta.
+    if (text.size.width > b.width + 4.dp.toPx() || text.size.height > b.height + 4.dp.toPx()) return
+    val c = cam.o(Polygon.labelPoint(zone.points))
+    val pad = 2.dp.toPx()
+    drawRoundRect(
+        Color.White.copy(alpha = 0.85f),
+        topLeft = Offset(c.x - text.size.width / 2f - pad, c.y - text.size.height / 2f - pad),
+        size = androidx.compose.ui.geometry.Size(text.size.width + 2 * pad, text.size.height + 2 * pad),
+        cornerRadius = CornerRadius(3.dp.toPx()),
+    )
+    drawText(text, topLeft = Offset(c.x - text.size.width / 2f, c.y - text.size.height / 2f))
+}
+
 /** Etichetta di una stanza, già misurata: serve sia per disegnarla sia per il test di tocco. */
 internal class RoomLabel(val room: Room, val anchor: Vec2, val text: TextLayoutResult) {
     fun rect(cam: Camera, pad: Float): Rect {
@@ -205,7 +245,7 @@ internal class RoomLabel(val room: Room, val anchor: Vec2, val text: TextLayoutR
 internal fun interiorLengths(room: Room): List<Double> = room.interiorLengths()
 
 internal fun formatArea(room: Room): String =
-    com.sagoma.planimetria.geometry.formatDecimal(room.interiorArea() / 10_000.0, 2) + " m²"
+    com.sagoma.planimetria.geometry.formatDecimal(room.usableArea() / 10_000.0, 2) + " m²"
 
 /** Misura le etichette; `detailed` decide per quali stanze mostrare anche l'area. */
 internal fun measureRoomLabels(plan: FloorPlan, measurer: TextMeasurer, detailed: (Room) -> Boolean): List<RoomLabel> =

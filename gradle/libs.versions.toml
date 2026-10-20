@@ -10,6 +10,7 @@ serialization = "1.11.0"
 coroutines = "1.9.0"
 filament = "1.77.1"
 arcore = "1.44.0"
+pdfbox = "3.0.5"
 
 composeMultiplatform = "1.12.1"
 composeMaterial3 = "1.9.0"
@@ -39,6 +40,7 @@ kotlinx-serialization-json ={ module = "org.jetbrains.kotlinx:kotlinx-serializat
 junit = { module = "junit:junit", version.ref = "junit" }
 filament-android = { module = "com.google.android.filament:filament-android", version.ref = "filament" }
 arcore = { module = "com.google.ar:core", version.ref = "arcore" }
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 filament-gltfio = { module = "com.google.android.filament:gltfio-android", version.ref = "filament" }
 
 [plugins]

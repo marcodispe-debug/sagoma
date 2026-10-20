@@ -17,7 +17,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -44,6 +43,7 @@ import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.UnderlayTool
+import com.sagoma.planimetria.editor.TutorialStep
 import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.model.Underlay
 import com.sagoma.planimetria.model.Vec2
@@ -107,10 +107,11 @@ internal fun DrawScope.drawCalibration(t: UnderlayTool.Calibrate, cam: Camera, m
 
 /**
  * "Pianta di sfondo": si carica una foto o un PDF della pianta esistente, la si tara su una misura nota e la
- * si sposta sotto al disegno; poi si ricalcano le stanze sopra.
+ * si sposta sotto al disegno; poi si ricalcano le stanze sopra. Con `tracing` è il primo passo di "Ricalca una piantina",
+ * scelto al posto della prima stanza.
  */
 @Composable
-fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long, onDismiss: () -> Unit) {
+fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long, tracing: Boolean = false, onDismiss: () -> Unit) {
     val platform = LocalPlatform.current
     val scope = rememberCoroutineScope()
     val u = state.plan.underlay
@@ -140,14 +141,32 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
         }
     }
 
-    var opacity by remember(u?.file) { mutableFloatStateOf(u?.opacity?.toFloat() ?: 0.5f) }
-
     AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Pianta di sfondo") },
+        // Mentre si legge il file non si chiude: l'immagine arriverebbe dopo, a finestra già chiusa.
+        onDismissRequest = { if (!loading) onDismiss() },
+        title = { Text(if (tracing) "Ricalca una piantina" else "Pianta di sfondo") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
+                state.tutorial?.takeIf { it.step == TutorialStep.TraceLoad }?.let { t ->
+                    Text(
+                        "Guida al ricalco · passo ${t.number} di ${t.total}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                if (tracing) {
+                    Text(
+                        if (platform.pdfAsBackground) "Carica la piantina che hai (foto, scansione o PDF del catasto o del progetto)."
+                        else "Carica la piantina che hai come immagine (foto, scansione, JPG o PNG). Per un PDF salvane la pagina come immagine.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        "Poi tocchi i due estremi di una misura che conosci e scrivi quanto è lunga: la piantina va in scala. " +
+                            "Infine ripassi i muri con \"Muro per muro\", angolo dopo angolo.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else Text(
                     "Metti sotto al disegno una pianta esistente (foto, scansione o PDF del catasto o del progetto), " +
                         "tarala su una misura che conosci e ricalca le stanze sopra.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -156,7 +175,9 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
                     Button(enabled = !loading, onClick = { platform.openFile(listOf("image/*")) { import(it, pdf = false) } }) {
                         Text(if (u == null) "Foto / immagine" else "Altra immagine")
                     }
-                    OutlinedButton(enabled = !loading, onClick = { platform.openFile(listOf("application/pdf")) { import(it, pdf = true) } }) { Text("PDF") }
+                    if (platform.pdfAsBackground) {
+                        OutlinedButton(enabled = !loading, onClick = { platform.openFile(listOf("application/pdf")) { import(it, pdf = true) } }) { Text("PDF") }
+                    }
                 }
                 if (loading) Text("Caricamento…", style = MaterialTheme.typography.bodySmall)
                 if (u != null) {
@@ -164,8 +185,12 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
                         Text("Visibile", Modifier.weight(1f))
                         Switch(checked = u.visible, onCheckedChange = { vm.setUnderlayVisible(it) })
                     }
-                    Text("Trasparenza: ${(opacity * 100).roundToInt()}%", style = MaterialTheme.typography.labelLarge)
-                    Slider(value = opacity, onValueChange = { opacity = it }, valueRange = 0.1f..1f, onValueChangeFinished = { vm.setUnderlayOpacity(opacity.toDouble()) })
+                    Text("Trasparenza: ${(u.opacity * 100).roundToInt()}%", style = MaterialTheme.typography.labelLarge)
+                    // Dal vivo: la piantina sotto la finestra cambia mentre si trascina.
+                    Slider(
+                        value = u.opacity.toFloat(), onValueChange = { vm.previewUnderlayOpacity(it.toDouble()) },
+                        valueRange = 0.1f..1f, onValueChangeFinished = vm::endUnderlayOpacity,
+                    )
                     Text(
                         "Scala attuale: 1 px = ${fmt2(u.cmPerPx)} cm · immagine ${fmt2(u.widthCm / 100)} × ${fmt2(u.heightCm / 100)} m",
                         style = MaterialTheme.typography.bodySmall,
@@ -178,7 +203,7 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Chiudi") } },
+        confirmButton = { TextButton(enabled = !loading, onClick = onDismiss) { Text(if (tracing && u == null) "Indietro" else "Chiudi") } },
     )
 }
 

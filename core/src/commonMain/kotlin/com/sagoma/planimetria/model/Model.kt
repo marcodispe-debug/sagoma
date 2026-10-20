@@ -281,6 +281,11 @@ data class Room(
      * quando è false (i file delle stanze normali restano identici a prima).
      */
     val sketchPending: Boolean = false,
+    /**
+     * Parti del pavimento che non contano nei metri quadri (fascia "non accessibile" di una mansarda, cavedio, pilastro):
+     * l'area utile della stanza è quella interna meno queste zone. Coordinate come [points].
+     */
+    val excludedZones: List<ExcludedZone> = emptyList(),
 ) {
     /** Stato del muro `i` (esistente, da demolire, nuovo). */
     fun phaseOf(i: Int): Phase = wallPhases[i] ?: Phase.Existing
@@ -407,6 +412,14 @@ data class Room(
 }
 
 /** Metro a schermo (§9): segmento libero sulla pianta, indipendente dalle stanze. */
+/** Zona non calpestabile di una stanza: si disegna come un poligono e si toglie dall'area utile. */
+@Serializable
+data class ExcludedZone(val id: Long, val points: List<Vec2>, val name: String = DEFAULT_NAME) {
+    companion object {
+        const val DEFAULT_NAME = "Non accessibile"
+    }
+}
+
 @Serializable
 data class Ruler(val id: Long, val start: Vec2, val end: Vec2) {
     val length: Double get() = start.distanceTo(end)

@@ -1,5 +1,6 @@
 package com.sagoma.planimetria.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -138,9 +139,11 @@ fun SelectionPanel(
     planBelow: FloorPlan? = null,
     levelHeightBelow: Double = levelHeight,
 ) {
-    // Compatto: su telefono deve lasciare visibile gran parte della pianta.
+    // Compatto: su telefono deve lasciare visibile gran parte della pianta. Barra di scorrimento a destra.
+    val scroll = rememberScrollState()
+    Box(modifier) {
     Column(
-        modifier.verticalScroll(rememberScrollState()).padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 12.dp),
+        Modifier.verticalScroll(scroll).padding(start = 12.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         when (selection) {
@@ -163,6 +166,8 @@ fun SelectionPanel(
                 WellRailingPicker(s, levelHeightBelow) { vm.updateStairBelow(it) }
             }
         }
+    }
+    ScrollBar(scroll, Modifier.align(Alignment.TopEnd).padding(end = 2.dp))
     }
 }
 

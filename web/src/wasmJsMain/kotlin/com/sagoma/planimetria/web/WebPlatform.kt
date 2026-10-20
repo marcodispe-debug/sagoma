@@ -61,6 +61,7 @@ private fun Uint8Array.toByteArray(): ByteArray = ByteArray(length) { this[it] }
 class WebPlatform : Platform {
     override val projects = BrowserProjectRepository(::now)
     override val tips = BrowserTipStore()
+    override val theme = BrowserThemeStore()
 
     /** Messaggio breve mostrato in basso. */
     var message by mutableStateOf<String?>(null)
@@ -91,6 +92,9 @@ class WebPlatform : Platform {
     override fun encodePng(image: ImageBitmap): ByteArray? = SkiaImages.encodePng(image)
     override suspend fun importImage(bytes: ByteArray, pdf: Boolean, maxSide: Int): ImportedImage? =
         if (pdf) null else SkiaImages.importImage(bytes, maxSide)
+
+    // Il PDF come sfondo non c'è ancora nel browser: solo immagini.
+    override val pdfAsBackground: Boolean get() = false
 
     override fun createPdf(pages: List<PdfPage>, density: Density): ByteArray = SkiaImages.rasterPdf(pages, density, dpi = 200)
 

@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -393,6 +394,8 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                     if (!dragging) {
                         val at = startCam.toWorld(down.position.x, down.position.y)
                         when {
+                            // "Rifai taratura" anche a metà di una stanza: i tocchi vanno alla taratura, non agli angoli.
+                            tool is UnderlayTool.Calibrate -> vm.underlayTap(at)
                             drawing -> when {
                                 currentState.dimensionDraw != null -> vm.dimensionTap(at)
                                 currentState.textPlacing -> vm.textTap(at)
@@ -414,7 +417,6 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                                 if (all.count { it !is DragTarget.Wall } >= 2) overlapChoice = at to all
                                 else vm.onTap(target, at)
                             }
-                            tool is UnderlayTool.Calibrate -> vm.underlayTap(at)
                             else -> {}
                         }
                     }
@@ -428,6 +430,9 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
             drawRect(PlanBackgroundColor)
             drawGrid(state.camera)
             if (layers.visible(Layer.Underlay)) underlayImage?.let { img -> state.plan.underlay?.let { drawUnderlay(it, img, state.camera) } }
+            // Disegno sopra la piantina: nascosto o trasparente (comandi "◐ Piantina e disegno"); bozze e guide restano piene.
+            val drawingAlpha = if (state.drawingVisible) state.drawingOpacity.toFloat() else 0f
+            if (drawingAlpha < 1f) drawContext.canvas.saveLayer(Rect(Offset.Zero, size), Paint().apply { alpha = drawingAlpha })
             drawFloorBelow(state.planBelow, state.camera)
             drawPlan(shown, measurer)
             if (layers.visible(Layer.Structure)) drawStairs(state, measurer)
@@ -452,6 +457,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
             if (layers.visible(Layer.Rulers)) for (r in state.plan.rulers) {
                 drawRuler(RulerGeom(r, state.camera, this), state.camera, r.id == state.rotatingRulerId, measurer)
             }
+            if (drawingAlpha < 1f) drawContext.canvas.restore()
             (state.underlayTool as? UnderlayTool.Calibrate)?.let { drawCalibration(it, state.camera, measurer) }
             state.wallDraw?.let { drawWallDraft(it, state.camera, measurer) }
             drawMultiSelection(state, levelHeight = state.levelHeight)

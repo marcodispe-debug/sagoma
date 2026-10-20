@@ -63,12 +63,14 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.PendingOpening
 import com.sagoma.planimetria.editor.Tip
+import com.sagoma.planimetria.editor.TutorialCourse
 import com.sagoma.planimetria.editor.TutorialStep
 import com.sagoma.planimetria.editor.TutorialUi
 import androidx.compose.foundation.layout.widthIn
@@ -83,6 +85,7 @@ import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.StairKind
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.ColumnShape
+import com.sagoma.planimetria.geometry.PhaseView
 import com.sagoma.planimetria.editor.MeasureState
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.geometry.Distances
@@ -110,17 +113,28 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
     var showTakeoff by remember { mutableStateOf(false) }
     var showBackground by remember { mutableStateOf(false) }
     var showLayers by remember { mutableStateOf(false) }
+    var showTheme by remember { mutableStateOf(false) }
     val extraMenu = listOf(
         "📁 Progetti" to { vm.saveNow(); onOpenProjects() },
         "🗂 Livelli…" to { showLayers = true },
         "📄 Tavola PDF in scala…" to { showPdf = true },
         "🧮 Computo e lista arredi" to { showTakeoff = true },
         "🗺 Pianta di sfondo…" to { showBackground = true },
+        "🌓 Tema chiaro o scuro…" to { showTheme = true },
     )
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
-    if (showBackground) BackgroundDialog(state, vm, projectId, onDismiss = { showBackground = false })
+    // "Ricalca una piantina" al posto della prima stanza: la finestra resta aperta finché non si carica e si tara la piantina.
+    val tracingSetup = state.tracing != null && state.underlayTool == null
+    if (showBackground || tracingSetup) BackgroundDialog(state, vm, projectId, tracing = state.tracing != null, onDismiss = {
+        showBackground = false
+        // Chiusa senza tarare (o senza caricare nulla): si va avanti col ricalco, o si torna alla scelta della stanza.
+        vm.state.value.let { if (it.tracing != null && it.underlayTool == null) vm.endTracing() }
+        // Guida al ricalco aperta dal menu e finestra chiusa senza caricare la piantina: la guida non ha niente da ricalcare.
+        if (vm.state.value.plan.underlay == null) vm.abandonTracingGuide()
+    })
     if (showLayers) LayersDialog(state, vm, onDismiss = { showLayers = false })
+    if (showTheme) ThemeDialog(onDismiss = { showTheme = false })
     state.textDialogAt?.let { at -> NewTextDialog(at, vm) }
 
     Column(
@@ -168,21 +182,38 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
     ) {
         // In orizzontale (poca altezza) schede e barra stanno su una sola riga, per lasciare spazio alla pianta.
         val compactHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } < 500.dp
+        // Finestra larga (computer, tablet): due righe più basse che sul telefono, per una striscia in alto più sottile.
+        val wideWindow = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() } >= 900.dp
         // E la barra di stato si nasconde (riappare temporaneamente scorrendo dal bordo superiore).
         LaunchedEffect(compactHeight) { platform.setStatusBarHidden(compactHeight) }
         // Vista 3D: telecamera e superficie OpenGL restano le stesse passando da 2D a 3D e ritorno.
         val view3dState = remember { View3DState() }
-        val toolbar = @Composable { compact: Boolean ->
+        var openGuide by remember { mutableStateOf<Guide?>(null) }
+        openGuide?.let { GuideDialog(it, onDismiss = { openGuide = null }, onOpen3d = { vm.setView3d(true) }) }
+        // Guide passo passo che si fanno sulla pianta: avanzano da sole a ogni azione.
+        val guidedTours = listOf(
+            MenuEntry("🎓  Tutorial passo passo", vm::restartTutorial),
+            MenuEntry("🧭  Ricalco passo passo", {
+                if (state.plan.underlay == null) showBackground = true
+                vm.startTracingGuide()
+            }),
+        )
+        val toolbar = @Composable { compact: Boolean, fill: Boolean, rowHeight: Dp ->
             Toolbar(
-                state.canUndo,
+                // Mentre si disegnano i muri Annulla toglie l'ultimo angolo (anche se la pianta non ha ancora modifiche da annullare).
+                state.canUndo || state.wallDraw?.points?.isNotEmpty() == true,
                 state.canRedo,
                 vm,
                 focusedRoom = state.plan.room(state.focusedRoomId),
                 onExport = exportPng,
                 extraMenu = extraMenu,
                 compact = compact,
+                fill = fill,
+                rowHeight = rowHeight,
                 onZoom = { f -> if (state.view3d) view3dState.zoom(f) else vm.zoomBy(f) },
                 onFit = { if (state.view3d) view3dState.fitPlan(state.plan) else vm.fitToView() },
+                // In orizzontale "❔" sta sulla riga unica; in verticale in cima, accanto alle schede (sulla riga di zoom non ci sta).
+                guides = { if (compact || !fill) GuidesButton(onGuide = { openGuide = it }, tours = guidedTours) },
             )
         }
         // Piano che si sta modificando (e menu dei piani) prima delle schede delle stanze.
@@ -190,25 +221,31 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 FloorButton(state.building, vm, Modifier.padding(start = 8.dp), compact = true)
                 RoomTabs(state.plan.rooms, state.focusedRoomId, onTap = vm::openRoomProperties, modifier = Modifier.weight(1f), compact = true)
-                toolbar(true)
+                toolbar(true, false, 40.dp)
             }
+        } else if (wideWindow) {
+            // Computer: due righe come sul telefono, ma più basse (pulsanti a 34 dp, barra di zoom a 36 dp).
+            Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                FloorButton(state.building, vm, Modifier.padding(start = 8.dp).height(34.dp))
+                RoomTabs(state.plan.rooms, state.focusedRoomId, onTap = vm::openRoomProperties, modifier = Modifier.weight(1f), compact = true)
+                Box(Modifier.padding(end = 8.dp).height(34.dp)) { GuidesButton(onGuide = { openGuide = it }, tours = guidedTours) }
+            }
+            toolbar(false, true, 36.dp)
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 FloorButton(state.building, vm, Modifier.padding(start = 8.dp))
-                RoomTabs(state.plan.rooms, state.focusedRoomId, onTap = vm::openRoomProperties, modifier = Modifier.weight(1f))
+                RoomTabs(state.plan.rooms, state.focusedRoomId, onTap = vm::openRoomProperties, modifier = Modifier.weight(1f), compact = true)
+                Box(Modifier.padding(end = 8.dp)) { GuidesButton(onGuide = { openGuide = it }, tours = guidedTours) }
             }
-            toolbar(false)
+            toolbar(false, true, 40.dp)
         }
         HorizontalDivider()
-
-        var openGuide by remember { mutableStateOf<Guide?>(null) }
-        openGuide?.let { GuideDialog(it, onDismiss = { openGuide = null }, onOpen3d = { vm.setView3d(true) }) }
 
         Row(Modifier.weight(1f).fillMaxWidth()) {
         // In orizzontale i pulsanti di azione stanno in una colonna a sinistra: la larghezza abbonda,
         // l'altezza no, e così la pianta guadagna tutta l'altezza della barra in basso.
         if (compactHeight) {
-            ActionRail(state.plan.rooms.isNotEmpty(), vm, onGuide = { openGuide = it })
+            ActionRail(state, vm)
             VerticalDivider()
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
@@ -259,8 +296,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 state.measure?.let { MeasureCard(it, state, vm) }
                 // Pianta di sfondo: taratura o spostamento in corso.
                 UnderlayToolCard(state, vm)
-                // Disegno dei muri, muro per muro.
-                WallDrawCard(state, vm)
+                // Disegno dei muri, muro per muro (non mentre si rifà la taratura: in alto c'è la sua scheda).
+                if (state.underlayTool == null) WallDrawCard(state, vm)
                 // Selezione multipla e suoi comandi.
                 MultiSelectionCard(state, vm)
                 // Incolla: cosa toccare per mettere le copie.
@@ -366,6 +403,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                     onToggle = vm::toggleInfo,
                     onExpandedChange = vm::setInfoExpanded,
                     modifier = panelModifier,
+                    actions = { SnapToggle(state.snapOn, vm::setSnapOn, compact = true) },
                 ) { contentModifier ->
                     if (sel != null) SelectionPanel(sel, state.plan, vm, contentModifier, state.levelHeight, state.planBelow, state.levelHeightBelow)
                     else if (focusedRoom != null) RoomInfo(focusedRoom, state.plan, vm, contentModifier)
@@ -373,6 +411,14 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             }
             // Legenda dei simboli: in basso a destra, sopra la striscia Info e a sinistra del pannello laterale.
             var showLegend by remember { mutableStateOf(false) }
+            var showVisibility by remember { mutableStateOf(false) }
+            // Piantina appena caricata (o cambiata): i comandi per vederla e regolarla si aprono da soli. Riaprendo il progetto no.
+            var underlayFile by remember { mutableStateOf(state.plan.underlay?.file) }
+            LaunchedEffect(state.plan.underlay?.file) {
+                val file = state.plan.underlay?.file
+                if (file != null && file != underlayFile) showVisibility = true
+                underlayFile = file
+            }
             val cornerModifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(
@@ -390,6 +436,9 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 )
                 if (state.view3d) View3DControls(state, view3dState)
                 else {
+                    // Mostra/nascondi e trasparenza di piantina e disegno, regolate dal vivo.
+                    if (showVisibility) VisibilityPanel(state, vm, onLoadPlan = { showBackground = true })
+                    LegendButton(if (showVisibility) "◐ Chiudi" else "◐ Piantina e disegno", onClick = { showVisibility = !showVisibility })
                     PhaseLegend(state)
                     LegendButton("Legenda", onClick = { showLegend = true })
                 }
@@ -423,47 +472,23 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
 
         if (!compactHeight) {
             HorizontalDivider()
-            ScrollableBar(Modifier.fillMaxWidth().navigationBarsPadding()) {
-                Button(onClick = vm::startAddRoom) { Text("+ Aggiungi stanza") }
-                VerticalDivider(Modifier.height(32.dp))
-                if (state.selectMode) Button(onClick = vm::toggleSelectMode) { Text("☑ Seleziona") }
-                else OutlinedButton(onClick = vm::toggleSelectMode) { Text("☐ Seleziona") }
-                VerticalDivider(Modifier.height(32.dp))
-                // Stato di fatto / progetto: gialli e rossi, stato di fatto, stato di progetto.
-                PhaseViewButton(state, vm)
-                VerticalDivider(Modifier.height(32.dp))
-                OpeningButtons(enabled = state.plan.rooms.isNotEmpty(), vm)
-                VerticalDivider(Modifier.height(32.dp))
-                FixtureButton(enabled = state.plan.rooms.isNotEmpty(), vm)
-                VerticalDivider(Modifier.height(32.dp))
-                StairButton(vm)
-                VerticalDivider(Modifier.height(32.dp))
-                StructureButton(vm)
-                VerticalDivider(Modifier.height(32.dp))
-                if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.FURNITURE)) {
-                    FurnitureButton(vm)
-                    VerticalDivider(Modifier.height(32.dp))
+            // Tre gruppi, sempre tutti visibili: cosa si costruisce, cosa si arreda, con cosa si lavora sulla pianta.
+            // Su un telefono stretto i nomi si accorciano ("🧱 Elementi") per stare in una riga senza scorrere.
+            BoxWithConstraints(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp)) {
+                val narrow = maxWidth < 520.dp
+                val pad = PaddingValues(horizontal = if (narrow) 4.dp else 12.dp)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // Stretto: tre parti uguali; largo: i pulsanti restano della loro misura, a sinistra.
+                    val m = if (narrow) Modifier.weight(1f) else Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Max)
+                    ArchitectureButton(state.plan.rooms.isNotEmpty(), vm, m, pad, compact = narrow)
+                    if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.FURNITURE)) FurnitureButton(vm, m, pad)
+                    ToolsButton(state, vm, m, pad, compact = narrow)
                 }
-                OutdoorButton(vm)
-                VerticalDivider(Modifier.height(32.dp))
-                OutlinedButton(onClick = { openGuide = AtticGuide }) { Text("⌂ Mansarda") }
-                VerticalDivider(Modifier.height(32.dp))
-                OutlinedButton(onClick = vm::addRuler) { Text("📏 Metro") }
-                VerticalDivider(Modifier.height(32.dp))
-                OutlinedButton(onClick = vm::startMeasure) { Text("📐 Distanza") }
-                VerticalDivider(Modifier.height(32.dp))
-                // Quote manuali e testi del disegno (tavole).
-                if (state.dimensionDraw != null) Button(onClick = vm::cancelDimension) { Text("↔ Quota") }
-                else OutlinedButton(onClick = vm::startDimension) { Text("↔ Quota") }
-                if (state.textPlacing) Button(onClick = vm::cancelText) { Text("T Testo") }
-                else OutlinedButton(onClick = vm::startText) { Text("T Testo") }
-                VerticalDivider(Modifier.height(32.dp))
-                GuidesButton(onGuide = { openGuide = it })
             }
         }
     }
 
-    state.creation?.let { CreationFlow(it, vm) }
+    state.creation?.let { CreationFlow(it, vm, onOpenProjects = { vm.saveNow(); onOpenProjects() }) }
     // Percorso B (solo dove la funzione è disponibile): la scansione guidata a schermo intero. L'avviso "schizzo da misurare" è
     // tra le schede in alto (vedi sopra): alla riapertura del progetto torna per la prima stanza-schizzo non ancora misurata.
     if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.SKETCH_GUIDED_SCAN) && state.creation == null && state.wallDraw == null) {
@@ -586,7 +611,7 @@ private fun TutorialCard(t: TutorialUi, vm: EditorViewModel) {
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     if (t.step.action) {
                         Text(
-                            "Tutorial · passo ${t.number} di ${t.total}",
+                            "${if (t.course == TutorialCourse.Tracing) "Guida al ricalco" else "Tutorial"} · passo ${t.number} di ${t.total}",
                             style = MaterialTheme.typography.labelMedium,
                             color = onColor.copy(alpha = 0.7f),
                         )
@@ -614,7 +639,7 @@ private fun TutorialCard(t: TutorialUi, vm: EditorViewModel) {
                         TextButton(onClick = { vm.finishTutorial(completed = false) }) { Text("No, grazie", color = onColor.copy(alpha = 0.7f)) }
                         TextButton(onClick = vm::nextTutorialStep) { Text("Inizia") }
                     }
-                    TutorialStep.Done -> TextButton(onClick = { vm.finishTutorial() }) { Text("Fine") }
+                    TutorialStep.Done, TutorialStep.TraceDone -> TextButton(onClick = { vm.finishTutorial() }) { Text("Fine") }
                     else -> {
                         TextButton(onClick = { vm.finishTutorial(completed = false) }) { Text("Esci", color = onColor.copy(alpha = 0.7f)) }
                         TextButton(onClick = vm::nextTutorialStep) { Text("Salta passo") }
@@ -625,9 +650,9 @@ private fun TutorialCard(t: TutorialUi, vm: EditorViewModel) {
     }
 }
 
-/** Colonna di azioni a sinistra, usata in orizzontale al posto della barra in basso. */
+/** Colonna di azioni a sinistra, usata in orizzontale al posto della barra in basso: gli stessi tre gruppi. */
 @Composable
-private fun ActionRail(openingsEnabled: Boolean, vm: EditorViewModel, onGuide: (Guide) -> Unit) {
+private fun ActionRail(state: EditorUiState, vm: EditorViewModel) {
     val buttonModifier = Modifier.fillMaxWidth()
     val pad = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
     Column(
@@ -639,103 +664,170 @@ private fun ActionRail(openingsEnabled: Boolean, vm: EditorViewModel, onGuide: (
             .padding(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Button(onClick = vm::startAddRoom, modifier = buttonModifier, contentPadding = pad) { Text("+ Stanza", maxLines = 1) }
-        HorizontalDivider()
-        OpeningButtons(openingsEnabled, vm, compact = true, buttonModifier = buttonModifier)
-        HorizontalDivider()
-        FixtureButton(openingsEnabled, vm, buttonModifier = buttonModifier, contentPadding = pad)
-        HorizontalDivider()
-        StairButton(vm, buttonModifier, pad)
-        HorizontalDivider()
-        StructureButton(vm, buttonModifier, pad, compact = true)
-        HorizontalDivider()
-        if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.FURNITURE)) {
-            FurnitureButton(vm, buttonModifier, pad)
-            HorizontalDivider()
-        }
-        OutdoorButton(vm, buttonModifier, pad, compact = true)
-        HorizontalDivider()
-        OutlinedButton(onClick = { onGuide(AtticGuide) }, modifier = buttonModifier, contentPadding = pad) { Text("⌂ Mansarda", maxLines = 1) }
-        HorizontalDivider()
-        OutlinedButton(onClick = vm::addRuler, modifier = buttonModifier, contentPadding = pad) { Text("📏 Metro", maxLines = 1) }
-        HorizontalDivider()
-        OutlinedButton(onClick = vm::startMeasure, modifier = buttonModifier, contentPadding = pad) { Text("📐 Distanza", maxLines = 1) }
-        OutlinedButton(onClick = vm::startDimension, modifier = buttonModifier, contentPadding = pad) { Text("↔ Quota", maxLines = 1) }
-        OutlinedButton(onClick = vm::startText, modifier = buttonModifier, contentPadding = pad) { Text("T Testo", maxLines = 1) }
-        HorizontalDivider()
-        GuidesButton(onGuide, buttonModifier, pad)
+        ArchitectureButton(state.plan.rooms.isNotEmpty(), vm, buttonModifier, pad, compact = true)
+        if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.FURNITURE)) FurnitureButton(vm, buttonModifier, pad)
+        ToolsButton(state, vm, buttonModifier, pad, compact = true)
     }
 }
 
-/** "+ Scale": rampa dritta, a L, a U, a chiocciola. La scala compare al centro della vista (o della stanza scelta). */
+/**
+ * "🧱 Elementi architettonici": stanza, porte, finestre, porte-finestre, impianti, scale, colonne e travi, balconi e terrazze.
+ * Porte, finestre e impianti vanno su un muro: senza stanze restano visibili ma spenti.
+ */
 @Composable
-private fun StairButton(
-    vm: EditorViewModel,
-    buttonModifier: Modifier = Modifier,
-    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
-) {
-    MenuButton(
-        "+ Scale",
-        true,
-        listOf(StairKind.Straight, StairKind.StraightLanding, StairKind.LTurn, StairKind.LWinder, StairKind.UTurn, StairKind.Spiral)
-            .map { k -> MenuEntry(k.label, { vm.addStair(k) }) },
-        buttonModifier,
-        contentPadding,
-    )
-}
-
-/** "+ Colonne e travi": colonna quadrata o rotonda, trave a soffitto. */
-@Composable
-private fun StructureButton(
+private fun ArchitectureButton(
+    hasRooms: Boolean,
     vm: EditorViewModel,
     buttonModifier: Modifier = Modifier,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     compact: Boolean = false,
 ) {
+    fun opening(kind: OpeningKind, style: PassageStyle = PassageStyle.Square, sliding: Boolean = false) =
+        { vm.startPlacingOpening(PendingOpening(kind, style, sliding)) }
+    fun fixture(kind: FixtureKind) = { vm.startPlacingFixture(kind) }
+    val lights = listOf(
+        FixtureKind.Spotlight, FixtureKind.Neon, FixtureKind.Chandelier, FixtureKind.CeilingLight, FixtureKind.LedStrip,
+        FixtureKind.WallLight, FixtureKind.WallSpot, FixtureKind.WallLedStrip,
+    )
+    // Ogni gruppo di aperture ha anche la versione scorrevole; battente/scorrevole si cambia comunque dopo da Info.
     MenuButton(
-        if (compact) "+ Colonne" else "+ Colonne e travi",
+        if (compact) "🧱 Elementi" else "🧱 Elementi architettonici",
         true,
         listOf(
-            MenuEntry("Colonna quadrata", { vm.addColumn(ColumnShape.Square) }),
-            MenuEntry("Colonna rotonda", { vm.addColumn(ColumnShape.Round) }),
-            MenuEntry("Trave a soffitto", { vm.addBeam() }),
+            MenuEntry("▭ Stanza", vm::startAddRoom),
+            MenuEntry(
+                "🚪 Porte",
+                enabled = hasRooms,
+                children = listOf(
+                    MenuEntry("Porta ad 1 anta", opening(OpeningKind.Door)),
+                    MenuEntry("Porta a 2 ante", opening(OpeningKind.Door2)),
+                    MenuEntry("Porta scorrevole", opening(OpeningKind.Door, sliding = true)),
+                    MenuEntry(
+                        "Apertura senza porta",
+                        children = PassageStyle.entries.map { st -> MenuEntry(st.label, opening(OpeningKind.Passage, st)) },
+                    ),
+                ),
+            ),
+            MenuEntry(
+                "🪟 Finestre",
+                enabled = hasRooms,
+                children = listOf(
+                    MenuEntry("Finestra ad 1 anta", opening(OpeningKind.Window1)),
+                    MenuEntry("Finestra a 2 ante", opening(OpeningKind.Window2)),
+                    MenuEntry("Finestra scorrevole", opening(OpeningKind.Window2, sliding = true)),
+                ),
+            ),
+            MenuEntry(
+                "🚪 Porte-finestre",
+                enabled = hasRooms,
+                children = listOf(
+                    MenuEntry("Balcone ad 1 anta", opening(OpeningKind.Balcony1)),
+                    MenuEntry("Balcone a 2 ante", opening(OpeningKind.Balcony2)),
+                    MenuEntry("Balcone scorrevole", opening(OpeningKind.Balcony2, sliding = true)),
+                ),
+            ),
+            MenuEntry(
+                "🔌 Impianti",
+                enabled = hasRooms,
+                children = listOf(
+                    MenuEntry("Calorifero", fixture(FixtureKind.Radiator)),
+                    MenuEntry("Presa di corrente", fixture(FixtureKind.Outlet)),
+                    MenuEntry("Interruttore", fixture(FixtureKind.Switch)),
+                    MenuEntry("Punto acqua", fixture(FixtureKind.WaterPoint)),
+                    MenuEntry("Luci", children = lights.map { MenuEntry(it.label, fixture(it)) }),
+                ),
+            ),
+            MenuEntry(
+                "🪜 Scale",
+                children = listOf(StairKind.Straight, StairKind.StraightLanding, StairKind.LTurn, StairKind.LWinder, StairKind.UTurn, StairKind.Spiral)
+                    .map { k -> MenuEntry(k.label, { vm.addStair(k) }) },
+            ),
+            MenuEntry(
+                "▣ Colonne e travi",
+                children = listOf(
+                    MenuEntry("Colonna quadrata", { vm.addColumn(ColumnShape.Square) }),
+                    MenuEntry("Colonna rotonda", { vm.addColumn(ColumnShape.Round) }),
+                    MenuEntry("Trave a soffitto", { vm.addBeam() }),
+                ),
+            ),
+            MenuEntry(
+                "🌿 Balconi e terrazze",
+                children = listOf(RoomType.Balcone, RoomType.Terrazza).map { t -> MenuEntry(t.label, { vm.startAddOutdoor(t) }) },
+            ),
         ),
         buttonModifier,
         contentPadding,
+        arrow = !compact,
     )
 }
 
-/** "+ Balconi e terrazze": si crea lo spazio all'aperto con il tipo già scelto. */
+/**
+ * "🛠 Strumenti": selezione multipla, vista gialli e rossi, distanza, quota e testo (il metro è stato tolto: la quota fa lo stesso;
+ * i metri dei progetti vecchi restano visibili e modificabili). Con uno strumento in uso
+ * (o una vista diversa da gialli e rossi) il pulsante è pieno e ne mostra il nome; si esce dalla scheda in alto.
+ */
 @Composable
-private fun OutdoorButton(
+private fun ToolsButton(
+    state: EditorUiState,
     vm: EditorViewModel,
     buttonModifier: Modifier = Modifier,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     compact: Boolean = false,
 ) {
+    val active = when {
+        state.selectMode -> "Seleziona"
+        state.measure != null -> "Distanza"
+        state.dimensionDraw != null -> "Quota"
+        state.textPlacing -> "Testo"
+        state.phaseView != PhaseView.Compare -> state.phaseView.label
+        else -> null
+    }
     MenuButton(
-        if (compact) "+ Esterni" else "+ Balconi e terrazze",
+        if (compact || active == null) "🛠 Strumenti" else "🛠 Strumenti · $active",
         true,
-        listOf(RoomType.Balcone, RoomType.Terrazza).map { t -> MenuEntry(t.label, { vm.startAddOutdoor(t) }) },
+        listOf(
+            MenuEntry(if (state.selectMode) "☑ Seleziona più oggetti (in uso)" else "☐ Seleziona più oggetti", vm::toggleSelectMode),
+            MenuEntry(
+                "🟡🔴 Vista: ${state.phaseView.label}",
+                children = PhaseView.entries.map { v ->
+                    MenuEntry(
+                        (if (v == state.phaseView) "✓ " else "") + v.label,
+                        { vm.setPhaseView(v) },
+                        hint = when (v) {
+                            PhaseView.Compare -> "Tutto: demolizioni in giallo, costruzioni in rosso"
+                            PhaseView.Existing -> "Com'è ora, senza le parti nuove"
+                            PhaseView.Project -> "Come sarà, senza le parti demolite (anche nel 3D)"
+                        },
+                    )
+                },
+            ),
+            MenuEntry("📐 Distanza tra due oggetti", vm::startMeasure),
+            MenuEntry("↔ Quota", vm::startDimension),
+            MenuEntry("T Testo", vm::startText),
+        ),
         buttonModifier,
         contentPadding,
+        filled = active != null,
+        arrow = !compact,
     )
 }
 
-/** "❔ Guide": elenco delle miniguide animate, una per argomento. */
+/**
+ * "❔ Guide", in alto a destra: prima le guide passo passo sulla pianta (`tours`), poi le miniguide animate, una per argomento.
+ */
 @Composable
-private fun GuidesButton(
-    onGuide: (Guide) -> Unit,
-    buttonModifier: Modifier = Modifier,
-    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
-) {
-    MenuButton(
-        "❔ Guide",
-        true,
-        Guides.map { g -> MenuEntry("${g.icon}  ${g.title}", { onGuide(g) }) },
-        buttonModifier,
-        contentPadding,
-    )
+private fun GuidesButton(onGuide: (Guide) -> Unit, tours: List<MenuEntry>) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        OutlinedButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = 12.dp)) {
+            Text("❔ Guide", maxLines = 1)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            for (t in tours) DropdownMenuItem(text = { Text(t.label) }, onClick = { open = false; t.action?.invoke() })
+            HorizontalDivider()
+            for (g in Guides) DropdownMenuItem(text = { Text("${g.icon}  ${g.title}") }, onClick = { open = false; onGuide(g) })
+        }
+    }
 }
 
 /**
@@ -818,8 +910,14 @@ private fun FixtureButton(
     )
 }
 
-/** Voce di menu: esegue un'azione oppure, se ha figli, apre un sottomenu. */
-private class MenuEntry(val label: String, val action: (() -> Unit)? = null, val children: List<MenuEntry> = emptyList())
+/** Voce di menu: esegue un'azione oppure, se ha figli, apre un sottomenu; `hint` è una riga di spiegazione sotto. */
+private class MenuEntry(
+    val label: String,
+    val action: (() -> Unit)? = null,
+    val children: List<MenuEntry> = emptyList(),
+    val enabled: Boolean = true,
+    val hint: String? = null,
+)
 
 /**
  * Pulsante con menu a tendina a più livelli: una voce con figli ("Finestre ▸") sostituisce il
@@ -832,14 +930,21 @@ private fun MenuButton(
     items: List<MenuEntry>,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
+    /** Pulsante pieno: c'è qualcosa in uso dentro al menu. */
+    filled: Boolean = false,
+    /** "▾" dopo il nome (senza, dove lo spazio è poco). */
+    arrow: Boolean = true,
 ) {
     var open by remember { mutableStateOf(false) }
     // Percorso dei sottomenu aperti (vuoto = menu principale).
     var path by remember { mutableStateOf(emptyList<MenuEntry>()) }
     fun close() { open = false; path = emptyList() }
     Box(modifier) {
-        OutlinedButton(enabled = enabled, onClick = { open = true }, modifier = Modifier.fillMaxWidth(), contentPadding = contentPadding) {
-            Text("$label ▾", maxLines = 1)
+        if (filled) Button(enabled = enabled, onClick = { open = true }, modifier = Modifier.fillMaxWidth(), contentPadding = contentPadding) {
+            Text(if (arrow) "$label ▾" else label, maxLines = 1)
+        }
+        else OutlinedButton(enabled = enabled, onClick = { open = true }, modifier = Modifier.fillMaxWidth(), contentPadding = contentPadding) {
+            Text(if (arrow) "$label ▾" else label, maxLines = 1)
         }
         DropdownMenu(expanded = open, onDismissRequest = ::close) {
             val current = path.lastOrNull()
@@ -855,7 +960,13 @@ private fun MenuButton(
             }
             (current?.children ?: items).forEach { entry ->
                 DropdownMenuItem(
-                    text = { Text(if (entry.children.isNotEmpty()) "${entry.label}  ▸" else entry.label) },
+                    text = {
+                        Column {
+                            Text(if (entry.children.isNotEmpty()) "${entry.label}  ▸" else entry.label)
+                            entry.hint?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                        }
+                    },
+                    enabled = entry.enabled,
                     onClick = {
                         if (entry.children.isNotEmpty()) path = path + entry
                         else { close(); entry.action?.invoke() }
@@ -877,14 +988,21 @@ private fun Toolbar(
     extraMenu: List<Pair<String, () -> Unit>> = emptyList(),
     /** Orizzontale: sta accanto alle schede sulla stessa riga, Annulla/Ripeti solo come icone. */
     compact: Boolean = false,
+    /** Riga tutta per sé (Annulla e Ripeti a sinistra, zoom a destra); `false` = accanto alle schede. */
+    fill: Boolean = !compact,
+    /** Altezza della riga quando ha una riga tutta per sé. */
+    rowHeight: Dp = 40.dp,
     /** Zoom e "Adatta": sulla pianta 2D oppure, in 3D, sulla telecamera 3D. */
     onZoom: (Float) -> Unit = { vm.zoomBy(it) },
     onFit: () -> Unit = vm::fitToView,
+    /** Pulsante "❔ Guide", prima dello zoom. */
+    guides: @Composable () -> Unit = {},
 ) {
     // Compatta: deve stare su una riga anche sui telefoni stretti (~360 dp).
     val pad = PaddingValues(horizontal = 8.dp)
     Row(
-        (if (compact) Modifier else Modifier.fillMaxWidth()).padding(horizontal = 4.dp),
+        // Riga tutta per sé: più bassa dei 48 dp standard, per lasciare più spazio alla pianta.
+        (if (fill) Modifier.fillMaxWidth().height(rowHeight) else Modifier).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (compact) {
@@ -893,8 +1011,9 @@ private fun Toolbar(
         } else {
             TextButton(onClick = vm::undo, enabled = canUndo, contentPadding = pad) { Text("↶ Annulla", maxLines = 1) }
             TextButton(onClick = vm::redo, enabled = canRedo, contentPadding = pad) { Text("↷ Ripeti", maxLines = 1) }
-            Box(Modifier.weight(1f))
+            if (fill) Box(Modifier.weight(1f))
         }
+        guides()
         IconButton(onClick = { onZoom(1f / 1.25f) }) { Text("−", style = MaterialTheme.typography.titleLarge) }
         IconButton(onClick = { onZoom(1.25f) }) { Text("+", style = MaterialTheme.typography.titleLarge) }
         TextButton(onClick = onFit, contentPadding = pad) { Text("Adatta", maxLines = 1) }
@@ -920,7 +1039,6 @@ private fun Toolbar(
                 HorizontalDivider()
                 for ((label, action) in extraMenu) DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; action() })
                 DropdownMenuItem(text = { Text("Esporta PNG") }, onClick = { menu = false; onExport() })
-                DropdownMenuItem(text = { Text("Rifai il tutorial") }, onClick = { menu = false; vm.restartTutorial() })
                 DropdownMenuItem(text = { Text("Rivedi i suggerimenti") }, onClick = { menu = false; vm.resetTips() })
             }
         }

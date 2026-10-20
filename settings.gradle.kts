@@ -22,8 +22,8 @@ include(":catalogo")
 include(":core")
 // Interfaccia (Compose Multiplatform), uguale su Android, computer e browser.
 include(":ui")
-// Scansione delle stanze con ARCore (solo Android).
-include(":scanner")
+// Scansione delle stanze con ARCore (solo Android): fuori dalla build normale, si rimette con -Psagoma.scanner=true.
+if (providers.gradleProperty("sagoma.scanner").orNull?.trim() == "true") include(":scanner")
 // App per computer e sito web.
 include(":desktop")
 include(":web")

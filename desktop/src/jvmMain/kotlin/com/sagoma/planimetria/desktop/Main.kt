@@ -23,6 +23,7 @@ import com.sagoma.planimetria.access.Profile
 import com.sagoma.planimetria.assets.remote.RemoteAssets
 import com.sagoma.planimetria.assets.remote.createJvmRemoteAssets
 import com.sagoma.planimetria.persistence.FileProjectRepository
+import com.sagoma.planimetria.persistence.FileThemeStore
 import com.sagoma.planimetria.persistence.FileTipStore
 import com.sagoma.planimetria.ui.FurnitureAssets
 import com.sagoma.planimetria.ui.SagomaApp
@@ -102,7 +103,7 @@ fun main() {
 private fun app(remote: RemoteAssets?) = application(exitProcessOnExit = false) {
     val dir = dataDir()
     val assets = System.getProperty("sagoma.assets")?.let(::File)?.takeIf { it.isDirectory }
-    val platform = DesktopPlatform(account = accountFromSystem(), projects = FileProjectRepository(dir), tips = FileTipStore(dir), assets = assets, assetCacheDir = assetCacheDir(), remote = remote)
+    val platform = DesktopPlatform(account = accountFromSystem(), projects = FileProjectRepository(dir), tips = FileTipStore(dir), theme = FileThemeStore(dir), assets = assets, assetCacheDir = assetCacheDir(), remote = remote)
     FurnitureAssets.init(platform)
     // Errore nella finestra: lo si scrive nel registro, lo si dice all'utente e si chiude tutto (invece di
     // lasciare il programma vivo senza finestra).

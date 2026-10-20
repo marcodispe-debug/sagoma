@@ -132,7 +132,8 @@ object SnapEngine {
         if (abs(deg - locked) > ANGLE_LOCK_DEG) return snap(p, targets, tol, alignOnly = drawn)
         val rad = toRadians(locked)
         val dir = Vec2(kotlin.math.cos(rad), kotlin.math.sin(rad)).let { Vec2(roundTiny(it.x), roundTiny(it.y)) }
-        var q = last + dir * len
+        // Il punto della direzione bloccata più vicino al puntatore (la proiezione), non la distanza in diagonale.
+        var q = last + dir * (d.x * dir.x + d.y * dir.y)
         val kind = when {
             abs(dir.y) < 1e-9 -> SnapKind.Horizontal
             abs(dir.x) < 1e-9 -> SnapKind.Vertical

@@ -19,6 +19,8 @@ kotlin {
             implementation(compose.desktop.currentOs)
             // Il "thread principale" delle coroutine sul computer è quello di Swing.
             implementation(libs.kotlinx.coroutines.swing)
+            // PDF (catasto, progetto) come pianta di sfondo: la prima pagina diventa un'immagine (Apache PDFBox, licenza Apache 2.0).
+            implementation(libs.pdfbox)
             // Vista 3D: OpenGL con LWJGL (licenza BSD), disegnata fuori schermo. Il contesto si crea con le
             // funzioni di Windows (niente GLFW: la sua DLL non firmata può essere bloccata da Smart App Control).
             val lwjgl = "3.4.3"

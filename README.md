@@ -16,6 +16,13 @@ Requisiti: Android SDK (platform 37) e JDK 17+ (va bene quello incluso in Androi
 
 Oppure apri la cartella in Android Studio ed esegui la configurazione `app`.
 
+## Come si parte
+
+Un progetto nuovo si apre sulla scelta della prima stanza: forme con le misure (quadrato, rettangolo, a L), rilievo con lati e
+diagonali, "Muro per muro" oppure **"Ricalca una piantina"**: si carica la foto o il PDF della piantina, la si mette in scala
+toccando i due estremi di una misura nota e si passa subito a "Muro per muro" per ripassare i muri sopra. Lo scanner AR non è
+nell'app: il suo codice resta nel repository (modulo `scanner`) e rientra solo con `-Psagoma.scanner=true`.
+
 ## Una sola app, diritti in un punto
 
 C'è una sola app (`com.sagoma.planimetria`, "Sagoma") per privati e professionisti: niente più varianti free e pro.
@@ -90,6 +97,7 @@ C'è una sola app (`com.sagoma.planimetria`, "Sagoma") per privati e professioni
 | `core` | Android, computer (JVM), browser (Wasm) | modello della casa, geometria (quote, 3D, computo, travi e colonne), editor (`EditorViewModel`), formato dei file, archivio dei progetti (`ProjectRepository`; su file in `jvmShared`) |
 | `ui` | Android, computer, browser | tutta l'interfaccia in Compose Multiplatform; ciò che cambia tra piattaforme passa da `Platform` (file, condivisione, immagini, PDF, 3D). `skikoMain`: immagini e PDF con Skia per computer e browser |
 | `app` | Android | `MainActivity`, motore 3D Filament |
+| `scanner` | Android | scansione AR con ARCore: **fuori dalla build normale**, si rimette con `-Psagoma.scanner=true` (schermate in `ui/src/androidScanner`) |
 | `desktop` | Windows, Mac, Linux | `./gradlew :desktop:run`; installer con `:desktop:packageMsi` |
 | `web` | browser | `./gradlew :web:wasmJsBrowserDistribution` → `web/build/dist/wasmJs/productionExecutable` (sito statico) |
 

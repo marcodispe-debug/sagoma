@@ -176,7 +176,21 @@ sealed interface UnderlayTool {
  * Strumento "Disegna muri": angoli già messi (in mezzeria dei muri), punto sotto il puntatore (anteprima del
  * prossimo muro) e, a forma chiusa, la richiesta del tipo di stanza.
  */
-data class WallDraw(val points: List<Vec2> = emptyList(), val cursor: Vec2? = null, val closing: Boolean = false)
+/**
+ * `onPlan`: il primo angolo è stato cliccato sopra la piantina di sfondo. Lì si cliccano gli angoli che si vedono, cioè il filo
+ * interno dei muri (come le quote delle piantine): alla chiusura il muro si aggiunge verso l'esterno.
+ */
+/**
+ * Disegno muro per muro in corso. `zoneRoomId`: invece di una stanza si disegna una zona non calpestabile di quella stanza
+ * (stessi tocchi, ma alla chiusura si chiede il nome della zona).
+ */
+data class WallDraw(
+    val points: List<Vec2> = emptyList(),
+    val cursor: Vec2? = null,
+    val closing: Boolean = false,
+    val onPlan: Boolean = false,
+    val zoneRoomId: Long? = null,
+)
 
 /**
  * Appunti di "Copia": un impianto o un'apertura (si incollano toccando un muro, le luci dentro una stanza)
@@ -205,6 +219,11 @@ data class EditorUiState(
      * (si aggiorna a ogni trascinamento); la casa completa è [fullBuilding].
      */
     val building: Building = Building.single(FloorPlan(), autoLevel = true),
+    /**
+     * Agganci attivi (angoli, allineamenti, direzioni bloccate, accostamenti ai muri). Spenti, angoli e oggetti vanno
+     * esattamente dove li porta il dito o il mouse; resta solo la chiusura della stanza sul primo angolo.
+     */
+    val snapOn: Boolean = true,
     /** Finestra per aggiungere o modificare un piano. */
     val floorDialog: FloorDialog? = null,
     /** Strumento "Distanza" attivo: i tocchi scelgono gli oggetti da misurare. */
@@ -279,6 +298,17 @@ data class EditorUiState(
     val snapGuides: List<com.sagoma.planimetria.geometry.SnapGuide> = emptyList(),
     /** Pianta di sfondo: si sta spostando o tarando (i tocchi vanno a lei invece che al disegno). */
     val underlayTool: UnderlayTool? = null,
+    /**
+     * "Ricalca una piantina" scelto al posto della prima stanza: si carica e si tara lo sfondo, poi si disegna muro per muro.
+     * È la scelta della stanza a cui tornare se si rinuncia senza caricare nulla (null = nessun ricalco iniziale in corso).
+     */
+    val tracing: CreationStep? = null,
+    /**
+     * Vista del disegno sopra la piantina: nascosto o con trasparenza (1 = pieno). È un modo di guardare, non una modifica: niente
+     * Annulla e non si salva nel progetto.
+     */
+    val drawingVisible: Boolean = true,
+    val drawingOpacity: Double = 1.0,
 ) {
     val fullBuilding: Building get() = building.withPlan(plan)
     /** Altezza che devono superare le scale di questo piano (interpiano). */

@@ -49,9 +49,12 @@ import com.sagoma.planimetria.model.RoomShape
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Vec2
 
-/** Flusso di creazione stanza: forma → (orientamento L) → misure (§1). */
+/**
+ * Flusso di creazione stanza: forma → (orientamento L) → misure (§1). `onOpenProjects`: dalla scelta obbligatoria della prima stanza
+ * (senza "Annulla") si può comunque tornare all'elenco dei progetti.
+ */
 @Composable
-fun CreationFlow(step: CreationStep, vm: EditorViewModel) {
+fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() -> Unit)? = null) {
     // Senza "Annulla" la prima volta: la finestra non si chiude né col tasto indietro né toccando fuori.
     val props = DialogProperties(dismissOnBackPress = step.cancellable, dismissOnClickOutside = step.cancellable)
     when (step) {
@@ -102,6 +105,24 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel) {
                             }
                         }
                     }
+                    // Prima stanza: chi ha già una piantina (catasto, progetto, foto) la mette sotto in scala e la ricalca.
+                    if (!sketchMode && vm.state.value.plan.rooms.isEmpty() && vm.state.value.creationType?.outdoor != true) {
+                        OutlinedCard(onClick = vm::startTracing, modifier = Modifier.fillMaxWidth()) {
+                            Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("🗺", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center, modifier = Modifier.size(48.dp))
+                                Spacer(Modifier.size(12.dp))
+                                Column {
+                                    Text("Ricalca una piantina", style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        if (LocalPlatform.current.pdfAsBackground) "Carichi la foto o il PDF della piantina, la metti in scala con una misura e ripassi i muri"
+                                        else "Carichi la foto della piantina, la metti in scala con una misura e ripassi i muri",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
                     // Un muro da solo (tramezzo): solo quando sul piano c'è già almeno una stanza in cui metterlo (non per la prima
                     // stanza del progetto né per la prima di un piano nuovo).
                     if (step.cancellable && !sketchMode && vm.state.value.plan.rooms.isNotEmpty()) {
@@ -127,6 +148,7 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel) {
                 Row {
                     backToQuestion?.let { TextButton(onClick = it) { Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.back) } }
                     if (step.cancellable) TextButton(onClick = vm::cancelCreation) { Text("Annulla") }
+                    else if (onOpenProjects != null) TextButton(onClick = onOpenProjects) { Text("📁 Progetti") }
                 }
             },
         )
