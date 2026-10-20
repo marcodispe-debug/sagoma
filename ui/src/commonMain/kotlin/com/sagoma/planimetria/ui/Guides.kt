@@ -215,7 +215,22 @@ val Guides: List<Guide> = listOf(
     ),
     Guide("🧊", "Vista 3D", listOf(GuideStep(Tip.View3D.title, Tip.View3D.text, Sketch.View3D)), endsIn3d = true),
     AtticGuide,
-    Guide("📏", "Metro", listOf(step(TutorialStep.Ruler))),
+    Guide(
+        "↔", "Quote e testi",
+        listOf(
+            GuideStep(
+                "Aggiungi una quota",
+                "Premi «🛠 Strumenti» → Quota e tocca i due estremi: i punti si agganciano ad angoli e facce dei muri. La quota resta " +
+                    "sulla pianta ed esce nelle tavole; toccala per spostarla o eliminarla.",
+                Sketch.Ruler,
+            ),
+            GuideStep(
+                "Scrivi un testo",
+                "Premi «🛠 Strumenti» → Testo, tocca dove scriverlo, poi scrivi e scegli la grandezza.",
+                Sketch.Ruler,
+            ),
+        ),
+    ),
 )
 
 /** Miniguida passo passo: animazione, titolo e testo di ogni passo, con Avanti e Indietro. */

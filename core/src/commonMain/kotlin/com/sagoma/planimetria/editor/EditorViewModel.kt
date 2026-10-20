@@ -1651,7 +1651,6 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val c = cam.toWorld(viewportW / 2, viewportH / 2)
         val half = Vec2(Ruler.DEFAULT_LENGTH / 2, 0.0)
         commit { it.copy(rulers = it.rulers + Ruler(it.nextRulerId, c - half, c + half)) }
-        tutorialEvent(TutorialEvent.RulerAdded)
         showTip(Tip.Ruler)
     }
 
@@ -2693,7 +2692,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     private companion object {
         const val AUTOSAVE_DELAY_MS = 400L
         /** Funzioni già spiegate dal tutorial: finito il tutorial, i loro suggerimenti non servono più. */
-        val TUTORIAL_TIPS = listOf(Tip.Welcome, Tip.Room, Tip.Wall, Tip.NewRoom, Tip.Opening, Tip.Fixture, Tip.Ruler)
+        val TUTORIAL_TIPS = listOf(Tip.Welcome, Tip.Room, Tip.Wall, Tip.NewRoom, Tip.Opening, Tip.Fixture)
 
         /** Funzioni già spiegate dalla guida al ricalco. */
         val TRACING_GUIDE_TIPS = listOf(Tip.Tracing, Tip.Underlay, Tip.Calibrate, Tip.WallDraw, Tip.RoomInfo)

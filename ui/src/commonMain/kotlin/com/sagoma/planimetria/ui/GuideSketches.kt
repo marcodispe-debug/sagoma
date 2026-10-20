@@ -63,7 +63,6 @@ val TutorialStep.sketch: Sketch
         TutorialStep.AddRoom -> Sketch.AddRoom
         TutorialStep.MoveRoom -> Sketch.MoveRoom
         TutorialStep.Undo -> Sketch.Undo
-        TutorialStep.Ruler -> Sketch.Ruler
         TutorialStep.Done -> Sketch.Done
         TutorialStep.TraceLoad, TutorialStep.TraceFirstCorner, TutorialStep.TraceCorners, TutorialStep.TraceClose -> Sketch.Trace
         TutorialStep.TraceCalibA, TutorialStep.TraceCalibB, TutorialStep.TraceCalibValue -> Sketch.Calibrate
@@ -827,7 +826,7 @@ private fun DrawScope.undo(f: Frame) {
     finger(f, pos, f.shown(0.02f, 0.8f), f.tap(0.08f, 0.57f))
 }
 
-/** "🛠 Strumenti" → Metro: compare il righello, se ne trascina l'estremità e la misura cresce. */
+/** "🛠 Strumenti" → Quota: compare la misura, se ne trascina l'estremità e cresce (guida di quote e testi). */
 private fun DrawScope.ruler(f: Frame) {
     button(f, "🛠 Strumenti", Offset(0.5f, 0.88f), 0.6f, pressed = f.t in 0.08f..0.16f)
     val a = f.seg(0.14f, 0.22f)

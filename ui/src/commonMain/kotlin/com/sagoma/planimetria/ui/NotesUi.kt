@@ -38,8 +38,8 @@ private val TextSizes = listOf("Piccolo" to 15.0, "Medio" to 25.0, "Grande" to 4
 fun NotesToolCard(state: EditorUiState, vm: EditorViewModel) {
     val draw = state.dimensionDraw
     val hint = when {
-        draw != null -> if (draw.first == null) "📏 Quota: tocca il primo punto (si aggancia ad angoli e facce dei muri)"
-        else "📏 Quota: tocca il secondo punto"
+        draw != null -> if (draw.first == null) "↔ Quota: tocca il primo punto (si aggancia ad angoli e facce dei muri)"
+        else "↔ Quota: tocca il secondo punto"
         state.textPlacing -> "T Testo: tocca dove scriverlo"
         else -> return
     }

@@ -58,10 +58,6 @@ enum class TutorialStep(val title: String, val text: String, val action: Boolean
         "Annulla",
         "Hai sbagliato qualcosa? Premi ↶ Annulla in alto per tornare indietro di un passo (↷ Ripeti lo rifà).",
     ),
-    Ruler(
-        "Il metro",
-        "Premi «🛠 Strumenti» → Metro: trascina le estremità per allungarlo, il centro per spostarlo, la maniglia tonda per ruotarlo; con × lo elimini.",
-    ),
     Done(
         "Fatto!",
         "Ora conosci le funzioni principali. Da «❔ Guide», in alto a destra, rifai il tutorial quando vuoi e trovi una guida per ogni funzione.",
@@ -143,7 +139,6 @@ sealed interface TutorialEvent {
     data object RoomAdded : TutorialEvent
     data object RoomMoved : TutorialEvent
     data object Undo : TutorialEvent
-    data object RulerAdded : TutorialEvent
     data object UnderlayLoaded : TutorialEvent
     /** Taratura: punti già toccati (1 = solo A, 2 = A e B). */
     data class CalibrationPoints(val count: Int) : TutorialEvent
@@ -211,7 +206,6 @@ class Tutorial {
             TutorialStep.AddRoom -> event == TutorialEvent.RoomAdded
             TutorialStep.MoveRoom -> event == TutorialEvent.RoomMoved
             TutorialStep.Undo -> event == TutorialEvent.Undo
-            TutorialStep.Ruler -> event == TutorialEvent.RulerAdded
             TutorialStep.TraceLoad -> event == TutorialEvent.UnderlayLoaded
             // Durante la taratura il passo segue i punti toccati: il terzo tocco ricomincia da A, e la guida torna indietro.
             TutorialStep.TraceCalibA, TutorialStep.TraceCalibB, TutorialStep.TraceCalibValue -> return when (event) {

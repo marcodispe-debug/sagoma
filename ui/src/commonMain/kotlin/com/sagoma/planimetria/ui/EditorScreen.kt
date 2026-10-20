@@ -746,7 +746,8 @@ private fun ArchitectureButton(
 }
 
 /**
- * "🛠 Strumenti": selezione multipla, vista gialli e rossi, distanza, quota, testo e metro. Con uno strumento in uso
+ * "🛠 Strumenti": selezione multipla, vista gialli e rossi, distanza, quota e testo (il metro è stato tolto: la quota fa lo stesso;
+ * i metri dei progetti vecchi restano visibili e modificabili). Con uno strumento in uso
  * (o una vista diversa da gialli e rossi) il pulsante è pieno e ne mostra il nome; si esce dalla scheda in alto.
  */
 @Composable
@@ -787,7 +788,6 @@ private fun ToolsButton(
             MenuEntry("📐 Distanza tra due oggetti", vm::startMeasure),
             MenuEntry("↔ Quota", vm::startDimension),
             MenuEntry("T Testo", vm::startText),
-            MenuEntry("📏 Metro", vm::addRuler),
         ),
         buttonModifier,
         contentPadding,

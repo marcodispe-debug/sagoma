@@ -43,7 +43,7 @@ class TutorialTest {
         val sequence = listOf(
             TutorialEvent.WallDragged, TutorialEvent.CornerDragged,
             TutorialEvent.OpeningAdded, TutorialEvent.OpeningDragged, TutorialEvent.FixtureAdded,
-            TutorialEvent.RoomAdded, TutorialEvent.RoomMoved, TutorialEvent.Undo, TutorialEvent.RulerAdded,
+            TutorialEvent.RoomAdded, TutorialEvent.RoomMoved, TutorialEvent.Undo,
         )
         for (e in sequence) assertTrue("$e", t.on(e))
         assertEquals(TutorialStep.Done, t.step)
