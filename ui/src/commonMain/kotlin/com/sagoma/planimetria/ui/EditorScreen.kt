@@ -181,6 +181,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
     ) {
         // In orizzontale (poca altezza) schede e barra stanno su una sola riga, per lasciare spazio alla pianta.
         val compactHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } < 500.dp
+        // Finestra larga (computer, tablet): schede e barra su una sola riga, così la striscia in alto è più sottile.
+        val wideWindow = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() } >= 900.dp
         // E la barra di stato si nasconde (riappare temporaneamente scorrendo dal bordo superiore).
         LaunchedEffect(compactHeight) { platform.setStatusBarHidden(compactHeight) }
         // Vista 3D: telecamera e superficie OpenGL restano le stesse passando da 2D a 3D e ritorno.
@@ -195,7 +197,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 vm.startTracingGuide()
             }),
         )
-        val toolbar = @Composable { compact: Boolean ->
+        val toolbar = @Composable { compact: Boolean, fill: Boolean ->
             Toolbar(
                 // Mentre si disegnano i muri Annulla toglie l'ultimo angolo (anche se la pianta non ha ancora modifiche da annullare).
                 state.canUndo || state.wallDraw?.points?.isNotEmpty() == true,
@@ -205,10 +207,11 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 onExport = exportPng,
                 extraMenu = extraMenu,
                 compact = compact,
+                fill = fill,
                 onZoom = { f -> if (state.view3d) view3dState.zoom(f) else vm.zoomBy(f) },
                 onFit = { if (state.view3d) view3dState.fitPlan(state.plan) else vm.fitToView() },
                 // In orizzontale "❔" sta sulla riga unica; in verticale in cima, accanto alle schede (sulla riga di zoom non ci sta).
-                guides = { if (compact) GuidesButton(onGuide = { openGuide = it }, tours = guidedTours) },
+                guides = { if (compact || !fill) GuidesButton(onGuide = { openGuide = it }, tours = guidedTours) },
             )
         }
         // Piano che si sta modificando (e menu dei piani) prima delle schede delle stanze.
@@ -216,15 +219,21 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 FloorButton(state.building, vm, Modifier.padding(start = 8.dp), compact = true)
                 RoomTabs(state.plan.rooms, state.focusedRoomId, onTap = vm::openRoomProperties, modifier = Modifier.weight(1f), compact = true)
-                toolbar(true)
+                toolbar(true, false)
+            }
+        } else if (wideWindow) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FloorButton(state.building, vm, Modifier.padding(start = 8.dp))
+                RoomTabs(state.plan.rooms, state.focusedRoomId, onTap = vm::openRoomProperties, modifier = Modifier.weight(1f), compact = true)
+                toolbar(false, false)
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 FloorButton(state.building, vm, Modifier.padding(start = 8.dp))
-                RoomTabs(state.plan.rooms, state.focusedRoomId, onTap = vm::openRoomProperties, modifier = Modifier.weight(1f))
+                RoomTabs(state.plan.rooms, state.focusedRoomId, onTap = vm::openRoomProperties, modifier = Modifier.weight(1f), compact = true)
                 Box(Modifier.padding(end = 8.dp)) { GuidesButton(onGuide = { openGuide = it }, tours = guidedTours) }
             }
-            toolbar(false)
+            toolbar(false, true)
         }
         HorizontalDivider()
 
@@ -975,6 +984,8 @@ private fun Toolbar(
     extraMenu: List<Pair<String, () -> Unit>> = emptyList(),
     /** Orizzontale: sta accanto alle schede sulla stessa riga, Annulla/Ripeti solo come icone. */
     compact: Boolean = false,
+    /** Riga tutta per sé (Annulla e Ripeti a sinistra, zoom a destra); `false` = accanto alle schede. */
+    fill: Boolean = !compact,
     /** Zoom e "Adatta": sulla pianta 2D oppure, in 3D, sulla telecamera 3D. */
     onZoom: (Float) -> Unit = { vm.zoomBy(it) },
     onFit: () -> Unit = vm::fitToView,
@@ -984,7 +995,8 @@ private fun Toolbar(
     // Compatta: deve stare su una riga anche sui telefoni stretti (~360 dp).
     val pad = PaddingValues(horizontal = 8.dp)
     Row(
-        (if (compact) Modifier else Modifier.fillMaxWidth()).padding(horizontal = 4.dp),
+        // Riga tutta per sé: alta 40 dp invece di 48, per lasciare più spazio alla pianta.
+        (if (fill) Modifier.fillMaxWidth().height(40.dp) else Modifier).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (compact) {
@@ -993,7 +1005,7 @@ private fun Toolbar(
         } else {
             TextButton(onClick = vm::undo, enabled = canUndo, contentPadding = pad) { Text("↶ Annulla", maxLines = 1) }
             TextButton(onClick = vm::redo, enabled = canRedo, contentPadding = pad) { Text("↷ Ripeti", maxLines = 1) }
-            Box(Modifier.weight(1f))
+            if (fill) Box(Modifier.weight(1f))
         }
         guides()
         IconButton(onClick = { onZoom(1f / 1.25f) }) { Text("−", style = MaterialTheme.typography.titleLarge) }
