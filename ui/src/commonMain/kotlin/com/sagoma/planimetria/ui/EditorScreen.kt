@@ -112,12 +112,14 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
     var showTakeoff by remember { mutableStateOf(false) }
     var showBackground by remember { mutableStateOf(false) }
     var showLayers by remember { mutableStateOf(false) }
+    var showTheme by remember { mutableStateOf(false) }
     val extraMenu = listOf(
         "📁 Progetti" to { vm.saveNow(); onOpenProjects() },
         "🗂 Livelli…" to { showLayers = true },
         "📄 Tavola PDF in scala…" to { showPdf = true },
         "🧮 Computo e lista arredi" to { showTakeoff = true },
         "🗺 Pianta di sfondo…" to { showBackground = true },
+        "🌓 Tema chiaro o scuro…" to { showTheme = true },
     )
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
@@ -131,6 +133,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         if (vm.state.value.plan.underlay == null) vm.abandonTracingGuide()
     })
     if (showLayers) LayersDialog(state, vm, onDismiss = { showLayers = false })
+    if (showTheme) ThemeDialog(onDismiss = { showTheme = false })
     state.textDialogAt?.let { at -> NewTextDialog(at, vm) }
 
     Column(

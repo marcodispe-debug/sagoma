@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.sagoma.planimetria.persistence.FileProjectRepository
+import com.sagoma.planimetria.persistence.FileThemeStore
 import com.sagoma.planimetria.persistence.FileTipStore
 import com.sagoma.planimetria.ui.AndroidPlatform
 import com.sagoma.planimetria.ui.FurnitureAssets
@@ -20,6 +21,7 @@ class MainActivity : ComponentActivity() {
             activity = this,
             projects = FileProjectRepository(filesDir),
             tips = FileTipStore(filesDir),
+            theme = FileThemeStore(filesDir),
             sceneRenderer = SceneRenderers::create,
             remoteStore = app.remoteStore,
             assetRequests = app.assetRequests,

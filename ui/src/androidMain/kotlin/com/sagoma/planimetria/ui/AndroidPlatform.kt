@@ -30,7 +30,9 @@ import com.sagoma.planimetria.assets.AssetStore
 import com.sagoma.planimetria.assets.CompositeAssetStore
 import com.sagoma.planimetria.assets.NoAssetRequests
 import com.sagoma.planimetria.editor.TipStore
+import com.sagoma.planimetria.persistence.NoThemeStore
 import com.sagoma.planimetria.persistence.ProjectRepository
+import com.sagoma.planimetria.persistence.ThemeStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -50,6 +52,7 @@ class AndroidPlatform(
     private val activity: ComponentActivity,
     override val projects: ProjectRepository,
     override val tips: TipStore,
+    override val theme: ThemeStore = NoThemeStore,
     private val sceneRenderer: (Context, AssetStore) -> SceneRenderer,
     /** Negozio remoto del processo (lo possiede l'`Application`, mai creato qui), da usare dopo gli asset impacchettati; `null` = nessun remoto. */
     remoteStore: AssetStore? = null,
@@ -223,5 +226,13 @@ class AndroidPlatform(
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         if (hidden) controller.hide(WindowInsetsCompat.Type.statusBars()) else controller.show(WindowInsetsCompat.Type.statusBars())
+    }
+
+    override fun setDarkTheme(dark: Boolean) {
+        // Icone della barra di stato e dei tasti chiare sul tema scuro, scure sul chiaro (non come il sistema).
+        val window = activity.window
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.isAppearanceLightStatusBars = !dark
+        controller.isAppearanceLightNavigationBars = !dark
     }
 }
