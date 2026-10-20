@@ -93,6 +93,8 @@ class WebPlatform : Platform {
     override suspend fun importImage(bytes: ByteArray, pdf: Boolean, maxSide: Int): ImportedImage? =
         if (pdf) null else SkiaImages.importImage(bytes, maxSide)
 
+    override suspend fun importPhoto(bytes: ByteArray, maxSide: Int, quality: Int): ImportedImage? = SkiaImages.importImage(bytes, maxSide, quality)
+
     // Il PDF come sfondo non c'è ancora nel browser: solo immagini.
     override val pdfAsBackground: Boolean get() = false
 

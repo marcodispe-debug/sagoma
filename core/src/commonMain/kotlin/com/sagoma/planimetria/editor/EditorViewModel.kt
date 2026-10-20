@@ -51,6 +51,7 @@ import com.sagoma.planimetria.model.WallPaint
 import com.sagoma.planimetria.model.WallFinish
 import com.sagoma.planimetria.model.ExcludedZone
 import com.sagoma.planimetria.model.Room
+import com.sagoma.planimetria.model.RoomPhoto
 import com.sagoma.planimetria.model.RoomShape
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Ruler
@@ -1395,6 +1396,20 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val room = _state.value.plan.room(roomId) ?: return
         if (room.excludedZones.none { it.id == zoneId }) return
         commit { p -> p.replace(room.copy(excludedZones = room.excludedZones.filter { it.id != zoneId })) }
+    }
+
+    // ---------- Foto della stanza ----------
+
+    /** Aggiunge una foto (già salvata tra i file del progetto) in fondo a quelle della stanza. */
+    fun addRoomPhoto(roomId: Long, photo: RoomPhoto) =
+        commit { p -> p.room(roomId)?.let { p.replace(it.copy(photos = it.photos + photo)) } ?: p }
+
+    /** Toglie la foto dalla stanza; il file resta finché il progetto non viene riaperto, così Annulla la rimette. */
+    fun removeRoomPhoto(roomId: Long, file: String) =
+        commit { p -> p.room(roomId)?.let { r -> p.replace(r.copy(photos = r.photos.filter { it.file != file })) } ?: p }
+
+    fun setRoomPhotoNote(roomId: Long, file: String, note: String) = commit { p ->
+        p.room(roomId)?.let { r -> p.replace(r.copy(photos = r.photos.map { if (it.file == file) it.copy(note = note.trim()) else it })) } ?: p
     }
 
     // ---------- Fuoco e selezione (§4, §10) ----------

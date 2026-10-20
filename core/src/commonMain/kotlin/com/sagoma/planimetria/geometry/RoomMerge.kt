@@ -101,10 +101,10 @@ object RoomMerge {
                 ?: sourceHeight(other, mid, shell.wallEnd(k) - shell.wallStart(k))?.let { k to it }
         }.filter { it.second != room.ceilingHeight }.toMap()
 
-        // Zone non calpestabili di entrambe: quelle dell'altra stanza prendono numeri nuovi.
+        // Zone non calpestabili e foto di entrambe: le zone dell'altra stanza prendono numeri nuovi.
         val firstZoneId = (room.excludedZones.maxOfOrNull { it.id } ?: 0) + 1
         val zones = room.excludedZones + other.excludedZones.mapIndexed { k, z -> z.copy(id = firstZoneId + k) }
-        val merged = shell.copy(openings = openings, fixtures = fixtures, wallHeights = heights, excludedZones = zones)
+        val merged = shell.copy(openings = openings, fixtures = fixtures, wallHeights = heights, excludedZones = zones, photos = room.photos + other.photos)
         val newPlan = plan.copy(rooms = plan.rooms.filter { it.id != other.id }.map { if (it.id == room.id) merged else it })
         return MergeResult(
             newPlan,

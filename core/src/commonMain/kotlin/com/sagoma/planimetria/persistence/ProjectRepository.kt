@@ -39,9 +39,27 @@ interface ProjectRepository {
     /** File del progetto (immagini di sfondo…), per nome. */
     fun readFile(id: Long, name: String): ByteArray?
     fun writeFile(id: Long, name: String, bytes: ByteArray)
+    /** Nomi dei file del progetto (la casa esclusa); dove non si sa elencarli è vuoto. */
+    fun files(id: Long): List<String> = emptyList()
+    fun deleteFile(id: Long, name: String) {}
 
     /** Progetto in un unico file .sagoma (zip: scheda del progetto, casa e file). */
     fun export(id: Long): ByteArray?
     /** Nuovo progetto da un file .sagoma (o da un semplice planimetria.json). Null se il file non è valido. */
     fun import(bytes: ByteArray): ProjectInfo?
+}
+
+/**
+ * Foto delle stanze che nessuna stanza usa più (tolte, o di una stanza eliminata): si cancellano all'apertura del progetto,
+ * quando Annulla non può più rimetterle.
+ */
+object RoomPhotoFiles {
+    fun unused(files: List<String>, building: com.sagoma.planimetria.model.Building): List<String> {
+        val used = building.floors.flatMap { f -> f.plan.rooms.flatMap { r -> r.photos.flatMap { listOf(it.file, it.thumb) } } }.toSet()
+        return files.filter { it.startsWith(com.sagoma.planimetria.model.RoomPhoto.PREFIX) && it !in used }
+    }
+
+    fun prune(repo: ProjectRepository, id: Long, building: com.sagoma.planimetria.model.Building) {
+        for (name in unused(repo.files(id), building)) runCatching { repo.deleteFile(id, name) }
+    }
 }

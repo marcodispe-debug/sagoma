@@ -86,6 +86,18 @@ interface Platform {
      */
     suspend fun importImage(bytes: ByteArray, pdf: Boolean, maxSide: Int): ImportedImage?
 
+    /**
+     * Foto di una stanza da tenere nel progetto: come [importImage], con la qualità JPEG `quality` (0-100) per farla pesare poco.
+     * Dove la piattaforma non la sa scegliere si usa la qualità delle piante di sfondo.
+     */
+    suspend fun importPhoto(bytes: ByteArray, maxSide: Int, quality: Int): ImportedImage? = importImage(bytes, false, maxSide)
+
+    /** Si può scattare una foto con la fotocamera ([takePhoto])? Solo dove c'è (Android). */
+    val canTakePhoto: Boolean get() = false
+
+    /** Apre la fotocamera del sistema e restituisce la foto scattata; null se l'utente annulla o non si riesce. */
+    fun takePhoto(onResult: (PickedFile?) -> Unit) = onResult(null)
+
     /** Un PDF si può usare come pianta di sfondo ([importImage] con `pdf`)? Dove no, si offrono solo le immagini. */
     val pdfAsBackground: Boolean get() = true
 

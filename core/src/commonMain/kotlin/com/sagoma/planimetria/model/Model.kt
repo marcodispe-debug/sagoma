@@ -286,6 +286,8 @@ data class Room(
      * l'area utile della stanza è quella interna meno queste zone. Coordinate come [points].
      */
     val excludedZones: List<ExcludedZone> = emptyList(),
+    /** Foto della stanza fatte al sopralluogo, solo come promemoria (non diventano il 3D). Assenti nei file vecchi. */
+    val photos: List<RoomPhoto> = emptyList(),
 ) {
     /** Stato del muro `i` (esistente, da demolire, nuovo). */
     fun phaseOf(i: Int): Phase = wallPhases[i] ?: Phase.Existing
@@ -417,6 +419,18 @@ data class Room(
 data class ExcludedZone(val id: Long, val points: List<Vec2>, val name: String = DEFAULT_NAME) {
     companion object {
         const val DEFAULT_NAME = "Non accessibile"
+    }
+}
+
+/**
+ * Foto di riferimento di una stanza: `file` è l'immagine ridotta e `thumb` la miniatura per l'elenco, entrambe tra i file del
+ * progetto; `note` è un promemoria scritto dall'utente ("presa a 30 cm dal pavimento").
+ */
+@Serializable
+data class RoomPhoto(val file: String, val thumb: String, val note: String = "", val taken: Long = 0) {
+    companion object {
+        /** Inizio del nome dei file delle foto: i file che nessuna stanza usa più si possono cancellare. */
+        const val PREFIX = "foto-"
     }
 }
 
