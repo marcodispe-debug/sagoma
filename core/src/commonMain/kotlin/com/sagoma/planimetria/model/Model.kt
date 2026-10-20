@@ -39,6 +39,18 @@ enum class RoomType(val label: String, val defaultName: String, val argb: Long, 
     Corridoio("Corridoio", "Corridoio", 0xFF868E96),
     Balcone("Balcone", "Balcone", 0xFF12B886, outdoor = true),
     Terrazza("Terrazza", "Terrazza", 0xFF74B816, outdoor = true),
+    ;
+
+    /**
+     * Pavimento con cui nasce una stanza di questo tipo, così il 3D sembra una casa e non un plastico colorato: parquet dove si
+     * vive e si dorme, gres in cucina e bagno, cotto fuori. Si cambia da Info → Finiture.
+     */
+    val defaultFloor: FloorFinish
+        get() = when (this) {
+            Cucina, Bagno -> FloorFinish.LightTiles
+            Balcone, Terrazza -> FloorFinish.Terracotta
+            else -> FloorFinish.OakParquet
+        }
 }
 
 /** Parapetto di balconi e terrazze. I nomi delle costanti finiscono nel file salvato. */
