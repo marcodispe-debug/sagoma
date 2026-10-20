@@ -117,10 +117,6 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         "📄 Tavola PDF in scala…" to { showPdf = true },
         "🧮 Computo e lista arredi" to { showTakeoff = true },
         "🗺 Pianta di sfondo…" to { showBackground = true },
-        "🧭 Guida al ricalco" to {
-            if (state.plan.underlay == null) showBackground = true
-            vm.startTracingGuide()
-        },
     )
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
@@ -185,6 +181,16 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         LaunchedEffect(compactHeight) { platform.setStatusBarHidden(compactHeight) }
         // Vista 3D: telecamera e superficie OpenGL restano le stesse passando da 2D a 3D e ritorno.
         val view3dState = remember { View3DState() }
+        var openGuide by remember { mutableStateOf<Guide?>(null) }
+        openGuide?.let { GuideDialog(it, onDismiss = { openGuide = null }, onOpen3d = { vm.setView3d(true) }) }
+        // Guide passo passo che si fanno sulla pianta: avanzano da sole a ogni azione.
+        val guidedTours = listOf(
+            MenuEntry("🎓  Tutorial passo passo", vm::restartTutorial),
+            MenuEntry("🧭  Ricalco passo passo", {
+                if (state.plan.underlay == null) showBackground = true
+                vm.startTracingGuide()
+            }),
+        )
         val toolbar = @Composable { compact: Boolean ->
             Toolbar(
                 // Mentre si disegnano i muri Annulla toglie l'ultimo angolo (anche se la pianta non ha ancora modifiche da annullare).
@@ -197,6 +203,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 compact = compact,
                 onZoom = { f -> if (state.view3d) view3dState.zoom(f) else vm.zoomBy(f) },
                 onFit = { if (state.view3d) view3dState.fitPlan(state.plan) else vm.fitToView() },
+                // In orizzontale "❔" sta sulla riga unica; in verticale in cima, accanto alle schede (sulla riga di zoom non ci sta).
+                guides = { if (compact) GuidesButton(onGuide = { openGuide = it }, tours = guidedTours) },
             )
         }
         // Piano che si sta modificando (e menu dei piani) prima delle schede delle stanze.
@@ -210,13 +218,11 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 FloorButton(state.building, vm, Modifier.padding(start = 8.dp))
                 RoomTabs(state.plan.rooms, state.focusedRoomId, onTap = vm::openRoomProperties, modifier = Modifier.weight(1f))
+                Box(Modifier.padding(end = 8.dp)) { GuidesButton(onGuide = { openGuide = it }, tours = guidedTours) }
             }
             toolbar(false)
         }
         HorizontalDivider()
-
-        var openGuide by remember { mutableStateOf<Guide?>(null) }
-        openGuide?.let { GuideDialog(it, onDismiss = { openGuide = null }, onOpen3d = { vm.setView3d(true) }) }
 
         Row(Modifier.weight(1f).fillMaxWidth()) {
         // In orizzontale i pulsanti di azione stanno in una colonna a sinistra: la larghezza abbonda,
@@ -483,8 +489,6 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 else OutlinedButton(onClick = vm::startDimension) { Text("↔ Quota") }
                 if (state.textPlacing) Button(onClick = vm::cancelText) { Text("T Testo") }
                 else OutlinedButton(onClick = vm::startText) { Text("T Testo") }
-                VerticalDivider(Modifier.height(32.dp))
-                GuidesButton(onGuide = { openGuide = it })
             }
         }
     }
@@ -688,8 +692,6 @@ private fun ActionRail(openingsEnabled: Boolean, vm: EditorViewModel, onGuide: (
         OutlinedButton(onClick = vm::startMeasure, modifier = buttonModifier, contentPadding = pad) { Text("📐 Distanza", maxLines = 1) }
         OutlinedButton(onClick = vm::startDimension, modifier = buttonModifier, contentPadding = pad) { Text("↔ Quota", maxLines = 1) }
         OutlinedButton(onClick = vm::startText, modifier = buttonModifier, contentPadding = pad) { Text("T Testo", maxLines = 1) }
-        HorizontalDivider()
-        GuidesButton(onGuide, buttonModifier, pad)
     }
 }
 
@@ -748,20 +750,22 @@ private fun OutdoorButton(
     )
 }
 
-/** "❔ Guide": elenco delle miniguide animate, una per argomento. */
+/**
+ * "❔ Guide", in alto a destra: prima le guide passo passo sulla pianta (`tours`), poi le miniguide animate, una per argomento.
+ */
 @Composable
-private fun GuidesButton(
-    onGuide: (Guide) -> Unit,
-    buttonModifier: Modifier = Modifier,
-    contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
-) {
-    MenuButton(
-        "❔ Guide",
-        true,
-        Guides.map { g -> MenuEntry("${g.icon}  ${g.title}", { onGuide(g) }) },
-        buttonModifier,
-        contentPadding,
-    )
+private fun GuidesButton(onGuide: (Guide) -> Unit, tours: List<MenuEntry>) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        OutlinedButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = 12.dp)) {
+            Text("❔ Guide", maxLines = 1)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            for (t in tours) DropdownMenuItem(text = { Text(t.label) }, onClick = { open = false; t.action?.invoke() })
+            HorizontalDivider()
+            for (g in Guides) DropdownMenuItem(text = { Text("${g.icon}  ${g.title}") }, onClick = { open = false; onGuide(g) })
+        }
+    }
 }
 
 /**
@@ -906,6 +910,8 @@ private fun Toolbar(
     /** Zoom e "Adatta": sulla pianta 2D oppure, in 3D, sulla telecamera 3D. */
     onZoom: (Float) -> Unit = { vm.zoomBy(it) },
     onFit: () -> Unit = vm::fitToView,
+    /** Pulsante "❔ Guide", prima dello zoom. */
+    guides: @Composable () -> Unit = {},
 ) {
     // Compatta: deve stare su una riga anche sui telefoni stretti (~360 dp).
     val pad = PaddingValues(horizontal = 8.dp)
@@ -921,6 +927,7 @@ private fun Toolbar(
             TextButton(onClick = vm::redo, enabled = canRedo, contentPadding = pad) { Text("↷ Ripeti", maxLines = 1) }
             Box(Modifier.weight(1f))
         }
+        guides()
         IconButton(onClick = { onZoom(1f / 1.25f) }) { Text("−", style = MaterialTheme.typography.titleLarge) }
         IconButton(onClick = { onZoom(1.25f) }) { Text("+", style = MaterialTheme.typography.titleLarge) }
         TextButton(onClick = onFit, contentPadding = pad) { Text("Adatta", maxLines = 1) }
@@ -946,7 +953,6 @@ private fun Toolbar(
                 HorizontalDivider()
                 for ((label, action) in extraMenu) DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; action() })
                 DropdownMenuItem(text = { Text("Esporta PNG") }, onClick = { menu = false; onExport() })
-                DropdownMenuItem(text = { Text("Rifai il tutorial") }, onClick = { menu = false; vm.restartTutorial() })
                 DropdownMenuItem(text = { Text("Rivedi i suggerimenti") }, onClick = { menu = false; vm.resetTips() })
             }
         }

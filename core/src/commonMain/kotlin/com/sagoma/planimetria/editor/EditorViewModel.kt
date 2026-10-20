@@ -121,7 +121,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     private fun publishTutorial() = _state.update { it.copy(tutorial = tutorial.ui) }
 
-    /** Menu ⋮ "Rifai il tutorial" (e primo avvio). */
+    /** "❔ Guide" → "Tutorial passo passo" (e primo avvio). */
     fun restartTutorial() {
         tutorial.start()
         _state.update { it.copy(tip = null) }
@@ -129,7 +129,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     /**
-     * Menu ⋮ "Guida al ricalco" (e primo "Ricalca una piantina"): passo dopo passo dal caricamento della piantina
+     * "❔ Guide" → "Ricalco passo passo" (e primo "Ricalca una piantina"): passo dopo passo dal caricamento della piantina
      * alla seconda stanza ricalcata. Con la piantina già caricata si parte dalla taratura.
      */
     fun startTracingGuide() {

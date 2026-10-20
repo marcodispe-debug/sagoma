@@ -64,7 +64,7 @@ enum class TutorialStep(val title: String, val text: String, val action: Boolean
     ),
     Done(
         "Fatto!",
-        "Ora conosci le funzioni principali. Dal menu ⋮ puoi esportare la pianta in PNG e rifare il tutorial quando vuoi.",
+        "Ora conosci le funzioni principali. Da «❔ Guide», in alto a destra, rifai il tutorial quando vuoi e trovi una guida per ogni funzione.",
         action = false,
     ),
 

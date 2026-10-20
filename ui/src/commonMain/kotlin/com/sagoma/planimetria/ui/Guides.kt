@@ -96,18 +96,69 @@ val AtticGuide = Guide(
     endsIn3d = true,
 )
 
+private fun tip(t: Tip) = GuideStep(t.title, t.text, t.sketch)
+
+/** Ricalcare una piantina: dal caricamento alle stanze ricalcate, con taratura e trasparenze. */
+val TracingGuide = Guide(
+    "🗺", "Ricalca una piantina",
+    listOf(
+        GuideStep(
+            "Carica la piantina",
+            "In un progetto nuovo scegli «Ricalca una piantina»; in un progetto già iniziato usa ⋮ → «Pianta di sfondo…». " +
+                "Poi «Foto / immagine» (o «PDF» sul computer): catasto, progetto o una foto dritta.",
+            Sketch.Trace,
+        ),
+        tip(Tip.Calibrate),
+        GuideStep(
+            "Ricalca gli angoli",
+            "Si apre «Muro per muro». " + Tip.WallDraw.text + " Per la stanza dopo: «+ Aggiungi stanza» → «Muro per muro».",
+            Sketch.Trace,
+        ),
+        tip(Tip.Underlay),
+        GuideStep(
+            "Controlla le misure",
+            "Apri Info della stanza e confronta m² e muri con quelli scritti sulla piantina. Se una parte non conta nei m² " +
+                "(mansarda bassa, cavedio) aggiungi una zona non calpestabile.",
+            Sketch.OpenInfo,
+        ),
+    ),
+)
+
 /** Tutte le miniguide del pulsante "Guide", nell'ordine in cui conviene leggerle. */
 val Guides: List<Guide> = listOf(
+    TracingGuide,
     Guide(
         "▭", "Stanze e misure",
         listOf(
             GuideStep("Muoversi nella pianta", Tip.Welcome.text, Sketch.Welcome),
             step(TutorialStep.OpenInfo),
+            tip(Tip.RoomInfo),
             step(TutorialStep.WallLengths),
             step(TutorialStep.ChangeType),
         ),
     ),
+    Guide(
+        "▧", "Zone non calpestabili",
+        listOf(
+            GuideStep(
+                "Aggiungi una zona",
+                "Seleziona la stanza, apri Info e, nella scheda Misure, premi «▧ Aggiungi zona non calpestabile».",
+                Sketch.OpenInfo,
+            ),
+            tip(Tip.ExcludedZone),
+        ),
+    ),
     Guide("✥", "Muri e angoli", listOf(step(TutorialStep.MoveWall), step(TutorialStep.MoveCorner), step(TutorialStep.Undo))),
+    Guide(
+        "🧲", "Agganci",
+        listOf(
+            GuideStep(
+                "Accendi e spegni gli agganci",
+                "Il pulsante 🧲 sta sulla striscia Info della stanza e nella scheda di «Muro per muro». " + Tip.Snap.text,
+                Sketch.Snap,
+            ),
+        ),
+    ),
     Guide(
         "🚪", "Porte e finestre",
         listOf(step(TutorialStep.AddDoor), GuideStep(TutorialStep.MoveDoor.title, Tip.Opening.text, Sketch.MoveDoor)),
