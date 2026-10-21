@@ -21,7 +21,7 @@ internal fun targetLabel(state: EditorUiState, t: DragTarget): String {
         is DragTarget.Wall -> plan.room(t.roomId)?.let { r -> T.vari.muroCm(r.name, formatCm(r.wallLength(t.index))) } ?: T.vari.muro
         is DragTarget.Opening -> plan.room(t.roomId)?.let { r -> r.opening(t.openingId)?.let { "${openingLabel(it)} · ${r.name}" } } ?: T.vari.apertura
         is DragTarget.Fixture -> plan.room(t.roomId)?.let { r -> r.fixture(t.fixtureId)?.let { "${it.kind.label} · ${r.name}" } } ?: T.vari.impianto
-        is DragTarget.FurnitureBody -> plan.furniture(t.furnitureId)?.let { FurnitureCatalog.item(it.model)?.label } ?: T.vari.arredo
+        is DragTarget.FurnitureBody -> plan.furniture(t.furnitureId)?.let { FurnitureCatalog.item(it.model)?.nome } ?: T.vari.arredo
         is DragTarget.Column -> T.vari.colonna
         is DragTarget.BeamBody -> T.vari.trave
         is DragTarget.FreeWallBody -> T.vari.muroSingolo

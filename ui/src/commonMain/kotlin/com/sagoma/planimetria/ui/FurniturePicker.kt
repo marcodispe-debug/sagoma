@@ -120,7 +120,7 @@ private fun CatalogCard(item: FurnitureCatalog.Item, onClick: () -> Unit) {
                     assetRequests.request(AssetPaths.furnitureThumbnail(item.model), AssetPriority.Visible)
                 }
                 if (thumb != null) {
-                    Image(thumb, contentDescription = item.label, contentScale = ContentScale.Fit, modifier = Modifier.size(width = 84.dp, height = 66.dp))
+                    Image(thumb, contentDescription = item.nome, contentScale = ContentScale.Fit, modifier = Modifier.size(width = 84.dp, height = 66.dp))
                 } else if (kitchen != null) Canvas(Modifier.size(width = 88.dp, height = 70.dp)) {
                     // Modulo della cucina: visto dal davanti, con ante, cassetti e forno.
                     kitchenFrontView(kitchen, item.width, item.height, 6.dp.toPx())
@@ -135,7 +135,7 @@ private fun CatalogCard(item: FurnitureCatalog.Item, onClick: () -> Unit) {
                     }
                 }
             }
-            Text(item.label, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center, maxLines = 2, modifier = Modifier.padding(top = 4.dp).height(30.dp))
+            Text(item.nome, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center, maxLines = 2, modifier = Modifier.padding(top = 4.dp).height(30.dp))
             Text(
                 T.arredi.testoTesto(formatCm(item.width), formatCm(item.depth), formatCm(item.height)),
                 style = MaterialTheme.typography.labelSmall,
@@ -152,7 +152,7 @@ private fun CreditsDialog(onDismiss: () -> Unit) {
     val (open, attributed) = remember { FurnitureCatalog.items.partition { it.license.uppercase().startsWith("CC0") || it.license.contains("Public", true) || it.license.contains("pubblico", true) } }
     val groups = remember {
         open.groupBy { Triple(it.source.substringBefore(" (").ifBlank { "—" }, it.author, it.license) }
-            .map { (k, v) -> k to v.map { it.label } }
+            .map { (k, v) -> k to v.map { it.nome } }
             .sortedBy { it.first.first }
     }
     AlertDialog(
@@ -177,7 +177,7 @@ private fun CreditsDialog(onDismiss: () -> Unit) {
                 }
                 items(attributed.sortedBy { it.source }) { m ->
                     Text(
-                        T.arredi.di(m.label, m.author.ifBlank { T.arredi.autoreSconosciuto }, m.license, m.source.substringAfter("(").removeSuffix(")")),
+                        T.arredi.di(m.nome, m.author.ifBlank { T.arredi.autoreSconosciuto }, m.license, m.source.substringAfter("(").removeSuffix(")")),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
