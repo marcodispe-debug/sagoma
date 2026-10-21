@@ -63,4 +63,5 @@ open class TestiVari {
     open val vista3dNonDisponibile: String get() = "La vista 3D non è disponibile su questo computer (OpenGL non trovato)."
     open val copiatoNegliAppuntiIncollalo2: String get() = "Copiato negli appunti: incollalo dove vuoi"
     open val questoBrowserNonSupporta: String get() = "Questo browser non supporta la grafica 3D (WebGL)."
+    open val lingua: String get() = "Lingua"
 }

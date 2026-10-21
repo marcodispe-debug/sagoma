@@ -119,6 +119,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
     var showBackground by remember { mutableStateOf(false) }
     var showLayers by remember { mutableStateOf(false) }
     var showTheme by remember { mutableStateOf(false) }
+    var showLanguage by remember { mutableStateOf(false) }
     val extraMenu = listOf(
         T.editor.progetti to { vm.saveNow(); onOpenProjects() },
         T.editor.livelli to { showLayers = true },
@@ -126,6 +127,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         T.editor.computoListaArredi to { showTakeoff = true },
         T.editor.piantaSfondo to { showBackground = true },
         T.editor.temaChiaroScuro to { showTheme = true },
+        T.editor.linguaMenu to { showLanguage = true },
     )
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
@@ -140,6 +142,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
     })
     if (showLayers) LayersDialog(state, vm, onDismiss = { showLayers = false })
     if (showTheme) ThemeDialog(onDismiss = { showTheme = false })
+    if (showLanguage) LanguageDialog(onDismiss = { showLanguage = false })
     state.textDialogAt?.let { at -> NewTextDialog(at, vm) }
 
     Column(

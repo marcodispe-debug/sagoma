@@ -27,6 +27,7 @@ import com.sagoma.planimetria.model.StairRailing
 import com.sagoma.planimetria.model.StairStructure
 import com.sagoma.planimetria.model.WallPaint
 import com.sagoma.planimetria.model.WindowModel
+import com.sagoma.planimetria.persistence.LanguageChoice
 import com.sagoma.planimetria.persistence.ThemeChoice
 
 /** Nomi di tipi, modelli e finiture, come li vede l'utente (le costanti nel codice e nei file restano in inglese). */
@@ -204,6 +205,13 @@ open class Nomi {
     open fun columnShape(v: ColumnShape): String = when (v) {
         ColumnShape.Square -> "Quadrata"
         ColumnShape.Round -> "Rotonda"
+    }
+
+    /** Le lingue si scrivono sempre col loro nome, così le riconosce anche chi non legge la lingua attuale. */
+    open fun languageChoice(v: LanguageChoice): String = when (v) {
+        LanguageChoice.Italian -> "Italiano"
+        LanguageChoice.English -> "English"
+        LanguageChoice.System -> "Come il sistema"
     }
 
     open fun themeChoice(v: ThemeChoice): String = when (v) {

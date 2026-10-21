@@ -1,18 +1,18 @@
 package com.sagoma.planimetria.testi
 
+import com.sagoma.planimetria.persistence.LanguageChoice
+import com.sagoma.planimetria.testi.en.Inglese
+
 /**
  * Testi dell'app, divisi per argomento. L'italiano è scritto qui come base; una traduzione estende le parti
  * ([Nomi], [Suggerimenti], …) e cambia solo i testi che traduce: quelli che mancano restano in italiano.
  *
- * Per aggiungere una lingua:
- * ```
- * object Inglese : Lingua("en") {
- *     override val nomi = object : Nomi() { override fun roomType(v: RoomType) = when (v) { … } }
- * }
- * ```
- * e la si sceglie all'avvio con `T.lingua = Inglese`, prima di mostrare qualcosa.
+ * Per aggiungere una lingua: un oggetto come [com.sagoma.planimetria.testi.en.Inglese], con le sue classi dei testi,
+ * e una voce in [LanguageChoice] e in [Lingue.scegli].
  */
 open class Lingua(val codice: String) {
+    /** Separatore dei decimali nei numeri mostrati (20,50 m² in italiano). */
+    open val virgola: Char get() = ','
     open val comuni: Comuni = Comuni()
     open val nomi: Nomi = Nomi()
     open val suggerimenti: Suggerimenti = Suggerimenti()
@@ -41,9 +41,22 @@ open class Lingua(val codice: String) {
 
 object Italiano : Lingua("it")
 
+/** Le lingue dell'app e quale usare per la scelta dell'utente. */
+object Lingue {
+    /**
+     * Lingua per la scelta: con "come il sistema" l'italiano se il sistema è in italiano, altrimenti l'inglese
+     * (capito da più persone dell'italiano). `sistema`: codice della lingua del sistema ("it", "en-US"…).
+     */
+    fun scegli(choice: LanguageChoice, sistema: String): Lingua = when (choice) {
+        LanguageChoice.Italian -> Italiano
+        LanguageChoice.English -> Inglese
+        LanguageChoice.System -> if (sistema.lowercase().startsWith("it")) Italiano else Inglese
+    }
+}
+
 /** Testi della lingua scelta: `T.nomi.roomType(…)`, `T.suggerimenti.testo(…)`. */
 object T {
-    /** Lingua dei testi: si sceglie all'avvio (cambiarla con l'app aperta non aggiorna le schermate già mostrate). */
+    /** Lingua dei testi. Le schermate non se ne accorgono da sole: quando cambia, SagomaApp le ridisegna da capo. */
     var lingua: Lingua = Italiano
 
     val comuni: Comuni get() = lingua.comuni

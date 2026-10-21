@@ -7,6 +7,8 @@ import com.sagoma.planimetria.persistence.PlanStore
 import com.sagoma.planimetria.persistence.ProjectInfo
 import com.sagoma.planimetria.persistence.ProjectRepository
 import com.sagoma.planimetria.persistence.ThemeChoice
+import com.sagoma.planimetria.persistence.LanguageChoice
+import com.sagoma.planimetria.persistence.LanguageStore
 import com.sagoma.planimetria.persistence.ThemeStore
 import com.sagoma.planimetria.testi.T
 import kotlinx.browser.localStorage
@@ -129,4 +131,10 @@ class BrowserTipStore : TipStore {
 class BrowserThemeStore : ThemeStore {
     override fun load() = localStorage.getItem("sagoma/tema")?.let { n -> ThemeChoice.entries.firstOrNull { it.name == n } } ?: ThemeChoice.Light
     override fun save(choice: ThemeChoice) = localStorage.setItem("sagoma/tema", choice.name)
+}
+
+/** Lingua scelta, nella memoria del browser; senza scelta quella del browser. */
+class BrowserLanguageStore : LanguageStore {
+    override fun load() = localStorage.getItem("sagoma/lingua")?.let { n -> LanguageChoice.entries.firstOrNull { it.name == n } } ?: LanguageChoice.System
+    override fun save(choice: LanguageChoice) = localStorage.setItem("sagoma/lingua", choice.name)
 }

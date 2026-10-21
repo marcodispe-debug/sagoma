@@ -73,9 +73,9 @@ import androidx.compose.ui.graphics.Color
 internal fun stairKindName(k: StairKind): String = when (k) {
     StairKind.Straight -> T.pannelli.dritta
     StairKind.StraightLanding -> T.pannelli.drittaPianerottolo
-    StairKind.LTurn -> "A L"
+    StairKind.LTurn -> T.comuni.formaL
     StairKind.LWinder -> T.pannelli.ventaglio
-    StairKind.UTurn -> "A U"
+    StairKind.UTurn -> T.comuni.formaU
     StairKind.Spiral -> T.pannelli.chiocciola
 }
 

@@ -71,7 +71,7 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         ShapeOption(T.creazione.quadrato, RoomFactory.rectangle(10.0, 10.0), Modifier.weight(1f)) { vm.pickShape(RoomShape.Square) }
                         ShapeOption(T.creazione.rettangolo, RoomFactory.rectangle(14.0, 9.0), Modifier.weight(1f)) { vm.pickShape(RoomShape.Rectangle) }
-                        ShapeOption("A L", lIcon(LOrientation.TopRight), Modifier.weight(1f)) { vm.pickShape(RoomShape.L) }
+                        ShapeOption(T.comuni.formaL, lIcon(LOrientation.TopRight), Modifier.weight(1f)) { vm.pickShape(RoomShape.L) }
                     }
                     // Rilievo: lati e diagonali misurati sul posto, anche per stanze fuori squadra o con più lati.
                     // (Non nello schizzo: richiede misure esatte.)

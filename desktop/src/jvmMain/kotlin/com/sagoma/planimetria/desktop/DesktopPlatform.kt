@@ -25,6 +25,8 @@ import com.sagoma.planimetria.assets.buildCachedAssetStore
 import com.sagoma.planimetria.assets.codeSourceStamp
 import com.sagoma.planimetria.assets.directoryFingerprint
 import com.sagoma.planimetria.editor.TipStore
+import com.sagoma.planimetria.persistence.LanguageStore
+import com.sagoma.planimetria.persistence.NoLanguageStore
 import com.sagoma.planimetria.persistence.NoThemeStore
 import com.sagoma.planimetria.persistence.ProjectRepository
 import com.sagoma.planimetria.persistence.ThemeStore
@@ -49,6 +51,7 @@ class DesktopPlatform(
     override val projects: ProjectRepository,
     override val tips: TipStore,
     override val theme: ThemeStore = NoThemeStore,
+    override val language: LanguageStore = NoLanguageStore,
     private val assets: File?,
     /**
      * Cartella della cache su disco degli asset; `null` = nessuna cache (come nelle prove). Deve stare fuori dalla
@@ -58,6 +61,9 @@ class DesktopPlatform(
     /** Catalogo scaricato a richiesta (`-Dsagoma.remote.manifest` e `-Dsagoma.remote.blobs`); `null` = nessuna rete. */
     remote: RemoteAssets? = null,
 ) : Platform {
+
+    override val systemLanguage: String get() = java.util.Locale.getDefault().language
+
     /** Finestra principale (per le finestre di dialogo). */
     var frame: Frame? = null
 

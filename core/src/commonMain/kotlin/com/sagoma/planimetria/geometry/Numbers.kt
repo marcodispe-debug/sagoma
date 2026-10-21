@@ -1,5 +1,6 @@
 package com.sagoma.planimetria.geometry
 
+import com.sagoma.planimetria.testi.T
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.floor
@@ -12,8 +13,11 @@ fun toDegrees(rad: Double): Double = rad * 180.0 / PI
 /** Arrotondamento con le metà verso l'alto (come `Math.round`). */
 fun roundHalfUp(v: Double): Double = floor(v + 0.5)
 
-/** Numero con `decimals` cifre decimali (metà verso l'alto) e il separatore scelto, senza dipendere dalla lingua del sistema. */
-fun formatDecimal(v: Double, decimals: Int, separator: Char = ','): String {
+/**
+ * Numero con `decimals` cifre decimali (metà verso l'alto) e il separatore scelto, senza dipendere dalla lingua del sistema:
+ * di base quello della lingua dell'app (virgola in italiano, punto in inglese).
+ */
+fun formatDecimal(v: Double, decimals: Int, separator: Char = T.lingua.virgola): String {
     var factor = 1L
     repeat(decimals) { factor *= 10 }
     val scaled = floor(abs(v) * factor + 0.5).toLong()

@@ -508,7 +508,7 @@ private fun DrawScope.stairOptions(f: Frame) {
             drawCircle(SkSel, f.l(0.025f), c)
         }
     }
-    listOf(T.disegniGuide.dritta, "A L", T.disegniGuide.chiocciola).forEachIndexed { i, s ->
+    listOf(T.disegniGuide.dritta, T.comuni.formaL, T.disegniGuide.chiocciola).forEachIndexed { i, s ->
         button(f, s, Offset(0.2f + i * 0.3f, 0.84f), 0.27f, pressed = false, filled = i == phase)
     }
     finger(f, Offset(0.2f + phase * 0.3f, 0.86f), 1f, f.tap(0.02f, 0.35f, 0.68f))

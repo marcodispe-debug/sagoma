@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.sagoma.planimetria.persistence.LanguageChoice
 import com.sagoma.planimetria.persistence.ThemeChoice
 import com.sagoma.planimetria.testi.T
 
@@ -68,6 +69,35 @@ fun ThemeDialog(onDismiss: () -> Unit) {
         text = {
             Column {
                 for (c in ThemeChoice.entries) {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { setting.change(c) }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = c == setting.choice, onClick = { setting.change(c) })
+                        Text(c.label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(T.comuni.chiudi) } },
+    )
+}
+
+/** Lingua scelta e come cambiarla, per il menu: lo fornisce [SagomaApp]. */
+class LanguageSetting(val choice: LanguageChoice, val change: (LanguageChoice) -> Unit)
+
+val LocalLanguageSetting = staticCompositionLocalOf { LanguageSetting(LanguageChoice.Italian) {} }
+
+/** Scelta della lingua: italiano, inglese o come il sistema. Cambia subito; la scelta resta per i prossimi avvii. */
+@Composable
+fun LanguageDialog(onDismiss: () -> Unit) {
+    val setting = LocalLanguageSetting.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(T.vari.lingua) },
+        text = {
+            Column {
+                for (c in LanguageChoice.entries) {
                     Row(
                         Modifier.fillMaxWidth().clickable { setting.change(c) }.padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,

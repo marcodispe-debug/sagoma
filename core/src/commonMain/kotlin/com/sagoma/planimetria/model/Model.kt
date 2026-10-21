@@ -504,7 +504,7 @@ data class Dimension(val id: Long, val a: Vec2, val b: Vec2, val offset: Double 
         /** Misura in cm, con un decimale solo se serve (come le altre quote dell'app). */
         fun formatLength(cm: Double): String {
             val r = kotlin.math.round(cm * 10) / 10
-            return if (r == kotlin.math.round(r)) kotlin.math.round(r).toLong().toString() else r.toString().replace('.', ',')
+            return if (r == kotlin.math.round(r)) kotlin.math.round(r).toLong().toString() else r.toString().replace('.', com.sagoma.planimetria.testi.T.lingua.virgola)
         }
     }
 }

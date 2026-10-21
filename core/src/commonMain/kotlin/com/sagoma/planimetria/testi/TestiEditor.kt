@@ -100,4 +100,6 @@ open class TestiEditor {
     open val rivediSuggerimenti: String get() = "Rivedi i suggerimenti"
     open val guidaRicalco: String get() = "Guida al ricalco"
     open val tutorial: String get() = "Tutorial"
+    /** Voce del menu: anche nell'altra lingua, così la trova chi non legge quella attuale. */
+    open val linguaMenu: String get() = "🌐 Lingua · Language…"
 }
