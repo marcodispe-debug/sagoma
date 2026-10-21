@@ -11,6 +11,8 @@ open class Comuni {
     open val mantieni: String get() = "Mantieni"
     open val rimuovi: String get() = "Rimuovi"
     open val forma: String get() = "Forma"
+    open val formaL: String get() = "A L"
+    open val formaU: String get() = "A U"
     open val diametro: String get() = "Diametro"
     open val larghezza: String get() = "Larghezza"
     open val profondita: String get() = "Profondità"

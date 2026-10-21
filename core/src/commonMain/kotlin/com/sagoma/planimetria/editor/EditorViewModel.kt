@@ -5,6 +5,7 @@ import com.sagoma.planimetria.geometry.Dimensions
 import com.sagoma.planimetria.geometry.Furnishings
 import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.interiorLengths
+import com.sagoma.planimetria.model.withAutoNames
 import com.sagoma.planimetria.model.Furniture
 import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.geometry.Fixtures
@@ -308,6 +309,17 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         if (after == before) return
         history.record(before)
         setBuilding(after)
+    }
+
+    /**
+     * Nomi automatici di stanze e piani nella lingua dell'app (dopo un cambio di lingua): anche negli stati di
+     * Annulla, così annullare non riporta i nomi nella lingua di prima. Non è una modifica da annullare.
+     */
+    fun translateAutoNames() {
+        history.mapAll { it.withAutoNames() }
+        val before = _state.value.fullBuilding
+        val after = before.withAutoNames()
+        if (after != before) setBuilding(after)
     }
 
     /** Mostra la casa `b` sul suo piano corrente; se il piano cambia, selezione e posizionamenti si azzerano. */

@@ -73,9 +73,9 @@ import androidx.compose.ui.graphics.Color
 internal fun stairKindName(k: StairKind): String = when (k) {
     StairKind.Straight -> T.pannelli.dritta
     StairKind.StraightLanding -> T.pannelli.drittaPianerottolo
-    StairKind.LTurn -> "A L"
+    StairKind.LTurn -> T.comuni.formaL
     StairKind.LWinder -> T.pannelli.ventaglio
-    StairKind.UTurn -> "A U"
+    StairKind.UTurn -> T.comuni.formaU
     StairKind.Spiral -> T.pannelli.chiocciola
 }
 
@@ -83,7 +83,7 @@ internal fun stairKindName(k: StairKind): String = when (k) {
 fun selectionTitle(selection: Selection, plan: FloorPlan, levelHeight: Double = Floor.DEFAULT_LEVEL_HEIGHT, planBelow: FloorPlan? = null): String {
     if (selection is Selection.StairWell) {
         val s = planBelow?.stair(selection.stairId) ?: return T.pannelli.vanoScala
-        return T.pannelli.vanoScala2 + if (s.wellRailing == StairRailing.None) T.pannelli.senzaRinghiera else T.pannelli.ringhiera(s.wellRailing.label.lowercase())
+        return T.pannelli.vanoScala2 + if (s.wellRailing == StairRailing.None) T.pannelli.senzaRinghiera else T.pannelli.ringhiera(T.lingua.minuscola(s.wellRailing.label))
     }
     if (selection is Selection.Column) {
         val c = plan.column(selection.columnId) ?: return ""
@@ -106,7 +106,7 @@ fun selectionTitle(selection: Selection, plan: FloorPlan, levelHeight: Double = 
     }
     if (selection is Selection.Stair) {
         val s = plan.stair(selection.stairId) ?: return ""
-        return T.pannelli.scalaAlzate(stairKindName(s.kind).lowercase().replace(" l", " L").replace(" u", " U"), Stairs.risersOf(s, levelHeight))
+        return T.pannelli.scalaAlzate(Regex("\\b[lu]\\b").replace(T.lingua.minuscola(stairKindName(s.kind))) { it.value.uppercase() }, Stairs.risersOf(s, levelHeight))
     }
     if (selection is Selection.Dimension) {
         val d = plan.dimension(selection.dimensionId) ?: return ""
@@ -524,7 +524,7 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
     }
     // Dal muro si duplica la stanza (o il balcone) a cui appartiene; oppure si elimina il muro (lato aperto).
     PanelActions {
-        DuplicateButton(vm, if (room.outdoor) T.pannelli.duplica(room.type.defaultName.lowercase()) else T.pannelli.duplicaStanza)
+        DuplicateButton(vm, if (room.outdoor) T.pannelli.duplica(T.lingua.minuscola(room.type.defaultName)) else T.pannelli.duplicaStanza)
         TextButton(onClick = { vm.setWallRemoved(room.id, sel.index, removed = true) }) {
             Text(if (room.outdoor) T.pannelli.togliParapetto else T.pannelli.eliminaMuro, color = MaterialTheme.colorScheme.error)
         }
@@ -533,7 +533,7 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
     if (!room.outdoor) PhaseChoice(room.phaseOf(sel.index), PhaseLabels.wall) { vm.setWallPhase(room.id, sel.index, it) }
     // Lato di un balcone: il parapetto è uguale su tutti i lati e si sceglie da Info del balcone.
     if (room.outdoor) Text(
-        T.pannelli.parapettoCmCambiaInfo(room.parapet.label.lowercase(), formatCm(room.parapetHeight), room.name),
+        T.pannelli.parapettoCmCambiaInfo(T.lingua.minuscola(room.parapet.label), formatCm(room.parapetHeight), room.name),
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.padding(end = 8.dp),
     ) else Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

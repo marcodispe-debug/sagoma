@@ -16,5 +16,17 @@
 </head>
 <body>
 <div id="caricamento">Caricamento di Sagoma…</div>
+<script>
+    // Stessa scelta della lingua dell'app (Come il sistema se non ancora scelta).
+    (function () {
+        var scelta = null;
+        try { scelta = localStorage.getItem("sagoma/lingua"); } catch (e) {}
+        var inglese = scelta === "English" || (scelta !== "Italian" && !(navigator.language || "it").toLowerCase().startsWith("it"));
+        if (inglese) {
+            document.documentElement.lang = "en";
+            document.getElementById("caricamento").textContent = "Loading Sagoma…";
+        }
+    })();
+</script>
 </body>
 </html>

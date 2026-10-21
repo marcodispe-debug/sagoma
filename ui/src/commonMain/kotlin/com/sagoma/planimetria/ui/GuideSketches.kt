@@ -27,6 +27,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import com.sagoma.planimetria.geometry.formatDecimal
 import com.sagoma.planimetria.editor.Tip
 import com.sagoma.planimetria.editor.TutorialStep
 import com.sagoma.planimetria.testi.T
@@ -302,9 +303,9 @@ private fun DrawScope.zone(f: Frame) {
             while (x < 1.2f) { drawLine(Color(0xFF6C757D).copy(alpha = 0.6f), f.p(x - 0.7f, 0.8f), f.p(x, 0.1f), strokeWidth = f.l(0.006f)); x += 0.05f }
         }
         drawPath(path, Color(0xFF6C757D), style = Stroke(f.l(0.008f), pathEffect = PathEffect.dashPathEffect(floatArrayOf(f.l(0.025f), f.l(0.015f)))))
-        text(f, "−1,9 m²", Offset(0.25f, 0.47f), size = 0.055f, bold = true)
+        text(f, "−" + formatDecimal(1.9, 1) + " m²", Offset(0.25f, 0.47f), size = 0.055f, bold = true)
     } else for (i in 1 until done) drawLine(SkSel, f.p(pts[i - 1]), f.p(pts[i]), strokeWidth = f.l(0.01f))
-    val m2 = if (f.t > 0.56f) "14,4 m²" else "16,3 m²"
+    val m2 = formatDecimal(if (f.t > 0.56f) 14.4 else 16.3, 1) + " m²"
     text(f, m2, Offset(0.62f, 0.47f), bold = true, size = 0.075f, color = if (f.t > 0.56f) SkSel else SkText)
     val keys = (0..4).map { k -> clickAt[k] - 0.05f to pts[k % 4] }
     finger(f, along(f.t, *keys.toTypedArray()), f.shown(0.02f, 0.58f), f.tap(*clickAt.toFloatArray()))
@@ -366,7 +367,7 @@ private fun DrawScope.measure(f: Frame) {
         if (d >= 1f) {
             drawLine(orange, f.p(0.19f, y - 0.03f), f.p(0.19f, y + 0.03f), strokeWidth = f.l(0.01f))
             drawLine(orange, f.p(0.88f, y - 0.03f), f.p(0.88f, y + 0.03f), strokeWidth = f.l(0.01f))
-            text(f, "341,5 cm", Offset(0.53f, y - 0.07f), color = orange, bold = true, size = 0.07f)
+            text(f, formatDecimal(341.5, 1) + " cm", Offset(0.53f, y - 0.07f), color = orange, bold = true, size = 0.07f)
         }
     }
     val pos = along(f.t, 0f to Offset(0.16f, 0.47f), 0.3f to Offset(0.16f, 0.47f), 0.4f to Offset(0.9f, 0.6f))
@@ -508,7 +509,7 @@ private fun DrawScope.stairOptions(f: Frame) {
             drawCircle(SkSel, f.l(0.025f), c)
         }
     }
-    listOf(T.disegniGuide.dritta, "A L", T.disegniGuide.chiocciola).forEachIndexed { i, s ->
+    listOf(T.disegniGuide.dritta, T.comuni.formaL, T.disegniGuide.chiocciola).forEachIndexed { i, s ->
         button(f, s, Offset(0.2f + i * 0.3f, 0.84f), 0.27f, pressed = false, filled = i == phase)
     }
     finger(f, Offset(0.2f + phase * 0.3f, 0.86f), 1f, f.tap(0.02f, 0.35f, 0.68f))

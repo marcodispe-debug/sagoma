@@ -11,6 +11,8 @@ import com.sagoma.planimetria.assets.AssetRequests
 import com.sagoma.planimetria.assets.AssetStore
 import com.sagoma.planimetria.assets.NoAssetRequests
 import com.sagoma.planimetria.editor.TipStore
+import com.sagoma.planimetria.persistence.LanguageStore
+import com.sagoma.planimetria.persistence.NoLanguageStore
 import com.sagoma.planimetria.persistence.NoThemeStore
 import com.sagoma.planimetria.persistence.ProjectRepository
 import com.sagoma.planimetria.persistence.ThemeStore
@@ -43,6 +45,12 @@ interface Platform {
 
     /** Tema scelto (chiaro, scuro, come il sistema); dove non si salva l'app resta chiara. */
     val theme: ThemeStore get() = NoThemeStore
+
+    /** Lingua scelta (italiano, inglese, come il sistema); dove non si salva l'app resta in italiano. */
+    val language: LanguageStore get() = NoLanguageStore
+
+    /** Codice della lingua del sistema ("it", "en"…), per la scelta "come il sistema". */
+    val systemLanguage: String get() = "it"
 
     /** Adatta le barre di sistema al tema dell'app (icone chiare sul tema scuro); non fa nulla dove non ci sono. */
     fun setDarkTheme(dark: Boolean) {}

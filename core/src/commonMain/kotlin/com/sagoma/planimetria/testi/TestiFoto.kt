@@ -16,4 +16,6 @@ open class TestiFoto {
     open val aproFoto: String get() = "Apro la foto…"
     open val notaEsempioPresa30: String get() = "Nota (per esempio: presa a 30 cm da terra)"
     open val togliFoto: String get() = "Togli foto"
+    open val senzaPermessoFotocamera: String get() = "Senza il permesso della fotocamera puoi scegliere una foto dalla galleria"
+    open val impossibileAprireFotocamera: String get() = "Impossibile aprire la fotocamera"
 }

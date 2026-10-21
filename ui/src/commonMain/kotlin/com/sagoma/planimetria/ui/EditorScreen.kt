@@ -104,6 +104,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         }
     }
     val state by vm.state.collectAsStateWithLifecycle()
+    // Nomi automatici di stanze e piani ("Piano terra", "Cucina 2") nella lingua scelta, anche aprendo un progetto fatto in un'altra.
+    LaunchedEffect(vm, T.lingua.codice) { vm.translateAutoNames() }
     // Quando l'app va in background si salva subito, senza aspettare il ritardo del salvataggio automatico.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.saveNow() }
     // Chiudendo la finestra (computer) o uscendo dal progetto si salva subito, senza aspettare.
@@ -119,6 +121,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
     var showBackground by remember { mutableStateOf(false) }
     var showLayers by remember { mutableStateOf(false) }
     var showTheme by remember { mutableStateOf(false) }
+    var showLanguage by remember { mutableStateOf(false) }
     val extraMenu = listOf(
         T.editor.progetti to { vm.saveNow(); onOpenProjects() },
         T.editor.livelli to { showLayers = true },
@@ -126,6 +129,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         T.editor.computoListaArredi to { showTakeoff = true },
         T.editor.piantaSfondo to { showBackground = true },
         T.editor.temaChiaroScuro to { showTheme = true },
+        T.editor.linguaMenu to { showLanguage = true },
     )
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
@@ -140,6 +144,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
     })
     if (showLayers) LayersDialog(state, vm, onDismiss = { showLayers = false })
     if (showTheme) ThemeDialog(onDismiss = { showTheme = false })
+    if (showLanguage) LanguageDialog(onDismiss = { showLanguage = false })
     state.textDialogAt?.let { at -> NewTextDialog(at, vm) }
 
     Column(
@@ -240,7 +245,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 FloorButton(state.building, vm, Modifier.padding(start = 8.dp))
                 RoomTabs(state.plan.rooms, state.focusedRoomId, onTap = vm::openRoomProperties, modifier = Modifier.weight(1f), compact = true)
-                Box(Modifier.padding(end = 8.dp)) { GuidesButton(onGuide = { openGuide = it }, tours = guidedTours) }
+                // Sul telefono in verticale "Guide" resta solo "❔", per lasciare posto alle schede delle stanze.
+                Box(Modifier.padding(end = 8.dp)) { GuidesButton(onGuide = { openGuide = it }, tours = guidedTours, iconOnly = true) }
             }
             toolbar(false, true, 40.dp)
         }
@@ -262,10 +268,10 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             // Marchio del piano gratuito sopra pianta e 3D (non sui pulsanti), così resta anche in uno screenshot.
             WatermarkOverlay(Modifier.fillMaxSize())
             // Suggerimento durante il posizionamento di un'apertura o di un impianto.
-            val placingHint = state.pendingOpening?.let { T.editor.toccaMuroCuiPosizionare(it.kind.label.lowercase()) }
+            val placingHint = state.pendingOpening?.let { T.editor.toccaMuroCuiPosizionare(T.lingua.minuscola(it.kind.label)) }
                 ?: state.pendingFixture?.let {
-                    if (it.mount == Mount.Wall) T.editor.toccaMuroCuiPosizionare2(it.label.lowercase())
-                    else T.editor.toccaPuntoStanzaCui(it.label.lowercase())
+                    if (it.mount == Mount.Wall) T.editor.toccaMuroCuiPosizionare2(T.lingua.minuscola(it.label))
+                    else T.editor.toccaPuntoStanzaCui(T.lingua.minuscola(it.label))
                 }
             // Schede in alto (posizionamento, suggerimento, tutorial): la pianta si centra sotto di loro.
             var topCardsHeightPx by remember { mutableIntStateOf(0) }
@@ -818,19 +824,23 @@ private fun ToolsButton(
 }
 
 /**
- * "❔ Guide", in alto a destra: prima le guide passo passo sulla pianta (`tours`), poi le miniguide animate, una per argomento.
+ * Pulsante della lingua e "❔ Guide", in alto a destra. "❔ Guide": prima le guide passo passo sulla pianta (`tours`), poi le miniguide animate, una per argomento.
  */
 @Composable
-private fun GuidesButton(onGuide: (Guide) -> Unit, tours: List<MenuEntry>) {
+private fun GuidesButton(onGuide: (Guide) -> Unit, tours: List<MenuEntry>, iconOnly: Boolean = false) {
     var open by remember { mutableStateOf(false) }
-    Box {
-        OutlinedButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = 12.dp)) {
-            Text(T.editor.guide, maxLines = 1)
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            for (t in tours) DropdownMenuItem(text = { Text(t.label) }, onClick = { open = false; t.action?.invoke() })
-            HorizontalDivider()
-            for (g in Guides) DropdownMenuItem(text = { Text("${g.icon}  ${g.title}") }, onClick = { open = false; onGuide(g) })
+    // La lingua sta accanto alle guide, così si trova in ogni disposizione della striscia in alto.
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        LanguageButton(Modifier.padding(end = 6.dp), flagOnly = iconOnly)
+        Box {
+            OutlinedButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = if (iconOnly) 4.dp else 12.dp)) {
+                Text(if (iconOnly) "❔" else T.editor.guide, maxLines = 1)
+            }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                for (t in tours) DropdownMenuItem(text = { Text(t.label) }, onClick = { open = false; t.action?.invoke() })
+                HorizontalDivider()
+                for (g in Guides) DropdownMenuItem(text = { Text("${g.icon}  ${g.title}") }, onClick = { open = false; onGuide(g) })
+            }
         }
     }
 }

@@ -31,4 +31,5 @@ open class TestiProgetti {
     open val miaCasa: String get() = "La mia casa"
     open fun progetto2(p1: Any?): String = "Progetto $p1"
     open val progettoImportato2: String get() = "Progetto importato"
+    open val lingua: String get() = "🌐 Lingua"
 }

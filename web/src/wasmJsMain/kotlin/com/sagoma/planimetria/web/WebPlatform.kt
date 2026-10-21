@@ -48,6 +48,8 @@ private fun jsPickFile(accept: String, onFile: (String?, Uint8Array?) -> Unit): 
     }""",
 )
 
+private fun browserLanguage(): String = js("navigator.language || 'it'")
+
 private fun jsCopy(text: String): Unit = js("{ if (navigator.clipboard) navigator.clipboard.writeText(text); }")
 
 private fun ByteArray.toUint8Array(): Uint8Array {
@@ -63,6 +65,8 @@ class WebPlatform : Platform {
     override val projects = BrowserProjectRepository(::now)
     override val tips = BrowserTipStore()
     override val theme = BrowserThemeStore()
+    override val language = BrowserLanguageStore()
+    override val systemLanguage: String get() = browserLanguage()
 
     /** Messaggio breve mostrato in basso. */
     var message by mutableStateOf<String?>(null)

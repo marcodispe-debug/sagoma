@@ -36,9 +36,12 @@ import com.sagoma.planimetria.assets.AssetStore
 import com.sagoma.planimetria.assets.CompositeAssetStore
 import com.sagoma.planimetria.assets.NoAssetRequests
 import com.sagoma.planimetria.editor.TipStore
+import com.sagoma.planimetria.persistence.LanguageStore
+import com.sagoma.planimetria.persistence.NoLanguageStore
 import com.sagoma.planimetria.persistence.NoThemeStore
 import com.sagoma.planimetria.persistence.ProjectRepository
 import com.sagoma.planimetria.persistence.ThemeStore
+import com.sagoma.planimetria.testi.T
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -59,12 +62,15 @@ class AndroidPlatform(
     override val projects: ProjectRepository,
     override val tips: TipStore,
     override val theme: ThemeStore = NoThemeStore,
+    override val language: LanguageStore = NoLanguageStore,
     private val sceneRenderer: (Context, AssetStore) -> SceneRenderer,
     /** Negozio remoto del processo (lo possiede l'`Application`, mai creato qui), da usare dopo gli asset impacchettati; `null` = nessun remoto. */
     remoteStore: AssetStore? = null,
     /** Richieste verso il sistema remoto del processo (anch'esso dell'`Application`); senza remoto non fanno niente. */
     override val assetRequests: AssetRequests = NoAssetRequests,
 ) : Platform {
+
+    override val systemLanguage: String get() = java.util.Locale.getDefault().language
 
     /**
      * Scansione della stanza con ARCore (la schermata chiede da sola il permesso della fotocamera): c'è solo nelle build con
@@ -128,7 +134,7 @@ class AndroidPlatform(
     /** Nelle build con lo scanner l'app dichiara la fotocamera: allora va chiesta prima di aprire l'app della fotocamera. */
     private val cameraPermissionLauncher = activity.registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val (_, done) = pendingPhoto ?: return@registerForActivityResult
-        if (granted) launchCamera() else { pendingPhoto = null; toast("Senza il permesso della fotocamera puoi scegliere una foto dalla galleria"); done(null) }
+        if (granted) launchCamera() else { pendingPhoto = null; toast(T.foto.senzaPermessoFotocamera); done(null) }
     }
 
     override val canTakePhoto: Boolean
@@ -149,7 +155,7 @@ class AndroidPlatform(
         val (file, done) = pendingPhoto ?: return
         val uri = runCatching { FileProvider.getUriForFile(activity, activity.packageName + ".foto", file) }.getOrNull()
         if (uri == null) { pendingPhoto = null; done(null); return }
-        runCatching { photoLauncher.launch(uri) }.onFailure { pendingPhoto = null; toast("Impossibile aprire la fotocamera"); done(null) }
+        runCatching { photoLauncher.launch(uri) }.onFailure { pendingPhoto = null; toast(T.foto.impossibileAprireFotocamera); done(null) }
     }
 
     override fun toast(message: String) = Toast.makeText(activity, message, Toast.LENGTH_SHORT).show()

@@ -50,6 +50,7 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
     var creating by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<ProjectInfo?>(null) }
     var showTheme by remember { mutableStateOf(false) }
+    var showLanguage by remember { mutableStateOf(false) }
 
     fun export(p: ProjectInfo) {
         val bytes = runCatching { store.export(p.id) }.getOrNull()
@@ -68,10 +69,12 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
 
     Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(T.progetti.progetti, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Su più righe se non ci stanno (telefono stretto, testi più lunghi in altre lingue).
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { creating = true }) { Text(T.progetti.nuovoProgetto) }
             OutlinedButton(onClick = { import() }) { Text(T.progetti.importa) }
             OutlinedButton(onClick = { showTheme = true }) { Text(T.progetti.tema) }
+            OutlinedButton(onClick = { showLanguage = true }) { Text(T.progetti.lingua) }
         }
         HorizontalDivider()
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -89,6 +92,7 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
     }
 
     if (showTheme) ThemeDialog(onDismiss = { showTheme = false })
+    if (showLanguage) LanguageDialog(onDismiss = { showLanguage = false })
     if (creating) ProjectInfoDialog(ProjectInfo(0, ""), title = T.progetti.nuovoProgetto2, onDismiss = { creating = false }) { p ->
         creating = false
         val created = store.create(p.name, p.client, p.address)
@@ -119,7 +123,7 @@ private fun ProjectCard(p: ProjectInfo, onOpen: () -> Unit, onEdit: () -> Unit, 
     OutlinedCard(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
         Row(Modifier.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(p.name, style = MaterialTheme.typography.titleMedium)
+                Text(com.sagoma.planimetria.model.AutoNames.project(p.name), style = MaterialTheme.typography.titleMedium)
                 val details = listOf(p.client, p.address).filter { it.isNotBlank() }.joinToString(" · ")
                 if (details.isNotEmpty()) Text(details, style = MaterialTheme.typography.bodyMedium)
                 if (p.modified > 0) Text(

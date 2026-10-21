@@ -73,8 +73,8 @@ fun SelectAllTextField(
 }
 
 /** Testo dell'avviso sulle misure interne: stesso testo in app ed esportazione. */
-internal val INTERIOR_MEASURES_NOTE =
-    T.vari.areePerimetriLunghezzeMuri
+internal val INTERIOR_MEASURES_NOTE: String
+    get() = T.vari.areePerimetriLunghezzeMuri
 
 /** Avviso all'utente: le misure mostrate e inserite sono riferite al lato interno dei muri. */
 @Composable

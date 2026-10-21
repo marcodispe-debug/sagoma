@@ -78,7 +78,7 @@ fun FinishPicker(label: String, finish: WallFinish, onChange: (WallFinish) -> Un
         }
         if (finish.covering != Covering.None) {
             if (finish.covering != Covering.Material) {
-                FreeColorPicker(T.finiture.colore(finish.covering.label.lowercase()), finish.coverArgb) { onChange(finish.copy(coveringArgb = it)) }
+                FreeColorPicker(T.finiture.colore(T.lingua.minuscola(finish.covering.label)), finish.coverArgb) { onChange(finish.copy(coveringArgb = it)) }
             }
             val full = finish.coverHeight == null
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
@@ -201,10 +201,10 @@ fun MaterialPicker(label: String, selected: String?, forFloor: Boolean, allowNon
     val categories = remember(all) { all.map { it.category }.distinct() }
     var category by remember(selected) { mutableStateOf(MaterialCatalog.item(selected)?.category?.takeIf { it in categories } ?: categories.first()) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("$label: ${MaterialCatalog.item(selected)?.label ?: "nessuno"}", style = MaterialTheme.typography.labelMedium)
+        Text("$label: ${MaterialCatalog.item(selected)?.label ?: T.lingua.minuscola(T.finiture.nessuno)}", style = MaterialTheme.typography.labelMedium)
         ArrowLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(end = 8.dp)) {
             items(categories) { c ->
-                androidx.compose.material3.FilterChip(selected = c == category, onClick = { category = c }, label = { Text(c) })
+                androidx.compose.material3.FilterChip(selected = c == category, onClick = { category = c }, label = { Text(T.nomi.categoria(c)) })
             }
         }
         ArrowLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 8.dp)) {

@@ -23,8 +23,8 @@ import com.sagoma.planimetria.testi.T
 
 /** Nome di ciò che è negli appunti ("calorifero", "porta", "3 oggetti"…). */
 internal fun clipLabel(clip: Clip): String = when (clip) {
-    is Clip.FixtureClip -> clip.fixture.kind.label.lowercase()
-    is Clip.OpeningClip -> clip.opening.kind.label.lowercase()
+    is Clip.FixtureClip -> T.lingua.minuscola(clip.fixture.kind.label)
+    is Clip.OpeningClip -> T.lingua.minuscola(clip.opening.kind.label)
     is Clip.GroupClip -> clip.items.singleOrNull()?.let {
         when (it) {
             is GroupItem.RoomItem -> T.vari.stanza

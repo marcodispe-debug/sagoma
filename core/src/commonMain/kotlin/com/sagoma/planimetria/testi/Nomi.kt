@@ -27,6 +27,7 @@ import com.sagoma.planimetria.model.StairRailing
 import com.sagoma.planimetria.model.StairStructure
 import com.sagoma.planimetria.model.WallPaint
 import com.sagoma.planimetria.model.WindowModel
+import com.sagoma.planimetria.persistence.LanguageChoice
 import com.sagoma.planimetria.persistence.ThemeChoice
 
 /** Nomi di tipi, modelli e finiture, come li vede l'utente (le costanti nel codice e nei file restano in inglese). */
@@ -206,6 +207,13 @@ open class Nomi {
         ColumnShape.Round -> "Rotonda"
     }
 
+    /** Le lingue si scrivono sempre col loro nome, così le riconosce anche chi non legge la lingua attuale. */
+    open fun languageChoice(v: LanguageChoice): String = when (v) {
+        LanguageChoice.Italian -> "Italiano"
+        LanguageChoice.English -> "English"
+        LanguageChoice.System -> "Come il sistema"
+    }
+
     open fun themeChoice(v: ThemeChoice): String = when (v) {
         ThemeChoice.Light -> "Chiaro"
         ThemeChoice.Dark -> "Scuro"
@@ -291,6 +299,9 @@ open class Nomi {
 
     /** Tra il nome del modulo e il piano di lavoro: "Base con ante · Bianco opaco · piano laminato bianco". */
     open val pianoCucina: String get() = " · piano "
+
+    /** Nome a schermo di una categoria del catalogo di arredi o materiali (nei dati la categoria è in italiano). */
+    open fun categoria(chiave: String): String = chiave
 
     open fun kitchenFront(v: KitchenModules.Front): String = when (v) {
         KitchenModules.Front.WHITE -> "Bianco opaco"
