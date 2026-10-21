@@ -55,9 +55,9 @@ import com.sagoma.planimetria.editor.WallArrow
 import com.sagoma.planimetria.editor.WallDirection
 import com.sagoma.planimetria.editor.WallDirectionProblem
 import com.sagoma.planimetria.editor.WallDraw
-import com.sagoma.planimetria.model.ExcludedZone
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
+import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
 
 private val DraftWall = Color(0xFF3A3F44)
@@ -135,25 +135,25 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
     }
     Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 3.dp, shadowElevation = 6.dp, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(if (zone) "▧ Zona non calpestabile" else "✏ Muro per muro", style = MaterialTheme.typography.titleSmall)
+            Text(if (zone) T.muroPerMuro.zonaNonCalpestabile else T.muroPerMuro.muroMuro, style = MaterialTheme.typography.titleSmall)
             Text(
                 when {
                     zone && simple && wd.points.size < 3 ->
-                        "Clicca gli angoli della parte che non conta nei m² (zona non accessibile, cavedio, pilastro). Si agganciano agli angoli interni dei muri."
-                    zone && simple -> "Continua sugli angoli, poi clicca il primo angolo (cerchiato) o \"Chiudi zona\" per finire."
-                    simple && wd.points.size < 3 && !state.snapOn -> "Clicca sugli angoli della piantina, uno dopo l'altro. Agganci spenti: ogni angolo va esattamente dove clicchi."
-                    simple && wd.points.size < 3 -> "Clicca sugli angoli della piantina, uno dopo l'altro. Vicino alle direzioni dritte e a 45° il muro si blocca da solo."
-                    simple -> "Continua sugli angoli, poi clicca il primo angolo (cerchiato) o \"Chiudi stanza\" per finire."
-                    wd.points.isEmpty() -> "Tocca (o clicca) dove inizia il primo muro."
-                    wd.points.size < 3 -> "Tocca il prossimo angolo, oppure scrivi la lunghezza del muro. Misure sull'asse dei muri."
-                    else -> "Continua, oppure tocca il primo angolo (cerchiato) o \"Chiudi stanza\" per finire."
+                        T.muroPerMuro.cliccaAngoliParteNon
+                    zone && simple -> T.muroPerMuro.continuaSugliAngoliClicca
+                    simple && wd.points.size < 3 && !state.snapOn -> T.muroPerMuro.cliccaSugliAngoliPiantina
+                    simple && wd.points.size < 3 -> T.muroPerMuro.cliccaSugliAngoliPiantina2
+                    simple -> T.muroPerMuro.continuaSugliAngoliClicca2
+                    wd.points.isEmpty() -> T.muroPerMuro.toccaCliccaDoveInizia
+                    wd.points.size < 3 -> T.muroPerMuro.toccaProssimoAngoloOppure
+                    else -> T.muroPerMuro.continuaOppureToccaPrimo
                 },
                 style = MaterialTheme.typography.bodySmall,
             )
             if (wd.points.isNotEmpty() && !simple) {
                 // Verso dove va il muro: la freccia che torna indietro sul muro precedente non si può scegliere.
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Verso:", style = MaterialTheme.typography.labelLarge, modifier = Modifier.align(Alignment.CenterVertically))
+                    Text(T.muroPerMuro.verso, style = MaterialTheme.typography.labelLarge, modifier = Modifier.align(Alignment.CenterVertically))
                     for (a in WallArrow.entries) {
                         val back = vm.typedWallDirection(a, null) is WallDirection.Result.Invalid
                         FilterChip(
@@ -168,40 +168,39 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
                         if (e.type == KeyEventType.KeyDown && (e.key == Key.Enter || e.key == Key.NumPadEnter)) { add(); true } else false
                     }
                     OutlinedTextField(
-                        value = length, onValueChange = { length = it }, label = { Text("Lunghezza cm") }, singleLine = true,
+                        value = length, onValueChange = { length = it }, label = { Text(T.muroPerMuro.lunghezzaCm) }, singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { add() }),
                         modifier = Modifier.weight(1f).then(keys),
                     )
                     // L'angolo tra i muri ha senso dal secondo muro e con una freccia che dice da che parte girare.
                     if (!firstWall) OutlinedTextField(
-                        value = angle, onValueChange = { angle = it }, label = { Text("Angolo tra i muri °") }, singleLine = true,
+                        value = angle, onValueChange = { angle = it }, label = { Text(T.muroPerMuro.angoloMuri) }, singleLine = true,
                         enabled = arrow != null, placeholder = { Text("90") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { add() }),
                         modifier = Modifier.weight(1f).then(keys),
                     )
-                    Button(onClick = { add() }, enabled = lengthCm != null && lengthCm > 0 && problem == null) { Text("Aggiungi") }
+                    Button(onClick = { add() }, enabled = lengthCm != null && lengthCm > 0 && problem == null) { Text(T.muroPerMuro.aggiungi) }
                 }
                 Text(
                     when {
-                        problem == WallDirectionProblem.ANGLE_OUT_OF_RANGE -> "L'angolo tra i muri va da 1° a 179°."
+                        problem == WallDirectionProblem.ANGLE_OUT_OF_RANGE -> T.muroPerMuro.angoloMuriVa1
                         problem == WallDirectionProblem.ANGLE_WITHOUT_SIDE ->
-                            "Con questa freccia il muro prosegue dritto: per girare scegli una freccia di lato, oppure togli l'angolo."
-                        problem == WallDirectionProblem.BACKWARDS -> "Questa freccia torna indietro sul muro precedente."
-                        arrow == null -> "Scegli verso dove va il muro. Senza freccia il muro va verso il puntatore (le direzioni dritte e a 45° si bloccano da sole)."
-                        firstWall -> "Il muro va dritto ${arrowWhere(arrow!!)}."
-                        else -> "Angolo tra questo muro e il precedente (90° = in squadra): il muro gira ${arrowWhere(arrow!!)}. " +
-                            "Senza angolo va dritto ${arrowWhere(arrow!!)}. La linea tratteggiata mostra il muro prima di aggiungerlo."
+                            T.muroPerMuro.questaFrecciaMuroProsegue
+                        problem == WallDirectionProblem.BACKWARDS -> T.muroPerMuro.questaFrecciaTornaIndietro
+                        arrow == null -> T.muroPerMuro.scegliVersoDoveVa
+                        firstWall -> T.muroPerMuro.muroVaDritto(arrowWhere(arrow!!))
+                        else -> T.muroPerMuro.angoloQuestoMuroPrecedente(arrowWhere(arrow!!))
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = vm::drawWallsUndo, enabled = wd.points.isNotEmpty()) { Text("↶ Ultimo") }
-                TextButton(onClick = vm::drawWallsClose, enabled = wd.points.size >= 3) { Text(if (zone) "Chiudi zona" else "Chiudi stanza") }
-                TextButton(onClick = vm::cancelDrawWalls) { Text("Esci") }
+                TextButton(onClick = vm::drawWallsUndo, enabled = wd.points.isNotEmpty()) { Text(T.muroPerMuro.ultimo) }
+                TextButton(onClick = vm::drawWallsClose, enabled = wd.points.size >= 3) { Text(if (zone) T.muroPerMuro.chiudiZona else T.muroPerMuro.chiudiStanza) }
+                TextButton(onClick = vm::cancelDrawWalls) { Text(T.comuni.esci) }
                 // Agganci anche qui: mentre si disegna la tendina Info non c'è.
                 SnapToggle(state.snapOn, vm::setSnapOn)
                 // Muro sbiadito o tagliato nella piantina: si può sempre scrivere la misura.
@@ -209,9 +208,9 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
                     // Chiudendo le misure si toglie anche l'anteprima del muro scritto a metà.
                     if (typing) { length = ""; angle = ""; arrow = null }
                     typing = !typing
-                }) { Text(if (typing) "Nascondi misure" else "Scrivi le misure") }
+                }) { Text(if (typing) T.muroPerMuro.nascondiMisure else T.muroPerMuro.scriviMisure) }
                 // Misure che non tornano: si ritara sulla piantina, gli angoli già messi la seguono.
-                if (tracing && !zone) TextButton(onClick = vm::recalibrateUnderlay) { Text("📏 Rifai taratura") }
+                if (tracing && !zone) TextButton(onClick = vm::recalibrateUnderlay) { Text(T.muroPerMuro.rifaiTaratura) }
             }
         }
     }
@@ -235,17 +234,17 @@ private suspend fun followWallDraft(vm: EditorViewModel, includeCursor: Boolean)
 }
 
 private fun arrowLabel(a: WallArrow) = when (a) {
-    WallArrow.RIGHT -> "→ destra"
-    WallArrow.DOWN -> "↓ giù"
-    WallArrow.LEFT -> "← sinistra"
-    WallArrow.UP -> "↑ su"
+    WallArrow.RIGHT -> T.muroPerMuro.destra
+    WallArrow.DOWN -> T.muroPerMuro.giu
+    WallArrow.LEFT -> T.muroPerMuro.sinistra
+    WallArrow.UP -> T.muroPerMuro.su
 }
 
 private fun arrowWhere(a: WallArrow) = when (a) {
-    WallArrow.RIGHT -> "verso destra"
-    WallArrow.DOWN -> "verso il basso"
-    WallArrow.LEFT -> "verso sinistra"
-    WallArrow.UP -> "verso l'alto"
+    WallArrow.RIGHT -> T.muroPerMuro.versoDestra
+    WallArrow.DOWN -> T.muroPerMuro.versoBasso
+    WallArrow.LEFT -> T.muroPerMuro.versoSinistra
+    WallArrow.UP -> T.muroPerMuro.versoAlto
 }
 
 /** Forma chiusa: tipo di stanza, altezza del soffitto e spessore dei muri. */
@@ -258,52 +257,52 @@ private fun WallDrawCloseDialog(vm: EditorViewModel, onPlan: Boolean) {
     val t = thickness.replace(',', '.').toDoubleOrNull()
     AlertDialog(
         onDismissRequest = vm::drawWallsResume,
-        title = { Text("Nuova stanza") },
+        title = { Text(T.muroPerMuro.nuovaStanza) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Tipo di stanza", style = MaterialTheme.typography.labelLarge)
+                Text(T.muroPerMuro.tipoStanza, style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (rt in RoomType.entries) FilterChip(selected = rt == type, onClick = { type = rt }, label = { Text(rt.label) })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SelectAllTextField(value = ceiling, onValueChange = { ceiling = it }, label = "Soffitto cm", modifier = Modifier.weight(1f))
-                    SelectAllTextField(value = thickness, onValueChange = { thickness = it }, label = "Spessore muri cm", modifier = Modifier.weight(1f))
+                    SelectAllTextField(value = ceiling, onValueChange = { ceiling = it }, label = T.muroPerMuro.soffittoCm, modifier = Modifier.weight(1f))
+                    SelectAllTextField(value = thickness, onValueChange = { thickness = it }, label = T.muroPerMuro.spessoreMuriCm, modifier = Modifier.weight(1f))
                 }
                 if (onPlan) Text(
-                    "Gli angoli che hai cliccato sono il filo interno dei muri: le misure restano quelle, lo spessore si aggiunge verso l'esterno.",
+                    T.muroPerMuro.angoliHaiCliccatoSono,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
         },
         confirmButton = {
-            TextButton(enabled = c != null && c > 0 && t != null && t in 3.0..120.0, onClick = { vm.finishDrawWalls(type, c!!, t!!) }) { Text("Crea stanza") }
+            TextButton(enabled = c != null && c > 0 && t != null && t in 3.0..120.0, onClick = { vm.finishDrawWalls(type, c!!, t!!) }) { Text(T.muroPerMuro.creaStanza) }
         },
-        dismissButton = { TextButton(onClick = vm::drawWallsResume) { Text("Continua a disegnare") } },
+        dismissButton = { TextButton(onClick = vm::drawWallsResume) { Text(T.muroPerMuro.continuaDisegnare) } },
     )
 }
 
 /** Zona chiusa: che cos'è (il nome compare sulla pianta, con i m² tolti). */
 @Composable
 private fun ExcludedZoneCloseDialog(vm: EditorViewModel) {
-    var name by remember { mutableStateOf(ExcludedZone.DEFAULT_NAME) }
+    var name by remember { mutableStateOf(T.muroPerMuro.nonAccessibile) }
     AlertDialog(
         onDismissRequest = vm::drawWallsResume,
-        title = { Text("Zona non calpestabile") },
+        title = { Text(T.muroPerMuro.zonaNonCalpestabile2) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (n in listOf(ExcludedZone.DEFAULT_NAME, "Cavedio", "Pilastro", "Canna fumaria")) {
+                    for (n in listOf(T.muroPerMuro.nonAccessibile, T.muroPerMuro.cavedio, T.muroPerMuro.pilastro, T.muroPerMuro.cannaFumaria)) {
                         FilterChip(selected = name == n, onClick = { name = n }, label = { Text(n) })
                     }
                 }
-                SelectAllTextField(value = name, onValueChange = { name = it }, label = "Nome", modifier = Modifier.fillMaxWidth())
+                SelectAllTextField(value = name, onValueChange = { name = it }, label = T.comuni.nome, modifier = Modifier.fillMaxWidth())
                 Text(
-                    "La zona si toglie dai m² della stanza, come nelle planimetrie. Il pavimento nel computo resta quello intero.",
+                    T.muroPerMuro.zonaToglieM2Stanza,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { vm.finishExcludedZone(name) }) { Text("Crea zona") } },
-        dismissButton = { TextButton(onClick = vm::drawWallsResume) { Text("Continua a disegnare") } },
+        confirmButton = { TextButton(onClick = { vm.finishExcludedZone(name) }) { Text(T.muroPerMuro.creaZona) } },
+        dismissButton = { TextButton(onClick = vm::drawWallsResume) { Text(T.muroPerMuro.continuaDisegnare) } },
     )
 }

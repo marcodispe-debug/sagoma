@@ -29,25 +29,26 @@ import com.sagoma.planimetria.model.Dimension
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Layer
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.testi.T
 
 /** Dimensioni dei testi (altezza in cm sulla pianta: a 1:50 un testo da 25 cm è alto 5 mm sul foglio). */
-private val TextSizes = listOf("Piccolo" to 15.0, "Medio" to 25.0, "Grande" to 40.0)
+private val TextSizes = listOf(T.note.piccolo to 15.0, T.note.medio to 25.0, T.note.grande to 40.0)
 
 /** Scheda in alto mentre è attivo lo strumento "Quota" o "Testo". */
 @Composable
 fun NotesToolCard(state: EditorUiState, vm: EditorViewModel) {
     val draw = state.dimensionDraw
     val hint = when {
-        draw != null -> if (draw.first == null) "↔ Quota: tocca il primo punto (si aggancia ad angoli e facce dei muri)"
-        else "↔ Quota: tocca il secondo punto"
-        state.textPlacing -> "T Testo: tocca dove scriverlo"
+        draw != null -> if (draw.first == null) T.note.quotaToccaPrimoPunto
+        else T.note.quotaToccaSecondoPunto
+        state.textPlacing -> T.note.tTestoToccaDove
         else -> return
     }
     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.inverseSurface) {
         Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(hint, color = MaterialTheme.colorScheme.inverseOnSurface, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f, fill = false))
             TextButton(onClick = { if (state.dimensionDraw != null) vm.cancelDimension() else vm.cancelText() }) {
-                Text(if (state.dimensionDraw != null) "Fine" else "Annulla", color = MaterialTheme.colorScheme.inversePrimary)
+                Text(if (state.dimensionDraw != null) T.comuni.fine else T.comuni.annulla, color = MaterialTheme.colorScheme.inversePrimary)
             }
         }
     }
@@ -60,15 +61,15 @@ fun NewTextDialog(at: Vec2, vm: EditorViewModel) {
     var size by remember { mutableStateOf(TextSizes[1].second) }
     AlertDialog(
         onDismissRequest = vm::cancelText,
-        title = { Text("Nuovo testo") },
+        title = { Text(T.note.nuovoTesto) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SelectAllTextField(value = text, onValueChange = { text = it }, label = "Testo", modifier = Modifier.fillMaxWidth())
-                Choice("Dimensione", TextSizes.map { it.first }, TextSizes.indexOfFirst { it.second == size }, Modifier.fillMaxWidth()) { size = TextSizes[it].second }
+                SelectAllTextField(value = text, onValueChange = { text = it }, label = T.note.testoTesto, modifier = Modifier.fillMaxWidth())
+                Choice(T.note.dimensione, TextSizes.map { it.first }, TextSizes.indexOfFirst { it.second == size }, Modifier.fillMaxWidth()) { size = TextSizes[it].second }
             }
         },
-        confirmButton = { TextButton(enabled = text.isNotBlank(), onClick = { vm.addAnnotation(at, text, size) }) { Text("Metti") } },
-        dismissButton = { TextButton(onClick = vm::cancelText) { Text("Annulla") } },
+        confirmButton = { TextButton(enabled = text.isNotBlank(), onClick = { vm.addAnnotation(at, text, size) }) { Text(T.note.metti) } },
+        dismissButton = { TextButton(onClick = vm::cancelText) { Text(T.comuni.annulla) } },
     )
 }
 
@@ -78,14 +79,14 @@ internal fun DimensionPanel(sel: Selection.Dimension, plan: FloorPlan, vm: Edito
     val d = plan.dimension(sel.dimensionId) ?: return
     PanelActions {
         DuplicateButton(vm)
-        TextButton(onClick = { vm.removeDimension(d.id) }) { Text("Rimuovi", color = MaterialTheme.colorScheme.error) }
+        TextButton(onClick = { vm.removeDimension(d.id) }) { Text(T.comuni.rimuovi, color = MaterialTheme.colorScheme.error) }
     }
-    Text("Misura: ${Dimension.formatLength(d.length)} cm (si aggiorna spostando le estremità).", style = MaterialTheme.typography.bodyMedium)
+    Text(T.note.misuraCmAggiornaSpostando(Dimension.formatLength(d.length)), style = MaterialTheme.typography.bodyMedium)
     var label by remember(d.id) { mutableStateOf(d.text.orEmpty()) }
     SelectAllTextField(
         value = label,
         onValueChange = { label = it; vm.updateDimension(d.copy(text = it.ifBlank { null })) },
-        label = "Scritta al posto della misura (vuoto = la misura)",
+        label = T.note.scrittaPostoMisuraVuoto,
         modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
     )
     var off by remember(d.id, d.offset) { mutableStateOf(formatCm(kotlin.math.abs(d.offset))) }
@@ -93,14 +94,14 @@ internal fun DimensionPanel(sel: Selection.Dimension, plan: FloorPlan, vm: Edito
         SelectAllTextField(
             value = off,
             onValueChange = { off = it; it.replace(',', '.').toDoubleOrNull()?.let { v -> vm.updateDimension(d.copy(offset = if (d.offset < 0) -v else v)) } },
-            label = "Distanza della linea (cm)",
+            label = T.note.distanzaLineaCm,
             numeric = true,
             modifier = Modifier.weight(1f),
         )
-        OutlinedButton(onClick = { vm.updateDimension(d.copy(offset = -d.offset)) }) { Text("⇅ Dall'altra parte") }
+        OutlinedButton(onClick = { vm.updateDimension(d.copy(offset = -d.offset)) }) { Text(T.note.dallAltraParte) }
     }
     Text(
-        "Trascina la linea per allontanarla, le estremità per misurare altro: si agganciano ad angoli e facce dei muri.",
+        T.note.trascinaLineaAllontanarlaEstremita,
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.padding(end = 8.dp),
     )
@@ -112,26 +113,26 @@ internal fun TextNotePanel(sel: Selection.Annotation, plan: FloorPlan, vm: Edito
     val t = plan.annotation(sel.annotationId) ?: return
     PanelActions {
         DuplicateButton(vm)
-        TextButton(onClick = { vm.removeAnnotation(t.id) }) { Text("Rimuovi", color = MaterialTheme.colorScheme.error) }
+        TextButton(onClick = { vm.removeAnnotation(t.id) }) { Text(T.comuni.rimuovi, color = MaterialTheme.colorScheme.error) }
     }
     var text by remember(t.id) { mutableStateOf(t.text) }
     SelectAllTextField(
         value = text,
         onValueChange = { text = it; if (it.isNotBlank()) vm.updateAnnotation(t.copy(text = it)) },
-        label = "Testo",
+        label = T.note.testoTesto,
         modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
     )
     val sizeIndex = TextSizes.indexOfFirst { it.second == t.size }.takeIf { it >= 0 } ?: TextSizes.indices.minBy { kotlin.math.abs(TextSizes[it].second - t.size) }
-    Choice("Dimensione", TextSizes.map { it.first }, sizeIndex, Modifier.fillMaxWidth().padding(end = 8.dp)) { vm.updateAnnotation(t.copy(size = TextSizes[it].second)) }
+    Choice(T.note.dimensione, TextSizes.map { it.first }, sizeIndex, Modifier.fillMaxWidth().padding(end = 8.dp)) { vm.updateAnnotation(t.copy(size = TextSizes[it].second)) }
     Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = { vm.updateAnnotation(t.copy(rotation = if (t.rotation == 0.0) -90.0 else 0.0)) }) {
-            Text(if (t.rotation == 0.0) "↺ In verticale" else "↻ In orizzontale")
+            Text(if (t.rotation == 0.0) T.note.verticale else T.note.orizzontale)
         }
-        if (t.arrowTo == null) OutlinedButton(onClick = { vm.updateAnnotation(t.copy(arrowTo = t.at + Vec2(t.size * 3, t.size * 2))) }) { Text("↘ Freccia") }
-        else OutlinedButton(onClick = { vm.updateAnnotation(t.copy(arrowTo = null)) }) { Text("Togli freccia") }
+        if (t.arrowTo == null) OutlinedButton(onClick = { vm.updateAnnotation(t.copy(arrowTo = t.at + Vec2(t.size * 3, t.size * 2))) }) { Text(T.note.freccia) }
+        else OutlinedButton(onClick = { vm.updateAnnotation(t.copy(arrowTo = null)) }) { Text(T.note.togliFreccia) }
     }
     Text(
-        "Trascina il testo per spostarlo" + if (t.arrowTo != null) "; trascina la punta della freccia per indicare un punto." else ".",
+        T.note.trascinaTestoSpostarlo + if (t.arrowTo != null) T.note.trascinaPuntaFrecciaIndicare else ".",
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.padding(end = 8.dp),
     )
@@ -143,7 +144,7 @@ fun PhaseLegend(state: EditorUiState, modifier: Modifier = Modifier) {
     if (state.phaseView != com.sagoma.planimetria.geometry.PhaseView.Compare || !com.sagoma.planimetria.geometry.Phases.hasChanges(state.plan)) return
     Surface(modifier, shape = RoundedCornerShape(12.dp), tonalElevation = 2.dp, shadowElevation = 2.dp) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            for ((color, label) in listOf(PhaseDemolishColor to "Da demolire", PhaseNewColor to "Nuovo")) {
+            for ((color, label) in listOf(PhaseDemolishColor to T.note.demolire, PhaseNewColor to T.note.nuovo)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     androidx.compose.foundation.Canvas(Modifier.padding(0.dp).size(14.dp)) { drawRect(color); drawRect(androidx.compose.ui.graphics.Color(0xFF3A3F44), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5f)) }
                     Text(label, style = MaterialTheme.typography.labelMedium)
@@ -159,17 +160,17 @@ fun LayersDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> Uni
     val layers = state.building.layers
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Livelli") },
+        title = { Text(T.note.livelli) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    "Nascosto: non si vede sulla pianta né nel PDF e nell'immagine. Bloccato: si vede ma non si tocca. Stanze, muri, porte e finestre sono sempre attivi.",
+                    T.note.nascostoNonVedePianta,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("", modifier = Modifier.weight(1f))
-                    Text("Visibile", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp))
-                    Text("Bloccato", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp))
+                    Text(T.note.visibile, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp))
+                    Text(T.note.bloccato, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp))
                 }
                 for (l in Layer.entries) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -180,6 +181,6 @@ fun LayersDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> Uni
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Fatto") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(T.note.fatto) } },
     )
 }

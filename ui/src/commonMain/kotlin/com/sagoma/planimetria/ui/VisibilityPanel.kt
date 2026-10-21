@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.testi.T
 import kotlin.math.roundToInt
 
 /**
@@ -31,20 +32,20 @@ fun VisibilityPanel(state: EditorUiState, vm: EditorViewModel, onLoadPlan: () ->
             val u = state.plan.underlay
             if (u == null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Piantina: nessuna", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
-                    TextButton(onClick = onLoadPlan) { Text("Carica…") }
+                    Text(T.vari.piantinaNessuna, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+                    TextButton(onClick = onLoadPlan) { Text(T.vari.carica) }
                 }
             } else VisibilityRow(
-                label = "Piantina",
+                label = T.vari.piantina,
                 visible = u.visible,
                 opacity = u.opacity.toFloat(),
                 onVisible = vm::setUnderlayVisible,
                 onOpacity = { vm.previewUnderlayOpacity(it.toDouble()) },
                 onOpacityDone = vm::endUnderlayOpacity,
             )
-            if (u != null) TextButton(onClick = vm::recalibrateUnderlay) { Text("📏 Rifai taratura") }
+            if (u != null) TextButton(onClick = vm::recalibrateUnderlay) { Text(T.vari.rifaiTaratura) }
             VisibilityRow(
-                label = "Disegno",
+                label = T.vari.disegno,
                 visible = state.drawingVisible,
                 opacity = state.drawingOpacity.toFloat(),
                 onVisible = vm::setDrawingVisible,
@@ -66,7 +67,7 @@ private fun VisibilityRow(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            if (visible) "$label · ${(opacity * 100).roundToInt()}%" else "$label · nascosto",
+            if (visible) "$label · ${(opacity * 100).roundToInt()}%" else T.vari.nascosto(label),
             Modifier.weight(1f),
             style = MaterialTheme.typography.labelLarge,
         )

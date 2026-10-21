@@ -37,6 +37,7 @@ import com.sagoma.planimetria.geometry.GroupItem
 import com.sagoma.planimetria.geometry.Stairs
 import com.sagoma.planimetria.geometry.Structure
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.testi.T
 
 private val SelectBlue = Color(0xFF1D6FD1)
 private val CrossingGreen = Color(0xFF2E9E55)
@@ -114,31 +115,31 @@ fun MultiSelectionCard(state: EditorUiState, vm: EditorViewModel) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             val n = state.multi.size
             Text(
-                if (n == 0) "☐ Seleziona: trascina sul vuoto per un rettangolo (→ solo ciò che è dentro, ← anche ciò che tocca), tocca per aggiungere o togliere."
-                else "$n ${if (n == 1) "oggetto selezionato" else "oggetti selezionati"} · trascinane uno per spostarli tutti",
+                if (n == 0) T.selezione.selezionaTrascinaVuotoRettangolo
+                else T.selezione.trascinaneSpostarliTutti(n, if (n == 1) T.selezione.oggettoSelezionato else T.selezione.oggettiSelezionati),
                 style = MaterialTheme.typography.bodySmall,
             )
             ScrollableBar(contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 2.dp), spacing = Arrangement.spacedBy(6.dp)) {
                 val on = n > 0
                 OutlinedButton(onClick = { vm.groupRotate(clockwise = true) }, enabled = on) { Text("↻ 90°") }
                 OutlinedButton(onClick = { vm.groupRotate(clockwise = false) }, enabled = on) { Text("↺ 90°") }
-                OutlinedButton(onClick = { vm.groupMirror(horizontal = true) }, enabled = on) { Text("⇆ Specchia") }
-                OutlinedButton(onClick = { vm.groupMirror(horizontal = false) }, enabled = on) { Text("⇅ Specchia") }
-                OutlinedButton(onClick = { dialog = "sposta" }, enabled = on) { Text("Sposta di…") }
-                OutlinedButton(onClick = { dialog = "copia" }, enabled = on) { Text("Duplica…") }
-                OutlinedButton(onClick = { vm.copy() }, enabled = on) { Text("⧉ Copia") }
-                OutlinedButton(onClick = { dialog = "serie" }, enabled = on) { Text("Serie…") }
+                OutlinedButton(onClick = { vm.groupMirror(horizontal = true) }, enabled = on) { Text(T.selezione.specchia) }
+                OutlinedButton(onClick = { vm.groupMirror(horizontal = false) }, enabled = on) { Text(T.selezione.specchia2) }
+                OutlinedButton(onClick = { dialog = "sposta" }, enabled = on) { Text(T.selezione.sposta) }
+                OutlinedButton(onClick = { dialog = "copia" }, enabled = on) { Text(T.selezione.duplica) }
+                OutlinedButton(onClick = { vm.copy() }, enabled = on) { Text(T.selezione.copia) }
+                OutlinedButton(onClick = { dialog = "serie" }, enabled = on) { Text(T.selezione.serie) }
                 AlignMenu(vm, enabled = n >= 2)
-                OutlinedButton(onClick = { vm.groupDelete() }, enabled = on) { Text("Elimina", color = if (on) MaterialTheme.colorScheme.error else Color.Unspecified) }
-                TextButton(onClick = vm::selectAll) { Text("Tutto") }
-                TextButton(onClick = vm::toggleSelectMode) { Text("Fine") }
+                OutlinedButton(onClick = { vm.groupDelete() }, enabled = on) { Text(T.comuni.elimina, color = if (on) MaterialTheme.colorScheme.error else Color.Unspecified) }
+                TextButton(onClick = vm::selectAll) { Text(T.selezione.tutto) }
+                TextButton(onClick = vm::toggleSelectMode) { Text(T.comuni.fine) }
             }
         }
     }
     when (dialog) {
-        "sposta" -> OffsetDialog("Sposta di", withCount = false, onDismiss = { dialog = null }) { dx, dy, _ -> vm.groupTranslate(dx, dy) }
-        "copia" -> OffsetDialog("Duplica spostando di", withCount = false, initial = 50.0, onDismiss = { dialog = null }) { dx, dy, _ -> vm.groupDuplicate(dx, dy) }
-        "serie" -> OffsetDialog("Serie (copie in fila)", withCount = true, initial = 100.0, onDismiss = { dialog = null }) { dx, dy, c -> vm.groupDuplicate(dx, dy, c) }
+        "sposta" -> OffsetDialog(T.selezione.sposta2, withCount = false, onDismiss = { dialog = null }) { dx, dy, _ -> vm.groupTranslate(dx, dy) }
+        "copia" -> OffsetDialog(T.selezione.duplicaSpostando, withCount = false, initial = 50.0, onDismiss = { dialog = null }) { dx, dy, _ -> vm.groupDuplicate(dx, dy) }
+        "serie" -> OffsetDialog(T.selezione.serieCopieFila, withCount = true, initial = 100.0, onDismiss = { dialog = null }) { dx, dy, c -> vm.groupDuplicate(dx, dy, c) }
     }
 }
 
@@ -146,13 +147,13 @@ fun MultiSelectionCard(state: EditorUiState, vm: EditorViewModel) {
 private fun AlignMenu(vm: EditorViewModel, enabled: Boolean) {
     var open by remember { mutableStateOf(false) }
     Box {
-        OutlinedButton(onClick = { open = true }, enabled = enabled) { Text("Allinea ▾") }
+        OutlinedButton(onClick = { open = true }, enabled = enabled) { Text(T.selezione.allinea) }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             for (a in com.sagoma.planimetria.geometry.Alignment.entries) {
                 DropdownMenuItem(text = { Text(a.label) }, onClick = { open = false; vm.groupAlign(a) })
             }
-            DropdownMenuItem(text = { Text("Distribuisci in orizzontale") }, onClick = { open = false; vm.groupDistribute(horizontal = true) })
-            DropdownMenuItem(text = { Text("Distribuisci in verticale") }, onClick = { open = false; vm.groupDistribute(horizontal = false) })
+            DropdownMenuItem(text = { Text(T.selezione.distribuisciOrizzontale) }, onClick = { open = false; vm.groupDistribute(horizontal = true) })
+            DropdownMenuItem(text = { Text(T.selezione.distribuisciVerticale) }, onClick = { open = false; vm.groupDistribute(horizontal = false) })
         }
     }
 }
@@ -172,16 +173,16 @@ private fun OffsetDialog(title: String, withCount: Boolean, initial: Double = 0.
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    SelectAllTextField(value = dx, onValueChange = { dx = it }, label = "→ destra cm", modifier = Modifier.weight(1f))
-                    SelectAllTextField(value = dy, onValueChange = { dy = it }, label = "↓ giù cm", modifier = Modifier.weight(1f))
+                    SelectAllTextField(value = dx, onValueChange = { dx = it }, label = T.selezione.destraCm, modifier = Modifier.weight(1f))
+                    SelectAllTextField(value = dy, onValueChange = { dy = it }, label = T.selezione.giuCm, modifier = Modifier.weight(1f))
                 }
-                if (withCount) SelectAllTextField(value = count, onValueChange = { count = it }, label = "Numero di copie", modifier = Modifier.fillMaxWidth())
-                Text("Valori negativi: verso sinistra o verso l'alto.", style = MaterialTheme.typography.bodySmall)
+                if (withCount) SelectAllTextField(value = count, onValueChange = { count = it }, label = T.selezione.numeroCopie, modifier = Modifier.fillMaxWidth())
+                Text(T.selezione.valoriNegativiVersoSinistra, style = MaterialTheme.typography.bodySmall)
             }
         },
         confirmButton = {
-            TextButton(enabled = x != null && y != null && (!withCount || (c != null && c in 1..200)), onClick = { onOk(x!!, y!!, c ?: 1); onDismiss() }) { Text("OK") }
+            TextButton(enabled = x != null && y != null && (!withCount || (c != null && c in 1..200)), onClick = { onOk(x!!, y!!, c ?: 1); onDismiss() }) { Text(T.comuni.ok) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(T.comuni.annulla) } },
     )
 }

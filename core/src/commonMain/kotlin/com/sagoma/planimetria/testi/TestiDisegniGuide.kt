@@ -1,0 +1,33 @@
+package com.sagoma.planimetria.testi
+
+/** Scritte nelle animazioni delle guide. */
+open class TestiDisegniGuide {
+    open val si: String get() = "🧲 Sì"
+    open val no: String get() = "🧲 No"
+    open val camera: String get() = "Camera"
+    open val balcone: String get() = "Balcone"
+    open val elementi: String get() = "🧱 Elementi"
+    open val rampaDritta: String get() = "Rampa dritta"
+    open val dritta: String get() = "Dritta"
+    open val chiocciola: String get() = "Chiocciola"
+    open val primoPiano: String get() = "🏠 Primo piano ▾"
+    open val pianoTerra: String get() = "🏠 Piano terra ▾"
+    open val aggiungiPianoSopra: String get() = "+ Aggiungi un piano sopra"
+    open val soggiorno: String get() = "Soggiorno"
+    open val info: String get() = "Info ▲"
+    open val nomeCamera: String get() = "Nome · Camera"
+    open val tipoCamera: String get() = "Tipo · Camera"
+    open val muri400300: String get() = "Muri · 400 × 300"
+    open val lato1: String get() = "Lato 1"
+    open val stanza: String get() = "Stanza"
+    open val cucina: String get() = "Cucina"
+    open val bagno: String get() = "Bagno"
+    open val porta1Anta: String get() = "Porta 1 anta"
+    open val presaCorrente: String get() = "Presa di corrente"
+    open val stanza2: String get() = "Stanza 2"
+    open val annulla: String get() = "↶ Annulla"
+    open val strumenti: String get() = "🛠 Strumenti"
+    open fun altezzaMuro(value: Any?): String = "Altezza muro: $value"
+    open val taglioDiagonale: String get() = "Taglio diagonale"
+    open val muretto: String get() = "muretto"
+}

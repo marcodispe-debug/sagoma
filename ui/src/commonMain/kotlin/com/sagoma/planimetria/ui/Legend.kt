@@ -44,6 +44,7 @@ import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Ruler
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.testi.T
 import kotlin.math.min
 import kotlin.math.sqrt
 
@@ -85,8 +86,8 @@ fun LegendDialog(onDismiss: () -> Unit) {
         ) {
             Column {
                 Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Legenda", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onDismiss) { Text("Chiudi") }
+                    Text(T.legenda.legenda, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onDismiss) { Text(T.comuni.chiudi) }
                 }
                 HorizontalDivider()
                 LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
@@ -211,26 +212,26 @@ private fun DrawScope.drawDimensionSample(measurer: TextMeasurer) {
 private val legendSections: List<LegendSection> by lazy {
     listOf(
         LegendSection(
-            "Stanze e muri",
+            T.legenda.stanzeMuri,
             listOf(
-                LegendItem("Muro", "Muri spessi 15 cm. Il colore dell'interno indica il tipo di stanza.") { m ->
+                LegendItem(T.legenda.muro, T.legenda.muriSpessi15Cm) { m ->
                     drawSample(sampleRoom(), m, WholeRoom)
                 },
-                LegendItem("Stanza selezionata", "Colore più intenso e pallini blu sugli angoli: trascinali per cambiare la forma.") { m ->
+                LegendItem(T.legenda.stanzaSelezionata, T.legenda.colorePiuIntensoPallini) { m ->
                     drawSample(sampleRoom(), m, WholeRoom, focused = true)
                 },
-                LegendItem("Altezza muro diversa", "Il muro ha un'altezza diversa da quella del soffitto (es. mansarda).") { m ->
+                LegendItem(T.legenda.altezzaMuroDiversa, T.legenda.muroHaAltezzaDiversa) { m ->
                     drawSample(sampleRoom(wallHeights = mapOf(0 to 220.0)), m, WholeRoom)
                 },
-                LegendItem("Balcone o terrazza", "Spazio all'aperto: la doppia linea sottile è la ringhiera (pieno = muretto, azzurro = vetro).") { m ->
+                LegendItem(T.legenda.balconeTerrazza, T.legenda.spazioAllApertoDoppia) { m ->
                     drawSample(sampleRoom().copy(type = RoomType.Balcone), m, WholeRoom)
                 },
-                LegendItem("Quota","Lunghezza interna del muro in cm, misurata sul filo interno. Si cambia da Info della stanza.") { m ->
+                LegendItem(T.legenda.quota,T.legenda.lunghezzaInternaMuroCm) { m ->
                     drawDimensionSample(m)
                 },
                 LegendItem(
-                    "Parete sotto il tetto",
-                    "Il tratteggio segna dove il soffitto inizia a scendere verso il muro basso: da lì le pareti sono tagliate in diagonale.",
+                    T.legenda.pareteSottoTetto,
+                    T.legenda.tratteggioSegnaDoveSoffitto,
                 ) { m ->
                     // Muro di destra basso; i muri in alto e in basso scendono verso di lui dagli ultimi 80 cm.
                     val cuts = mapOf(
@@ -246,83 +247,83 @@ private val legendSections: List<LegendSection> by lazy {
             ),
         ),
         LegendSection(
-            "Porte",
+            T.legenda.porte,
             listOf(
-                LegendItem("Porta ad 1 anta", "L'arco indica il verso di apertura e il lato del cardine.", opening(OpeningKind.Door)),
-                LegendItem("Porta a 2 ante", "Due ante che si aprono dal centro.", opening(OpeningKind.Door2)),
-                LegendItem("Porta scorrevole", "Anta nello spessore del muro; la freccia indica dove scorre.", opening(OpeningKind.Door, sliding = true)),
-                LegendItem("Apertura squadrata", "Varco nel muro senza porta.", opening(OpeningKind.Passage)),
-                LegendItem("Apertura ad arco", "Varco senza porta con l'arco in alto.", opening(OpeningKind.Passage, style = PassageStyle.Arched)),
+                LegendItem(T.legenda.portaAd1Anta, T.legenda.arcoIndicaVersoApertura, opening(OpeningKind.Door)),
+                LegendItem(T.legenda.porta2Ante, T.legenda.dueAnteApronoCentro, opening(OpeningKind.Door2)),
+                LegendItem(T.legenda.portaScorrevole, T.legenda.antaNelloSpessoreMuro, opening(OpeningKind.Door, sliding = true)),
+                LegendItem(T.legenda.aperturaSquadrata, T.legenda.varcoMuroSenzaPorta, opening(OpeningKind.Passage)),
+                LegendItem(T.legenda.aperturaAdArco, T.legenda.varcoSenzaPortaArco, opening(OpeningKind.Passage, style = PassageStyle.Arched)),
             ),
         ),
         LegendSection(
-            "Infissi",
+            T.legenda.infissi,
             listOf(
-                LegendItem("Finestra ad 1 anta", "Vetro nel muro con l'anta che si apre.", opening(OpeningKind.Window1)),
-                LegendItem("Finestra a 2 ante", "Due ante che si aprono dal centro.", opening(OpeningKind.Window2)),
-                LegendItem("Finestra scorrevole", "Ante sovrapposte che scorrono.", opening(OpeningKind.Window2, sliding = true)),
-                LegendItem("Balcone ad 1 anta", "Porta-finestra fino a terra: ha la soglia disegnata.", opening(OpeningKind.Balcony1)),
-                LegendItem("Balcone a 2 ante", "Porta-finestra a due ante fino a terra.", opening(OpeningKind.Balcony2)),
-                LegendItem("Balcone scorrevole", "Porta-finestra con ante scorrevoli.", opening(OpeningKind.Balcony2, sliding = true)),
+                LegendItem(T.legenda.finestraAd1Anta, T.legenda.vetroMuroAntaApre, opening(OpeningKind.Window1)),
+                LegendItem(T.legenda.finestra2Ante, T.legenda.dueAnteApronoCentro, opening(OpeningKind.Window2)),
+                LegendItem(T.legenda.finestraScorrevole, T.legenda.anteSovrapposteScorrono, opening(OpeningKind.Window2, sliding = true)),
+                LegendItem(T.legenda.balconeAd1Anta, T.legenda.portaFinestraFinoTerra, opening(OpeningKind.Balcony1)),
+                LegendItem(T.legenda.balcone2Ante, T.legenda.portaFinestraDueAnte, opening(OpeningKind.Balcony2)),
+                LegendItem(T.legenda.balconeScorrevole, T.legenda.portaFinestraAnteScorrevoli, opening(OpeningKind.Balcony2, sliding = true)),
             ),
         ),
         LegendSection(
-            "Impianti",
+            T.legenda.impianti,
             listOf(
-                LegendItem("Calorifero", "Sul muro, con la sua larghezza reale.", fixture(FixtureKind.Radiator)),
-                LegendItem("Presa di corrente", "Sul muro, con l'altezza da terra.", fixture(FixtureKind.Outlet)),
-                LegendItem("Interruttore", "Sul muro, con l'altezza da terra.", fixture(FixtureKind.Switch)),
-                LegendItem("Punto acqua", "Attacco dell'acqua sul muro; la goccia punta verso il muro.", fixture(FixtureKind.WaterPoint)),
+                LegendItem(T.legenda.calorifero, T.legenda.muroSuaLarghezzaReale, fixture(FixtureKind.Radiator)),
+                LegendItem(T.legenda.presaCorrente, T.legenda.muroAltezzaTerra, fixture(FixtureKind.Outlet)),
+                LegendItem(T.legenda.interruttore, T.legenda.muroAltezzaTerra, fixture(FixtureKind.Switch)),
+                LegendItem(T.legenda.puntoAcqua, T.legenda.attaccoDellAcquaMuro, fixture(FixtureKind.WaterPoint)),
             ),
         ),
         LegendSection(
-            "Luci",
+            T.legenda.luci,
             listOf(
-                LegendItem("Faretto", "Luce puntiforme a soffitto.", fixture(FixtureKind.Spotlight)),
-                LegendItem("Neon lungo", "Luce lineare a soffitto, con lunghezza e rotazione.", fixture(FixtureKind.Neon)),
-                LegendItem("Lampadario", "Lampadario a soffitto.", fixture(FixtureKind.Chandelier)),
-                LegendItem("Plafoniera", "Plafoniera a soffitto.", fixture(FixtureKind.CeilingLight)),
-                LegendItem("Striscia LED", "Striscia luminosa a soffitto, con lunghezza e rotazione.", fixture(FixtureKind.LedStrip)),
-                LegendItem("Plafoniera a parete", "Fissata al muro, con l'altezza da terra (di solito 220 cm).", fixture(FixtureKind.WallLight)),
-                LegendItem("Faretto a parete", "Fissato al muro e rivolto verso la stanza, con l'altezza da terra.", fixture(FixtureKind.WallSpot)),
-                LegendItem("Striscia LED a parete", "Striscia luminosa sul muro: segue il muro, con lunghezza e altezza da terra (di solito 250 cm).", fixture(FixtureKind.WallLedStrip)),
+                LegendItem(T.legenda.faretto, T.legenda.lucePuntiformeSoffitto, fixture(FixtureKind.Spotlight)),
+                LegendItem(T.legenda.neonLungo, T.legenda.luceLineareSoffittoLunghezza, fixture(FixtureKind.Neon)),
+                LegendItem(T.legenda.lampadario, T.legenda.lampadarioSoffitto, fixture(FixtureKind.Chandelier)),
+                LegendItem(T.legenda.plafoniera, T.legenda.plafonieraSoffitto, fixture(FixtureKind.CeilingLight)),
+                LegendItem(T.legenda.strisciaLed, T.legenda.strisciaLuminosaSoffittoLunghezza, fixture(FixtureKind.LedStrip)),
+                LegendItem(T.legenda.plafonieraParete, T.legenda.fissataMuroAltezzaTerra, fixture(FixtureKind.WallLight)),
+                LegendItem(T.legenda.farettoParete, T.legenda.fissatoMuroRivoltoVerso, fixture(FixtureKind.WallSpot)),
+                LegendItem(T.legenda.strisciaLedParete, T.legenda.strisciaLuminosaMuroSegue, fixture(FixtureKind.WallLedStrip)),
             ),
         ),
         LegendSection(
-            "Scale e piani",
+            T.legenda.scalePiani,
             listOf(
-                LegendItem("Scala", "Pedate, linea di salita con il pallino alla partenza e la freccia all'arrivo (\"sale\").") { m ->
+                LegendItem(T.legenda.scala, T.legenda.pedateLineaSalitaPallino) { m ->
                     val cam = view(-10.0, -10.0, 250.0, 130.0)
                     val s = com.sagoma.planimetria.model.Stair(1, com.sagoma.planimetria.model.StairKind.Straight, Vec2(120.0, 60.0), rotation = 90.0)
                     drawStair(s, 150.0, cam, m, selected = false)
                 },
-                LegendItem("Vuoto scala", "Al piano di sopra: il buco nel pavimento dove arriva la scala, tratteggiato, con la freccia che scende.") { m ->
+                LegendItem(T.legenda.vuotoScala, T.legenda.pianoSopraBucoPavimento) { m ->
                     val cam = view(-10.0, -10.0, 250.0, 130.0)
                     val s = com.sagoma.planimetria.model.Stair(1, com.sagoma.planimetria.model.StairKind.Straight, Vec2(120.0, 60.0), rotation = 90.0)
-                    val below = com.sagoma.planimetria.model.Floor(1, "Piano terra", FloorPlan(stairs = listOf(s)), levelHeight = 150.0)
-                    val building = com.sagoma.planimetria.model.Building(listOf(below, com.sagoma.planimetria.model.Floor(2, "Primo piano")), current = 1)
+                    val below = com.sagoma.planimetria.model.Floor(1, T.legenda.pianoTerra, FloorPlan(stairs = listOf(s)), levelHeight = 150.0)
+                    val building = com.sagoma.planimetria.model.Building(listOf(below, com.sagoma.planimetria.model.Floor(2, T.legenda.primoPiano)), current = 1)
                     drawStairs(EditorUiState(building = building, camera = cam), m)
                 },
-                LegendItem("Piano di sotto", "Tratteggio grigio: i muri del piano di sotto, per allineare quelli del piano che stai disegnando.") { m ->
+                LegendItem(T.legenda.pianoSotto, T.legenda.tratteggioGrigioMuriPiano) { m ->
                     drawFloorBelow(FloorPlan(listOf(sampleRoom())), view(-15.0, -15.0, 215.0, 175.0))
                 },
             ),
         ),
         LegendSection(
-            "Colonne e travi",
+            T.legenda.colonneTravi,
             listOf(
-                LegendItem("Colonna", "Piena, come i muri: quadrata o rotonda, in mezzo alla stanza o accostata a un muro (pilastro).") { m ->
+                LegendItem(T.legenda.colonna, T.legenda.pienaMuriQuadrataRotonda) { m ->
                     val cam = view(-15.0, -15.0, 215.0, 175.0)
                     drawSample(sampleRoom(), m, WholeRoom)
                     drawColumn(com.sagoma.planimetria.model.Column(1, Vec2(70.0, 80.0)), cam, false)
                     drawColumn(com.sagoma.planimetria.model.Column(2, Vec2(170.0, 80.0), com.sagoma.planimetria.model.ColumnShape.Round), cam, false)
                 },
-                LegendItem("Muro singolo", "Tramezzo che non chiude una stanza, pieno come i muri, con la sua lunghezza accanto.") { m ->
+                LegendItem(T.legenda.muroSingolo, T.legenda.tramezzoNonChiudeStanza) { m ->
                     val cam = view(-15.0, -15.0, 215.0, 175.0)
                     drawSample(sampleRoom(), m, WholeRoom)
                     drawFreeWall(com.sagoma.planimetria.model.FreeWall(1, Vec2(100.0, 7.5), Vec2(100.0, 110.0)), cam, m, false)
                 },
-                LegendItem("Trave","Tratteggiata perché sta in alto, a soffitto: larghezza × quanto sporge sotto il soffitto.") { m ->
+                LegendItem(T.legenda.trave,T.legenda.tratteggiataPercheStaAlto) { m ->
                     val cam = view(-15.0, -15.0, 215.0, 175.0)
                     drawSample(sampleRoom(), m, WholeRoom)
                     drawBeam(com.sagoma.planimetria.model.Beam(1, Vec2(100.0, 7.5), Vec2(100.0, 152.5)), cam, m, false)
@@ -330,9 +331,9 @@ private val legendSections: List<LegendSection> by lazy {
             ),
         ),
         LegendSection(
-            "Strumenti",
+            T.legenda.strumenti,
             listOf(
-                LegendItem("Metro", "Righello libero con tacche ogni 10 cm e la misura in cm.") { m ->
+                LegendItem(T.legenda.metro, T.legenda.righelloLiberoTaccheOgni) { m ->
                     val cam = view(0.0, -10.0, 200.0, 110.0)
                     // In basso nel riquadro: la misura si scrive sopra il nastro.
                     val r = Ruler(1, Vec2(20.0, 75.0), Vec2(180.0, 75.0))

@@ -25,6 +25,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import com.sagoma.planimetria.testi.T
 
 /**
  * Campo di testo che seleziona tutto il contenuto quando riceve il fuoco, pronto per essere
@@ -73,7 +74,7 @@ fun SelectAllTextField(
 
 /** Testo dell'avviso sulle misure interne: stesso testo in app ed esportazione. */
 internal val INTERIOR_MEASURES_NOTE =
-    "Aree, perimetri e lunghezze dei muri sono misure interne, al netto dello spessore dei muri."
+    T.vari.areePerimetriLunghezzeMuri
 
 /** Avviso all'utente: le misure mostrate e inserite sono riferite al lato interno dei muri. */
 @Composable

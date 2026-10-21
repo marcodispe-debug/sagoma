@@ -12,20 +12,21 @@ import androidx.compose.ui.text.style.TextAlign
 import com.sagoma.planimetria.editor.DragTarget
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.model.FurnitureCatalog
+import com.sagoma.planimetria.testi.T
 
 /** Nome da mostrare per un oggetto della pianta ("Calorifero", "Finestra 2 ante · Soggiorno", "Muro · Cucina"…). */
 internal fun targetLabel(state: EditorUiState, t: DragTarget): String {
     val plan = state.plan
     return when (t) {
-        is DragTarget.Wall -> plan.room(t.roomId)?.let { r -> "Muro · ${r.name} (${formatCm(r.wallLength(t.index))} cm)" } ?: "Muro"
-        is DragTarget.Opening -> plan.room(t.roomId)?.let { r -> r.opening(t.openingId)?.let { "${openingLabel(it)} · ${r.name}" } } ?: "Apertura"
-        is DragTarget.Fixture -> plan.room(t.roomId)?.let { r -> r.fixture(t.fixtureId)?.let { "${it.kind.label} · ${r.name}" } } ?: "Impianto"
-        is DragTarget.FurnitureBody -> plan.furniture(t.furnitureId)?.let { FurnitureCatalog.item(it.model)?.label } ?: "Arredo"
-        is DragTarget.Column -> "Colonna"
-        is DragTarget.BeamBody -> "Trave"
-        is DragTarget.FreeWallBody -> "Muro singolo"
-        is DragTarget.Stair -> "Scala"
-        else -> "Oggetto"
+        is DragTarget.Wall -> plan.room(t.roomId)?.let { r -> T.vari.muroCm(r.name, formatCm(r.wallLength(t.index))) } ?: T.vari.muro
+        is DragTarget.Opening -> plan.room(t.roomId)?.let { r -> r.opening(t.openingId)?.let { "${openingLabel(it)} · ${r.name}" } } ?: T.vari.apertura
+        is DragTarget.Fixture -> plan.room(t.roomId)?.let { r -> r.fixture(t.fixtureId)?.let { "${it.kind.label} · ${r.name}" } } ?: T.vari.impianto
+        is DragTarget.FurnitureBody -> plan.furniture(t.furnitureId)?.let { FurnitureCatalog.item(it.model)?.label } ?: T.vari.arredo
+        is DragTarget.Column -> T.vari.colonna
+        is DragTarget.BeamBody -> T.vari.trave
+        is DragTarget.FreeWallBody -> T.vari.muroSingolo
+        is DragTarget.Stair -> T.vari.scala
+        else -> T.vari.oggetto
     }
 }
 
@@ -37,10 +38,10 @@ internal fun targetLabel(state: EditorUiState, t: DragTarget): String {
 internal fun OverlapChooser(state: EditorUiState, targets: List<DragTarget>, onPick: (DragTarget) -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Cosa vuoi selezionare?") },
+        title = { Text(T.vari.cosaVuoiSelezionare) },
         text = {
             Column {
-                Text("Qui ci sono più oggetti uno sull'altro.", style = MaterialTheme.typography.bodySmall)
+                Text(T.vari.quiSonoPiuOggetti, style = MaterialTheme.typography.bodySmall)
                 for (t in targets) {
                     TextButton(onClick = { onPick(t) }, modifier = Modifier.fillMaxWidth()) {
                         Text(targetLabel(state, t), modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start)
@@ -49,6 +50,6 @@ internal fun OverlapChooser(state: EditorUiState, targets: List<DragTarget>, onP
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(T.comuni.annulla) } },
     )
 }

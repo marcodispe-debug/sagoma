@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import com.sagoma.planimetria.editor.Tip
 import com.sagoma.planimetria.editor.TutorialStep
+import com.sagoma.planimetria.testi.T
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
@@ -320,7 +321,7 @@ private fun DrawScope.snap(f: Frame) {
     val corner = if (snapped) target else raw
     polygon(f, listOf(Offset(0.12f, 0.24f), corner, Offset(0.42f, 0.6f), Offset(0.12f, 0.6f)), SkFloor, sel = true)
     if (snapped) drawCircle(Color(0xFFE64980), f.l(0.035f), f.p(target), style = Stroke(f.l(0.008f)))
-    button(f, if (on) "🧲 Sì" else "🧲 No", Offset(0.5f, 0.85f), 0.34f, pressed = false, filled = on)
+    button(f, if (on) T.disegniGuide.si else T.disegniGuide.no, Offset(0.5f, 0.85f), 0.34f, pressed = false, filled = on)
     finger(f, corner, (1 - f.lin(0.88f, 0.95f)).coerceAtMost(f.lin(0f, 0.05f) + if (on) 0f else 1f).coerceIn(0f, 1f), 0f)
 }
 
@@ -401,7 +402,7 @@ private fun DrawScope.structure(f: Frame) {
  * muro della stanza si apre la porta-finestra.
  */
 private fun DrawScope.outdoor(f: Frame) {
-    room(f, Rect(0.08f, 0.14f, 0.56f, 0.78f), fill = SkRoom2, label = "Camera")
+    room(f, Rect(0.08f, 0.14f, 0.56f, 0.78f), fill = SkRoom2, label = T.disegniGuide.camera)
     val a = f.seg(0.12f, 0.32f)
     if (a > 0f) {
         val x1 = mix(0.6f, 0.9f, a)
@@ -416,7 +417,7 @@ private fun DrawScope.outdoor(f: Frame) {
         }
         drawPath(rail, SkWall.copy(alpha = a), style = Stroke(f.l(0.022f)))
         drawPath(rail, Color.White.copy(alpha = a), style = Stroke(f.l(0.009f)))
-        text(f, "Balcone", Offset((0.56f + x1) / 2, (top + bottom) / 2), alpha = f.lin(0.3f, 0.36f), size = 0.06f)
+        text(f, T.disegniGuide.balcone, Offset((0.56f + x1) / 2, (top + bottom) / 2), alpha = f.lin(0.3f, 0.36f), size = 0.06f)
     }
     // Porta-finestra sul muro della stanza.
     val d = f.seg(0.5f, 0.64f)
@@ -428,7 +429,7 @@ private fun DrawScope.outdoor(f: Frame) {
             style = Stroke(f.l(0.006f), pathEffect = PathEffect.dashPathEffect(floatArrayOf(f.l(0.02f), f.l(0.015f)))),
         )
     }
-    button(f, "🧱 Elementi", Offset(0.5f, 0.9f), 0.6f, pressed = f.t in 0.04f..0.12f)
+    button(f, T.disegniGuide.elementi, Offset(0.5f, 0.9f), 0.6f, pressed = f.t in 0.04f..0.12f)
     finger(f, Offset(0.5f, 0.9f), f.shown(0.0f, 0.14f), f.tap(0.05f))
 }
 
@@ -477,8 +478,8 @@ private fun DrawScope.addStair(f: Frame) {
     val a = f.seg(0.34f, 0.44f)
     val x = mix(0.42f, 0.14f, f.seg(0.52f, 0.8f)).let { if (f.t > 0.8f) mix(it, 0.127f, f.seg(0.8f, 0.84f)) else it }
     stairPlan(f, x, 0.62f, 0.14f, 0.44f, if (f.t in 0.44f..0.86f) SkSel else SkWall, alpha = a)
-    button(f, "🧱 Elementi", Offset(0.32f, 0.88f), 0.56f, pressed = f.t in 0.08f..0.16f)
-    menu(f, "Rampa dritta", Offset(0.36f, 0.76f), 0.5f, highlight = f.t in 0.26f..0.34f, alpha = f.lin(0.14f, 0.18f) * (1 - f.lin(0.34f, 0.38f)))
+    button(f, T.disegniGuide.elementi, Offset(0.32f, 0.88f), 0.56f, pressed = f.t in 0.08f..0.16f)
+    menu(f, T.disegniGuide.rampaDritta, Offset(0.36f, 0.76f), 0.5f, highlight = f.t in 0.26f..0.34f, alpha = f.lin(0.14f, 0.18f) * (1 - f.lin(0.34f, 0.38f)))
     val pos = if (f.t < 0.5f) along(f.t, 0f to Offset(0.3f, 0.88f), 0.16f to Offset(0.3f, 0.88f), 0.24f to Offset(0.36f, 0.76f), 0.4f to Offset(0.36f, 0.76f), 0.5f to Offset(0.49f, 0.4f))
     else Offset(x + 0.07f, 0.4f)
     finger(f, pos, f.shown(0.02f, 0.88f), f.tap(0.1f, 0.28f))
@@ -507,7 +508,7 @@ private fun DrawScope.stairOptions(f: Frame) {
             drawCircle(SkSel, f.l(0.025f), c)
         }
     }
-    listOf("Dritta", "A L", "Chiocciola").forEachIndexed { i, s ->
+    listOf(T.disegniGuide.dritta, "A L", T.disegniGuide.chiocciola).forEachIndexed { i, s ->
         button(f, s, Offset(0.2f + i * 0.3f, 0.84f), 0.27f, pressed = false, filled = i == phase)
     }
     finger(f, Offset(0.2f + phase * 0.3f, 0.86f), 1f, f.tap(0.02f, 0.35f, 0.68f))
@@ -516,8 +517,8 @@ private fun DrawScope.stairOptions(f: Frame) {
 /** Menu del piano → "Aggiungi un piano sopra": il piano di sotto resta in grigio e si disegna quello nuovo. */
 private fun DrawScope.addFloor(f: Frame) {
     val newFloor = f.t > 0.4f
-    button(f, if (newFloor) "🏠 Primo piano ▾" else "🏠 Piano terra ▾", Offset(0.3f, 0.08f), 0.52f, pressed = f.t in 0.08f..0.16f, h = 0.1f)
-    menu(f, "+ Aggiungi un piano sopra", Offset(0.44f, 0.2f), 0.78f, highlight = f.t in 0.28f..0.36f, alpha = f.lin(0.14f, 0.18f) * (1 - f.lin(0.36f, 0.4f)))
+    button(f, if (newFloor) T.disegniGuide.primoPiano else T.disegniGuide.pianoTerra, Offset(0.3f, 0.08f), 0.52f, pressed = f.t in 0.08f..0.16f, h = 0.1f)
+    menu(f, T.disegniGuide.aggiungiPianoSopra, Offset(0.44f, 0.2f), 0.78f, highlight = f.t in 0.28f..0.36f, alpha = f.lin(0.14f, 0.18f) * (1 - f.lin(0.36f, 0.4f)))
     val ground = Rect(0.12f, 0.32f, 0.88f, 0.9f)
     if (!newFloor) {
         room(f, ground, fill = SkKitchen)
@@ -528,7 +529,7 @@ private fun DrawScope.addFloor(f: Frame) {
         val dash = PathEffect.dashPathEffect(floatArrayOf(f.l(0.03f), f.l(0.02f)))
         drawRect(Color(0xFFADB5BD), f.p(ground.left, ground.top), Size(f.l(ground.width), f.l(ground.height)), style = Stroke(f.l(0.02f), pathEffect = dash))
         val a = f.seg(0.45f, 0.62f)
-        room(f, Rect(0.12f, 0.32f, 0.62f, 0.9f), fill = SkRoom2, alpha = a, label = "Camera")
+        room(f, Rect(0.12f, 0.32f, 0.62f, 0.9f), fill = SkRoom2, alpha = a, label = T.disegniGuide.camera)
         val voidTl = f.p(0.72f, 0.56f)
         drawRect(Color(0xFFE9ECEF), voidTl, Size(f.l(0.1f), f.l(0.3f)))
         drawRect(SkWall, voidTl, Size(f.l(0.1f), f.l(0.3f)), style = Stroke(f.l(0.006f), pathEffect = dash))
@@ -671,7 +672,7 @@ private fun DrawScope.welcome(f: Frame) {
     val z = f.seg(0.08f, 0.42f)
     val k = mix(0.62f, 1f, z)
     val c = Offset(0.5f, 0.5f)
-    room(f, Rect(c.x - 0.34f * k, c.y - 0.26f * k, c.x + 0.34f * k, c.y + 0.26f * k), sel = f.t > 0.64f, label = "Soggiorno")
+    room(f, Rect(c.x - 0.34f * k, c.y - 0.26f * k, c.x + 0.34f * k, c.y + 0.26f * k), sel = f.t > 0.64f, label = T.disegniGuide.soggiorno)
     val pinch = f.shown(0.02f, 0.44f)
     val d = mix(0.08f, 0.24f, z)
     finger(f, Offset(c.x - d, c.y + d * 0.7f), pinch, 0f)
@@ -681,14 +682,14 @@ private fun DrawScope.welcome(f: Frame) {
 
 /** Tocco sulla stanza, poi su Info: la tendina sale. */
 private fun DrawScope.openInfo(f: Frame) {
-    room(f, Rect(0.18f, 0.08f, 0.82f, 0.5f), sel = f.t > 0.16f, label = "Camera")
+    room(f, Rect(0.18f, 0.08f, 0.82f, 0.5f), sel = f.t > 0.16f, label = T.disegniGuide.camera)
     val strip = f.lin(0.2f, 0.28f)
     if (strip > 0f) {
         val tl = f.p(0.05f, 0.8f)
         drawRoundRect(Color.White.copy(alpha = strip), tl, Size(f.l(0.9f), f.l(0.14f)), CornerRadius(f.l(0.04f)))
         drawRoundRect(Color(0xFFADB5BD).copy(alpha = strip), tl, Size(f.l(0.9f), f.l(0.14f)), CornerRadius(f.l(0.04f)), style = Stroke(f.l(0.006f)))
-        text(f, "Camera", Offset(0.26f, 0.87f), alpha = strip, size = 0.06f)
-        text(f, "Info ▲", Offset(0.78f, 0.87f), color = SkSel, alpha = strip, size = 0.06f, bold = true)
+        text(f, T.disegniGuide.camera, Offset(0.26f, 0.87f), alpha = strip, size = 0.06f)
+        text(f, T.disegniGuide.info, Offset(0.78f, 0.87f), color = SkSel, alpha = strip, size = 0.06f, bold = true)
     }
     val up = f.seg(0.58f, 0.78f)
     if (up > 0f) {
@@ -696,7 +697,7 @@ private fun DrawScope.openInfo(f: Frame) {
         val tl = f.p(0.03f, top)
         drawRoundRect(Color.White, tl, Size(f.l(0.94f), f.l(1f - top)), CornerRadius(f.l(0.05f)))
         drawRoundRect(Color(0xFFADB5BD), tl, Size(f.l(0.94f), f.l(1f - top)), CornerRadius(f.l(0.05f)), style = Stroke(f.l(0.006f)))
-        val rows = listOf("Nome · Camera", "Tipo · Camera", "Muri · 400 × 300")
+        val rows = listOf(T.disegniGuide.nomeCamera, T.disegniGuide.tipoCamera, T.disegniGuide.muri400300)
         rows.forEachIndexed { i, s -> val y = top + 0.12f + i * 0.15f; if (y < 0.95f) text(f, s, Offset(0.5f, y), size = 0.06f) }
     }
     val pos = along(f.t, 0f to Offset(0.56f, 0.34f), 0.3f to Offset(0.56f, 0.34f), 0.44f to Offset(0.78f, 0.87f))
@@ -726,9 +727,9 @@ private fun DrawScope.wallLengths(f: Frame) {
     val tl = f.p(0.14f, 0.62f)
     drawRoundRect(Color.White, tl, Size(f.l(0.72f), f.l(0.16f)), CornerRadius(f.l(0.02f)))
     drawRoundRect(if (focused) SkSel else Color(0xFFADB5BD), tl, Size(f.l(0.72f), f.l(0.16f)), CornerRadius(f.l(0.02f)), style = Stroke(f.l(if (focused) 0.012f else 0.006f)))
-    text(f, "Lato 1", Offset(0.3f, 0.7f), color = Color(0xFF868E96), size = 0.055f)
+    text(f, T.disegniGuide.lato1, Offset(0.3f, 0.7f), color = Color(0xFF868E96), size = 0.055f)
     text(f, "$typed cm", Offset(0.62f, 0.7f), bold = true)
-    button(f, "OK", Offset(0.76f, 0.9f), 0.2f, pressed = f.t in 0.5f..0.58f, h = 0.1f)
+    button(f, T.comuni.ok, Offset(0.76f, 0.9f), 0.2f, pressed = f.t in 0.5f..0.58f, h = 0.1f)
     val pos = along(f.t, 0f to Offset(0.62f, 0.72f), 0.42f to Offset(0.62f, 0.72f), 0.5f to Offset(0.76f, 0.9f))
     finger(f, pos, f.shown(0.04f, 0.66f), f.tap(0.12f, 0.5f))
 }
@@ -736,8 +737,8 @@ private fun DrawScope.wallLengths(f: Frame) {
 /** Si tocca "Cucina": colore e nome della stanza cambiano. */
 private fun DrawScope.changeType(f: Frame) {
     val c = f.seg(0.45f, 0.6f)
-    room(f, Rect(0.18f, 0.1f, 0.82f, 0.5f), fill = lerp(SkFloor, SkKitchen, c), label = if (f.t < 0.5f) "Stanza" else "Cucina")
-    val chips = listOf("Camera", "Cucina", "Bagno")
+    room(f, Rect(0.18f, 0.1f, 0.82f, 0.5f), fill = lerp(SkFloor, SkKitchen, c), label = if (f.t < 0.5f) T.disegniGuide.stanza else T.disegniGuide.cucina)
+    val chips = listOf(T.disegniGuide.camera, T.disegniGuide.cucina, T.disegniGuide.bagno)
     chips.forEachIndexed { i, s ->
         button(f, s, Offset(0.18f + i * 0.32f, 0.72f), 0.29f, pressed = i == 1 && f.t in 0.38f..0.46f, filled = i == 1 && f.t > 0.46f)
     }
@@ -768,8 +769,8 @@ private fun DrawScope.moveCorner(f: Frame) {
 private fun DrawScope.addDoor(f: Frame) {
     room(f, Rect(0.14f, 0.14f, 0.86f, 0.6f))
     door(f, 0.43f, 0.14f, 0.18f, SkDoor, open = f.seg(0.6f, 0.72f))
-    button(f, "🧱 Elementi", Offset(0.32f, 0.88f), 0.56f, pressed = f.t in 0.1f..0.2f)
-    menu(f, "Porta 1 anta", Offset(0.36f, 0.72f), 0.5f, highlight = f.t in 0.34f..0.44f, alpha = f.lin(0.18f, 0.22f) * (1 - f.lin(0.44f, 0.48f)))
+    button(f, T.disegniGuide.elementi, Offset(0.32f, 0.88f), 0.56f, pressed = f.t in 0.1f..0.2f)
+    menu(f, T.disegniGuide.porta1Anta, Offset(0.36f, 0.72f), 0.5f, highlight = f.t in 0.34f..0.44f, alpha = f.lin(0.18f, 0.22f) * (1 - f.lin(0.44f, 0.48f)))
     val pos = along(f.t, 0f to Offset(0.3f, 0.88f), 0.24f to Offset(0.3f, 0.88f), 0.32f to Offset(0.36f, 0.72f), 0.44f to Offset(0.36f, 0.72f), 0.54f to Offset(0.52f, 0.15f))
     finger(f, pos, f.shown(0.02f, 0.76f), f.tap(0.12f, 0.35f, 0.56f))
 }
@@ -786,30 +787,30 @@ private fun DrawScope.moveDoor(f: Frame) {
 private fun DrawScope.addFixture(f: Frame) {
     room(f, Rect(0.14f, 0.12f, 0.86f, 0.6f))
     outlet(f, Offset(0.19f, 0.36f), f.seg(0.54f, 0.64f))
-    button(f, "🧱 Elementi", Offset(0.32f, 0.88f), 0.56f, pressed = f.t in 0.1f..0.2f)
-    menu(f, "Presa di corrente", Offset(0.4f, 0.72f), 0.6f, highlight = f.t in 0.32f..0.42f, alpha = f.lin(0.18f, 0.22f) * (1 - f.lin(0.42f, 0.46f)))
+    button(f, T.disegniGuide.elementi, Offset(0.32f, 0.88f), 0.56f, pressed = f.t in 0.1f..0.2f)
+    menu(f, T.disegniGuide.presaCorrente, Offset(0.4f, 0.72f), 0.6f, highlight = f.t in 0.32f..0.42f, alpha = f.lin(0.18f, 0.22f) * (1 - f.lin(0.42f, 0.46f)))
     val pos = along(f.t, 0f to Offset(0.32f, 0.88f), 0.22f to Offset(0.32f, 0.88f), 0.3f to Offset(0.4f, 0.72f), 0.42f to Offset(0.4f, 0.72f), 0.5f to Offset(0.15f, 0.36f))
     finger(f, pos, f.shown(0.02f, 0.74f), f.tap(0.12f, 0.33f, 0.52f))
 }
 
 /** "🧱 Elementi" → Stanza: la nuova stanza compare accanto. */
 private fun DrawScope.addRoom(f: Frame) {
-    room(f, Rect(0.06f, 0.2f, 0.46f, 0.62f), fill = SkKitchen, label = "Cucina")
+    room(f, Rect(0.06f, 0.2f, 0.46f, 0.62f), fill = SkKitchen, label = T.disegniGuide.cucina)
     val a = f.seg(0.3f, 0.45f)
     if (a > 0f) {
         val k = mix(0.7f, 1f, a)
         val c = Offset(0.74f, 0.42f)
-        room(f, Rect(c.x - 0.18f * k, c.y - 0.18f * k, c.x + 0.18f * k, c.y + 0.18f * k), fill = SkRoom2, sel = true, label = "Stanza 2", alpha = a)
+        room(f, Rect(c.x - 0.18f * k, c.y - 0.18f * k, c.x + 0.18f * k, c.y + 0.18f * k), fill = SkRoom2, sel = true, label = T.disegniGuide.stanza2, alpha = a)
     }
-    button(f, "🧱 Elementi", Offset(0.5f, 0.88f), 0.6f, pressed = f.t in 0.12f..0.22f, filled = true)
+    button(f, T.disegniGuide.elementi, Offset(0.5f, 0.88f), 0.6f, pressed = f.t in 0.12f..0.22f, filled = true)
     finger(f, Offset(0.5f, 0.88f), f.shown(0.02f, 0.3f), f.tap(0.14f))
 }
 
 /** La stanza nuova si trascina dal nome verso l'altra e si aggancia al suo muro. */
 private fun DrawScope.moveRoom(f: Frame) {
-    room(f, Rect(0.06f, 0.22f, 0.44f, 0.62f), fill = SkKitchen, label = "Cucina")
+    room(f, Rect(0.06f, 0.22f, 0.44f, 0.62f), fill = SkKitchen, label = T.disegniGuide.cucina)
     val left = mix(mix(0.6f, 0.48f, f.seg(0.2f, 0.58f)), 0.44f, f.seg(0.62f, 0.66f))
-    room(f, Rect(left, 0.26f, left + 0.34f, 0.62f), fill = SkRoom2, sel = true, label = "Stanza 2")
+    room(f, Rect(left, 0.26f, left + 0.34f, 0.62f), fill = SkRoom2, sel = true, label = T.disegniGuide.stanza2)
     val snap = f.lin(0.66f, 0.7f) * (1 - f.lin(0.86f, 0.94f))
     if (snap > 0f) wall(f, Offset(0.44f, 0.26f), Offset(0.44f, 0.62f), SkOk.copy(alpha = snap), 0.05f)
     finger(f, Offset(left + 0.17f, 0.49f), f.shown(0.04f, 0.8f), f.tap(0.14f))
@@ -821,14 +822,14 @@ private fun DrawScope.undo(f: Frame) {
     val r = mix(out, 0.62f, f.seg(0.62f, 0.74f))
     room(f, Rect(0.16f, 0.26f, r, 0.76f))
     if (f.t in 0.08f..0.5f) wall(f, Offset(r, 0.26f), Offset(r, 0.76f), SkSel, 0.045f)
-    button(f, "↶ Annulla", Offset(0.28f, 0.1f), 0.44f, pressed = f.t in 0.56f..0.66f, h = 0.1f)
+    button(f, T.disegniGuide.annulla, Offset(0.28f, 0.1f), 0.44f, pressed = f.t in 0.56f..0.66f, h = 0.1f)
     val pos = along(f.t, 0f to Offset(0.62f, 0.5f), 0.12f to Offset(0.62f, 0.5f), 0.36f to Offset(0.84f, 0.5f), 0.52f to Offset(0.28f, 0.1f))
     finger(f, pos, f.shown(0.02f, 0.8f), f.tap(0.08f, 0.57f))
 }
 
 /** "🛠 Strumenti" → Quota: compare la misura, se ne trascina l'estremità e cresce (guida di quote e testi). */
 private fun DrawScope.ruler(f: Frame) {
-    button(f, "🛠 Strumenti", Offset(0.5f, 0.88f), 0.6f, pressed = f.t in 0.08f..0.16f)
+    button(f, T.disegniGuide.strumenti, Offset(0.5f, 0.88f), 0.6f, pressed = f.t in 0.08f..0.16f)
     val a = f.seg(0.14f, 0.22f)
     val y = 0.46f
     val ax = 0.14f
@@ -983,7 +984,7 @@ private fun DrawScope.atticPlan(f: Frame, lowColor: Color, lowLabel: String?, se
         2 -> wall(f, Offset(r.left, r.bottom), Offset(r.right, r.bottom), SkSel, 0.045f)
     }
     lowLabel?.let {
-        text(f, "muretto", Offset(0.87f, r.center.y - 0.05f), color = lowColor, size = 0.052f)
+        text(f, T.disegniGuide.muretto, Offset(0.87f, r.center.y - 0.05f), color = lowColor, size = 0.052f)
         text(f, it, Offset(0.87f, r.center.y + 0.04f), color = lowColor, size = 0.058f, bold = true)
     }
     val dash = PathEffect.dashPathEffect(floatArrayOf(f.l(0.025f), f.l(0.018f)))
@@ -1012,14 +1013,14 @@ private fun DrawScope.atticLow(f: Frame) {
     val k = f.seg(0.3f, 0.65f)
     val value = mix(270f, 120f, k).roundToInt()
     atticPlan(f, lerp(SkWall, SkLow, k), "$value cm", selected = if (f.t in 0.12f..0.3f) 1 else null, cut1 = 0f, cut2 = 0f)
-    button(f, "Altezza muro: $value", Offset(0.5f, 0.86f), 0.72f, pressed = f.t in 0.22f..0.68f)
+    button(f, T.disegniGuide.altezzaMuro(value), Offset(0.5f, 0.86f), 0.72f, pressed = f.t in 0.22f..0.68f)
     finger(f, Offset(AtticRect.right, AtticRect.center.y), f.shown(0.02f, 0.2f), f.tap(0.1f))
 }
 
 /** Si tocca una parete laterale e si attiva il taglio: compare la linea di inizio discesa. */
 private fun DrawScope.atticCut(f: Frame) {
     atticPlan(f, SkLow, "120 cm", selected = if (f.t > 0.12f) 0 else null, cut1 = f.seg(0.45f, 0.65f), cut2 = 0f)
-    button(f, "Taglio diagonale", Offset(0.5f, 0.86f), 0.66f, pressed = f.t in 0.32f..0.4f, filled = f.t > 0.4f)
+    button(f, T.disegniGuide.taglioDiagonale, Offset(0.5f, 0.86f), 0.66f, pressed = f.t in 0.32f..0.4f, filled = f.t > 0.4f)
     val pos = along(f.t, 0f to Offset(0.32f, AtticRect.top), 0.18f to Offset(0.32f, AtticRect.top), 0.3f to Offset(0.5f, 0.86f))
     finger(f, pos, f.shown(0.02f, 0.6f), f.tap(0.1f, 0.34f))
 }
@@ -1027,7 +1028,7 @@ private fun DrawScope.atticCut(f: Frame) {
 /** Lo stesso sulla parete di fronte. */
 private fun DrawScope.atticRepeat(f: Frame) {
     atticPlan(f, SkLow, "120 cm", selected = if (f.t > 0.12f) 2 else null, cut1 = 1f, cut2 = f.seg(0.45f, 0.65f))
-    button(f, "Taglio diagonale", Offset(0.5f, 0.86f), 0.66f, pressed = f.t in 0.32f..0.4f, filled = f.t > 0.4f)
+    button(f, T.disegniGuide.taglioDiagonale, Offset(0.5f, 0.86f), 0.66f, pressed = f.t in 0.32f..0.4f, filled = f.t > 0.4f)
     val pos = along(f.t, 0f to Offset(0.32f, AtticRect.bottom), 0.18f to Offset(0.32f, AtticRect.bottom), 0.3f to Offset(0.5f, 0.86f))
     finger(f, pos, f.shown(0.02f, 0.6f), f.tap(0.1f, 0.34f))
 }

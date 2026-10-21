@@ -5,19 +5,23 @@ import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
 
 /** Tipo di aggancio, con il nome mostrato accanto alla guida. */
-enum class SnapKind(val label: String) {
-    Endpoint("Estremità"),
-    Midpoint("Punto medio"),
-    Center("Centro"),
-    AlignVertical("Allineato"),
-    AlignHorizontal("Allineato"),
-    RightAngle("Angolo retto"),
+enum class SnapKind {
+    Endpoint,
+    Midpoint,
+    Center,
+    AlignVertical,
+    AlignHorizontal,
+    RightAngle,
     /** Direzione bloccata rispetto al punto precedente (disegno dei muri). */
-    Horizontal("Orizzontale"),
-    Vertical("Verticale"),
-    Diagonal("45°"),
+    Horizontal,
+    Vertical,
+    Diagonal,
     /** Chiusura sul primo punto (disegno dei muri). */
-    Close("Chiudi"),
+    Close,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.snapKind(this)
 }
 
 /**

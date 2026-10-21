@@ -1388,7 +1388,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val zone = ExcludedZone(
             id = (room.excludedZones.maxOfOrNull { it.id } ?: 0) + 1,
             points = wd.points,
-            name = name.trim().ifEmpty { ExcludedZone.DEFAULT_NAME },
+            name = name.trim().ifEmpty { com.sagoma.planimetria.testi.T.muroPerMuro.nonAccessibile },
         )
         commit { p -> p.room(roomId)?.let { p.replace(it.copy(excludedZones = it.excludedZones + zone)) } ?: p }
         _state.update { it.copy(wallDraw = null, snapGuides = emptyList(), focusedRoomId = roomId, selection = null, infoExpanded = true) }

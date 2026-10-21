@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.Density
 import com.sagoma.planimetria.assets.AssetStore
 import com.sagoma.planimetria.assets.EmptyAssetStore
+import com.sagoma.planimetria.testi.T
 import com.sagoma.planimetria.ui.ImportedImage
 import com.sagoma.planimetria.ui.PdfPage
 import com.sagoma.planimetria.ui.PickedFile
@@ -82,7 +83,7 @@ class WebPlatform : Platform {
 
     override fun shareText(subject: String, text: String) {
         jsCopy(text)
-        toast("Copiato negli appunti: incollalo dove vuoi")
+        toast(T.vari.copiatoNegliAppuntiIncollalo2)
     }
 
     /** Nessun asset sul web per ora: arredi e materiali 3D arriveranno con il catalogo online (un altro [AssetStore]). */
@@ -104,5 +105,5 @@ class WebPlatform : Platform {
     override fun now(): Long = jsNow().toLong()
 
     override fun createSceneRenderer(): SceneRenderer =
-        WebGlSceneRenderer().takeIf { it.available } ?: UnavailableSceneRenderer("Questo browser non supporta la grafica 3D (WebGL).")
+        WebGlSceneRenderer().takeIf { it.available } ?: UnavailableSceneRenderer(T.vari.questoBrowserNonSupporta)
 }

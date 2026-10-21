@@ -12,6 +12,7 @@ import com.sagoma.planimetria.assets.NoAssetRequests
 import com.sagoma.planimetria.assets.remote.LateBoundAssetRequests
 import com.sagoma.planimetria.assets.remote.ManifestRefreshResult
 import com.sagoma.planimetria.assets.remote.RemoteAssets
+import com.sagoma.planimetria.testi.T
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -77,7 +78,7 @@ class DesktopPlatform(
     }
 
     override fun saveFile(suggestedName: String, mimeType: String, bytes: ByteArray, onDone: (Boolean) -> Unit) {
-        val d = FileDialog(frame, "Salva", FileDialog.SAVE)
+        val d = FileDialog(frame, T.comuni.salva, FileDialog.SAVE)
         d.file = suggestedName
         d.isVisible = true
         val name = d.file ?: return
@@ -85,7 +86,7 @@ class DesktopPlatform(
     }
 
     override fun openFile(mimeTypes: List<String>, onResult: (PickedFile?) -> Unit) {
-        val d = FileDialog(frame, "Apri", FileDialog.LOAD)
+        val d = FileDialog(frame, T.vari.apri, FileDialog.LOAD)
         val ext = mimeTypes.flatMap(::extensions)
         if (ext.isNotEmpty()) d.setFilenameFilter { _, n -> ext.any { n.lowercase().endsWith(".$it") } }
         d.isVisible = true
@@ -96,7 +97,7 @@ class DesktopPlatform(
     /** Sul computer "condividi" copia il testo negli appunti (si incolla in una mail o in Excel). */
     override fun shareText(subject: String, text: String) {
         Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
-        toast("Copiato negli appunti: incollalo dove vuoi")
+        toast(T.vari.copiatoNegliAppuntiIncollalo)
     }
 
     /**
@@ -146,7 +147,7 @@ class DesktopPlatform(
     override fun now(): Long = System.currentTimeMillis()
 
     override fun createSceneRenderer(): SceneRenderer = runCatching { DesktopGlSceneRenderer(assetStore::peek) }.getOrElse {
-        UnavailableSceneRenderer("La vista 3D non è disponibile su questo computer (OpenGL non trovato).")
+        UnavailableSceneRenderer(T.vari.vista3dNonDisponibile)
     }
 }
 

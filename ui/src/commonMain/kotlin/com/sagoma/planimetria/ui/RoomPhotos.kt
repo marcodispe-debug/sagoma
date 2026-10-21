@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomPhoto
+import com.sagoma.planimetria.testi.T
 import kotlinx.coroutines.launch
 
 /** Lato lungo della foto salvata (px): si leggono bene prese e misure sul metro, e pesa circa 300 KB. */
@@ -97,7 +98,7 @@ internal fun PhotosTab(room: Room, vm: EditorViewModel) {
             loading = false
             if (!saved) {
                 // Letta ma non salvata: di solito manca spazio (nel browser c'è un limite di pochi MB).
-                platform.toast(if (big == null || mini == null) "Impossibile leggere la foto" else "Non c'è spazio per salvare la foto")
+                platform.toast(if (big == null || mini == null) T.foto.impossibileLeggereFoto else T.foto.nonSpazioSalvare)
                 return@launch
             }
             vm.addRoomPhoto(room.id, photo)
@@ -106,18 +107,17 @@ internal fun PhotosTab(room: Room, vm: EditorViewModel) {
 
     // La spiegazione solo finché non ci sono foto: dopo, sul telefono, le miniature stanno subito sotto i pulsanti.
     if (room.photos.isEmpty()) Text(
-        "Foto del sopralluogo da riguardare mentre disegni: dov'è la presa, da che parte apre la porta, il metro appoggiato al muro. " +
-            "Restano nel progetto; non cambiano la pianta né il 3D.",
+        T.foto.fotoSopralluogoRiguardareMentre,
         style = MaterialTheme.typography.bodySmall,
     )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (platform.canTakePhoto) Button(enabled = !loading, onClick = { platform.takePhoto(::add) }) { Text("📷 Scatta") }
-        val pick = if (platform.canTakePhoto) "🖼 Dalla galleria" else "📷 Aggiungi foto"
+        if (platform.canTakePhoto) Button(enabled = !loading, onClick = { platform.takePhoto(::add) }) { Text(T.foto.scatta) }
+        val pick = if (platform.canTakePhoto) T.foto.galleria else T.foto.aggiungiFoto
         val onPick = { platform.openFile(listOf("image/*")) { add(it) } }
         if (platform.canTakePhoto) OutlinedButton(enabled = !loading, onClick = onPick) { Text(pick) }
         else Button(enabled = !loading, onClick = onPick) { Text(pick) }
     }
-    if (loading) Text("Preparo la foto…", style = MaterialTheme.typography.bodySmall)
+    if (loading) Text(T.foto.preparoFoto, style = MaterialTheme.typography.bodySmall)
 
     // Due per riga: abbastanza grandi da riconoscere la parete anche sul telefono.
     for (row in room.photos.chunked(2)) {
@@ -144,10 +144,10 @@ private fun PhotoCell(photo: RoomPhoto, modifier: Modifier, onClick: () -> Unit)
     Column(modifier.clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         val shape = RoundedCornerShape(8.dp)
         val frame = Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(shape).background(MaterialTheme.colorScheme.surfaceVariant)
-        if (img != null) Image(img, photo.note.ifBlank { "Foto della stanza" }, frame, contentScale = ContentScale.Crop)
+        if (img != null) Image(img, photo.note.ifBlank { T.foto.fotoStanza }, frame, contentScale = ContentScale.Crop)
         else Box(frame)
         Text(
-            photo.note.ifBlank { "Tocca per aggiungere una nota" },
+            photo.note.ifBlank { T.foto.toccaAggiungereNota },
             style = MaterialTheme.typography.bodySmall,
             color = if (photo.note.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
@@ -171,20 +171,20 @@ private fun PhotoDialog(photo: RoomPhoto, onNote: (String) -> Unit, onRemove: ()
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val frame = Modifier.fillMaxWidth().heightIn(max = 560.dp)
                 if (img != null) {
-                    Image(img, "Foto della stanza", frame.aspectRatio(img.width.toFloat() / img.height), contentScale = ContentScale.Fit)
+                    Image(img, T.foto.fotoStanza, frame.aspectRatio(img.width.toFloat() / img.height), contentScale = ContentScale.Fit)
                 } else Box(frame.aspectRatio(4f / 3f).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                    Text("Apro la foto…", style = MaterialTheme.typography.bodySmall)
+                    Text(T.foto.aproFoto, style = MaterialTheme.typography.bodySmall)
                 }
                 SelectAllTextField(
                     value = note,
                     onValueChange = { note = it },
-                    label = "Nota (per esempio: presa a 30 cm da terra)",
+                    label = T.foto.notaEsempioPresa30,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
-        confirmButton = { TextButton(onClick = close) { Text("Chiudi") } },
-        dismissButton = { TextButton(onClick = onRemove) { Text("Togli foto", color = MaterialTheme.colorScheme.error) } },
+        confirmButton = { TextButton(onClick = close) { Text(T.comuni.chiudi) } },
+        dismissButton = { TextButton(onClick = onRemove) { Text(T.foto.togliFoto, color = MaterialTheme.colorScheme.error) } },
         modifier = Modifier.padding(8.dp),
     )
 }

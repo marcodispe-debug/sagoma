@@ -1,10 +1,14 @@
 package com.sagoma.planimetria.persistence
 
 /** Aspetto dell'app scelto dall'utente: chiaro, scuro o come il sistema (telefono, computer, browser). */
-enum class ThemeChoice(val label: String) {
-    Light("Chiaro"),
-    Dark("Scuro"),
-    System("Come il sistema"),
+enum class ThemeChoice {
+    Light,
+    Dark,
+    System,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.themeChoice(this)
 }
 
 /** Tema scelto, conservato tra un avvio e l'altro. Senza una scelta salvata l'app resta chiara. */

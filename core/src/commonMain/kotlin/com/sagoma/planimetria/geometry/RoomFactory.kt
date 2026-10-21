@@ -4,6 +4,7 @@ import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.LOrientation
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.testi.T
 
 /** Misure inserite nella finestra di creazione (§1). Tutte in cm. */
 data class ShapeDimensions(
@@ -24,7 +25,7 @@ object RoomFactory {
      * `protrusionWidth × protrusionDepth` che sporge dal lato indicato dall'orientamento.
      */
     fun lShape(d: ShapeDimensions, orientation: LOrientation): List<Vec2> {
-        require(d.protrusionWidth > 0 && d.protrusionWidth < d.width) { "La protuberanza deve essere più stretta della stanza" }
+        require(d.protrusionWidth > 0 && d.protrusionWidth < d.width) { T.creazione.protuberanzaDeveEsserePiu2 }
         require(d.protrusionDepth > 0)
         val w = d.width
         val h = d.depth

@@ -9,10 +9,17 @@ import com.sagoma.planimetria.model.Phase
  * - [Existing] stato di fatto: com'è ora (senza le parti nuove);
  * - [Project] stato di progetto: come sarà (senza le parti demolite).
  */
-enum class PhaseView(val label: String, val title: String) {
-    Compare("Gialli e rossi", "Tavola comparativa"),
-    Existing("Stato di fatto", "Stato di fatto"),
-    Project("Stato di progetto", "Stato di progetto"),
+enum class PhaseView {
+    Compare,
+    Existing,
+    Project,
+    ;
+
+    /** Nome breve (pulsante), nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.phaseView(this)
+
+    /** Titolo della tavola. */
+    val title: String get() = com.sagoma.planimetria.testi.T.nomi.phaseViewTitle(this)
 }
 
 object Phases {

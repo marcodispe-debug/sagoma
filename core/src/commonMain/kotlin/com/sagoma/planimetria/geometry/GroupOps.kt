@@ -22,9 +22,13 @@ sealed interface GroupItem {
 }
 
 /** Come si allineano gli oggetti selezionati (sui bordi o sui centri del loro ingombro). */
-enum class Alignment(val label: String) {
-    Left("A sinistra"), CenterX("Al centro (orizz.)"), Right("A destra"),
-    Top("In alto"), CenterY("Al centro (vert.)"), Bottom("In basso"),
+enum class Alignment {
+    Left, CenterX, Right,
+    Top, CenterY, Bottom,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.alignment(this)
 }
 
 /**

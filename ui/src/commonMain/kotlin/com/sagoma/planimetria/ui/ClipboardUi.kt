@@ -19,6 +19,7 @@ import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.geometry.GroupItem
 import com.sagoma.planimetria.model.Mount
+import com.sagoma.planimetria.testi.T
 
 /** Nome di ciò che è negli appunti ("calorifero", "porta", "3 oggetti"…). */
 internal fun clipLabel(clip: Clip): String = when (clip) {
@@ -26,17 +27,17 @@ internal fun clipLabel(clip: Clip): String = when (clip) {
     is Clip.OpeningClip -> clip.opening.kind.label.lowercase()
     is Clip.GroupClip -> clip.items.singleOrNull()?.let {
         when (it) {
-            is GroupItem.RoomItem -> "stanza"
-            is GroupItem.FurnitureItem -> "arredo"
-            is GroupItem.ColumnItem -> "colonna"
-            is GroupItem.BeamItem -> "trave"
-            is GroupItem.FreeWallItem -> "muro"
-            is GroupItem.StairItem -> "scala"
-            is GroupItem.RulerItem -> "metro"
-            is GroupItem.DimensionItem -> "quota"
-            is GroupItem.AnnotationItem -> "testo"
+            is GroupItem.RoomItem -> T.vari.stanza
+            is GroupItem.FurnitureItem -> T.vari.arredo2
+            is GroupItem.ColumnItem -> T.vari.colonna2
+            is GroupItem.BeamItem -> T.vari.trave3
+            is GroupItem.FreeWallItem -> T.vari.muro3
+            is GroupItem.StairItem -> T.vari.scala2
+            is GroupItem.RulerItem -> T.vari.metro
+            is GroupItem.DimensionItem -> T.vari.quota
+            is GroupItem.AnnotationItem -> T.vari.testoTesto
         }
-    } ?: "${clip.items.size} oggetti"
+    } ?: T.vari.oggetti(clip.items.size)
 }
 
 /**
@@ -50,8 +51,8 @@ fun CopyPasteChips(state: EditorUiState, vm: EditorViewModel, modifier: Modifier
     val clip = state.clipboard
     if (!canCopy && clip == null) return
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (canCopy) FilledTonalButton(onClick = { vm.copy() }) { Text("⧉ Copia") }
-        if (clip != null) FilledTonalButton(onClick = vm::startPaste) { Text("📋 Incolla ${clipLabel(clip)}") }
+        if (canCopy) FilledTonalButton(onClick = { vm.copy() }) { Text(T.vari.copia) }
+        if (clip != null) FilledTonalButton(onClick = vm::startPaste) { Text(T.vari.incolla(clipLabel(clip))) }
     }
 }
 
@@ -62,20 +63,20 @@ fun PasteCard(state: EditorUiState, vm: EditorViewModel) {
     val what = clipLabel(clip)
     val hint = when (clip) {
         is Clip.FixtureClip ->
-            if (clip.fixture.kind.mount == Mount.Wall) "Tocca un muro per incollare: $what"
-            else "Tocca il punto della stanza in cui incollare: $what"
-        is Clip.OpeningClip -> "Tocca un muro per incollare: $what"
-        is Clip.GroupClip -> "Tocca dove mettere la copia ($what)"
+            if (clip.fixture.kind.mount == Mount.Wall) T.vari.toccaMuroIncollare(what)
+            else T.vari.toccaPuntoStanzaCui(what)
+        is Clip.OpeningClip -> T.vari.toccaMuroIncollare(what)
+        is Clip.GroupClip -> T.vari.toccaDoveMettereCopia(what)
     }
     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.inverseSurface) {
         Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "📋 $hint. Ogni tocco una copia, con le stesse impostazioni.",
+                T.vari.ogniToccoCopiaStesse(hint),
                 color = MaterialTheme.colorScheme.inverseOnSurface,
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f, fill = false),
             )
-            TextButton(onClick = vm::stopPaste) { Text("Fine", color = MaterialTheme.colorScheme.inversePrimary) }
+            TextButton(onClick = vm::stopPaste) { Text(T.comuni.fine, color = MaterialTheme.colorScheme.inversePrimary) }
         }
     }
 }

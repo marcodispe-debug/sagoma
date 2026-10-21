@@ -47,6 +47,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import com.sagoma.planimetria.testi.T
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -641,10 +642,10 @@ fun View3DControls(state: EditorUiState, view: View3DState, modifier: Modifier =
         val m = ((view.hour - h) * 60).roundToInt()
         val icon = if (view.hour < 6.5f || view.hour > 19.5f) "🌙" else if (view.hour < 8f || view.hour > 18f) "🌅" else "☀"
         LegendButton("$icon $h:${m.toString().padStart(2, '0')}",modifier = modifier, onClick = { view.timePanel = !view.timePanel })
-        val lampLabel = when (view.lamps) { "on" -> "💡 Luci accese"; "off" -> "💡 Luci spente"; else -> "💡 Luci: auto" }
+        val lampLabel = when (view.lamps) { "on" -> T.vista3D.luciAccese; "off" -> T.vista3D.luciSpente; else -> T.vista3D.luciAuto }
         LegendButton(lampLabel, modifier = modifier, onClick = { view.nextLamps() })
     }
-    LegendButton(if (view.walking) "🏠 Vista dall'alto" else "🚶 Cammina", modifier = modifier, onClick = {
+    LegendButton(if (view.walking) T.vista3D.vistaDallAlto else T.vista3D.cammina, modifier = modifier, onClick = {
         // Con un arredo selezionato si cammina nella stanza in cui si trova.
         val furnitureRoom = (state.selection as? Selection.Furniture)?.let { sel ->
             state.plan.furniture(sel.furnitureId)?.let { f -> state.plan.rooms.lastOrNull { Polygon.contains(it.points, f.center) }?.id }
@@ -695,15 +696,14 @@ fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: B
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             val h = view.hour.toInt()
             val m = ((view.hour - h) * 60).roundToInt()
-            Text("Ora del giorno: $h:${m.toString().padStart(2, '0')}",style = MaterialTheme.typography.labelLarge)
+            Text(T.vista3D.oraGiorno(h, m.toString().padStart(2, '0')),style = MaterialTheme.typography.labelLarge)
             androidx.compose.material3.Slider(
                 value = view.hour,
                 onValueChange = { view.hour = (it * 4).roundToInt() / 4f; view.refresh() },
                 valueRange = 0f..24f,
             )
             Text(
-                "Il sole sorge a est (a destra della pianta) e tramonta a ovest; la luce entra dalle finestre. " +
-                    "Quando fa buio si accendono le luci della casa.",
+                T.vista3D.soleSorgeEstDestra,
                 style = MaterialTheme.typography.bodySmall,
             )
         }

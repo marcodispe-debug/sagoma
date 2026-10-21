@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.persistence.ProjectInfo
+import com.sagoma.planimetria.testi.T
 
 /**
  * Elenco dei progetti: apri, nuovo, rinomina e dati del cliente, duplica (varianti), elimina, esporta e
@@ -52,25 +53,25 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
 
     fun export(p: ProjectInfo) {
         val bytes = runCatching { store.export(p.id) }.getOrNull()
-        if (bytes == null) { platform.toast("Esportazione non riuscita"); return }
+        if (bytes == null) { platform.toast(T.progetti.esportazioneNonRiuscita); return }
         val name = p.name.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifEmpty { "progetto" }
         platform.saveFile("$name.sagoma", "application/octet-stream", bytes) { ok ->
-            platform.toast(if (ok) "Progetto esportato" else "Esportazione non riuscita")
+            platform.toast(if (ok) T.progetti.progettoEsportato else T.progetti.esportazioneNonRiuscita)
         }
     }
     fun import() = platform.openFile(listOf(ANY_FILE)) { file ->
         if (file == null) return@openFile
         val p = runCatching { store.import(file.bytes) }.getOrNull()
-        if (p == null) platform.toast("Il file non è un progetto valido")
-        else { platform.toast("Importato: ${p.name}"); version++ }
+        if (p == null) platform.toast(T.progetti.fileNonProgettoValido)
+        else { platform.toast(T.progetti.importato(p.name)); version++ }
     }
 
     Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Progetti", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+        Text(T.progetti.progetti, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { creating = true }) { Text("+ Nuovo progetto") }
-            OutlinedButton(onClick = { import() }) { Text("Importa") }
-            OutlinedButton(onClick = { showTheme = true }) { Text("🌓 Tema") }
+            Button(onClick = { creating = true }) { Text(T.progetti.nuovoProgetto) }
+            OutlinedButton(onClick = { import() }) { Text(T.progetti.importa) }
+            OutlinedButton(onClick = { showTheme = true }) { Text(T.progetti.tema) }
         }
         HorizontalDivider()
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -79,7 +80,7 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
                     p,
                     onOpen = { onOpen(p.id) },
                     onEdit = { editing = p },
-                    onDuplicate = { store.duplicate(p.id, "${p.name} (copia)"); version++ },
+                    onDuplicate = { store.duplicate(p.id, T.progetti.copia(p.name)); version++ },
                     onExport = { export(p) },
                     onDelete = if (projects.size > 1) ({ confirmDelete = p }) else null,
                 )
@@ -88,14 +89,14 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
     }
 
     if (showTheme) ThemeDialog(onDismiss = { showTheme = false })
-    if (creating) ProjectInfoDialog(ProjectInfo(0, ""), title = "Nuovo progetto", onDismiss = { creating = false }) { p ->
+    if (creating) ProjectInfoDialog(ProjectInfo(0, ""), title = T.progetti.nuovoProgetto2, onDismiss = { creating = false }) { p ->
         creating = false
         val created = store.create(p.name, p.client, p.address)
         store.update(created.copy(author = p.author))
         onOpen(created.id)
     }
     editing?.let { e ->
-        ProjectInfoDialog(e, title = "Dati del progetto", onDismiss = { editing = null }) { p ->
+        ProjectInfoDialog(e, title = T.progetti.datiProgetto, onDismiss = { editing = null }) { p ->
             store.update(p)
             editing = null
             version++
@@ -104,10 +105,10 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
     confirmDelete?.let { p ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
-            title = { Text("Eliminare \"${p.name}\"?") },
-            text = { Text("Il progetto viene cancellato da questo telefono. Se vuoi tenerne una copia, esportalo prima.") },
-            confirmButton = { TextButton(onClick = { store.delete(p.id); confirmDelete = null; version++ }) { Text("Elimina", color = MaterialTheme.colorScheme.error) } },
-            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Annulla") } },
+            title = { Text(T.progetti.eliminare(p.name)) },
+            text = { Text(T.progetti.progettoVieneCancellatoQuesto) },
+            confirmButton = { TextButton(onClick = { store.delete(p.id); confirmDelete = null; version++ }) { Text(T.comuni.elimina, color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text(T.comuni.annulla) } },
         )
     }
 }
@@ -122,7 +123,7 @@ private fun ProjectCard(p: ProjectInfo, onOpen: () -> Unit, onEdit: () -> Unit, 
                 val details = listOf(p.client, p.address).filter { it.isNotBlank() }.joinToString(" · ")
                 if (details.isNotEmpty()) Text(details, style = MaterialTheme.typography.bodyMedium)
                 if (p.modified > 0) Text(
-                    "Modificato il " + LocalPlatform.current.formatDate(p.modified, withTime = true),
+                    T.progetti.modificato + LocalPlatform.current.formatDate(p.modified, withTime = true),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -130,11 +131,11 @@ private fun ProjectCard(p: ProjectInfo, onOpen: () -> Unit, onEdit: () -> Unit, 
             Box {
                 TextButton(onClick = { menu = true }) { Text("⋮") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("Apri") }, onClick = { menu = false; onOpen() })
-                    DropdownMenuItem(text = { Text("Nome e dati del cliente") }, onClick = { menu = false; onEdit() })
-                    DropdownMenuItem(text = { Text("Duplica (variante)") }, onClick = { menu = false; onDuplicate() })
-                    DropdownMenuItem(text = { Text("Esporta file .sagoma") }, onClick = { menu = false; onExport() })
-                    if (onDelete != null) DropdownMenuItem(text = { Text("Elimina", color = MaterialTheme.colorScheme.error) }, onClick = { menu = false; onDelete() })
+                    DropdownMenuItem(text = { Text(T.progetti.apri) }, onClick = { menu = false; onOpen() })
+                    DropdownMenuItem(text = { Text(T.progetti.nomeDatiCliente) }, onClick = { menu = false; onEdit() })
+                    DropdownMenuItem(text = { Text(T.progetti.duplicaVariante) }, onClick = { menu = false; onDuplicate() })
+                    DropdownMenuItem(text = { Text(T.progetti.esportaFileSagoma) }, onClick = { menu = false; onExport() })
+                    if (onDelete != null) DropdownMenuItem(text = { Text(T.comuni.elimina, color = MaterialTheme.colorScheme.error) }, onClick = { menu = false; onDelete() })
                 }
             }
         }
@@ -153,16 +154,16 @@ fun ProjectInfoDialog(initial: ProjectInfo, title: String, onDismiss: () -> Unit
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SelectAllTextField(value = name, onValueChange = { name = it }, label = "Nome del progetto", modifier = Modifier.fillMaxWidth())
-                SelectAllTextField(value = client, onValueChange = { client = it }, label = "Cliente", modifier = Modifier.fillMaxWidth())
-                SelectAllTextField(value = address, onValueChange = { address = it }, label = "Indirizzo", modifier = Modifier.fillMaxWidth())
-                SelectAllTextField(value = author, onValueChange = { author = it }, label = "Progettista", modifier = Modifier.fillMaxWidth())
-                Text("Questi dati compaiono nel cartiglio delle tavole PDF.", style = MaterialTheme.typography.bodySmall)
+                SelectAllTextField(value = name, onValueChange = { name = it }, label = T.progetti.nomeProgetto, modifier = Modifier.fillMaxWidth())
+                SelectAllTextField(value = client, onValueChange = { client = it }, label = T.progetti.cliente, modifier = Modifier.fillMaxWidth())
+                SelectAllTextField(value = address, onValueChange = { address = it }, label = T.progetti.indirizzo, modifier = Modifier.fillMaxWidth())
+                SelectAllTextField(value = author, onValueChange = { author = it }, label = T.progetti.progettista, modifier = Modifier.fillMaxWidth())
+                Text(T.progetti.questiDatiCompaionoCartiglio, style = MaterialTheme.typography.bodySmall)
             }
         },
         confirmButton = {
-            TextButton(enabled = name.isNotBlank(), onClick = { onSave(initial.copy(name = name.trim(), client = client.trim(), address = address.trim(), author = author.trim())) }) { Text("Salva") }
+            TextButton(enabled = name.isNotBlank(), onClick = { onSave(initial.copy(name = name.trim(), client = client.trim(), address = address.trim(), author = author.trim())) }) { Text(T.comuni.salva) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(T.comuni.annulla) } },
     )
 }
