@@ -135,6 +135,9 @@ class DesktopPlatform(
         SkiaImages.importImage(image, maxSide)
     }
 
+    override suspend fun importPhoto(bytes: ByteArray, maxSide: Int, quality: Int): ImportedImage? =
+        withContext(Dispatchers.IO) { SkiaImages.importImage(bytes, maxSide, quality) }
+
     override fun createPdf(pages: List<PdfPage>, density: Density): ByteArray = SkiaImages.rasterPdf(pages, density)
 
     override fun formatDate(epochMillis: Long, withTime: Boolean): String =

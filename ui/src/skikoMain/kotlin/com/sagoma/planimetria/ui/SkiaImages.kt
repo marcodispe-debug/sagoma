@@ -26,7 +26,7 @@ object SkiaImages {
         runCatching { Image.makeFromBitmap(image.asSkiaBitmap()).encodeToData(EncodedImageFormat.PNG)?.bytes }.getOrNull()
 
     /** Immagine ridotta a `maxSide` pixel sul lato lungo, in JPEG. */
-    fun importImage(bytes: ByteArray, maxSide: Int): ImportedImage? = runCatching {
+    fun importImage(bytes: ByteArray, maxSide: Int, quality: Int = 90): ImportedImage? = runCatching {
         val img = Image.makeFromEncoded(bytes)
         val k = minOf(1f, maxSide.toFloat() / max(img.width, img.height))
         val w = (img.width * k).roundToInt().coerceAtLeast(1)
@@ -34,7 +34,7 @@ object SkiaImages {
         val surface = Surface.makeRasterN32Premul(w, h)
         surface.canvas.clear(0xFFFFFFFF.toInt())
         surface.canvas.drawImageRect(img, Rect.makeWH(img.width.toFloat(), img.height.toFloat()), Rect.makeWH(w.toFloat(), h.toFloat()), SamplingMode.LINEAR, null, true)
-        val jpeg = surface.makeImageSnapshot().encodeToData(EncodedImageFormat.JPEG, 90)?.bytes ?: return null
+        val jpeg = surface.makeImageSnapshot().encodeToData(EncodedImageFormat.JPEG, quality)?.bytes ?: return null
         ImportedImage(jpeg, w, h)
     }.getOrNull()
 

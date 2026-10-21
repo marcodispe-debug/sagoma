@@ -88,6 +88,7 @@ import com.sagoma.planimetria.model.ColumnShape
 import com.sagoma.planimetria.geometry.PhaseView
 import com.sagoma.planimetria.editor.MeasureState
 import com.sagoma.planimetria.editor.EditorUiState
+import com.sagoma.planimetria.persistence.RoomPhotoFiles
 import com.sagoma.planimetria.geometry.Distances
 
 @Composable
@@ -96,7 +97,10 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
     val projects = platform.projects
     // Un ViewModel per progetto: passando a un altro progetto si riparte dalla sua casa.
     val vm: EditorViewModel = viewModel(key = "progetto-$projectId") {
-        EditorViewModel(projects.planStore(projectId), platform.tips)
+        EditorViewModel(projects.planStore(projectId), platform.tips).also {
+            // Appena aperto Annulla è vuoto: le foto tolte nelle volte precedenti non servono più.
+            RoomPhotoFiles.prune(projects, projectId, it.state.value.fullBuilding)
+        }
     }
     val state by vm.state.collectAsStateWithLifecycle()
     // Quando l'app va in background si salva subito, senza aspettare il ritardo del salvataggio automatico.

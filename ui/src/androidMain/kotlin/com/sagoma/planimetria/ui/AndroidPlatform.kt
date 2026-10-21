@@ -1,6 +1,8 @@
 package com.sagoma.planimetria.ui
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -10,9 +12,11 @@ import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
@@ -22,6 +26,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -108,6 +114,44 @@ class AndroidPlatform(
         done(bytes?.let { PickedFile(uri.lastPathSegment ?: "file", it) })
     }
 
+    /** Foto in attesa dalla fotocamera: dove la scrive l'app della fotocamera e chi avvisare. */
+    private var pendingPhoto: Pair<File, (PickedFile?) -> Unit>? = null
+
+    private val photoLauncher = activity.registerForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val (file, done) = pendingPhoto ?: return@registerForActivityResult
+        pendingPhoto = null
+        val bytes = if (ok) runCatching { file.readBytes() }.getOrNull() else null
+        file.delete()
+        done(bytes?.takeIf { it.isNotEmpty() }?.let { PickedFile(file.name, it) })
+    }
+
+    /** Nelle build con lo scanner l'app dichiara la fotocamera: allora va chiesta prima di aprire l'app della fotocamera. */
+    private val cameraPermissionLauncher = activity.registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val (_, done) = pendingPhoto ?: return@registerForActivityResult
+        if (granted) launchCamera() else { pendingPhoto = null; toast("Senza il permesso della fotocamera puoi scegliere una foto dalla galleria"); done(null) }
+    }
+
+    override val canTakePhoto: Boolean
+        get() = Intent(MediaStore.ACTION_IMAGE_CAPTURE).resolveActivity(activity.packageManager) != null
+
+    override fun takePhoto(onResult: (PickedFile?) -> Unit) {
+        val dir = File(activity.cacheDir, "fotocamera").also { it.mkdirs() }
+        pendingPhoto = File(dir, "foto-${System.currentTimeMillis()}.jpg") to onResult
+        val declared = runCatching {
+            activity.packageManager.getPackageInfo(activity.packageName, PackageManager.GET_PERMISSIONS).requestedPermissions
+                ?.contains(Manifest.permission.CAMERA) == true
+        }.getOrDefault(false)
+        val granted = ContextCompat.checkSelfPermission(activity, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (declared && !granted) cameraPermissionLauncher.launch(Manifest.permission.CAMERA) else launchCamera()
+    }
+
+    private fun launchCamera() {
+        val (file, done) = pendingPhoto ?: return
+        val uri = runCatching { FileProvider.getUriForFile(activity, activity.packageName + ".foto", file) }.getOrNull()
+        if (uri == null) { pendingPhoto = null; done(null); return }
+        runCatching { photoLauncher.launch(uri) }.onFailure { pendingPhoto = null; toast("Impossibile aprire la fotocamera"); done(null) }
+    }
+
     override fun toast(message: String) = Toast.makeText(activity, message, Toast.LENGTH_SHORT).show()
 
     override fun saveFile(suggestedName: String, mimeType: String, bytes: ByteArray, onDone: (Boolean) -> Unit) {
@@ -145,12 +189,16 @@ class AndroidPlatform(
         return if (image.asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, out)) out.toByteArray() else null
     }
 
-    override suspend fun importImage(bytes: ByteArray, pdf: Boolean, maxSide: Int): ImportedImage? = withContext(Dispatchers.IO) {
+    override suspend fun importImage(bytes: ByteArray, pdf: Boolean, maxSide: Int): ImportedImage? = import(bytes, pdf, maxSide, 90)
+
+    override suspend fun importPhoto(bytes: ByteArray, maxSide: Int, quality: Int): ImportedImage? = import(bytes, false, maxSide, quality)
+
+    private suspend fun import(bytes: ByteArray, pdf: Boolean, maxSide: Int, quality: Int): ImportedImage? = withContext(Dispatchers.IO) {
         val bmp = runCatching { if (pdf) renderPdf(bytes, maxSide) else decodeScaled(bytes, maxSide) }.getOrNull() ?: return@withContext null
         val side = max(bmp.width, bmp.height)
         val img = if (side <= maxSide) bmp else Bitmap.createScaledBitmap(bmp, bmp.width * maxSide / side, bmp.height * maxSide / side, true)
         val out = ByteArrayOutputStream()
-        img.compress(Bitmap.CompressFormat.JPEG, 90, out)
+        img.compress(Bitmap.CompressFormat.JPEG, quality, out)
         ImportedImage(out.toByteArray(), img.width, img.height)
     }
 

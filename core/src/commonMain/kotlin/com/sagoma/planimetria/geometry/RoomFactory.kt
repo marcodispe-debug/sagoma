@@ -15,9 +15,6 @@ data class ShapeDimensions(
 
 object RoomFactory {
 
-    /** Distanza tra una nuova stanza e quelle esistenti. */
-    const val PLACEMENT_GAP = 60.0
-
     fun rectangle(width: Double, depth: Double): List<Vec2> = listOf(
         Vec2(0.0, 0.0), Vec2(width, 0.0), Vec2(width, depth), Vec2(0.0, depth),
     )
@@ -51,13 +48,30 @@ object RoomFactory {
     fun normalizeWinding(pts: List<Vec2>): List<Vec2> =
         if (Polygon.signedArea(pts) < 0) pts.reversed() else pts
 
-    /** Trasla la forma accanto alle stanze esistenti, senza mai sovrapporsi (§1). */
-    fun placeBeside(plan: FloorPlan, shape: List<Vec2>, gap: Double = PLACEMENT_GAP): List<Vec2> {
+    /**
+     * Trasla la forma accanto alle stanze esistenti, attaccata (muro in comune) e senza mai sovrapporsi (§1). Prova i lati di
+     * `anchorId` (o dell'ultima stanza creata): a destra allineata in alto, sotto allineata a sinistra, a sinistra, sopra; il
+     * primo libero vince. Se nessuno è libero, a destra di tutta la casa.
+     */
+    fun placeBeside(plan: FloorPlan, shape: List<Vec2>, anchorId: Long? = null): List<Vec2> {
         val sb = Polygon.bounds(shape)
-        if (plan.rooms.isEmpty()) return shape.map { it - Vec2(sb.minX, sb.minY) }
-        val all = plan.rooms.map { Polygon.bounds(it.points) }.reduce { a, b -> a.union(b) }
-        val origin = Vec2(all.maxX + gap, all.minY)
-        return shape.map { it - Vec2(sb.minX, sb.minY) + origin }
+        fun at(x: Double, y: Double) = shape.map { it - Vec2(sb.minX, sb.minY) + Vec2(x, y) }
+        if (plan.rooms.isEmpty()) return at(0.0, 0.0)
+        val existing = plan.rooms.map { Polygon.bounds(it.points) }
+        fun free(moved: List<Vec2>): Boolean {
+            val mb = Polygon.bounds(moved)
+            return existing.none { e -> mb.minX < e.maxX - 1.0 && e.minX < mb.maxX - 1.0 && mb.minY < e.maxY - 1.0 && e.minY < mb.maxY - 1.0 }
+        }
+        val anchor = (plan.room(anchorId) ?: plan.rooms.maxBy { it.id }).let { Polygon.bounds(it.points) }
+        val candidates = listOf(
+            at(anchor.maxX, anchor.minY),
+            at(anchor.minX, anchor.maxY),
+            at(anchor.minX - sb.width, anchor.minY),
+            at(anchor.minX, anchor.minY - sb.height),
+        )
+        candidates.firstOrNull(::free)?.let { return it }
+        val all = existing.reduce { a, b -> a.union(b) }
+        return at(all.maxX, all.minY)
     }
 
     /**
@@ -95,12 +109,12 @@ object RoomFactory {
      * lungo il muro (così nasce già con il muro in comune). Se non c'è un muro adatto, accanto alla casa.
      */
     fun placeAgainstHouse(plan: FloorPlan, shape: List<Vec2>): List<Vec2> {
-        if (plan.rooms.isEmpty()) return placeBeside(plan, shape, gap = 0.0)
+        if (plan.rooms.isEmpty()) return placeBeside(plan, shape)
         val maxX = plan.rooms.maxOf { r -> r.points.maxOf { it.x } }
         val wall = plan.rooms.flatMap { r -> (0 until r.wallCount).map { r.wallStart(it) to r.wallEnd(it) } }
             .filter { (a, b) -> kotlin.math.abs(a.x - b.x) < 0.5 && kotlin.math.abs(a.x - maxX) < 1.0 }
             .maxByOrNull { (a, b) -> kotlin.math.abs(a.y - b.y) }
-            ?: return placeBeside(plan, shape, gap = 0.0)
+            ?: return placeBeside(plan, shape)
         // Lato lungo in verticale, lungo il muro.
         val sb0 = Polygon.bounds(shape)
         val turned = if (sb0.width > sb0.height) normalizeWinding(shape.map { Vec2(it.y, it.x) }) else shape

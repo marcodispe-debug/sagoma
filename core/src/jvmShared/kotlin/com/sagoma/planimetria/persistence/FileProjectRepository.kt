@@ -115,6 +115,13 @@ class FileProjectRepository(private val root: File) : ProjectRepository {
         File(folder(id), name).writeBytes(bytes)
     }
 
+    override fun files(id: Long): List<String> =
+        folder(id).listFiles()?.filter { it.isFile && !it.name.startsWith("planimetria.") && !it.name.endsWith(".tmp") }?.map { it.name }.orEmpty()
+
+    override fun deleteFile(id: Long, name: String) {
+        if (safe(name)) File(folder(id), name).delete()
+    }
+
     override fun export(id: Long): ByteArray? {
         val p = info(id) ?: return null
         val out = ByteArrayOutputStream()

@@ -51,6 +51,7 @@ import com.sagoma.planimetria.model.WallPaint
 import com.sagoma.planimetria.model.WallFinish
 import com.sagoma.planimetria.model.ExcludedZone
 import com.sagoma.planimetria.model.Room
+import com.sagoma.planimetria.model.RoomPhoto
 import com.sagoma.planimetria.model.RoomShape
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Ruler
@@ -400,7 +401,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         commitBuilding { b ->
             val top = b.floors.last()
             val rooms = if (copyRooms) top.plan.rooms.map {
-                Room(it.id, it.name, it.type, it.points, ceilingHeight = it.ceilingHeight)
+                Room(it.id, it.name, it.type, it.points, ceilingHeight = it.ceilingHeight, floorFinish = it.type.defaultFloor)
             } else emptyList()
             val floor = Floor(b.nextFloorId, name.trim().ifBlank { Building.floorName(b.floors.size) }, FloorPlan(rooms), levelHeight, autoLevel).synced()
             b.copy(floors = b.floors + floor, current = b.floors.size)
@@ -844,9 +845,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         else if (plan.rooms.isEmpty() && below != null) {
             val sb = Polygon.bounds(shape)
             shape.map { it - Vec2(sb.minX, sb.minY) + Vec2(below.minX, below.minY) }
-        // Balconi e terrazze nascono già appoggiati alla casa (muro in comune), le stanze un po' distanti.
+        // Balconi e terrazze nascono già appoggiati alla casa; le stanze attaccate a quella aperta (o all'ultima), muro in comune.
         } else if (type.outdoor) RoomFactory.placeAgainstHouse(plan, shape)
-        else RoomFactory.placeBeside(plan, shape)
+        else RoomFactory.placeBeside(plan, shape, _state.value.focusedRoomId)
         // Percorso B ("non conosco le misure"): solo dalla scelta della forma con misure indicative nasce uno SCHIZZO, che resta
         // da misurare anche dopo la chiusura dell'app. La scansione NON parte da sola: si avvia con un tasto (avviso o scheda).
         val intent = _state.value.creationIntent
@@ -859,6 +860,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             ceilingHeight = ceilingHeight,
             wallThickness = wallThickness,
             sketchPending = sketch,
+            floorFinish = type.defaultFloor,
         )
         val firstEver = _state.value.building.floors.size == 1 && plan.rooms.isEmpty()
         commit { it.copy(rooms = it.rooms + room) }
@@ -1348,6 +1350,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             ceilingHeight = ceilingHeight,
             wallThickness = wallThickness,
             sketchPending = sketch,
+            floorFinish = type.defaultFloor,
         )
         val firstEver = _state.value.building.floors.size == 1 && plan.rooms.isEmpty()
         commit { it.copy(rooms = it.rooms + room) }
@@ -1395,6 +1398,20 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val room = _state.value.plan.room(roomId) ?: return
         if (room.excludedZones.none { it.id == zoneId }) return
         commit { p -> p.replace(room.copy(excludedZones = room.excludedZones.filter { it.id != zoneId })) }
+    }
+
+    // ---------- Foto della stanza ----------
+
+    /** Aggiunge una foto (già salvata tra i file del progetto) in fondo a quelle della stanza. */
+    fun addRoomPhoto(roomId: Long, photo: RoomPhoto) =
+        commit { p -> p.room(roomId)?.let { p.replace(it.copy(photos = it.photos + photo)) } ?: p }
+
+    /** Toglie la foto dalla stanza; il file resta finché il progetto non viene riaperto, così Annulla la rimette. */
+    fun removeRoomPhoto(roomId: Long, file: String) =
+        commit { p -> p.room(roomId)?.let { r -> p.replace(r.copy(photos = r.photos.filter { it.file != file })) } ?: p }
+
+    fun setRoomPhotoNote(roomId: Long, file: String, note: String) = commit { p ->
+        p.room(roomId)?.let { r -> p.replace(r.copy(photos = r.photos.map { if (it.file == file) it.copy(note = note.trim()) else it })) } ?: p
     }
 
     // ---------- Fuoco e selezione (§4, §10) ----------
@@ -2353,7 +2370,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val before = _state.value.plan
         commit { plan ->
             val room = plan.room(id)?.takeIf { it.type != type } ?: return@commit plan
-            plan.replace(room.copy(type = type, name = RoomFactory.autoName(plan, type, excludingRoomId = id)))
+            // Il pavimento di partenza segue il tipo (da camera a bagno: dal parquet al gres); uno scelto a mano resta.
+            val floor = if (room.floorFinish == room.type.defaultFloor) type.defaultFloor else room.floorFinish
+            plan.replace(room.copy(type = type, name = RoomFactory.autoName(plan, type, excludingRoomId = id), floorFinish = floor))
         }
         if (_state.value.plan != before) tutorialEvent(TutorialEvent.RoomTypeChanged)
     }

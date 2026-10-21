@@ -39,6 +39,18 @@ enum class RoomType(val label: String, val defaultName: String, val argb: Long, 
     Corridoio("Corridoio", "Corridoio", 0xFF868E96),
     Balcone("Balcone", "Balcone", 0xFF12B886, outdoor = true),
     Terrazza("Terrazza", "Terrazza", 0xFF74B816, outdoor = true),
+    ;
+
+    /**
+     * Pavimento con cui nasce una stanza di questo tipo, così il 3D sembra una casa e non un plastico colorato: parquet dove si
+     * vive e si dorme, gres in cucina e bagno, cotto fuori. Si cambia da Info → Finiture.
+     */
+    val defaultFloor: FloorFinish
+        get() = when (this) {
+            Cucina, Bagno -> FloorFinish.LightTiles
+            Balcone, Terrazza -> FloorFinish.Terracotta
+            else -> FloorFinish.OakParquet
+        }
 }
 
 /** Parapetto di balconi e terrazze. I nomi delle costanti finiscono nel file salvato. */
@@ -286,6 +298,8 @@ data class Room(
      * l'area utile della stanza è quella interna meno queste zone. Coordinate come [points].
      */
     val excludedZones: List<ExcludedZone> = emptyList(),
+    /** Foto della stanza fatte al sopralluogo, solo come promemoria (non diventano il 3D). Assenti nei file vecchi. */
+    val photos: List<RoomPhoto> = emptyList(),
 ) {
     /** Stato del muro `i` (esistente, da demolire, nuovo). */
     fun phaseOf(i: Int): Phase = wallPhases[i] ?: Phase.Existing
@@ -417,6 +431,18 @@ data class Room(
 data class ExcludedZone(val id: Long, val points: List<Vec2>, val name: String = DEFAULT_NAME) {
     companion object {
         const val DEFAULT_NAME = "Non accessibile"
+    }
+}
+
+/**
+ * Foto di riferimento di una stanza: `file` è l'immagine ridotta e `thumb` la miniatura per l'elenco, entrambe tra i file del
+ * progetto; `note` è un promemoria scritto dall'utente ("presa a 30 cm dal pavimento").
+ */
+@Serializable
+data class RoomPhoto(val file: String, val thumb: String, val note: String = "", val taken: Long = 0) {
+    companion object {
+        /** Inizio del nome dei file delle foto: i file che nessuna stanza usa più si possono cancellare. */
+        const val PREFIX = "foto-"
     }
 }
 

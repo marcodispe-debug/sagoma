@@ -43,7 +43,10 @@ fun SagomaApp(platform: Platform) {
                 } else {
                     platform.BackHandler(enabled = true) { open = -1L }
                     key(open) {
-                        EditorScreen(open, onOpenProjects = { open = -1L })
+                        // Il progetto aperto: le sue immagini (piantina, foto delle stanze) stanno tra i suoi file.
+                        androidx.compose.runtime.CompositionLocalProvider(LocalProjectId provides open) {
+                            EditorScreen(open, onOpenProjects = { open = -1L })
+                        }
                     }
                 }
             }

@@ -167,7 +167,7 @@ fun InfoSheet(
 
 /**
  * Caratteristiche della stanza selezionata, nella tendina "Info": in alto Duplica ed Elimina, nome, tipo e misure
- * principali; sotto le schede Misure, Finiture, Porte e impianti, Progetto. Le modifiche si applicano subito (e sono annullabili).
+ * principali; sotto le schede Misure, Finiture, Porte e impianti, Progetto, Foto. Le modifiche si applicano subito (e sono annullabili).
  */
 @Composable
 fun RoomInfo(room: Room, plan: FloorPlan, vm: EditorViewModel, modifier: Modifier = Modifier) {
@@ -175,7 +175,7 @@ fun RoomInfo(room: Room, plan: FloorPlan, vm: EditorViewModel, modifier: Modifie
 }
 
 /** Schede della tendina della stanza. */
-private enum class RoomTab(val label: String) { Measures("Misure"), Finishes("Finiture"), Openings("Porte e impianti"), Project("Progetto") }
+private enum class RoomTab(val label: String) { Measures("Misure"), Finishes("Finiture"), Openings("Porte e impianti"), Project("Progetto"), Photos("Foto") }
 
 /** Ultima scheda aperta: resta passando da una stanza all'altra (e riaprendo la tendina). */
 private var lastRoomTab by mutableStateOf(RoomTab.Measures)
@@ -225,7 +225,7 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
                 // Margini stretti: con quelli standard le parole si spezzano a metà nella tendina.
                 for (t in tabs) androidx.compose.material3.Tab(selected = t == tab, onClick = { lastRoomTab = t }) {
                     Text(
-                        t.label,
+                        if (t == RoomTab.Photos && room.photos.isNotEmpty()) "${t.label} (${room.photos.size})" else t.label,
                         style = MaterialTheme.typography.labelLarge,
                         textAlign = TextAlign.Center,
                         maxLines = 2,
@@ -243,6 +243,7 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
                     RoomTab.Finishes -> FinishesTab(room, plan, vm)
                     RoomTab.Openings -> OpeningsTab(room, vm)
                     RoomTab.Project -> ProjectTab(room, vm)
+                    RoomTab.Photos -> PhotosTab(room, vm)
                 }
             }
             ScrollBar(scroll, Modifier.align(Alignment.TopEnd).offset(x = 6.dp))

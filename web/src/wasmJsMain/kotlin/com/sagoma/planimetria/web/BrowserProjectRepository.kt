@@ -94,6 +94,10 @@ class BrowserProjectRepository(private val now: () -> Long) : ProjectRepository 
 
     override fun writeFile(id: Long, name: String, bytes: ByteArray) = localStorage.setItem(fileKey(id, name), Base64.encode(bytes))
 
+    override fun files(id: Long): List<String> = keysOf(id).filter { it.startsWith(fileKey(id, "")) }.map { it.removePrefix(fileKey(id, "")) }
+
+    override fun deleteFile(id: Long, name: String) = localStorage.removeItem(fileKey(id, name))
+
     /** Sul web per ora si esporta la sola casa (planimetria.json), che le altre versioni sanno importare. */
     override fun export(id: Long): ByteArray? = localStorage.getItem(planKey(id))?.encodeToByteArray()
 

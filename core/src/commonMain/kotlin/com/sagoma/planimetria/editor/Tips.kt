@@ -24,7 +24,8 @@ enum class Tip(val title: String, val text: String) {
     ),
     NewRoom(
         "Nuova stanza",
-        "La stanza nuova viene messa accanto alle altre. Trascinala dal nome per avvicinarla: si aggancia ai muri delle stanze vicine.",
+        "La stanza nuova nasce attaccata a quella aperta, con il muro in comune. Se va da un'altra parte trascinala dal nome: " +
+            "si aggancia ai muri delle stanze vicine.",
     ),
     Opening(
         "Porte e finestre",
@@ -46,11 +47,8 @@ enum class Tip(val title: String, val text: String) {
     ),
     View3D(
         "Vista 3D",
-        "Trascina con un dito per ruotare, con due dita zoomi e sposti. Tocca un muro, una porta o un impianto per selezionarlo: " +
-            "se è selezionato lo trascini per spostarlo. Con 🚶 Cammina entri nelle stanze e ti muovi col joystick. " +
-            "Sul computer: ↑ ↓ (o W S) avanti e indietro, ← → per girare, A D per spostarti di lato, PagSu/PagGiù " +
-            "per alzare o abbassare lo sguardo, Maiusc per andare più veloce; rotellina per lo zoom, tasto destro " +
-            "trascinato per spostare la vista. Il joystick in basso a sinistra fa lo stesso.",
+        "Trascina per girare intorno alla casa; con due dita (o la rotellina) zoomi. Tocca un muro o un oggetto per selezionarlo. " +
+            "Con 🚶 Cammina entri nelle stanze. Tutti i comandi sono in ❔ Guide → Vista 3D.",
     ),
     Stair(
         "Scala",

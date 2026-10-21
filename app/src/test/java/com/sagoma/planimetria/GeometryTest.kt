@@ -155,7 +155,9 @@ class GeometryTest {
     fun `nuova stanza posizionata accanto senza sovrapporsi`() {
         val plan = FloorPlan(listOf(Room(1, "A", RoomType.Altro, RoomFactory.rectangle(300.0, 300.0))))
         val placed = RoomFactory.placeBeside(plan, RoomFactory.rectangle(200.0, 200.0))
-        assertTrue(placed.minOf { it.x } > 300.0)
+        // Attaccata a destra, con il muro in comune.
+        assertEquals(300.0, placed.minOf { it.x }, 1e-9)
+        assertEquals(0.0, placed.minOf { it.y }, 1e-9)
     }
 
     @Test

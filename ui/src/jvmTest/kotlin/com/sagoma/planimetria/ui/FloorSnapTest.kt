@@ -133,7 +133,7 @@ class FloorSnapTest {
     fun `al piano terra la creazione resta come prima e il piano di sotto non cambia`() {
         val vm = vmCreate(0, lower = listOf(lowerRoom))
         val r = vm.create(com.sagoma.planimetria.model.RoomShape.Rectangle, 300.0, 200.0)
-        assertEquals(lowerRoom.bounds().maxX + 60.0, r.bounds().minX, 1e-9) // accanto, con la distanza di sempre
+        assertEquals(lowerRoom.bounds().maxX, r.bounds().minX, 1e-9) // accanto, attaccata (muro in comune)
         // Piano 1: il piano 0 resta uguale a com'era.
         val up = vmCreate(1)
         val before = up.state.value.fullBuilding.floors[0].plan

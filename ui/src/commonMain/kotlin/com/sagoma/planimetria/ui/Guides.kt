@@ -213,7 +213,22 @@ val Guides: List<Guide> = listOf(
         ),
         endsIn3d = true,
     ),
-    Guide("🧊", "Vista 3D", listOf(GuideStep(Tip.View3D.title, Tip.View3D.text, Sketch.View3D)), endsIn3d = true),
+    Guide(
+        "🧊", "Vista 3D",
+        listOf(
+            GuideStep(Tip.View3D.title, Tip.View3D.text, Sketch.View3D),
+            // Il suggerimento al primo uso resta corto: i comandi completi stanno qui.
+            GuideStep(
+                "Tutti i comandi",
+                "Telefono: un dito ruota, due dita zoomano e spostano; un muro, una porta o un impianto selezionato si trascina per " +
+                    "spostarlo. In 🚶 Cammina ti muovi col joystick in basso a sinistra. Computer: ↑ ↓ (o W S) avanti e indietro, ← → per " +
+                    "girare, A D per spostarti di lato, PagSu/PagGiù per alzare o abbassare lo sguardo, Maiusc per andare più veloce; " +
+                    "rotellina per lo zoom, tasto destro trascinato per spostare la vista.",
+                Sketch.View3D,
+            ),
+        ),
+        endsIn3d = true,
+    ),
     AtticGuide,
     Guide(
         "↔", "Quote e testi",
