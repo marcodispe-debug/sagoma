@@ -264,7 +264,7 @@ object PlanReadingImport {
             has("soggiorno", "salott", "salone", "living", "pranzo", "sala", "séjour", "salon", "lounge") -> RoomType.Soggiorno
             has("studio", "ufficio", "office", "bureau", "despacho") -> RoomType.Studio
             has("disimp", "dis", "corridoio", "ingresso", "ing", "atrio", "hall", "entrée", "pasillo", "couloir") -> RoomType.Corridoio
-            has("balcon", "loggia") -> RoomType.Balcone
+            has("balcon", "loggia", "poggiol") -> RoomType.Balcone
             has("terrazz", "portico", "veranda", "patio", "terrasse", "terraza") -> RoomType.Terrazza
             else -> RoomType.Altro
         }

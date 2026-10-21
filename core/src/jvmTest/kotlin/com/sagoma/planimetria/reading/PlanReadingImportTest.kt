@@ -121,7 +121,7 @@ class PlanReadingImportTest {
             "Letto" to RoomType.Camera, "CAMERA 2" to RoomType.Camera, "Cameretta" to RoomType.Cameretta,
             "salotto" to RoomType.Soggiorno, "Living" to RoomType.Soggiorno, "Soggiorno-pranzo" to RoomType.Soggiorno,
             "Studio" to RoomType.Studio, "Disimp." to RoomType.Corridoio, "DIs" to RoomType.Corridoio, "INGRESSO" to RoomType.Corridoio,
-            "Balcone" to RoomType.Balcone, "Terrazzo" to RoomType.Terrazza, "Portico" to RoomType.Terrazza,
+            "Balcone" to RoomType.Balcone, "POGGIOLO" to RoomType.Balcone, "Terrazzo" to RoomType.Terrazza, "Portico" to RoomType.Terrazza,
             "Rip." to RoomType.Altro, "CANTINA" to RoomType.Altro, "VANO TECNICO" to RoomType.Altro,
         )
         for ((name, type) in expected) assertEquals(type, PlanReadingImport.typeOf(name), name)
