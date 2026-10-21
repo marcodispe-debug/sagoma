@@ -21,10 +21,13 @@
     (function () {
         var scelta = null;
         try { scelta = localStorage.getItem("sagoma/lingua"); } catch (e) {}
-        var inglese = scelta === "English" || (scelta !== "Italian" && !(navigator.language || "it").toLowerCase().startsWith("it"));
-        if (inglese) {
-            document.documentElement.lang = "en";
-            document.getElementById("caricamento").textContent = "Loading Sagoma…";
+        var sistema = (navigator.language || "it").toLowerCase().substring(0, 2);
+        var codici = { Italian: "it", English: "en", French: "fr", Spanish: "es" };
+        var lingua = codici[scelta] || (["it", "en", "fr", "es"].indexOf(sistema) >= 0 ? sistema : "en");
+        var testi = { en: "Loading Sagoma…", fr: "Chargement de Sagoma…", es: "Cargando Sagoma…" };
+        if (lingua !== "it") {
+            document.documentElement.lang = lingua;
+            document.getElementById("caricamento").textContent = testi[lingua];
         }
     })();
 </script>

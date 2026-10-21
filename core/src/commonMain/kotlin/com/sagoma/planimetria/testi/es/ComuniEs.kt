@@ -1,0 +1,37 @@
+package com.sagoma.planimetria.testi.es
+
+import com.sagoma.planimetria.testi.Comuni
+
+object ComuniEs : Comuni() {
+    override val annulla: String get() = "Cancelar"
+    override val chiudi: String get() = "Cerrar"
+    override val fine: String get() = "Hecho"
+    override val indietro: String get() = "Atrás"
+    override val indietroFreccia: String get() = "‹ Atrás"
+    override val avantiFreccia: String get() = "Siguiente ›"
+    override val mantieni: String get() = "Mantener"
+    override val rimuovi: String get() = "Quitar"
+    override val forma: String get() = "Forma"
+    override val formaL: String get() = "En L"
+    override val formaU: String get() = "En U"
+    override val diametro: String get() = "Diámetro"
+    override val larghezza: String get() = "Ancho"
+    override val profondita: String get() = "Fondo"
+    override val rotazione: String get() = "Rotación"
+    override val altezza: String get() = "Altura"
+    override val lunghezza: String get() = "Longitud"
+    override val spessore: String get() = "Grosor"
+    override val daTerra: String get() = "Desde el suelo"
+    override val modello: String get() = "Modelo"
+    override val tipo: String get() = "Tipo"
+    override val colore: String get() = "Color"
+    override val destra: String get() = "Derecha"
+    override val sinistra: String get() = "Izquierda"
+    override val elimina: String get() = "Eliminar"
+    override val finitura: String get() = "Acabado"
+    override val ok: String get() = "OK"
+    override val salva: String get() = "Guardar"
+    override val esci: String get() = "Salir"
+    override val conferma: String get() = "Confirmar"
+    override val nome: String get() = "Nombre"
+}

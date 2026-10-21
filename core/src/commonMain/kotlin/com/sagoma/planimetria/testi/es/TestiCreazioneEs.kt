@@ -1,0 +1,45 @@
+package com.sagoma.planimetria.testi.es
+
+import com.sagoma.planimetria.testi.TestiCreazione
+
+object TestiCreazioneEs : TestiCreazione() {
+    override val scegliFormaStanza: String get() = "Elige la forma de la habitación"
+    override val quadrato: String get() = "Cuadrado"
+    override val rettangolo: String get() = "Rectángulo"
+    override val rilievo: String get() = "Por levantamiento"
+    override val latiDiagonaliMisuratiAnche: String get() = "Lados y diagonales medidos: también habitaciones fuera de escuadra o de 5 lados o más"
+    override val muroMuro: String get() = "Pared a pared"
+    override val disegniAngoliPiantaAgganci: String get() = "Dibuja las esquinas en el plano, con ajuste y medidas exactas: cualquier forma"
+    override val ricalcaPiantina: String get() = "Calcar un plano"
+    override val carichiFotoPdfPiantina: String get() = "Carga una foto o un PDF del plano, ponlo a escala con una medida y calca las paredes"
+    override val carichiFotoPiantinaMetti: String get() = "Carga una foto del plano, ponla a escala con una medida y calca las paredes"
+    override val muroSingolo: String get() = "Pared suelta"
+    override val tramezzoSoloAgganciaAgli: String get() = "Un tabique suelto que se ajusta a las demás paredes"
+    override val progetti: String get() = "📁 Proyectos"
+    override val doveSporgeStanza: String get() = "¿Por dónde sobresale la habitación?"
+    override val stanzaRilievo: String get() = "Habitación por levantamiento"
+    override val tipoStanza: String get() = "Tipo de habitación"
+    override val numeroLati: String get() = "Número de lados"
+    override val misuraLatiFiloInterno: String get() =
+        "Mide los lados por la cara interior de las paredes, en el sentido de las agujas del reloj desde la esquina A; luego las diagonales desde la esquina A " +
+            "hasta las esquinas opuestas. Con las diagonales la forma es la real, aunque las esquinas no sean de 90°."
+    override fun lato(p1: Any?, p2: Any?): String = "Lado $p1$p2"
+    override fun diagonale(p1: Any?): String = "Diagonal A$p1"
+    override val anteprima: String get() = "Vista previa"
+    override val questeMisureStanzaNon: String get() = "Con estas medidas la habitación no cierra: revisa los lados y las diagonales."
+    override val spessoreMuri: String get() = "Grosor de las paredes"
+    override val altezzaSoffitto: String get() = "Altura del techo"
+    override val creaStanza: String get() = "Crear habitación"
+    override val lato2: String get() = "Lado"
+    override val larghezzaPrincipale: String get() = "Ancho principal"
+    override val profonditaPrincipale: String get() = "Fondo principal"
+    override val larghezzaProtuberanza: String get() = "Ancho del saliente"
+    override val profonditaProtuberanza: String get() = "Fondo del saliente"
+    override val misureBalcone: String get() = "Medidas del balcón"
+    override val misureTerrazza: String get() = "Medidas de la terraza"
+    override val misureStanza: String get() = "Medidas de la habitación"
+    override val protuberanzaDeveEsserePiu: String get() = "El saliente debe ser más estrecho que la habitación principal."
+    override val spazioAllApertoPosto: String get() = "Espacio exterior: en lugar de paredes hay un antepecho (barandilla, murete o vidrio), que eliges después en Info."
+    override val crea: String get() = "Crear"
+    override val protuberanzaDeveEsserePiu2: String get() = "El saliente debe ser más estrecho que la habitación"
+}
