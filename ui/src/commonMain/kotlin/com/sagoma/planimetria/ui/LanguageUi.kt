@@ -72,17 +72,19 @@ fun LanguageDialog(onDismiss: () -> Unit) {
 
 /**
  * Pulsante della lingua accanto a "❔ Guide": bandiera e sigla della lingua in uso (🇮🇹 ITA, 🇬🇧 ENG);
- * toccandolo si sceglie un'altra lingua o "come il sistema".
+ * toccandolo si sceglie un'altra lingua o "come il sistema". Con `flagOnly` (telefono in verticale) solo la bandiera.
  */
 @Composable
-fun LanguageButton(modifier: Modifier = Modifier) {
+fun LanguageButton(modifier: Modifier = Modifier, flagOnly: Boolean = false) {
     val setting = LocalLanguageSetting.current
     var open by remember { mutableStateOf(false) }
     Box(modifier) {
-        OutlinedButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = 10.dp)) {
+        OutlinedButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = if (flagOnly) 4.dp else 10.dp)) {
             LanguageFlag(T.lingua.codice)
-            Spacer(Modifier.width(6.dp))
-            Text(T.lingua.sigla, maxLines = 1)
+            if (!flagOnly) {
+                Spacer(Modifier.width(6.dp))
+                Text(T.lingua.sigla, maxLines = 1)
+            }
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             for (c in LanguageChoice.entries) {

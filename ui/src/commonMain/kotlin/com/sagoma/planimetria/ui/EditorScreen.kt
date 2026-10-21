@@ -829,7 +829,7 @@ private fun GuidesButton(onGuide: (Guide) -> Unit, tours: List<MenuEntry>, iconO
     var open by remember { mutableStateOf(false) }
     // La lingua sta accanto alle guide, così si trova in ogni disposizione della striscia in alto.
     Row(verticalAlignment = Alignment.CenterVertically) {
-        LanguageButton(Modifier.padding(end = 6.dp))
+        LanguageButton(Modifier.padding(end = 6.dp), flagOnly = iconOnly)
         Box {
             OutlinedButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = if (iconOnly) 4.dp else 12.dp)) {
                 Text(if (iconOnly) "❔" else T.editor.guide, maxLines = 1)
