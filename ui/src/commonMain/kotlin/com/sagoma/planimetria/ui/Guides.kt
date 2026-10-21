@@ -29,6 +29,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.sagoma.planimetria.editor.Tip
 import com.sagoma.planimetria.editor.TutorialStep
+import com.sagoma.planimetria.testi.Passo
+import com.sagoma.planimetria.testi.T
 
 /** Un passo di una miniguida: titolo, spiegazione e animazione. */
 class GuideStep(val title: String, val text: String, val sketch: Sketch)
@@ -38,60 +40,19 @@ class Guide(val icon: String, val title: String, val steps: List<GuideStep>, val
 
 private fun step(s: TutorialStep) = GuideStep(s.title, s.text, s.sketch)
 
-val AtticGuide = Guide(
-    "⌂", "Mansarda",
+private fun passo(p: Passo, sketch: Sketch) = GuideStep(p.titolo, p.testo, sketch)
+
+val AtticGuide: Guide get() = Guide(
+    "⌂", T.guide.titoloMansarda,
     listOf(
-        GuideStep(
-            "Com'è fatta una mansarda",
-            "In una mansarda il soffitto scende verso un muro più basso (il \"muretto\" sotto la falda del tetto). " +
-                "Le pareti laterali quindi non sono rettangolari: sono alte fino a un certo punto e poi si abbassano in " +
-                "diagonale. In questa app si ottiene in due mosse: abbassi il muretto e tagli in diagonale le pareti accanto.",
-            Sketch.AtticIntro,
-        ),
-        GuideStep(
-            "1 · Disegna la stanza",
-            "Crea la stanza con «🧱 Elementi architettonici» → Stanza e sistema le misure dal pannello Info, come per qualsiasi altra stanza. " +
-                "L'altezza del soffitto della stanza è quella della parte più alta della mansarda.",
-            Sketch.AtticRoom,
-        ),
-        GuideStep(
-            "2 · Abbassa il muretto",
-            "Tocca il muro verso cui scende il tetto, apri Info e scrivi la sua altezza reale in \"Altezza muro\" " +
-                "(per esempio 120 cm). Sulla pianta compare l'altezza in viola accanto al muro.",
-            Sketch.AtticLow,
-        ),
-        GuideStep(
-            "3 · Taglia la prima parete laterale",
-            "Tocca una delle due pareti perpendicolari al muretto e, nel pannello Info, attiva \"Taglio diagonale (sottotetto)\". " +
-                "Se il muretto è più basso, la parete ora scende fino alla sua altezza. Se entrambi i muri accanto sono bassi, " +
-                "scegli in \"Scende verso\" da che parte.",
-            Sketch.AtticCut,
-        ),
-        GuideStep(
-            "4 · Scegli dove inizia a scendere",
-            "Misura in casa a che distanza dal muretto il soffitto comincia a inclinarsi e scrivila in \"Inizia a scendere a\". " +
-                "In alternativa trascina il pallino arancione sulla pianta: la linea tratteggiata segna l'inizio della discesa.",
-            Sketch.AtticStart,
-        ),
-        GuideStep(
-            "5 · Ripeti sull'altra parete",
-            "Fai lo stesso sulla parete di fronte, così il soffitto scende in modo uguale su tutta la stanza. " +
-                "Se la parete è in comune con un'altra stanza, viene tagliato solo il lato della mansarda: la stanza accanto resta intera.",
-            Sketch.AtticRepeat,
-        ),
-        GuideStep(
-            "6 · Controlla porte, finestre e impianti",
-            "Se una finestra, una porta, un termosifone o una presa finisce più in alto della parete inclinata, compare un " +
-                "pallino rosso con \"!\" sulla pianta e un avviso nel pannello Info: abbassa l'oggetto o spostalo lungo il muro " +
-                "verso la parte alta.",
-            Sketch.AtticCheck,
-        ),
-        GuideStep(
-            "7 · Guarda il risultato in 3D",
-            "Apri la vista 3D: il bordo delle pareti e il soffitto scendono in diagonale e puoi camminare dentro la mansarda " +
-                "per controllare che tutto torni. Il volume della stanza nel pannello Info tiene già conto del soffitto inclinato.",
-            Sketch.Attic3D,
-        ),
+        passo(T.guide.mansardaIntro, Sketch.AtticIntro),
+        passo(T.guide.mansardaStanza, Sketch.AtticRoom),
+        passo(T.guide.mansardaMuretto, Sketch.AtticLow),
+        passo(T.guide.mansardaTaglio, Sketch.AtticCut),
+        passo(T.guide.mansardaInizio, Sketch.AtticStart),
+        passo(T.guide.mansardaRipeti, Sketch.AtticRepeat),
+        passo(T.guide.mansardaControllo, Sketch.AtticCheck),
+        passo(T.guide.mansarda3D, Sketch.Attic3D),
     ),
     endsIn3d = true,
 )
@@ -99,38 +60,24 @@ val AtticGuide = Guide(
 private fun tip(t: Tip) = GuideStep(t.title, t.text, t.sketch)
 
 /** Ricalcare una piantina: dal caricamento alle stanze ricalcate, con taratura e trasparenze. */
-val TracingGuide = Guide(
-    "🗺", "Ricalca una piantina",
+val TracingGuide: Guide get() = Guide(
+    "🗺", T.guide.titoloRicalco,
     listOf(
-        GuideStep(
-            "Carica la piantina",
-            "In un progetto nuovo scegli «Ricalca una piantina»; in un progetto già iniziato usa ⋮ → «Pianta di sfondo…». " +
-                "Poi «Foto / immagine» (o «PDF» sul computer): catasto, progetto o una foto dritta.",
-            Sketch.Trace,
-        ),
+        passo(T.guide.caricaPiantina, Sketch.Trace),
         tip(Tip.Calibrate),
-        GuideStep(
-            "Ricalca gli angoli",
-            "Si apre «Muro per muro». " + Tip.WallDraw.text + " Per la stanza dopo: «🧱 Elementi architettonici» → Stanza → «Muro per muro».",
-            Sketch.Trace,
-        ),
+        passo(T.guide.ricalcaAngoli, Sketch.Trace),
         tip(Tip.Underlay),
-        GuideStep(
-            "Controlla le misure",
-            "Apri Info della stanza e confronta m² e muri con quelli scritti sulla piantina. Se una parte non conta nei m² " +
-                "(mansarda bassa, cavedio) aggiungi una zona non calpestabile.",
-            Sketch.OpenInfo,
-        ),
+        passo(T.guide.controllaMisure, Sketch.OpenInfo),
     ),
 )
 
 /** Tutte le miniguide del pulsante "Guide", nell'ordine in cui conviene leggerle. */
-val Guides: List<Guide> = listOf(
+val Guides: List<Guide> get() = listOf(
     TracingGuide,
     Guide(
-        "▭", "Stanze e misure",
+        "▭", T.guide.titoloStanze,
         listOf(
-            GuideStep("Muoversi nella pianta", Tip.Welcome.text, Sketch.Welcome),
+            passo(T.guide.muoversi, Sketch.Welcome),
             step(TutorialStep.OpenInfo),
             tip(Tip.RoomInfo),
             step(TutorialStep.WallLengths),
@@ -138,112 +85,58 @@ val Guides: List<Guide> = listOf(
         ),
     ),
     Guide(
-        "▧", "Zone non calpestabili",
+        "▧", T.guide.titoloZone,
         listOf(
-            GuideStep(
-                "Aggiungi una zona",
-                "Seleziona la stanza, apri Info e, nella scheda Misure, premi «▧ Aggiungi zona non calpestabile».",
-                Sketch.OpenInfo,
-            ),
+            passo(T.guide.aggiungiZona, Sketch.OpenInfo),
             tip(Tip.ExcludedZone),
         ),
     ),
-    Guide("✥", "Muri e angoli", listOf(step(TutorialStep.MoveWall), step(TutorialStep.MoveCorner), step(TutorialStep.Undo))),
+    Guide("✥", T.guide.titoloMuri, listOf(step(TutorialStep.MoveWall), step(TutorialStep.MoveCorner), step(TutorialStep.Undo))),
     Guide(
-        "🧲", "Agganci",
+        "🧲", T.guide.titoloAgganci,
         listOf(
-            GuideStep(
-                "Accendi e spegni gli agganci",
-                "Il pulsante 🧲 sta sulla striscia Info della stanza e nella scheda di «Muro per muro». " + Tip.Snap.text,
-                Sketch.Snap,
-            ),
+            passo(T.guide.agganci, Sketch.Snap),
         ),
     ),
     Guide(
-        "🚪", "Porte e finestre",
+        "🚪", T.guide.titoloPorte,
         listOf(step(TutorialStep.AddDoor), GuideStep(TutorialStep.MoveDoor.title, Tip.Opening.text, Sketch.MoveDoor)),
     ),
-    Guide("🔌", "Impianti", listOf(GuideStep(TutorialStep.AddFixture.title, TutorialStep.AddFixture.text + " " + Tip.Fixture.text, Sketch.AddFixture))),
-    Guide("＋", "Più stanze", listOf(step(TutorialStep.AddRoom), step(TutorialStep.MoveRoom))),
+    Guide("🔌", T.guide.titoloImpianti, listOf(GuideStep(TutorialStep.AddFixture.title, TutorialStep.AddFixture.text + " " + Tip.Fixture.text, Sketch.AddFixture))),
+    Guide("＋", T.guide.titoloPiuStanze, listOf(step(TutorialStep.AddRoom), step(TutorialStep.MoveRoom))),
     Guide(
-        "🌿", "Balconi e terrazze",
+        "🌿", T.guide.titoloBalconi,
         listOf(
-            GuideStep(
-                "Aggiungi un balcone o una terrazza",
-                "Premi «🧱 Elementi architettonici» → Balconi e terrazze e scegli il tipo, poi forma e misure come per una stanza. Nasce già appoggiato alla casa: " +
-                    "trascinalo dal nome lungo il muro fino al punto giusto, si aggancia da solo. Sui lati verso l'esterno c'è il parapetto, " +
-                    "contro la casa resta il muro.",
-                Sketch.Outdoor,
-            ),
-            GuideStep(
-                "Parapetto e porta-finestra",
-                Tip.Outdoor.text,
-                Sketch.Outdoor,
-            ),
+            passo(T.guide.aggiungiBalcone, Sketch.Outdoor),
+            passo(T.guide.parapetto, Sketch.Outdoor),
         ),
         endsIn3d = true,
     ),
     Guide(
-        "🪜", "Scale e piani",
+        "🪜", T.guide.titoloScale,
         listOf(
-            GuideStep(
-                "Aggiungi una scala",
-                "Premi «🧱 Elementi architettonici» → Scale e scegli il tipo: rampa dritta, a L con pianerottolo, a U con due rampe o a chiocciola. " +
-                    "La scala compare al centro della vista (o della stanza selezionata): trascinala dove serve, vicino a un muro ci si accosta da sola.",
-                Sketch.AddStair,
-            ),
-            GuideStep(
-                "Tipo, misure e verso",
-                "Tocca la scala e apri Info: cambi tipo, larghezza, pedata (o diametro della chiocciola), da che parte gira e la rotazione, " +
-                    "oppure la giri di 90° con ↻. Numero e altezza dei gradini si calcolano dall'interpiano; se i gradini sono scomodi compare un avviso.",
-                Sketch.StairOptions,
-            ),
-            GuideStep(
-                "Aggiungi un piano",
-                "Tocca il pulsante del piano in alto a sinistra e scegli «Aggiungi un piano sopra». Puoi partire dai muri del piano di sotto " +
-                    "o da un piano vuoto. Il piano di sotto resta visibile in grigio e le sue scale compaiono come vuoto nel pavimento.",
-                Sketch.AddFloor,
-            ),
-            GuideStep(
-                "I piani in 3D",
-                "In 3D vedi il piano scelto sopra quelli di sotto, collegati dalle scale; i piani più alti si nascondono, come se si " +
-                    "togliesse il tetto. Dallo stesso menu del piano cambi nome e interpiano, o lo elimini.",
-                Sketch.Floors3D,
-            ),
+            passo(T.guide.aggiungiScala, Sketch.AddStair),
+            passo(T.guide.opzioniScala, Sketch.StairOptions),
+            passo(T.guide.aggiungiPiano, Sketch.AddFloor),
+            passo(T.guide.piani3D, Sketch.Floors3D),
         ),
         endsIn3d = true,
     ),
     Guide(
-        "🧊", "Vista 3D",
+        "🧊", T.guide.titoloVista3D,
         listOf(
             GuideStep(Tip.View3D.title, Tip.View3D.text, Sketch.View3D),
             // Il suggerimento al primo uso resta corto: i comandi completi stanno qui.
-            GuideStep(
-                "Tutti i comandi",
-                "Telefono: un dito ruota, due dita zoomano e spostano; un muro, una porta o un impianto selezionato si trascina per " +
-                    "spostarlo. In 🚶 Cammina ti muovi col joystick in basso a sinistra. Computer: ↑ ↓ (o W S) avanti e indietro, ← → per " +
-                    "girare, A D per spostarti di lato, PagSu/PagGiù per alzare o abbassare lo sguardo, Maiusc per andare più veloce; " +
-                    "rotellina per lo zoom, tasto destro trascinato per spostare la vista.",
-                Sketch.View3D,
-            ),
+            passo(T.guide.comandi3D, Sketch.View3D),
         ),
         endsIn3d = true,
     ),
     AtticGuide,
     Guide(
-        "↔", "Quote e testi",
+        "↔", T.guide.titoloQuote,
         listOf(
-            GuideStep(
-                "Aggiungi una quota",
-                "Premi «🛠 Strumenti» → Quota e tocca i due estremi: i punti si agganciano ad angoli e facce dei muri. La quota resta " +
-                    "sulla pianta ed esce nelle tavole; toccala per spostarla o eliminarla.",
-                Sketch.Ruler,
-            ),
-            GuideStep(
-                "Scrivi un testo",
-                "Premi «🛠 Strumenti» → Testo, tocca dove scriverlo, poi scrivi e scegli la grandezza.",
-                Sketch.Ruler,
-            ),
+            passo(T.guide.quota, Sketch.Ruler),
+            passo(T.guide.testo, Sketch.Ruler),
         ),
     ),
 )
@@ -266,13 +159,13 @@ fun GuideDialog(guide: Guide, onDismiss: () -> Unit, onOpen3d: () -> Unit) {
                         Text("${guide.icon} ${guide.title}", style = MaterialTheme.typography.titleLarge)
                         if (guide.steps.size > 1) {
                             Text(
-                                "Passo ${index + 1} di ${guide.steps.size}",
+                                T.guide.passoDi(index + 1, guide.steps.size),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
-                    TextButton(onClick = onDismiss) { Text("Chiudi") }
+                    TextButton(onClick = onDismiss) { Text(T.comuni.chiudi) }
                 }
                 HorizontalDivider()
                 // Altezza minima uguale per tutti i passi, così "Avanti" non si sposta cambiando pagina.
@@ -287,12 +180,12 @@ fun GuideDialog(guide: Guide, onDismiss: () -> Unit, onOpen3d: () -> Unit) {
                 }
                 HorizontalDivider()
                 Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { index-- }, enabled = index > 0) { Text("‹ Indietro") }
+                    TextButton(onClick = { index-- }, enabled = index > 0) { Text(T.comuni.indietroFreccia) }
                     Spacer(Modifier.weight(1f))
                     when {
-                        index < guide.steps.lastIndex -> Button(onClick = { index++ }) { Text("Avanti ›") }
-                        guide.endsIn3d -> Button(onClick = { onOpen3d(); onDismiss() }) { Text("Apri la vista 3D") }
-                        else -> Button(onClick = onDismiss) { Text("Fine") }
+                        index < guide.steps.lastIndex -> Button(onClick = { index++ }) { Text(T.comuni.avantiFreccia) }
+                        guide.endsIn3d -> Button(onClick = { onOpen3d(); onDismiss() }) { Text(T.guide.apriVista3D) }
+                        else -> Button(onClick = onDismiss) { Text(T.comuni.fine) }
                     }
                 }
             }

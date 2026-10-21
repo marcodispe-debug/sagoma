@@ -44,26 +44,34 @@ object KitchenModules {
     }
 
     /** Finitura di ante, cassetti, fianchi e zoccolo. */
-    enum class Front(val code: String, val label: String, val argb: Long) {
-        WHITE("bianco", "Bianco opaco", 0xFFF1F0EC),
-        PEARL("perla", "Grigio perla", 0xFFC9C6C0),
-        ANTHRACITE("antracite", "Grigio antracite", 0xFF3E4246),
-        SAGE("salvia", "Verde salvia", 0xFF9AA796),
-        NAVY("blu", "Blu notte", 0xFF2F3A4E),
-        OAK("rovere", "Rovere chiaro", 0xFFC8A27A),
-        WALNUT("noce", "Noce", 0xFF6E4B32),
+    enum class Front(val code: String, val argb: Long) {
+        WHITE("bianco", 0xFFF1F0EC),
+        PEARL("perla", 0xFFC9C6C0),
+        ANTHRACITE("antracite", 0xFF3E4246),
+        SAGE("salvia", 0xFF9AA796),
+        NAVY("blu", 0xFF2F3A4E),
+        OAK("rovere", 0xFFC8A27A),
+        WALNUT("noce", 0xFF6E4B32),
+        ;
+
+        /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+        val label: String get() = com.sagoma.planimetria.testi.T.nomi.kitchenFront(this)
     }
 
     /** Piano di lavoro: tinta unita o materiale fotografico del catalogo dei materiali ([material]). */
-    enum class Top(val code: String, val label: String, val argb: Long, val material: String? = null) {
-        LAMINATE_WHITE("lam-bianco", "Laminato bianco", 0xFFEDEBE7),
-        LAMINATE_GREY("lam-grigio", "Laminato grigio", 0xFF9C9A96),
-        LAMINATE_BLACK("lam-nero", "Laminato nero", 0xFF2B2B2C),
-        WOOD("legno", "Legno rovere", 0xFFB78B5E),
-        CARRARA("carrara", "Marmo di Carrara", 0xFFE4E2DF, "marble021"),
-        STONE("pietra", "Pietra beige", 0xFFCBBFA9, "ph_marble_01"),
-        CONCRETE("cemento", "Cemento", 0xFFA7A39C, "concrete034"),
-        MARQUINIA("marquinia", "Marmo nero Marquinia", 0xFF26262A, "marble006"),
+    enum class Top(val code: String, val argb: Long, val material: String? = null) {
+        LAMINATE_WHITE("lam-bianco", 0xFFEDEBE7),
+        LAMINATE_GREY("lam-grigio", 0xFF9C9A96),
+        LAMINATE_BLACK("lam-nero", 0xFF2B2B2C),
+        WOOD("legno", 0xFFB78B5E),
+        CARRARA("carrara", 0xFFE4E2DF, "marble021"),
+        STONE("pietra", 0xFFCBBFA9, "ph_marble_01"),
+        CONCRETE("cemento", 0xFFA7A39C, "concrete034"),
+        MARQUINIA("marquinia", 0xFF26262A, "marble006"),
+        ;
+
+        /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+        val label: String get() = com.sagoma.planimetria.testi.T.nomi.kitchenTop(this)
     }
 
     data class Spec(val kind: Kind, val front: Front = Front.WHITE, val top: Top = Top.LAMINATE_WHITE)

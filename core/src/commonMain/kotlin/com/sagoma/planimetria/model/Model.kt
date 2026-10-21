@@ -28,18 +28,24 @@ data class Vec2(val x: Double, val y: Double) {
  * Tipi di stanza (§3). Il colore è un ARGB opaco; l'intensità del riempimento la decide il renderer.
  * `outdoor`: spazio esterno (balcone, terrazza), con il parapetto al posto dei muri e senza soffitto.
  */
-enum class RoomType(val label: String, val defaultName: String, val argb: Long, val outdoor: Boolean = false) {
-    Altro("Altro", "Stanza", 0xFF9E9E9E),
-    Soggiorno("Soggiorno", "Soggiorno", 0xFFE8A33D),
-    Camera("Camera da letto", "Camera da letto", 0xFF5C7CFA),
-    Cucina("Cucina", "Cucina", 0xFFE8590C),
-    Bagno("Bagno", "Bagno", 0xFF22B8CF),
-    Cameretta("Cameretta", "Cameretta", 0xFFCC5DE8),
-    Studio("Studio", "Studio", 0xFF37B24D),
-    Corridoio("Corridoio", "Corridoio", 0xFF868E96),
-    Balcone("Balcone", "Balcone", 0xFF12B886, outdoor = true),
-    Terrazza("Terrazza", "Terrazza", 0xFF74B816, outdoor = true),
+enum class RoomType(val argb: Long, val outdoor: Boolean = false) {
+    Altro(0xFF9E9E9E),
+    Soggiorno(0xFFE8A33D),
+    Camera(0xFF5C7CFA),
+    Cucina(0xFFE8590C),
+    Bagno(0xFF22B8CF),
+    Cameretta(0xFFCC5DE8),
+    Studio(0xFF37B24D),
+    Corridoio(0xFF868E96),
+    Balcone(0xFF12B886, outdoor = true),
+    Terrazza(0xFF74B816, outdoor = true),
     ;
+
+    /** Nome del tipo, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.roomType(this)
+
+    /** Nome con cui nasce una stanza di questo tipo. */
+    val defaultName: String get() = com.sagoma.planimetria.testi.T.nomi.roomDefaultName(this)
 
     /**
      * Pavimento con cui nasce una stanza di questo tipo, così il 3D sembra una casa e non un plastico colorato: parquet dove si
@@ -54,38 +60,49 @@ enum class RoomType(val label: String, val defaultName: String, val argb: Long, 
 }
 
 /** Parapetto di balconi e terrazze. I nomi delle costanti finiscono nel file salvato. */
-enum class Parapet(val label: String) {
-    Railing("Ringhiera"),
-    Wall("Muretto"),
-    Glass("Vetro"),
+enum class Parapet {
+    Railing,
+    Wall,
+    Glass,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.parapet(this)
 }
 
 /** Forme disponibili alla creazione (§1). */
 enum class RoomShape { Square, Rectangle, L }
 
 /** Dove sporge la protuberanza di una stanza a L (§1). */
-enum class LOrientation(val label: String) {
-    TopRight("In alto a destra"),
-    TopLeft("In alto a sinistra"),
-    BottomRight("In basso a destra"),
-    BottomLeft("In basso a sinistra"),
+enum class LOrientation {
+    TopRight,
+    TopLeft,
+    BottomRight,
+    BottomLeft,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.lOrientation(this)
 }
 
 /**
  * Tipi di apertura (§5): porte, infissi (finestre, balconi, porta-finestra) e aperture senza porta.
  * I nomi delle costanti finiscono nel file salvato: si possono aggiungere tipi, non rinominarli.
  */
-enum class OpeningKind(val label: String, val leaves: Int, val glazed: Boolean) {
-    Door("Porta ad 1 anta", leaves = 1, glazed = false),
-    Door2("Porta a 2 ante", leaves = 2, glazed = false),
-    Window1("Finestra 1 anta", leaves = 1, glazed = true),
-    Window2("Finestra 2 ante", leaves = 2, glazed = true),
-    Balcony1("Balcone 1 anta", leaves = 1, glazed = true),
-    Balcony2("Balcone 2 ante", leaves = 2, glazed = true),
+enum class OpeningKind(val leaves: Int, val glazed: Boolean) {
+    Door(leaves = 1, glazed = false),
+    Door2(leaves = 2, glazed = false),
+    Window1(leaves = 1, glazed = true),
+    Window2(leaves = 2, glazed = true),
+    Balcony1(leaves = 1, glazed = true),
+    Balcony2(leaves = 2, glazed = true),
 
     /** Non più offerta: resta solo per leggere i file vecchi, dove viene convertita in [Balcony1]. */
-    FrenchDoor("Porta-finestra", leaves = 1, glazed = true),
-    Passage("Apertura senza porta", leaves = 0, glazed = false);
+    FrenchDoor(leaves = 1, glazed = true),
+    Passage(leaves = 0, glazed = false);
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.openingKind(this)
 
     /** Infissi vetrati: hanno l'altezza da terra (davanzale; 0 per i balconi). */
     val hasSill get() = glazed
@@ -95,7 +112,12 @@ enum class OpeningKind(val label: String, val leaves: Int, val glazed: Boolean) 
     val hasLeaves get() = leaves > 0
 }
 
-enum class PassageStyle(val label: String) { Square("Squadrata"), Arched("Ad arco") }
+enum class PassageStyle {
+    Square, Arched;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.passageStyle(this)
+}
 
 /**
  * Apertura su un muro. `position` è la distanza (cm) del centro dell'apertura dall'inizio del muro;
@@ -159,22 +181,25 @@ enum class Mount { Wall, Ceiling }
  * Tipi di impianto. I nomi delle costanti finiscono nel file salvato: si possono aggiungere, non rinominare.
  * `linear`: ha una lunghezza e una rotazione (neon, striscia LED).
  */
-enum class FixtureKind(val label: String, val mount: Mount, val linear: Boolean = false) {
-    Radiator("Calorifero", Mount.Wall),
-    Outlet("Presa di corrente", Mount.Wall),
-    Switch("Interruttore", Mount.Wall),
-    Spotlight("Faretto", Mount.Ceiling),
-    Neon("Neon lungo", Mount.Ceiling, linear = true),
-    Chandelier("Lampadario", Mount.Ceiling),
-    CeilingLight("Plafoniera", Mount.Ceiling),
-    LedStrip("Striscia LED", Mount.Ceiling, linear = true),
-    WaterPoint("Punto acqua", Mount.Wall),
+enum class FixtureKind(val mount: Mount, val linear: Boolean = false) {
+    Radiator(Mount.Wall),
+    Outlet(Mount.Wall),
+    Switch(Mount.Wall),
+    Spotlight(Mount.Ceiling),
+    Neon(Mount.Ceiling, linear = true),
+    Chandelier(Mount.Ceiling),
+    CeilingLight(Mount.Ceiling),
+    LedStrip(Mount.Ceiling, linear = true),
+    WaterPoint(Mount.Wall),
     /** Plafoniera fissata verticalmente a una parete (a muro come presa e interruttore, ma è una luce). */
-    WallLight("Plafoniera a parete", Mount.Wall),
+    WallLight(Mount.Wall),
     /** Faretto fissato a una parete, rivolto verso la stanza. */
-    WallSpot("Faretto a parete", Mount.Wall),
+    WallSpot(Mount.Wall),
     /** Striscia LED fissata a una parete: lunga `length`, segue il muro (nessuna rotazione), a `elevation` da terra. */
-    WallLedStrip("Striscia LED a parete", Mount.Wall);
+    WallLedStrip(Mount.Wall);
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.fixtureKind(this)
 
     /** Luce vera: a soffitto o a parete. */
     val isLight get() = when (this) {
@@ -501,25 +526,33 @@ data class TextNote(
  * Livelli del disegno: si nascondono (niente sulla pianta né nel PDF) o si bloccano (si vedono, ma non si
  * toccano). I nomi delle costanti finiscono nel file salvato: si possono aggiungere, non rinominare.
  */
-enum class Layer(val label: String) {
-    WallLengths("Misure dei muri"),
-    Dimensions("Quote"),
-    Texts("Testi"),
-    Furniture("Arredi"),
-    Fixtures("Impianti (prese, luci, caloriferi…)"),
-    Structure("Scale, colonne, travi, muri singoli"),
-    Rulers("Metri"),
-    Underlay("Pianta di sfondo"),
+enum class Layer {
+    WallLengths,
+    Dimensions,
+    Texts,
+    Furniture,
+    Fixtures,
+    Structure,
+    Rulers,
+    Underlay,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.layer(this)
 }
 
 /**
  * Stato di fatto / progetto (pratiche edilizie): esistente, da demolire (giallo), nuovo (rosso). Per le
  * aperture: [New] = da aprire, [Demolish] = da chiudere. I nomi finiscono nel file salvato.
  */
-enum class Phase(val label: String) {
-    Existing("Esistente"),
-    Demolish("Da demolire"),
-    New("Nuovo"),
+enum class Phase {
+    Existing,
+    Demolish,
+    New,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.phase(this)
 }
 
 @Serializable
@@ -532,13 +565,17 @@ data class LayerSettings(val hidden: Set<Layer> = emptySet(), val locked: Set<La
 /**
  * Tipi di scala. I nomi delle costanti finiscono nel file salvato: si possono aggiungere, non rinominare.
  */
-enum class StairKind(val label: String) {
-    Straight("Rampa dritta"),
-    LTurn("A L (con pianerottolo)"),
-    UTurn("A U (due rampe)"),
-    Spiral("A chiocciola"),
-    StraightLanding("Dritta con pianerottolo"),
-    LWinder("A L con ventaglio"),
+enum class StairKind {
+    Straight,
+    LTurn,
+    UTurn,
+    Spiral,
+    StraightLanding,
+    LWinder,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.stairKind(this)
 }
 
 /**
@@ -586,9 +623,13 @@ data class Stair(
 }
 
 /** Sezione di una colonna. I nomi delle costanti finiscono nel file salvato. */
-enum class ColumnShape(val label: String) {
-    Square("Quadrata"),
-    Round("Rotonda"),
+enum class ColumnShape {
+    Square,
+    Round,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.columnShape(this)
 }
 
 /**

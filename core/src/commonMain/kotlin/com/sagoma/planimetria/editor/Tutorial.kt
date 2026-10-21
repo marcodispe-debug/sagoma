@@ -1,123 +1,44 @@
 package com.sagoma.planimetria.editor
 
+import com.sagoma.planimetria.testi.T
+
 /**
  * Passi del tutorial guidato. Ogni passo con `action = true` chiede all'utente di fare qualcosa sulla
  * pianta e si completa da solo quando l'ha fatto; gli altri si superano con un pulsante.
  */
-enum class TutorialStep(val title: String, val text: String, val action: Boolean = true) {
-    Intro(
-        "Tutorial",
-        "Ti guido passo passo nelle funzioni principali: ogni passo ti chiede di provare tu. " +
-            "Sono modifiche vere alla pianta, ma alla fine puoi annullarle con ↶.",
-        action = false,
-    ),
-    OpenInfo(
-        "Le informazioni della stanza",
-        "Tocca una stanza per selezionarla: in basso compare la striscia Info. Premi Info, la freccia ▲ " +
-            "o scorri la striscia verso l'alto per aprire le sue caratteristiche.",
-    ),
-    WallLengths(
-        "Cambia le misure",
-        "Nella tendina, sotto «Muri», c'è la lunghezza di ogni lato: scrivi un nuovo valore e conferma. " +
-            "Il lato opposto si adegua da solo. Poi cambia un lato nell'altra direzione. Le quote sulla pianta si aggiornano.",
-    ),
-    ChangeType(
-        "Tipo di stanza",
-        "Sempre nella tendina, scegli un tipo di stanza, ad esempio Cucina: colore e nome cambiano da soli.",
-    ),
-    MoveWall(
-        "Sposta un muro",
-        "Chiudi la tendina (▼ o scorri in giù). Poi tocca un muro per selezionarlo e trascinalo: " +
-            "la stanza si allarga o si stringe, e il muro si aggancia a quelli delle stanze vicine.",
-    ),
-    MoveCorner(
-        "Sposta un angolo",
-        "Trascina uno dei pallini blu agli angoli della stanza: puoi anche storcere i muri.",
-    ),
-    AddDoor(
-        "Aggiungi una porta",
-        "Premi «🧱 Elementi architettonici» → Porte, scegli un tipo e poi tocca il muro su cui metterla.",
-    ),
-    MoveDoor(
-        "Sposta la porta",
-        "Trascina la porta lungo il muro. Da Info ne cambi misure, verso di apertura o la rendi scorrevole.",
-    ),
-    AddFixture(
-        "Impianti",
-        "Premi «🧱 Elementi architettonici» → Impianti e scegli, ad esempio, Presa di corrente, poi tocca un muro. Le luci invece si mettono toccando un punto dentro la stanza.",
-    ),
-    AddRoom(
-        "Aggiungi una stanza",
-        "Premi «🧱 Elementi architettonici» → Stanza, scegli forma e misure e conferma.",
-    ),
-    MoveRoom(
-        "Accosta le stanze",
-        "Trascina la nuova stanza tenendola per il nome e avvicinala a un'altra: quando i muri sono vicini si agganciano da soli.",
-    ),
-    Undo(
-        "Annulla",
-        "Hai sbagliato qualcosa? Premi ↶ Annulla in alto per tornare indietro di un passo (↷ Ripeti lo rifà).",
-    ),
-    Done(
-        "Fatto!",
-        "Ora conosci le funzioni principali. Da «❔ Guide», in alto a destra, rifai il tutorial quando vuoi e trovi una guida per ogni funzione.",
-        action = false,
-    ),
+enum class TutorialStep(val action: Boolean = true) {
+    Intro(action = false),
+    OpenInfo,
+    WallLengths,
+    ChangeType,
+    MoveWall,
+    MoveCorner,
+    AddDoor,
+    MoveDoor,
+    AddFixture,
+    AddRoom,
+    MoveRoom,
+    Undo,
+    Done(action = false),
 
     // ---------- Guida al ricalco di una piantina ----------
 
-    TraceLoad(
-        "Carica la piantina",
-        "Premi «Foto / immagine» (o «PDF» sul computer) e scegli la piantina della casa: catasto, progetto o una foto dritta.",
-    ),
-    TraceCalibA(
-        "Taratura: il primo punto",
-        "Cerca sulla piantina una misura scritta, meglio se lunga (ad esempio un muro quotato 4,72). " +
-            "Ingrandisci e tocca l'inizio di quella misura: compare il punto A.",
-    ),
-    TraceCalibB(
-        "Taratura: il secondo punto",
-        "Ora tocca la fine della stessa misura: compare il punto B. Se sbagli, un altro tocco ricomincia da A.",
-    ),
-    TraceCalibValue(
-        "Taratura: la misura vera",
-        "Nella scheda in alto scrivi quanto è lunga davvero la misura tra A e B (in cm, come sulla piantina) e conferma: " +
-            "la piantina va in scala.",
-    ),
-    TraceFirstCorner(
-        "Il primo angolo",
-        "Ora sei in «Muro per muro». Scegli una stanza e clicca un suo angolo, sul lato interno del muro: " +
-            "lo spessore dei muri si aggiunge da solo verso l'esterno.",
-    ),
-    TraceCorners(
-        "Gli altri angoli",
-        "Clicca gli altri angoli uno dopo l'altro, girando intorno alla stanza. Se sbagli, «↶ Ultimo» toglie l'ultimo angolo.",
-    ),
-    TraceClose(
-        "Chiudi la stanza",
-        "Quando hai cliccato tutti gli angoli, clicca di nuovo il primo (quello cerchiato) o premi «Chiudi stanza»; " +
-            "poi scegli il tipo di stanza e conferma.",
-    ),
-    TraceCheck(
-        "Controlla le misure",
-        "Apri Info della stanza (striscia in basso, ▲ o scorri in su): confronta m² e muri con la piantina. " +
-            "Se una parte non conta nei m² (mansarda bassa, cavedio) usa «▧ Aggiungi zona non calpestabile» nella scheda Misure.",
-    ),
-    TraceFade(
-        "Piantina e disegno",
-        "Chiudi la tendina e premi «◐ Piantina e disegno» in basso a destra: rendi la piantina più chiara o nascondila " +
-            "per vedere bene il disegno.",
-    ),
-    TraceNext(
-        "La stanza accanto",
-        "Premi «🧱 Elementi architettonici» → Stanza, scegli «Muro per muro» e ricalca la stanza accanto, angolo dopo angolo come prima.",
-    ),
-    TraceDone(
-        "Fatto!",
-        "Continua così con le altre stanze. Se gli agganci ti spostano i punti, spegnili con 🧲. " +
-            "Con «Fine», se non l'hai ancora fatto, parte il tutorial delle altre funzioni (porte, impianti, misure).",
-        action = false,
-    ),
+    TraceLoad,
+    TraceCalibA,
+    TraceCalibB,
+    TraceCalibValue,
+    TraceFirstCorner,
+    TraceCorners,
+    TraceClose,
+    TraceCheck,
+    TraceFade,
+    TraceNext,
+    TraceDone(action = false),
+    ;
+
+    /** Titolo e testo, nella lingua dei testi ([com.sagoma.planimetria.testi.TestiTutorial]). */
+    val title: String get() = com.sagoma.planimetria.testi.T.tutorial.titolo(this)
+    val text: String get() = com.sagoma.planimetria.testi.T.tutorial.testo(this)
 }
 
 /** Percorsi guidati: il tutorial delle funzioni principali e la guida al ricalco di una piantina. */
@@ -248,12 +169,9 @@ class Tutorial {
         get() {
             val s = step ?: return null
             val detail = when (s) {
-                TutorialStep.WallLengths -> when (edited.maxOfOrNull { it.value.size } ?: 0) {
-                    0 -> "Lati cambiati: 0 di 2"
-                    else -> "Lati cambiati: 1 di 2 · ora un lato nell'altra direzione"
-                }
-                TutorialStep.TraceCorners -> "Angoli cliccati: $corners · ne servono almeno 3"
-                TutorialStep.TraceClose -> "Angoli cliccati: $corners"
+                TutorialStep.WallLengths -> T.tutorial.latiCambiati(edited.maxOfOrNull { it.value.size } ?: 0)
+                TutorialStep.TraceCorners -> T.tutorial.angoliServono(corners)
+                TutorialStep.TraceClose -> T.tutorial.angoliCliccati(corners)
                 else -> null
             }
             val steps = course.steps
