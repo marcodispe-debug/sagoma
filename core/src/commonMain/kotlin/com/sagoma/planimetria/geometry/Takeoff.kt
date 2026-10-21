@@ -46,7 +46,7 @@ object Takeoff {
     }
 
     fun floorFinishName(r: Room): String =
-        MaterialCatalog.item(r.floorMaterial)?.label ?: if (r.floorFinish == FloorFinish.RoomColor) T.computo.definire else r.floorFinish.label
+        MaterialCatalog.item(r.floorMaterial)?.nome ?: if (r.floorFinish == FloorFinish.RoomColor) T.computo.definire else r.floorFinish.label
 
     /** "Pittura salvia", oppure "Pittura colore #D9C8B0" per i colori fuori tavolozza. */
     fun paintName(argb: Long): String {
@@ -58,7 +58,7 @@ object Takeoff {
         val f = r.finishOf(i)
         return when (f.covering) {
             Covering.None -> paintName(f.argb)
-            Covering.Material -> MaterialCatalog.item(f.material)?.label ?: T.computo.rivestimento
+            Covering.Material -> MaterialCatalog.item(f.material)?.nome ?: T.computo.rivestimento
             else -> "${f.covering.label} + ${paintName(f.argb).lowercase()}"
         }
     }
@@ -78,7 +78,7 @@ object Takeoff {
         fun area(lo: Double, hi: Double) = ((length * (hi - lo) - holesBetween(lo, hi)) / 10_000.0).coerceAtLeast(0.0)
         val paint = paintName(f.argb)
         if (f.covering == Covering.None) return listOf(paint to area(0.0, height))
-        val cover = if (f.covering == Covering.Material) MaterialCatalog.item(f.material)?.label ?: T.computo.rivestimento else f.covering.label
+        val cover = if (f.covering == Covering.Material) MaterialCatalog.item(f.material)?.nome ?: T.computo.rivestimento else f.covering.label
         val h = f.coverHeight?.coerceAtMost(height) ?: height
         if (h >= height) return listOf(cover to area(0.0, height))
         return listOf(T.computo.finoCm(cover, h.toInt()) to area(0.0, h), paint to area(h, height))
@@ -111,7 +111,7 @@ object Takeoff {
                 }
             }
             for (f in plan.furniture) {
-                val name = FurnitureCatalog.item(f.model)?.label ?: T.computo.arredo
+                val name = FurnitureCatalog.item(f.model)?.nome ?: T.computo.arredo
                 val size = T.computo.cm(cm(f.width), cm(f.depth), cm(f.height))
                 val where = plan.rooms.lastOrNull { Polygon.contains(it.points, f.center) }?.name ?: fl.name
                 val e = furniture.getOrPut(name to size) { 0 to mutableSetOf() }

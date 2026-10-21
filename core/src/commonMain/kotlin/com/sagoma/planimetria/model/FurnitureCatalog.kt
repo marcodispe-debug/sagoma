@@ -39,6 +39,21 @@ object FurnitureCatalog {
         val hidden: Boolean = false,
     ) {
         val symbolKind: FurnitureSymbol get() = FurnitureSymbol.entries.firstOrNull { it.name == symbol } ?: FurnitureSymbol.Cabinet
+
+        /** Nome da mostrare, nella lingua dei testi: [label] resta quello del catalogo, in italiano. */
+        val nome: String get() = nomeDi(this)
+    }
+
+    private fun nomeDi(i: Item): String {
+        rugOf(i.model)?.let { (material, round) ->
+            MaterialCatalog.item(material)?.let { return com.sagoma.planimetria.testi.T.nomi.tappeto(it.nome, round) }
+        }
+        if (GeneratedFurniture.isGenerated(i.model)) {
+            // Mobili generati: il nome si rifà dal modello nella lingua di adesso. Le voci della scelta hanno solo il tipo.
+            val full = item(i.model)?.label ?: return i.label
+            return if (" · " in i.label) full else full.substringBefore(" · ")
+        }
+        return com.sagoma.planimetria.testi.T.nomi.arredo(i.label)
     }
 
     /**
@@ -159,10 +174,13 @@ object FurnitureCatalog {
         return index[model]
     }
 
-    /** Ricerca per nome o categoria (senza distinguere maiuscole), tra le voci che si possono scegliere. */
+    /** Ricerca per nome o categoria, in italiano o nella lingua dei testi (senza distinguere maiuscole), tra le voci che si possono scegliere. */
     fun search(query: String): List<Item> {
         val q = query.trim().lowercase()
         if (q.isEmpty()) return visible
-        return visible.filter { q in it.label.lowercase() || q in it.category.lowercase() || q in com.sagoma.planimetria.testi.T.nomi.categoria(it.category).lowercase() }
+        return visible.filter {
+            q in it.label.lowercase() || q in it.nome.lowercase() || q in it.category.lowercase() ||
+                q in com.sagoma.planimetria.testi.T.nomi.categoria(it.category).lowercase()
+        }
     }
 }

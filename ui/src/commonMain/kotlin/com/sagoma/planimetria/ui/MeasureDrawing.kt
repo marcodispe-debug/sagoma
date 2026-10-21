@@ -34,7 +34,7 @@ internal fun measureName(plan: FloorPlan, t: MeasureTarget): String = when (t) {
     is MeasureTarget.Beam -> T.vari.trave4
     is MeasureTarget.Stair -> T.vari.scala3
     is MeasureTarget.FreeWall -> T.vari.muroSingolo2
-    is MeasureTarget.Furniture -> plan.furniture(t.furnitureId)?.let { f -> com.sagoma.planimetria.model.FurnitureCatalog.item(f.model)?.label?.let(T.lingua::minuscola) } ?: T.vari.arredo3
+    is MeasureTarget.Furniture -> plan.furniture(t.furnitureId)?.let { f -> com.sagoma.planimetria.model.FurnitureCatalog.item(f.model)?.nome?.let(T.lingua::minuscola) } ?: T.vari.arredo3
 }
 
 /** Distanza con un decimale, come la si scrive: "123,4 cm". */

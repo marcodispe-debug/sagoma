@@ -322,6 +322,14 @@ object NomiEn : Nomi() {
         else -> chiave
     }
 
+    override fun arredo(nome: String): String = CatalogoEn.arredi[nome] ?: nome
+
+    override fun materiale(nome: String): String = CatalogoEn.materiali[nome] ?: nome
+
+    /** "Jute rug", "Round jute rug" (il materiale è già in inglese). */
+    override fun tappeto(materiale: String, tondo: Boolean): String =
+        if (tondo) "Round " + Inglese.minuscola(materiale) + " rug" else "$materiale rug"
+
     override val pianoCucina: String get() = " · worktop "
 
     override fun kitchenFront(v: KitchenModules.Front): String = when (v) {

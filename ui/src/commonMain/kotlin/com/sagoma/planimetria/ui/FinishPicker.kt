@@ -201,7 +201,7 @@ fun MaterialPicker(label: String, selected: String?, forFloor: Boolean, allowNon
     val categories = remember(all) { all.map { it.category }.distinct() }
     var category by remember(selected) { mutableStateOf(MaterialCatalog.item(selected)?.category?.takeIf { it in categories } ?: categories.first()) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("$label: ${MaterialCatalog.item(selected)?.label ?: T.lingua.minuscola(T.finiture.nessuno)}", style = MaterialTheme.typography.labelMedium)
+        Text("$label: ${MaterialCatalog.item(selected)?.nome ?: T.lingua.minuscola(T.finiture.nessuno)}", style = MaterialTheme.typography.labelMedium)
         ArrowLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(end = 8.dp)) {
             items(categories) { c ->
                 androidx.compose.material3.FilterChip(selected = c == category, onClick = { category = c }, label = { Text(T.nomi.categoria(c)) })
@@ -212,7 +212,7 @@ fun MaterialPicker(label: String, selected: String?, forFloor: Boolean, allowNon
                 Swatch(T.finiture.nessuno, null, selected == null) { onSelect(null) }
             }
             items(all.filter { it.category == category }) { m ->
-                Swatch(m.label, m.id, m.id == selected) { onSelect(m.id) }
+                Swatch(m.nome, m.id, m.id == selected) { onSelect(m.id) }
             }
         }
     }

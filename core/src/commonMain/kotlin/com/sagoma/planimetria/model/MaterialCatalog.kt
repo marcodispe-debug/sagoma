@@ -28,6 +28,9 @@ object MaterialCatalog {
         val forWall: Boolean get() = use == "parete" || use == "entrambi"
         /** Buono per un tappeto (tessuti, moquette, vimini). */
         val forRug: Boolean get() = use == "tappeto" || category == "Moquette"
+
+        /** Nome da mostrare, nella lingua dei testi: [label] resta quello del catalogo, in italiano. */
+        val nome: String get() = com.sagoma.planimetria.testi.T.nomi.materiale(label)
     }
 
     /**

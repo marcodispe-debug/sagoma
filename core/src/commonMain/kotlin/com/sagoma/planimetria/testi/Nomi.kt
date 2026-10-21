@@ -303,6 +303,16 @@ open class Nomi {
     /** Nome a schermo di una categoria del catalogo di arredi o materiali (nei dati la categoria è in italiano). */
     open fun categoria(chiave: String): String = chiave
 
+    /** Nome a schermo di un arredo del catalogo (nei dati il nome è in italiano). */
+    open fun arredo(nome: String): String = nome
+
+    /** Nome a schermo di un materiale del catalogo (nei dati il nome è in italiano). */
+    open fun materiale(nome: String): String = nome
+
+    /** Tappeto fatto con un materiale del catalogo: "Tappeto in juta", "Tappeto tondo in juta". */
+    open fun tappeto(materiale: String, tondo: Boolean): String =
+        (if (tondo) "Tappeto tondo in " else "Tappeto in ") + materiale.replaceFirstChar { it.lowercase() }
+
     open fun kitchenFront(v: KitchenModules.Front): String = when (v) {
         KitchenModules.Front.WHITE -> "Bianco opaco"
         KitchenModules.Front.PEARL -> "Grigio perla"
