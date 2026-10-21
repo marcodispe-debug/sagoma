@@ -1,0 +1,36 @@
+package com.sagoma.planimetria.testi.fr
+
+import com.sagoma.planimetria.testi.TestiProgetti
+
+object TestiProgettiFr : TestiProgetti() {
+    override val esportazioneNonRiuscita: String get() = "Échec de l'export"
+    override val progettoEsportato: String get() = "Projet exporté"
+    override val fileNonProgettoValido: String get() = "Le fichier n'est pas un projet valide"
+    override fun importato(name: Any?): String = "Importé : $name"
+    override val progetti: String get() = "Projets"
+    override val nuovoProgetto: String get() = "+ Nouveau projet"
+    override val importa: String get() = "Importer"
+    override val tema: String get() = "🌓 Thème"
+    override fun copia(name: Any?): String = "$name (copie)"
+    override val nuovoProgetto2: String get() = "Nouveau projet"
+    override val datiProgetto: String get() = "Informations du projet"
+    override fun eliminare(name: Any?): String = "Supprimer « $name » ?"
+    override val progettoVieneCancellatoQuesto: String get() = "Le projet sera supprimé de cet appareil. Si vous voulez en garder une copie, exportez-le d'abord."
+    override val modificato: String get() = "Modifié le "
+    override val apri: String get() = "Ouvrir"
+    override val nomeDatiCliente: String get() = "Nom et informations du client"
+    override val duplicaVariante: String get() = "Dupliquer (variante)"
+    override val esportaFileSagoma: String get() = "Exporter le fichier .sagoma"
+    override val nomeProgetto: String get() = "Nom du projet"
+    override val cliente: String get() = "Client"
+    override val indirizzo: String get() = "Adresse"
+    override val progettista: String get() = "Concepteur"
+    override val questiDatiCompaionoCartiglio: String get() = "Ces informations apparaissent dans le cartouche des planches PDF."
+    override val mioProgetto: String get() = "Mon projet"
+    override fun progetto(p1: Any?): String = "Projet $p1"
+    override val progettoImportato: String get() = "Projet importé"
+    override val miaCasa: String get() = "Ma maison"
+    override fun progetto2(p1: Any?): String = "Projet $p1"
+    override val progettoImportato2: String get() = "Projet importé"
+    override val lingua: String get() = "🌐 Langue"
+}

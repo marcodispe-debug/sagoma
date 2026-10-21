@@ -1,0 +1,58 @@
+package com.sagoma.planimetria.testi.es
+
+import com.sagoma.planimetria.testi.TestiSchedaStanza
+
+object TestiSchedaStanzaEs : TestiSchedaStanza() {
+    override val info: String get() = "Info"
+    override val misure: String get() = "Medidas"
+    override val finiture: String get() = "Suelo, paredes"
+    override val porteImpianti: String get() = "Puertas, inst."
+    override val progetto: String get() = "Obra"
+    override val foto: String get() = "Fotos"
+    override val eliminaStanza: String get() = "Eliminar habitación"
+    override fun perimetroCm(p1: Any?, p2: Any?): String = "$p1 · perímetro $p2 cm"
+    override val allAperto: String get() = " · exterior"
+    override val parapetto: String get() = "Antepecho"
+    override val altezzaParapetto: String get() = "Altura del antepecho"
+    override val parapettoSuiLatiVerso: String get() =
+        "El antepecho va por los lados que dan al exterior; donde el balcón toca la casa queda la pared. " +
+            "Para salir, pon una puerta balconera (🧱 Elementos constructivos → Puertas balconeras) en la pared de la habitación."
+    override val altezzaSoffitto: String get() = "Altura del techo"
+    override val spessoreMuri: String get() = "Grosor de las paredes"
+    override val spessoreValeTuttiMuri: String get() =
+        "El grosor vale para todas las paredes de la habitación; una sola pared (por ejemplo un muro de carga de 40 cm o un tabique de 10 cm) " +
+            "se cambia tocándola."
+    override val muri: String get() = "Paredes"
+    override fun muro(p1: Any?): String = "Pared $p1"
+    override val altezzaPers: String get() = "Altura (pers.)"
+    override val zoneNonCalpestabili: String get() = "Zonas no transitables"
+    override val partiNonContanoNei: String get() = "Partes que no cuentan en los m², por ejemplo la zona inaccesible de un ático o un patinillo: se dibujan tocando las esquinas."
+    override val togli: String get() = "Quitar"
+    override fun pavimentoInteroM2Computo(p1: Any?): String = "Suelo entero $p1 m² (las mediciones usan este)."
+    override val aggiungiZonaNonCalpestabile: String get() = "▧ Añadir zona no transitable"
+    override val pavimento: String get() = "Suelo"
+    override val pavimentoFotografico: String get() = "Suelo fotográfico"
+    override val paretiInterne: String get() = "Paredes interiores"
+    override val paretiEsterneFacciataPiano: String get() = "Paredes exteriores (fachada de la planta)"
+    override fun aperture(size: Any?): String = "Huecos ($size)"
+    override val nessunaUsaElementiArchitettonici: String get() = "Ninguno. Usa 🧱 Elementos constructivos abajo: Puertas, Ventanas o Puertas balconeras."
+    override fun muroCm(p1: Any?, p2: Any?, p3: Any?): String = "pared $p1 · $p2×$p3 cm"
+    override fun terra(p1: Any?): String = " · desde el suelo $p1"
+    override fun impianti(size: Any?): String = "Instalaciones ($size)"
+    override val nessunoUsaElementiArchitettonici: String get() = "Ninguna. Usa 🧱 Elementos constructivos → Instalaciones para radiadores, enchufes, interruptores, tomas de agua y luces."
+    override val muriStanza: String get() = "Paredes de la habitación: "
+    override val statiDiversiCambianoMuro: String get() = "estados distintos (se cambian pared a pared)"
+    override val tuttiEsistenti: String get() = "Todas existentes"
+    override val tuttiDemolire: String get() = "Todas a demoler"
+    override val tuttiNuovi: String get() = "Todas nuevas"
+    override val singoloMuroPortaFinestra: String get() = "Una sola pared, puerta o ventana se cambia tocándola. En el plano comparativo las paredes a demoler son amarillas y las nuevas rojas."
+    override fun muroCmTerra(p1: Any?, p2: Any?, p3: Any?, p4: Any?): String = "pared $p1 · $p2×$p3 cm · desde el suelo $p4"
+    override fun muroTerraCm(p1: Any?, p2: Any?): String = "pared $p1 · desde el suelo $p2 cm"
+    override fun muroCmTerraCm(p1: Any?, p2: Any?, p3: Any?): String = "pared $p1 · $p2 cm · desde el suelo $p3 cm"
+    override fun cm(p1: Any?, p2: Any?): String = "$p1 cm · $p2°"
+    override val si: String get() = "🧲 Sí"
+    override val no: String get() = "🧲 No"
+    override val agganci: String get() = "🧲 Ajuste sí"
+    override val agganciNo: String get() = "🧲 Ajuste no"
+    override val soffitto: String get() = "techo"
+}

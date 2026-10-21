@@ -210,6 +210,8 @@ object NomiEn : Nomi() {
     override fun languageChoice(v: LanguageChoice): String = when (v) {
         LanguageChoice.Italian -> "Italiano"
         LanguageChoice.English -> "English"
+        LanguageChoice.French -> "Français"
+        LanguageChoice.Spanish -> "Español"
         LanguageChoice.System -> "Same as system"
     }
 

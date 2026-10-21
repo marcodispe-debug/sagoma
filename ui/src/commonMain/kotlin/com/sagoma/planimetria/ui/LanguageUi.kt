@@ -42,7 +42,7 @@ class LanguageSetting(val choice: LanguageChoice, val change: (LanguageChoice) -
 
 val LocalLanguageSetting = staticCompositionLocalOf { LanguageSetting(LanguageChoice.Italian) {} }
 
-/** Scelta della lingua: italiano, inglese o come il sistema. Cambia subito; la scelta resta per i prossimi avvii. */
+/** Scelta della lingua: italiano, inglese, francese, spagnolo o come il sistema. Cambia subito; la scelta resta per i prossimi avvii. */
 @Composable
 fun LanguageDialog(onDismiss: () -> Unit) {
     val setting = LocalLanguageSetting.current
@@ -100,7 +100,8 @@ fun LanguageButton(modifier: Modifier = Modifier, flagOnly: Boolean = false) {
 }
 
 /**
- * Bandiera disegnata (le bandiere emoji non si vedono su Windows): tricolore per l'italiano, Union Jack per l'inglese.
+ * Bandiera disegnata (le bandiere emoji non si vedono su Windows): tricolore per l'italiano, Union Jack per l'inglese,
+ * tricolore francese e bandiera spagnola (senza stemma, troppo piccolo per vedersi).
  */
 @Composable
 fun LanguageFlag(codice: String, modifier: Modifier = Modifier) {
@@ -122,6 +123,15 @@ fun LanguageFlag(codice: String, modifier: Modifier = Modifier) {
                     val red = h * 0.2f
                     drawRect(Color(0xFFC8102E), Offset((w - red) / 2, 0f), Size(red, h))
                     drawRect(Color(0xFFC8102E), Offset(0f, (h - red) / 2), Size(w, red))
+                }
+                "fr" -> {
+                    drawRect(Color(0xFF002654), Offset.Zero, Size(w / 3, h))
+                    drawRect(Color.White, Offset(w / 3, 0f), Size(w / 3, h))
+                    drawRect(Color(0xFFCE1126), Offset(2 * w / 3, 0f), Size(w / 3, h))
+                }
+                "es" -> {
+                    drawRect(Color(0xFFAA151B))
+                    drawRect(Color(0xFFF1BF00), Offset(0f, h / 4), Size(w, h / 2))
                 }
                 else -> {
                     drawRect(Color(0xFF009246), Offset.Zero, Size(w / 3, h))
