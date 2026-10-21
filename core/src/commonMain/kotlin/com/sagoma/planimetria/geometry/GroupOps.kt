@@ -137,7 +137,11 @@ object GroupOps {
             } ?: p
             is GroupItem.ColumnItem -> p.column(item.id)?.let { c -> p.replace(c.copy(center = x.point(c.center), rotation = x.rotate(c.rotation))) } ?: p
             is GroupItem.BeamItem -> p.beam(item.id)?.let { b -> p.replace(b.copy(start = x.point(b.start), end = x.point(b.end))) } ?: p
-            is GroupItem.FreeWallItem -> p.freeWall(item.id)?.let { w -> p.replace(w.copy(start = x.point(w.start), end = x.point(w.end))) } ?: p
+            is GroupItem.FreeWallItem -> p.freeWall(item.id)?.let { w ->
+                // Specchiato: le ante delle sue porte si aprono dall'altra parte.
+                val openings = if (x.mirrored) w.openings.map { it.copy(hingeLeft = !it.hingeLeft) } else w.openings
+                p.replace(w.copy(start = x.point(w.start), end = x.point(w.end), openings = openings))
+            } ?: p
             is GroupItem.StairItem -> p.stair(item.id)?.let { s ->
                 p.replace(s.copy(center = x.point(s.center), rotation = x.rotate(s.rotation), turnLeft = if (x.mirrored) !s.turnLeft else s.turnLeft))
             } ?: p
@@ -227,7 +231,9 @@ object GroupOps {
                     val c = b.copy(id = p.nextBeamId, start = b.start + d, end = b.end + d); p = p.copy(beams = p.beams + c); created += GroupItem.BeamItem(c.id)
                 }
                 is GroupItem.FreeWallItem -> plan.freeWall(item.id)?.let { w ->
-                    val c = w.copy(id = p.nextFreeWallId, start = w.start + d, end = w.end + d); p = p.copy(freeWalls = p.freeWalls + c); created += GroupItem.FreeWallItem(c.id)
+                    var openingId = p.nextOpeningId
+                    val c = w.copy(id = p.nextFreeWallId, start = w.start + d, end = w.end + d, openings = w.openings.map { it.copy(id = openingId++) })
+                    p = p.copy(freeWalls = p.freeWalls + c); created += GroupItem.FreeWallItem(c.id)
                 }
                 is GroupItem.StairItem -> plan.stair(item.id)?.let { s ->
                     val c = s.copy(id = p.nextStairId, center = s.center + d); p = p.copy(stairs = p.stairs + c); created += GroupItem.StairItem(c.id)

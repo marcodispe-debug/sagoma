@@ -16,6 +16,8 @@ data class PlanReading(
     val rooms: List<ReadRoom>,
     /** Porte, finestre, porte-finestre e passaggi visti sulla piantina. */
     val openings: List<ReadOpening> = emptyList(),
+    /** Scale (per ora solo dritte). */
+    val stairs: List<ReadStair> = emptyList(),
     /** Spessore dei muri esterni sulla piantina, in pixel (null = non stimato: si usa uno spessore tipico). */
     @SerialName("exterior_wall_px") val exteriorWallPx: Double? = null,
     /** Cosa ha notato chi ha letto (misure dubbie, parti illeggibili): solo da mostrare. */
@@ -43,6 +45,20 @@ data class PlanReading(
      * `passage`; [ends] i due estremi in pixel (gli stipiti), da qualunque parte dello spessore del muro. Le misure sono quelle
      * scritte accanto (larghezza, altezza, davanzale), in cm; se mancano la larghezza viene dai pixel e il resto è quello tipico.
      */
+    /**
+     * Scala dritta: [from] il centro del bordo del primo gradino in basso, [to] il centro dell'arrivo in alto (la freccia della
+     * piantina va da [from] a [to]), in pixel; [widthCm] la larghezza scritta, altrimenti [widthPx] misurata; [treads] le pedate
+     * contate sul disegno.
+     */
+    @Serializable
+    data class ReadStair(
+        val from: List<Double>,
+        val to: List<Double>,
+        @SerialName("width_cm") val widthCm: Double? = null,
+        @SerialName("width_px") val widthPx: Double? = null,
+        val treads: Int? = null,
+    )
+
     @Serializable
     data class ReadOpening(
         val kind: String,

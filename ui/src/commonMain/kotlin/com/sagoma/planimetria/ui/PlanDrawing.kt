@@ -577,7 +577,7 @@ private fun DrawScope.drawFixture(room: Room, f: Fixture, cam: Camera, selected:
 }
 
 /** Simboli architettonici standard delle aperture (§5). */
-private fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
+internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
     val (a, b) = Openings.span(room, o)
     val n = Openings.inwardNormal(room, o.wallIndex)
     val half = room.thicknessOf(o.wallIndex) / 2

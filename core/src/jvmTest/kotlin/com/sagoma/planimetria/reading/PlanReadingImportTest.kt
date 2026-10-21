@@ -206,4 +206,21 @@ class PlanReadingImportTest {
         assertEquals(9.0, r.checks.single().areaDrawn, 0.01)
         assertEquals(0.0, r.checks.single().areaError!!, 0.01)
     }
+
+    @Test
+    fun scalaDrittaDallaLineaDiSalita() {
+        // Sale da sinistra a destra: 150 px = 300 cm con 10 pedate da 30 cm, larga 50 px = 100 cm.
+        val reading = twoRooms.copy(stairs = listOf(PlanReading.ReadStair(listOf(100.0, 400.0), listOf(250.0, 400.0), widthPx = 50.0, treads = 10)))
+        val s = PlanReadingImport.toPlan(reading, "sfondo.jpg").plan.stairs.single()
+        assertEquals(com.sagoma.planimetria.model.StairKind.Straight, s.kind)
+        assertEquals(Vec2(350.0, 800.0), s.center)
+        assertEquals(90.0, s.rotation, 1e-9)
+        assertEquals(100.0, s.width, 1e-9)
+        assertEquals(30.0, s.tread, 1e-9)
+        assertEquals(11, s.risers)
+        // Il disegno della scala va proprio da un capo all'altro della linea letta.
+        val path = com.sagoma.planimetria.geometry.Stairs.layout(s, 300.0).path
+        assertEquals(200.0, path.minOf { it.x }, 16.0)
+        assertEquals(500.0, path.maxOf { it.x }, 1.0)
+    }
 }

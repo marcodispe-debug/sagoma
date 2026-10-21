@@ -4,12 +4,16 @@ import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.usableArea
 import com.sagoma.planimetria.geometry.RoomFactory
+import com.sagoma.planimetria.geometry.Stairs
+import com.sagoma.planimetria.geometry.toDegrees
 import com.sagoma.planimetria.model.ExcludedZone
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
+import com.sagoma.planimetria.model.Stair
+import com.sagoma.planimetria.model.StairKind
 import com.sagoma.planimetria.model.Underlay
 import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
@@ -25,7 +29,7 @@ import kotlin.math.sqrt
  * 2. Angoli quasi retti raddrizzati; i rettangoli con le due misure scritte prendono esattamente quelle misure.
  * 3. Spessore dei muri dallo spazio tra le stanze (muri esterni: dalla lettura o tipico); dal filo interno alla mezzeria, così
  *    due stanze vicine hanno lo stesso muro.
- * 4. Porte e finestre sul muro più vicino (meglio di una stanza interna che di un balcone); zone non calpestabili tolte dall'area.
+ * 4. Scale dritte dalla linea di salita; porte e finestre sul muro più vicino (meglio di una stanza interna che di un balcone); zone non calpestabili tolte dall'area.
  * 5. Controlli: metri quadri e lati della stanza disegnata contro quelli scritti, e lati × lati contro i metri quadri scritti.
  */
 object PlanReadingImport {
@@ -44,6 +48,8 @@ object PlanReadingImport {
     private const val OPENING_MARGIN = 15.0
     /** Le aperture vanno sui muri dei balconi solo se nessuna stanza interna ha un muro adatto. */
     private const val OUTDOOR_PENALTY = 1_000.0
+    /** Pedata tipica, per contare i gradini quando la lettura non li dice. */
+    private const val DEFAULT_TREAD = 28.0
 
     /**
      * Pianta pronta, scala trovata (null = nessuna misura scritta utilizzabile: lo sfondo va tarato a mano) e un controllo per
@@ -110,7 +116,7 @@ object PlanReadingImport {
             )
         }
         val underlay = Underlay(imageFile, reading.image.width, reading.image.height, origin = Vec2.Zero, cmPerPx = k, opacity = 0.5)
-        return Result(FloorPlan(rooms = rooms, underlay = underlay), cmPerPx, checks)
+        return Result(FloorPlan(rooms = rooms, stairs = stairs(reading.stairs, k), underlay = underlay), cmPerPx, checks)
     }
 
     /**
@@ -153,6 +159,26 @@ object PlanReadingImport {
             ).let { it.copy(position = Openings.clampPosition(rooms[ri].wallLength(j), it.width, t)) }
         }
         return rooms.mapIndexed { i, r -> if (added[i].isEmpty()) r else r.copy(openings = r.openings + added[i]) }
+    }
+
+    /**
+     * Scale dritte: centro a metà della linea di salita, ruotate verso l'arrivo (a 0° si sale verso l'alto dello schermo), con le
+     * pedate contate: tante alzate quante le pedate più una e la pedata che fa tornare la lunghezza.
+     */
+    internal fun stairs(read: List<PlanReading.ReadStair>, k: Double): List<Stair> = read.mapIndexedNotNull { i, r ->
+        if (r.from.size < 2 || r.to.size < 2) return@mapIndexedNotNull null
+        val a = Vec2(r.from[0] * k, r.from[1] * k)
+        val b = Vec2(r.to[0] * k, r.to[1] * k)
+        val run = a.distanceTo(b)
+        if (run < 50.0) return@mapIndexedNotNull null
+        val d = (b - a) / run
+        val treads = (r.treads ?: kotlin.math.round(run / DEFAULT_TREAD).toInt()).coerceIn(Stairs.MIN_RISERS - 1, Stairs.MAX_RISERS - 1)
+        Stair(
+            id = i + 1L, kind = StairKind.Straight, center = (a + b) / 2.0,
+            rotation = toDegrees(kotlin.math.atan2(d.x, -d.y)),
+            width = r.widthCm ?: r.widthPx?.let { it * k } ?: Stair(0, StairKind.Straight, Vec2.Zero).width,
+            tread = run / treads, risers = treads + 1,
+        )
     }
 
     internal fun openingKind(kind: String): OpeningKind? = when (kind.lowercase().trim()) {

@@ -143,6 +143,25 @@ object Structure {
 
     fun contains(w: FreeWall, p: Vec2): Boolean = Polygon.distanceToSegment(p, w.start, w.end) <= w.thickness / 2
 
+    /** Tratti del muro singolo fuori dalle sue aperture (porte e finestre), in cm lungo il muro da `start`. */
+    fun solidRanges(w: FreeWall): List<ClosedFloatingPointRange<Double>> {
+        val len = w.length
+        if (len < 1e-6) return emptyList()
+        val host = w.host
+        val u = (w.end - w.start) / len
+        var ranges = listOf(0.0..len)
+        for (o in w.openings) {
+            val (a, b) = Openings.span(host, o)
+            val t0 = minOf((a - w.start) dot u, (b - w.start) dot u)
+            val t1 = maxOf((a - w.start) dot u, (b - w.start) dot u)
+            ranges = ranges.flatMap { r ->
+                if (t1 <= r.start || t0 >= r.endInclusive) listOf(r)
+                else listOfNotNull((r.start..t0).takeIf { t0 > r.start }, (t1..r.endInclusive).takeIf { t1 < r.endInclusive })
+            }
+        }
+        return ranges.filter { it.endInclusive - it.start > 0.5 }
+    }
+
     /**
      * Estremità di un muro singolo: si unisce all'estremità di un altro muro singolo vicino (angolo), oppure
      * si appoggia alla faccia di un muro vicino (a T). `other` è l'altra estremità, `id` il muro stesso.

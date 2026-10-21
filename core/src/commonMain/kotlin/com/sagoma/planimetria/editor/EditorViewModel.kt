@@ -926,7 +926,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         is DragTarget.RoomLabel -> GroupItem.RoomItem(target.roomId)
         is DragTarget.Wall -> GroupItem.RoomItem(target.roomId)
         is DragTarget.Corner -> GroupItem.RoomItem(target.roomId)
-        is DragTarget.Opening -> GroupItem.RoomItem(target.roomId)
+        is DragTarget.Opening -> if (target.roomId < 0) GroupItem.FreeWallItem(-target.roomId) else GroupItem.RoomItem(target.roomId)
         is DragTarget.Fixture -> GroupItem.RoomItem(target.roomId)
         is DragTarget.FurnitureBody -> GroupItem.FurnitureItem(target.furnitureId)
         is DragTarget.FurnitureRotate -> GroupItem.FurnitureItem(target.furnitureId)
@@ -1069,6 +1069,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         is DragTarget.Opening -> plan.room(target.roomId)?.opening(target.openingId)?.let { target.roomId to it.wallIndex }
         is DragTarget.Fixture -> plan.room(target.roomId)?.fixture(target.fixtureId)
             ?.takeIf { it.kind.mount == Mount.Wall }?.let { target.roomId to it.wallIndex }
+        // Muro singolo: solo per le aperture (gli impianti vanno sui muri delle stanze).
+        is DragTarget.FreeWallBody -> FreeWall.hostId(target.wallId) to 0
+        is DragTarget.FreeWallEnd -> FreeWall.hostId(target.wallId) to 0
         else -> null
     }
 
@@ -1088,7 +1091,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is Clip.FixtureClip -> {
                 val f = clip.fixture
                 if (f.kind.mount == Mount.Wall) {
-                    val (roomId, w) = wall() ?: return null
+                    val (roomId, w) = wall()?.takeIf { it.first >= 0 } ?: return null
                     val room = plan.room(roomId) ?: return null
                     val pos = Openings.clampPosition(room.wallLength(w), f.length, Openings.projectOnWall(room, w, at))
                     val copy = f.copy(id = plan.nextFixtureId, wallIndex = w, position = pos)
@@ -1179,7 +1182,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                     is Clip.OpeningClip -> Triple(clip.opening.wallIndex, clip.opening.position, clip.opening.width)
                     else -> return null
                 }
-                val room = plan.rooms.firstOrNull { r ->
+                val room = plan.openingHosts.firstOrNull { r ->
                     when (clip) {
                         is Clip.FixtureClip -> r.fixtures.any { it.id == clip.fixture.id }
                         is Clip.OpeningClip -> r.openings.any { it.id == clip.opening.id }
@@ -1529,8 +1532,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun setCameraOffset(offsetX: Float, offsetY: Float) =
         _state.update { it.copy(camera = it.camera.copy(offsetX = offsetX, offsetY = offsetY)) }
 
+    /** Le aperture di un muro singolo (id negativo) non mettono a fuoco nessuna stanza. */
     fun selectOpening(roomId: Long, openingId: Long) =
-        _state.update { it.copy(focusedRoomId = roomId, selection = Selection.Opening(roomId, openingId)) }
+        _state.update { it.copy(focusedRoomId = roomId.takeIf { id -> id >= 0 }, selection = Selection.Opening(roomId, openingId)) }
 
     fun selectFixture(roomId: Long, fixtureId: Long) =
         _state.update { it.copy(focusedRoomId = roomId, selection = Selection.Fixture(roomId, fixtureId)) }
@@ -1624,8 +1628,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                     is DragTarget.Opening -> target.roomId to (s.plan.room(target.roomId)?.opening(target.openingId)?.wallIndex ?: -1)
                     else -> null
                 }
-                // Su un muro eliminato (lato aperto) non si mette niente.
-                if (wall != null && wall.second >= 0 && !isRemovedWall(s.plan, wall)) { placeWallFixture(wall.first, wall.second, at); return }
+                // Su un muro eliminato (lato aperto) non si mette niente; sui muri singoli nemmeno (id negativo).
+                if (wall != null && wall.first >= 0 && wall.second >= 0 && !isRemovedWall(s.plan, wall)) { placeWallFixture(wall.first, wall.second, at); return }
             } else {
                 val room = s.plan.rooms.lastOrNull { Polygon.contains(it.points, at) }
                 if (room != null) { placeCeilingFixture(room.id, at); return }
@@ -1637,6 +1641,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             val wall = when (target) {
                 is DragTarget.Wall -> target.roomId to target.index
                 is DragTarget.Opening -> target.roomId to (s.plan.room(target.roomId)?.opening(target.openingId)?.wallIndex ?: -1)
+                // Muro singolo: le aperture vanno sul suo muro 0, come in una stanza ([FreeWall.host]).
+                is DragTarget.FreeWallBody -> FreeWall.hostId(target.wallId) to 0
+                is DragTarget.FreeWallEnd -> FreeWall.hostId(target.wallId) to 0
                 else -> null
             }
             if (wall != null && wall.second >= 0 && !isRemovedWall(s.plan, wall)) {
@@ -1877,7 +1884,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val opening = base.copy(position = pos)
         commit { it.replace(room.copy(openings = room.openings + opening)) }
         _state.update {
-            it.copy(pendingOpening = null, focusedRoomId = roomId, selection = Selection.Opening(roomId, opening.id))
+            it.copy(pendingOpening = null, focusedRoomId = roomId.takeIf { id -> id >= 0 }, selection = Selection.Opening(roomId, opening.id))
         }
         tutorialEvent(TutorialEvent.OpeningAdded)
     }

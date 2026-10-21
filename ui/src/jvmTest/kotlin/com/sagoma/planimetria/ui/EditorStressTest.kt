@@ -93,6 +93,7 @@ class EditorStressTest {
             p.annotations.forEach { out += DragTarget.AnnotationBody(it.id) to it.at; it.arrowTo?.let { tip -> out += DragTarget.AnnotationArrow(it.id) to tip } }
             p.columns.forEach { out += DragTarget.Column(it.id) to it.center }
             p.beams.forEach { out += DragTarget.BeamBody(it.id) to it.mid }
+            p.freeWalls.forEach { w -> w.openings.forEach { o -> out += DragTarget.Opening(com.sagoma.planimetria.model.FreeWall.hostId(w.id), o.id) to w.mid } }
             p.freeWalls.forEach { out += DragTarget.FreeWallBody(it.id) to it.mid }
             p.stairs.forEach { out += DragTarget.Stair(it.id) to it.center }
             return out
@@ -112,7 +113,12 @@ class EditorStressTest {
             },
             "apertura" to {
                 clearModes()
-                anyRoom()?.let { r ->
+                val freeWall = vm.state.value.plan.freeWalls.takeIf { rnd.nextInt(4) == 0 }?.let { pick(it) }
+                if (freeWall != null) {
+                    // Anche sui muri singoli.
+                    vm.startPlacingOpening(PendingOpening(pick(OpeningKind.entries.filter { it != OpeningKind.FrenchDoor })!!, sliding = rnd.nextBoolean()))
+                    vm.onTap(DragTarget.FreeWallBody(freeWall.id), freeWall.start + (freeWall.end - freeWall.start) * rnd.nextDouble())
+                } else anyRoom()?.let { r ->
                     val i = rnd.nextInt(r.wallCount)
                     // La porta-finestra non si offre più (nei file vecchi diventa un balcone ad 1 anta).
                     vm.startPlacingOpening(PendingOpening(pick(OpeningKind.entries.filter { it != OpeningKind.FrenchDoor })!!, sliding = rnd.nextBoolean()))
@@ -317,7 +323,7 @@ class EditorStressTest {
             val p = f.plan
             fun <T> unique(what: String, ids: List<T>) = require(ids.size == ids.toSet().size) { "id ripetuti: $what $ids" }
             unique("stanze", p.rooms.map { it.id })
-            unique("aperture", p.rooms.flatMap { r -> r.openings.map { it.id } })
+            unique("aperture", p.openingHosts.flatMap { r -> r.openings.map { it.id } })
             unique("impianti", p.rooms.flatMap { r -> r.fixtures.map { it.id } })
             unique("arredi", p.furniture.map { it.id })
             unique("colonne", p.columns.map { it.id })
