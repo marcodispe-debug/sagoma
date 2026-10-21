@@ -157,4 +157,53 @@ class PlanReadingImportTest {
         assertEquals(plan, PlanJson.decode(PlanJson.encode(plan)))
         assertFalse(plan.rooms.any { it.points.size != 4 })
     }
+
+    @Test
+    fun porteEFinestreSulMuroGiusto() {
+        val reading = twoRooms.copy(
+            rooms = twoRooms.rooms + room("Balcone", 100 to 265, 300 to 265, 300 to 320, 100 to 320),
+            openings = listOf(
+                // Porta nel tramezzo tra cucina e letto, larga quanto scritto.
+                PlanReading.ReadOpening("door", listOf(listOf(303.0, 150.0), listOf(303.0, 190.0)), widthCm = 80.0, heightCm = 210.0),
+                // Porta-finestra tra cucina e balcone: va alla cucina, non al balcone.
+                PlanReading.ReadOpening("balcony", listOf(listOf(150.0, 257.0), listOf(200.0, 257.0))),
+                // Finestra sul muro esterno a destra del letto (x = 456 + metà muro).
+                PlanReading.ReadOpening("window", listOf(listOf(463.0, 150.0), listOf(463.0, 200.0)), widthCm = 100.0, heightCm = 140.0),
+                PlanReading.ReadOpening("boh", listOf(listOf(0.0, 0.0), listOf(1.0, 1.0))),
+            ),
+        )
+        val (cucina, letto, balcone) = PlanReadingImport.toPlan(reading, "sfondo.jpg").plan.rooms
+        assertTrue(balcone.openings.isEmpty())
+        val door = cucina.openings.single { it.kind == com.sagoma.planimetria.model.OpeningKind.Door }
+        assertEquals(80.0, door.width, 1e-9)
+        assertEquals(210.0, door.height, 1e-9)
+        val (a, b) = com.sagoma.planimetria.geometry.Openings.span(cucina, door)
+        assertEquals(340.0, (a.y + b.y) / 2, 1.0)
+        val porta = cucina.openings.single { it.kind == com.sagoma.planimetria.model.OpeningKind.Balcony1 }
+        assertEquals(100.0, porta.width, 1e-6) // 50 px × 2 cm
+        assertEquals(0.0, porta.sillHeight, 1e-9)
+        val window = letto.openings.single()
+        assertEquals(com.sagoma.planimetria.model.OpeningKind.Window1, window.kind)
+        assertEquals(140.0, window.height, 1e-9)
+        assertEquals(90.0, window.sillHeight, 1e-9)
+    }
+
+    @Test
+    fun zoneNonCalpestabiliTolteDaiMetriQuadri() {
+        // 4,00 × 3,00 con una fascia non accessibile di 1,00 × 3,00: utili 9 m², come scritto.
+        val reading = PlanReading(
+            image = PlanReading.ImageSize(1000, 800),
+            rooms = listOf(
+                PlanReading.ReadRoom(
+                    "Mansarda", listOf(listOf(100.0, 100.0), listOf(300.0, 100.0), listOf(300.0, 250.0), listOf(100.0, 250.0)),
+                    areaM2 = 9.0, excluded = listOf(listOf(listOf(100.0, 100.0), listOf(150.0, 100.0), listOf(150.0, 250.0), listOf(100.0, 250.0))),
+                ),
+            ),
+        )
+        val r = PlanReadingImport.toPlan(reading, "sfondo.jpg")
+        assertEquals(2.0, r.cmPerPx!!, 1e-9)
+        assertEquals(1, r.plan.rooms.single().excludedZones.size)
+        assertEquals(9.0, r.checks.single().areaDrawn, 0.01)
+        assertEquals(0.0, r.checks.single().areaError!!, 0.01)
+    }
 }

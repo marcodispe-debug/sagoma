@@ -56,5 +56,9 @@ object PlanReadingCli {
             if (c.readingConsistent == false) append("  ⚠ lati × lati non tornano con i m² scritti")
             appendLine()
         }
+        val rooms = result.plan.rooms
+        appendLine("Aperture: ${rooms.sumOf { it.openings.size }} (" + rooms.filter { it.openings.isNotEmpty() }
+            .joinToString(", ") { r -> "${r.name} ${r.openings.joinToString(" ") { "${it.kind.name} ${f(it.width, 0)}" }}" } + ")")
+        appendLine("Zone non calpestabili: ${rooms.sumOf { it.excludedZones.size }}")
     }
 }

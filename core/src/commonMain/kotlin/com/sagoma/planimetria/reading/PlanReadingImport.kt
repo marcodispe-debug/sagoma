@@ -1,8 +1,13 @@
 package com.sagoma.planimetria.reading
 
+import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.Polygon
+import com.sagoma.planimetria.geometry.usableArea
 import com.sagoma.planimetria.geometry.RoomFactory
+import com.sagoma.planimetria.model.ExcludedZone
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.Opening
+import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Underlay
@@ -20,7 +25,8 @@ import kotlin.math.sqrt
  * 2. Angoli quasi retti raddrizzati; i rettangoli con le due misure scritte prendono esattamente quelle misure.
  * 3. Spessore dei muri dallo spazio tra le stanze (muri esterni: dalla lettura o tipico); dal filo interno alla mezzeria, così
  *    due stanze vicine hanno lo stesso muro.
- * 4. Controlli: metri quadri e lati della stanza disegnata contro quelli scritti, e lati × lati contro i metri quadri scritti.
+ * 4. Porte e finestre sul muro più vicino (meglio di una stanza interna che di un balcone); zone non calpestabili tolte dall'area.
+ * 5. Controlli: metri quadri e lati della stanza disegnata contro quelli scritti, e lati × lati contro i metri quadri scritti.
  */
 object PlanReadingImport {
     /** Lati entro questo angolo dall'orizzontale o dalla verticale si raddrizzano. */
@@ -34,6 +40,10 @@ object PlanReadingImport {
     private const val EXTERIOR_WALL = 30.0
     /** Mezzerie di stanze diverse che restano così vicine dopo il calcolo degli spessori finiscono sulla stessa linea. */
     private const val ALIGN_TOLERANCE = 6.0
+    /** Un'apertura può stare fino a così fuori dallo spessore del muro (cm): infissi disegnati sul filo esterno. */
+    private const val OPENING_MARGIN = 15.0
+    /** Le aperture vanno sui muri dei balconi solo se nessuna stanza interna ha un muro adatto. */
+    private const val OUTDOOR_PENALTY = 1_000.0
 
     /**
      * Pianta pronta, scala trovata (null = nessuna misura scritta utilizzabile: lo sfondo va tarato a mano) e un controllo per
@@ -76,7 +86,7 @@ object PlanReadingImport {
         val thicknesses = thicknesses(interiors) { i -> if (types[i].outdoor) Room.WALL_THICKNESS else exterior }
             .map { room -> room.map { it.roundToInt().toDouble() } }
         val centerlines = aligned(interiors.mapIndexed { i, pts -> Polygon.inset(pts, thicknesses[i].map { -it / 2 }) }, tolerance = ALIGN_TOLERANCE)
-        val rooms = read.mapIndexed { i, (r, _) ->
+        val placed = read.mapIndexed { i, (r, _) ->
             val main = thicknesses[i].groupingBy { it }.eachCount().maxBy { it.value }.key
             Room(
                 id = i + 1L,
@@ -86,19 +96,74 @@ object PlanReadingImport {
                 wallThickness = main,
                 wallThicknesses = thicknesses[i].withIndex().filter { it.value != main }.associate { it.index to it.value },
                 floorFinish = types[i].defaultFloor,
+                excludedZones = zonesPx(r).mapIndexed { z, pts -> ExcludedZone(z + 1L, pts.map { it * k }) },
             )
         }
+        val rooms = withOpenings(placed, reading.openings, k)
         val checks = read.mapIndexed { i, (r, _) ->
             RoomCheck(
                 name = rooms[i].name,
                 areaRead = r.areaM2,
-                areaDrawn = Polygon.interiorArea(rooms[i].points, rooms[i].thicknesses) / 10_000,
+                areaDrawn = rooms[i].usableArea() / 10_000,
                 sidesRead = r.sidesM.map { it * 100 },
                 sidesDrawn = Polygon.interiorEdgeLengths(rooms[i].points, rooms[i].thicknesses),
             )
         }
         val underlay = Underlay(imageFile, reading.image.width, reading.image.height, origin = Vec2.Zero, cmPerPx = k, opacity = 0.5)
         return Result(FloorPlan(rooms = rooms, underlay = underlay), cmPerPx, checks)
+    }
+
+    /**
+     * Ogni apertura sul muro parallelo più vicino al suo centro (entro lo spessore del muro e un margine), meglio di una stanza
+     * interna che di un balcone: le porte tra due stanze creano da sole il varco anche nell'altra stanza.
+     */
+    internal fun withOpenings(rooms: List<Room>, openings: List<PlanReading.ReadOpening>, k: Double): List<Room> {
+        val added = rooms.map { mutableListOf<Opening>() }
+        var id = 0L
+        for (o in openings) {
+            val kind = openingKind(o.kind) ?: continue
+            if (o.ends.size < 2 || o.ends.any { it.size < 2 }) continue
+            val a = Vec2(o.ends[0][0] * k, o.ends[0][1] * k)
+            val b = Vec2(o.ends[1][0] * k, o.ends[1][1] * k)
+            if (a.distanceTo(b) < 1e-6) continue
+            val mid = (a + b) / 2.0
+            val u = (b - a).normalized()
+            var best: Triple<Int, Int, Double>? = null
+            var bestScore = Double.MAX_VALUE
+            for ((ri, room) in rooms.withIndex()) for (j in 0 until room.wallCount) {
+                val s = room.wallStart(j)
+                val e = room.wallEnd(j)
+                val len = s.distanceTo(e)
+                if (len < 1e-6) continue
+                val v = (e - s) / len
+                if (abs(u.cross(v)) > 0.2) continue
+                val t = (mid - s) dot v
+                if (t < 0 || t > len) continue
+                val dist = abs((mid - s) dot v.perp())
+                if (dist > room.thicknessOf(j) / 2 + OPENING_MARGIN) continue
+                val score = dist + if (room.type.outdoor) OUTDOOR_PENALTY else 0.0
+                if (score < bestScore) { bestScore = score; best = Triple(ri, j, t) }
+            }
+            val (ri, j, t) = best ?: continue
+            val d = Opening.default(++id, kind, j, t)
+            added[ri] += d.copy(
+                width = o.widthCm ?: a.distanceTo(b),
+                height = o.heightCm ?: d.height,
+                sillHeight = if (kind == OpeningKind.Window1 || kind == OpeningKind.Window2) o.sillCm ?: d.sillHeight else 0.0,
+            ).let { it.copy(position = Openings.clampPosition(rooms[ri].wallLength(j), it.width, t)) }
+        }
+        return rooms.mapIndexed { i, r -> if (added[i].isEmpty()) r else r.copy(openings = r.openings + added[i]) }
+    }
+
+    internal fun openingKind(kind: String): OpeningKind? = when (kind.lowercase().trim()) {
+        "door" -> OpeningKind.Door
+        "double_door" -> OpeningKind.Door2
+        "window" -> OpeningKind.Window1
+        "double_window" -> OpeningKind.Window2
+        "balcony" -> OpeningKind.Balcony1
+        "double_balcony" -> OpeningKind.Balcony2
+        "passage" -> OpeningKind.Passage
+        else -> null
     }
 
     /**
@@ -150,7 +215,7 @@ object PlanReadingImport {
                     for (j in 0..1) if (pxSides[j] > 0) add(cm[j] / pxSides[j])
                 }
                 val a = r.areaM2
-                val pxArea = Polygon.area(px)
+                val pxArea = Polygon.area(px) - zonesPx(r).sumOf { Polygon.area(it) }
                 if (a != null && a > 0 && pxArea > 0) add(sqrt(a * 10_000 / pxArea))
             }
         }.sorted()
@@ -179,6 +244,10 @@ object PlanReadingImport {
             Vec2(if (xs.isEmpty()) pts[i].x else xs.average(), if (ys.isEmpty()) pts[i].y else ys.average())
         }
     }
+
+    /** Zone non calpestabili della stanza, in pixel. */
+    private fun zonesPx(r: PlanReading.ReadRoom): List<List<Vec2>> =
+        r.excluded.map { z -> z.filter { it.size >= 2 }.map { Vec2(it[0], it[1]) } }.filter { it.size >= 3 }
 
     private fun isRectangle(pts: List<Vec2>): Boolean {
         if (pts.size != 4) return false

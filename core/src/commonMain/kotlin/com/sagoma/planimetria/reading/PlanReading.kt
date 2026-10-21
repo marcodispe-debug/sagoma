@@ -14,6 +14,8 @@ data class PlanReading(
     val version: Int = VERSION,
     val image: ImageSize,
     val rooms: List<ReadRoom>,
+    /** Porte, finestre, porte-finestre e passaggi visti sulla piantina. */
+    val openings: List<ReadOpening> = emptyList(),
     /** Spessore dei muri esterni sulla piantina, in pixel (null = non stimato: si usa uno spessore tipico). */
     @SerialName("exterior_wall_px") val exteriorWallPx: Double? = null,
     /** Cosa ha notato chi ha letto (misure dubbie, parti illeggibili): solo da mostrare. */
@@ -32,6 +34,22 @@ data class PlanReading(
         val corners: List<List<Double>>,
         @SerialName("sides_m") val sidesM: List<Double> = emptyList(),
         @SerialName("area_m2") val areaM2: Double? = null,
+        /** Zone non calpestabili (fascia "non accessibile" sotto il tetto basso, cavedi): poligoni in pixel. */
+        val excluded: List<List<List<Double>>> = emptyList(),
+    )
+
+    /**
+     * Un'apertura: [kind] uno tra `door`, `double_door`, `window`, `double_window`, `balcony` (porta-finestra), `double_balcony`,
+     * `passage`; [ends] i due estremi in pixel (gli stipiti), da qualunque parte dello spessore del muro. Le misure sono quelle
+     * scritte accanto (larghezza, altezza, davanzale), in cm; se mancano la larghezza viene dai pixel e il resto è quello tipico.
+     */
+    @Serializable
+    data class ReadOpening(
+        val kind: String,
+        val ends: List<List<Double>>,
+        @SerialName("width_cm") val widthCm: Double? = null,
+        @SerialName("height_cm") val heightCm: Double? = null,
+        @SerialName("sill_cm") val sillCm: Double? = null,
     )
 
     companion object {
