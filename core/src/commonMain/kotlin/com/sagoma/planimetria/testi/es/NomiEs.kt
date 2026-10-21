@@ -124,7 +124,7 @@ object NomiEs : Nomi() {
         Covering.None -> "Solo pintura"
         Covering.Wallpaper -> "Papel pintado"
         Covering.Tiles -> "Azulejos 20×20"
-        Covering.Metro -> "Azulejo metro"
+        Covering.Metro -> "Azulejos metro"
         Covering.Brick -> "Ladrillo visto"
         Covering.Stone -> "Piedra"
         Covering.Wainscot -> "Zócalo"
@@ -369,7 +369,7 @@ object NomiEs : Nomi() {
 
     override val tavolozza: Map<Long, String> = mapOf(
         0xFFFAFAF8 to "Blanco puro", 0xFFF5F1E8 to "Leche", 0xFFF1E6CF to "Crema", 0xFFE8DECB to "Lino",
-        0xFFBFB2A3 to "Topo", 0xFFCBC3B6 to "Greige", 0xFFA9A9A4 to "Cemento", 0xFF6E7378 to "Pizarra",
+        0xFFBFB2A3 to "Gris topo", 0xFFCBC3B6 to "Greige", 0xFFA9A9A4 to "Cemento", 0xFF6E7378 to "Pizarra",
         0xFF3F4246 to "Grafito", 0xFF26272A to "Negro", 0xFFEBCFC8 to "Rosa polvo", 0xFFE8B4B8 to "Rosa",
         0xFFD2CBE3 to "Lavanda", 0xFFB9A6D1 to "Glicina", 0xFFCDE6D6 to "Menta", 0xFFA9D6D0 to "Aguamarina",
         0xFFB8D4EA to "Cielo", 0xFF9DB3C4 to "Azul polvo", 0xFFD9A441 to "Ocre", 0xFFC89F3A to "Mostaza",

@@ -61,7 +61,7 @@ object SuggerimentiEs : Suggerimenti() {
             "Es un espacio exterior: en lugar de paredes hay un antepecho y contra la casa queda la pared de la casa. Ponlo contra una pared " +
                 "y añade una puerta balconera (Elementos constructivos → Puertas balconeras) en la pared de la habitación. En Info elige barandilla, murete o vidrio y la altura."
         Tip.Structure ->
-            "Arrastra un pilar para moverlo: cerca de una pared se alinea y se convierte en un pilar que sobresale. Una viga se mueve " +
+            "Arrastra un pilar para moverlo: cerca de una pared se arrima y queda adosado a ella, sobresaliendo. Una viga se mueve " +
                 "arrastrándola y se alarga desde los puntos de los extremos, que se apoyan en las paredes. En Info cambias la forma y las medidas."
         Tip.Measure ->
             "Toca el primer objeto y luego el segundo: paredes, puertas y ventanas, radiadores, enchufes, luces, pilares, vigas, escaleras. " +
@@ -87,7 +87,7 @@ object SuggerimentiEs : Suggerimenti() {
             "Con el panel «◐ Plano y dibujo», abajo a la derecha, muestras u ocultas el plano y tu dibujo y ajustas " +
                 "su transparencia, para ver bien lo que calcas. El dibujo vuelve a ser opaco al reabrir el proyecto."
         Tip.ExcludedZone ->
-            "Haz clic en las esquinas de la parte que no cuenta en los m², como la parte baja de un ático o un patinillo: las esquinas " +
+            "Haz clic en las esquinas de la parte que no cuenta en los m², como la parte baja de una buhardilla o un patinillo: las esquinas " +
                 "se ajustan a las esquinas interiores de las paredes. Al final elige el nombre; los m² de la habitación bajan, el suelo sigue entero."
         Tip.RoomInfo ->
             "Arriba están Duplicar, Eliminar, el nombre, el tipo y las medidas principales. Debajo, las pestañas: Medidas (alturas, grosores, paredes y " +

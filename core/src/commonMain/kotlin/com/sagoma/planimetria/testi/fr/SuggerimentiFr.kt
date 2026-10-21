@@ -26,7 +26,7 @@ object SuggerimentiFr : Suggerimenti() {
         Tip.Underlay -> "Plan et dessin"
         Tip.ExcludedZone -> "Zone non praticable"
         Tip.RoomInfo -> "Panneau Infos"
-        Tip.Snap -> "Accroche"
+        Tip.Snap -> "Aimantation"
     }
 
     override fun testo(v: Tip): String = when (v) {
@@ -36,18 +36,18 @@ object SuggerimentiFr : Suggerimenti() {
         Tip.Room ->
             "Faites glisser les points bleus pour déplacer les angles et les murs pour l'étirer ; faites glisser le nom pour déplacer toute la pièce. " +
                 "Pour le nom, le type et les longueurs exactes des côtés, appuyez sur Infos ou faites remonter la barre du bas. " +
-                "Si l'accroche attire le point où vous ne voulez pas, désactivez-la avec 🧲 sur la barre."
+                "Si l'aimantation attire le point où vous ne voulez pas, désactivez-la avec 🧲 sur la barre."
         Tip.Wall ->
-            "Faites-le glisser pour le déplacer : il s'accroche aux murs des pièces voisines. Dans Infos vous changez sa hauteur et, s'il est commun " +
+            "Faites-le glisser pour le déplacer : il s'aimante aux murs des pièces voisines. Dans Infos vous changez sa hauteur et, s'il est commun " +
                 "avec une autre pièce, vous pouvez le supprimer pour réunir les deux pièces en un seul espace."
         Tip.NewRoom ->
             "La nouvelle pièce est accolée à celle qui est ouverte, avec un mur en commun. Si elle va ailleurs, faites-la glisser par son nom : " +
-                "elle s'accroche aux murs des pièces voisines."
+                "elle s'aimante aux murs des pièces voisines."
         Tip.Opening -> "Faites-la glisser le long du mur pour la déplacer. Dans Infos vous changez les dimensions, battante ou coulissante, le côté des charnières et le sens d'ouverture, ou vous la retirez."
         Tip.Fixture ->
             "Les équipements muraux glissent le long du mur, les lumières se déplacent n'importe où dans la pièce. " +
                 "Dans Infos vous réglez la hauteur depuis le sol, les dimensions et la rotation, ou vous le retirez."
-        Tip.Ruler -> "Faites glisser les extrémités pour l'étirer et le milieu pour le déplacer. La poignée ronde le fait tourner (accroche tous les 45°), × le supprime."
+        Tip.Ruler -> "Faites glisser les extrémités pour l'étirer et le milieu pour le déplacer. La poignée ronde le fait tourner (par pas de 45°), × le supprime."
         Tip.WallCut ->
             "Le mur descend en biais jusqu'à la hauteur du muret. Faites glisser le point sur le mur, ou tapez la distance, " +
                 "pour choisir où il commence à descendre. Les pointillés montrent où commence la pente du plafond ; en 3D vous voyez tout."
@@ -68,33 +68,33 @@ object SuggerimentiFr : Suggerimenti() {
                 "La distance entre leurs bords les plus proches apparaît, avec une cote sur le plan ; si vous déplacez les objets elle se met à jour."
         Tip.FreeWall ->
             "Une cloison qui ne ferme pas une pièce. Faites-la glisser pour la déplacer et faites glisser les points aux extrémités pour l'allonger ou la tourner : " +
-                "les extrémités s'accrochent aux faces des autres murs et aux extrémités des autres murs libres, et le mur se redresse à 90°. " +
+                "les extrémités s'aimantent aux faces des autres murs et aux extrémités des autres murs libres, et le mur se redresse à 90°. " +
                 "Dans Infos vous changez l'épaisseur, la hauteur et la couleur."
         Tip.Floors ->
             "Avec le bouton de l'étage, en haut à gauche, vous passez d'un étage à l'autre et en ajoutez de nouveaux. L'étage inférieur apparaît " +
-                "en gris pour aligner les murs, et ses escaliers apparaissent comme un trou dans le sol. En 3D vous voyez l'étage choisi sur ceux du dessous."
+                "en gris pour aligner les murs, et ses escaliers apparaissent comme un trou dans le sol. En 3D vous voyez l'étage choisi au-dessus de ceux du dessous."
         Tip.Tracing ->
-            "Chargez la photo ou le PDF du plan, puis étalonnez-le sur une mesure connue : ensuite vous cliquez les angles des pièces " +
+            "Chargez la photo ou le PDF du plan, puis étalonnez-le sur une mesure connue : ensuite vous cliquez sur les angles des pièces " +
                 "et les mesures viennent toutes seules, comme celles écrites sur le plan."
         Tip.Calibrate ->
             "Touchez les deux extrémités d'une mesure écrite sur le plan (de préférence la plus longue, par exemple un mur entier) et tapez " +
-                "combien de cm elle fait. Si ensuite les mesures ne correspondent pas, « 📏 Refaire l'étalonnage » corrige même au milieu d'une pièce."
+                "combien de cm elle fait. Si ensuite les mesures ne correspondent pas, « 📏 Refaire l'étalonnage » corrige l'échelle même au milieu d'une pièce."
         Tip.WallDraw ->
-            "Cliquez les angles l'un après l'autre ; pour finir cliquez le premier angle (entouré) ou « Fermer la pièce ». Sur le plan, " +
-                "cliquez les angles intérieurs des murs : l'épaisseur s'ajoute vers l'extérieur. ↶ Dernier retire le dernier angle, " +
+            "Cliquez sur les angles l'un après l'autre ; pour finir cliquez sur le premier angle (entouré) ou « Fermer la pièce ». Sur le plan, " +
+                "cliquez sur les angles intérieurs des murs : l'épaisseur s'ajoute vers l'extérieur. ↶ Dernier retire le dernier angle, " +
                 "« Taper les mesures » vous laisse choisir la direction et la longueur de chaque mur."
         Tip.Underlay ->
             "Avec le panneau « ◐ Plan et dessin », en bas à droite, vous affichez ou masquez le plan et votre dessin et réglez " +
                 "leur transparence, pour bien voir ce que vous décalquez. Le dessin redevient plein quand vous rouvrez le projet."
         Tip.ExcludedZone ->
-            "Cliquez les angles de la partie qui ne compte pas dans les m², comme la partie basse d'un comble ou une gaine : les angles " +
-                "s'accrochent aux angles intérieurs des murs. À la fin choisissez le nom ; les m² de la pièce diminuent, le sol reste entier."
+            "Cliquez sur les angles de la partie qui ne compte pas dans les m², comme la partie basse de combles ou une gaine : les angles " +
+                "s'aimantent aux angles intérieurs des murs. À la fin choisissez le nom ; les m² de la pièce diminuent, le sol reste entier."
         Tip.RoomInfo ->
             "En haut il y a Dupliquer, Supprimer, le nom, le type et les mesures principales. En dessous, les onglets : Mesures (hauteurs, épaisseurs, murs et " +
                 "zones non praticables), Finitions (sol et murs), Portes, équip. (portes, fenêtres et équipements), Projet (murs existants, à démolir ou neufs). " +
                 "La barre à droite fait défiler le contenu."
         Tip.Snap ->
-            "Avec 🧲 Oui, les angles, les murs et les objets s'accrochent aux angles, aux alignements, aux directions droites et aux murs proches. Avec 🧲 Non ils vont " +
-                "exactement là où vous les mettez ; la pièce se ferme quand même quand vous cliquez le premier angle."
+            "Avec 🧲 Oui, les angles, les murs et les objets s'aimantent aux angles, aux alignements, aux directions droites et aux murs proches. Avec 🧲 Non ils vont " +
+                "exactement là où vous les mettez ; la pièce se ferme quand même quand vous cliquez sur le premier angle."
     }
 }

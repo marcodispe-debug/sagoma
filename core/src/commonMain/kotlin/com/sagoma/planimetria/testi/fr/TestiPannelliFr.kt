@@ -29,7 +29,7 @@ object TestiPannelliFr : TestiPannelli() {
     override fun finoSoffittoCm2(p1: Any?): String = "Jusqu'au plafond ($p1 cm)"
     override val finituraSuiDueLati: String get() = "Finition (des deux côtés)"
     override val trascinaloSpostarloPalliniEstremita: String get() =
-        "Faites-le glisser pour le déplacer, les points aux extrémités pour l'allonger ou le tourner : il s'accroche aux faces des autres murs, " +
+        "Faites-le glisser pour le déplacer, les points aux extrémités pour l'allonger ou le tourner : il s'aimante aux faces des autres murs, " +
             "aux extrémités des autres murs libres et se redresse à 90°."
     override val specchia: String get() = "⇆ Miroir"
     override fun arrivaCmPiuAlto(p1: Any?, p2: Any?): String = "Il monte à $p1 cm : plus haut que le plafond ($p2 cm)."
@@ -116,8 +116,8 @@ object TestiPannelliFr : TestiPannelli() {
     override val iniziaScendere: String get() = "Commence à descendre à"
     override fun pareteAltaCmFino(p1: Any?, p2: Any?, p3: Any?): String =
         "Le mur fait $p1 cm de haut jusqu'au point indiqué (le point sur le plan, que vous pouvez faire glisser), " +
-            "puis descend à $p2 cm, la hauteur de $p3. Le plafond descend de la même façon."
-    override fun nonPiuBassoQuesta(p1: Any?): String = "Ce mur ($p1) n'est pas plus bas que celui-ci : baissez-le pour voir la coupe."
+            "puis descend à $p2 cm, la hauteur du $p3. Le plafond descend de la même façon."
+    override fun nonPiuBassoQuesta(p1: Any?): String = "Le $p1 n'est pas plus bas que ce mur : baissez-le pour voir la coupe."
     override fun nonStaSottoParete(p1: Any?, p2: Any?): String =
         "ne tient pas sous le mur. Il monte à $p1 cm, " +
             "mais à cet endroit le mur ne fait que $p2 cm (coupe du toit ou mur plus bas). Réduisez la hauteur ou déplacez l'objet le long du mur."
@@ -160,6 +160,6 @@ object TestiPannelliFr : TestiPannelli() {
     override val gradino: String get() = "marche"
     override val gradini2: String get() = "marches"
     override fun dopo(t2: Any?): String = "après : $t2"
-    override fun dal(p1: Any?): String = "depuis $p1"
+    override fun dal(p1: Any?): String = "depuis le $p1"
     override fun scorrevole2(label: Any?): String = "$label, coulissante"
 }

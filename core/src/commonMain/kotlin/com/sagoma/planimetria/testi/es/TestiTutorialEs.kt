@@ -70,7 +70,7 @@ object TestiTutorialEs : TestiTutorial() {
                 "luego elige el tipo de habitación y confirma."
         TutorialStep.TraceCheck ->
             "Abre la Info de la habitación (barra de abajo, ▲ o deslízala hacia arriba): compara los m² y las paredes con el plano. " +
-                "Si una parte no cuenta en los m² (ático bajo, patinillo) usa «▧ Añadir zona no transitable» en la pestaña Medidas."
+                "Si una parte no cuenta en los m² (buhardilla baja, patinillo) usa «▧ Añadir zona no transitable» en la pestaña Medidas."
         TutorialStep.TraceFade ->
             "Cierra el panel y pulsa «◐ Plano y dibujo» abajo a la derecha: aclara el plano u ocúltalo " +
                 "para ver bien el dibujo."

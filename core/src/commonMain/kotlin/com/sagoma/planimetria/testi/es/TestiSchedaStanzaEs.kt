@@ -26,7 +26,7 @@ object TestiSchedaStanzaEs : TestiSchedaStanza() {
     override fun muro(p1: Any?): String = "Pared $p1"
     override val altezzaPers: String get() = "Altura (pers.)"
     override val zoneNonCalpestabili: String get() = "Zonas no transitables"
-    override val partiNonContanoNei: String get() = "Partes que no cuentan en los m², por ejemplo la zona inaccesible de un ático o un patinillo: se dibujan tocando las esquinas."
+    override val partiNonContanoNei: String get() = "Partes que no cuentan en los m², por ejemplo la zona inaccesible de una buhardilla o un patinillo: se dibujan tocando las esquinas."
     override val togli: String get() = "Quitar"
     override fun pavimentoInteroM2Computo(p1: Any?): String = "Suelo entero $p1 m² (las mediciones usan este)."
     override val aggiungiZonaNonCalpestabile: String get() = "▧ Añadir zona no transitable"

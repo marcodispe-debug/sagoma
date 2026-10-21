@@ -10,7 +10,7 @@ object TestiLegendaFr : TestiLegenda() {
     override val stanzaSelezionata: String get() = "Pièce sélectionnée"
     override val colorePiuIntensoPallini: String get() = "Couleur plus intense et points bleus aux angles : faites-les glisser pour changer la forme."
     override val altezzaMuroDiversa: String get() = "Hauteur de mur différente"
-    override val muroHaAltezzaDiversa: String get() = "Le mur a une hauteur différente du plafond (ex. comble)."
+    override val muroHaAltezzaDiversa: String get() = "Le mur a une hauteur différente du plafond (ex. combles)."
     override val balconeTerrazza: String get() = "Balcon ou terrasse"
     override val spazioAllApertoDoppia: String get() = "Espace extérieur : la double ligne fine est le garde-corps (plein = muret, bleu clair = verre)."
     override val quota: String get() = "Cote"

@@ -46,7 +46,7 @@ object TestiPannelliEs : TestiPannelli() {
     override val pianoLavoro: String get() = "Encimera"
     override fun tuttaCucinaModuli(modules: Any?): String = "Toda la cocina ($modules módulos)"
     override val soloQuestoModulo: String get() = "Solo este módulo"
-    override val sporgeSotto: String get() = "Descuelga"
+    override val sporgeSotto: String get() = "Descuelgue"
     override fun sottoTraveRestanoCm(p1: Any?): String =
         "Bajo la viga quedan $p1 cm desde el suelo. Arrástrala para moverla " +
             "y los puntos de los extremos para alargarla: cerca de una pared se apoyan en su cara."
@@ -116,8 +116,8 @@ object TestiPannelliEs : TestiPannelli() {
     override val iniziaScendere: String get() = "Empieza a bajar a"
     override fun pareteAltaCmFino(p1: Any?, p2: Any?, p3: Any?): String =
         "La pared mide $p1 cm de alto hasta el punto indicado (el punto en el plano, que puedes arrastrar), " +
-            "luego baja a $p2 cm, la altura de $p3. El techo baja igual."
-    override fun nonPiuBassoQuesta(p1: Any?): String = "Esa pared ($p1) no es más baja que esta: bájala para ver el corte."
+            "luego baja a $p2 cm, la altura de la $p3. El techo baja igual."
+    override fun nonPiuBassoQuesta(p1: Any?): String = "La $p1 no es más baja que esta pared: bájala para ver el corte."
     override fun nonStaSottoParete(p1: Any?, p2: Any?): String =
         "no cabe bajo la pared. Llega a $p1 cm, " +
             "pero ahí la pared solo mide $p2 cm (corte del tejado o pared más baja). Reduce la altura o mueve el objeto a lo largo de la pared."
@@ -160,6 +160,6 @@ object TestiPannelliEs : TestiPannelli() {
     override val gradino: String get() = "peldaño"
     override val gradini2: String get() = "peldaños"
     override fun dopo(t2: Any?): String = "después: $t2"
-    override fun dal(p1: Any?): String = "desde $p1"
+    override fun dal(p1: Any?): String = "desde la $p1"
     override fun scorrevole2(label: Any?): String = "$label, corredera"
 }

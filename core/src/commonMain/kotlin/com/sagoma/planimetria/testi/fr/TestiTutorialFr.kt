@@ -44,39 +44,39 @@ object TestiTutorialFr : TestiTutorial() {
         TutorialStep.ChangeType -> "Toujours dans le panneau, choisissez un type de pièce, par exemple Cuisine : la couleur et le nom changent tout seuls."
         TutorialStep.MoveWall ->
             "Fermez le panneau (▼ ou faites-le glisser vers le bas). Touchez ensuite un mur pour le sélectionner et faites-le glisser : " +
-                "la pièce s'agrandit ou rétrécit, et le mur s'accroche aux murs des pièces voisines."
+                "la pièce s'agrandit ou rétrécit, et le mur s'aimante aux murs des pièces voisines."
         TutorialStep.MoveCorner -> "Faites glisser l'un des points bleus aux angles de la pièce : vous pouvez même faire des murs en biais."
         TutorialStep.AddDoor -> "Appuyez sur « 🧱 Éléments de construction » → Portes, choisissez un type puis touchez le mur où la mettre."
         TutorialStep.MoveDoor -> "Faites glisser la porte le long du mur. Dans Infos vous changez ses dimensions et son sens d'ouverture, ou la rendez coulissante."
         TutorialStep.AddFixture -> "Appuyez sur « 🧱 Éléments de construction » → Équipements et choisissez par exemple Prise électrique, puis touchez un mur. Les lumières, elles, se placent en touchant un endroit dans la pièce."
         TutorialStep.AddRoom -> "Appuyez sur « 🧱 Éléments de construction » → Pièce, choisissez la forme et les dimensions et confirmez."
-        TutorialStep.MoveRoom -> "Faites glisser la nouvelle pièce par son nom et approchez-la d'une autre : quand les murs sont proches, ils s'accrochent."
+        TutorialStep.MoveRoom -> "Faites glisser la nouvelle pièce par son nom et approchez-la d'une autre : quand les murs sont proches, ils s'aimantent."
         TutorialStep.Undo -> "Une erreur ? Appuyez sur ↶ Annuler en haut pour revenir d'un pas (↷ Rétablir le refait)."
         TutorialStep.Done -> "Vous connaissez maintenant les fonctions principales. Depuis « ❔ Guides », en haut à droite, vous pouvez refaire le tutoriel quand vous voulez et trouver un guide pour chaque fonction."
         TutorialStep.TraceLoad -> "Appuyez sur « Photo / image » (ou « PDF » sur ordinateur) et choisissez le plan de la maison : cadastre, plan de l'architecte ou une photo bien droite."
         TutorialStep.TraceCalibA ->
             "Cherchez sur le plan une mesure écrite, de préférence longue (par exemple un mur coté 4,72). " +
                 "Zoomez et touchez le début de cette mesure : le point A apparaît."
-        TutorialStep.TraceCalibB -> "Touchez maintenant la fin de la même mesure : le point B apparaît. En cas d'erreur, un autre toucher recommence depuis A."
+        TutorialStep.TraceCalibB -> "Touchez maintenant la fin de la même mesure : le point B apparaît. En cas d'erreur, un nouvel appui recommence depuis A."
         TutorialStep.TraceCalibValue ->
             "Dans la case en haut, tapez la longueur réelle de la mesure entre A et B (en cm, comme sur le plan) et confirmez : " +
                 "le plan est maintenant à l'échelle."
         TutorialStep.TraceFirstCorner ->
-            "Vous êtes maintenant dans « Mur par mur ». Choisissez une pièce et cliquez l'un de ses angles, du côté intérieur du mur : " +
+            "Vous êtes maintenant dans « Mur par mur ». Choisissez une pièce et cliquez sur l'un de ses angles, du côté intérieur du mur : " +
                 "l'épaisseur du mur s'ajoute toute seule vers l'extérieur."
-        TutorialStep.TraceCorners -> "Cliquez les autres angles l'un après l'autre, en faisant le tour de la pièce. En cas d'erreur, « ↶ Dernier » retire le dernier angle."
+        TutorialStep.TraceCorners -> "Cliquez sur les autres angles l'un après l'autre, en faisant le tour de la pièce. En cas d'erreur, « ↶ Dernier » retire le dernier angle."
         TutorialStep.TraceClose ->
-            "Quand vous avez cliqué tous les angles, cliquez à nouveau le premier (celui entouré) ou appuyez sur « Fermer la pièce » ; " +
+            "Quand vous avez cliqué tous les angles, cliquez à nouveau sur le premier (celui entouré) ou appuyez sur « Fermer la pièce » ; " +
                 "choisissez ensuite le type de pièce et confirmez."
         TutorialStep.TraceCheck ->
             "Ouvrez les Infos de la pièce (barre en bas, ▲ ou faites-la remonter) : comparez les m² et les murs avec le plan. " +
-                "Si une partie ne compte pas dans les m² (comble bas, gaine), utilisez « ▧ Ajouter une zone non praticable » dans l'onglet Mesures."
+                "Si une partie ne compte pas dans les m² (combles bas, gaine), utilisez « ▧ Ajouter une zone non praticable » dans l'onglet Mesures."
         TutorialStep.TraceFade ->
             "Fermez le panneau et appuyez sur « ◐ Plan et dessin » en bas à droite : éclaircissez le plan ou masquez-le " +
                 "pour bien voir le dessin."
         TutorialStep.TraceNext -> "Appuyez sur « 🧱 Éléments de construction » → Pièce, choisissez « Mur par mur » et décalquez la pièce suivante, angle par angle comme avant."
         TutorialStep.TraceDone ->
-            "Continuez ainsi avec les autres pièces. Si l'accroche déplace vos points, désactivez-la avec 🧲. " +
+            "Continuez ainsi avec les autres pièces. Si l'aimantation déplace vos points, désactivez-la avec 🧲. " +
                 "Avec « Terminé », si vous ne l'avez pas encore fait, le tutoriel des autres fonctions commence (portes, équipements, mesures)."
     }
 

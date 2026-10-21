@@ -26,7 +26,7 @@ object TestiSchedaStanzaFr : TestiSchedaStanza() {
     override fun muro(p1: Any?): String = "Mur $p1"
     override val altezzaPers: String get() = "Hauteur (pers.)"
     override val zoneNonCalpestabili: String get() = "Zones non praticables"
-    override val partiNonContanoNei: String get() = "Parties qui ne comptent pas dans les m², par exemple la zone inaccessible d'un comble ou une gaine : vous les dessinez en touchant les angles."
+    override val partiNonContanoNei: String get() = "Parties qui ne comptent pas dans les m², par exemple la zone inaccessible de combles ou une gaine : vous les dessinez en touchant les angles."
     override val togli: String get() = "Retirer"
     override fun pavimentoInteroM2Computo(p1: Any?): String = "Sol entier $p1 m² (le métré utilise celui-ci)."
     override val aggiungiZonaNonCalpestabile: String get() = "▧ Ajouter une zone non praticable"
@@ -52,7 +52,7 @@ object TestiSchedaStanzaFr : TestiSchedaStanza() {
     override fun cm(p1: Any?, p2: Any?): String = "$p1 cm · $p2°"
     override val si: String get() = "🧲 Oui"
     override val no: String get() = "🧲 Non"
-    override val agganci: String get() = "🧲 Accroche oui"
-    override val agganciNo: String get() = "🧲 Accroche non"
+    override val agganci: String get() = "🧲 Aimant oui"
+    override val agganciNo: String get() = "🧲 Aimant non"
     override val soffitto: String get() = "plafond"
 }

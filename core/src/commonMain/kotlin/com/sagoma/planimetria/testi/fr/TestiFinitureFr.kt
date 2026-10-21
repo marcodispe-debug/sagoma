@@ -6,7 +6,7 @@ object TestiFinitureFr : TestiFiniture() {
     override val pittura: String get() = "Peinture"
     override val rivestimento: String get() = "Revêtement"
     override val materiale: String get() = "Matériau"
-    override fun colore(p1: Any?): String = "Couleur : $p1"
+    override fun colore(p1: Any?): String = "Couleur ($p1)"
     override val tuttaParete: String get() = "Tout le mur"
     override fun altoCmTerra(p1: Any?): String = "Jusqu'à $p1 cm du sol"
     override val colorePersonalizzato: String get() = "Couleur personnalisée"

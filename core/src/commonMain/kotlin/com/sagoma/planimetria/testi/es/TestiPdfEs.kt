@@ -3,7 +3,7 @@ package com.sagoma.planimetria.testi.es
 import com.sagoma.planimetria.testi.TestiPdf
 
 object TestiPdfEs : TestiPdf() {
-    override fun pianta(p1: Any?): String = "Planta, $p1"
+    override fun pianta(p1: Any?): String = "Plano, $p1"
     override val progetto: String get() = "PROYECTO"
     override val progetto2: String get() = "Proyecto"
     override val cliente: String get() = "CLIENTE"
