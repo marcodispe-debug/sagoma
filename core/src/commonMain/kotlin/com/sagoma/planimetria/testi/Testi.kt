@@ -11,6 +11,9 @@ import com.sagoma.planimetria.testi.en.Inglese
  * e una voce in [LanguageChoice] e in [Lingue.scegli].
  */
 open class Lingua(val codice: String) {
+    /** Sigla sul pulsante della lingua, accanto alla bandiera. */
+    open val sigla: String get() = "ITA"
+
     /** Separatore dei decimali nei numeri mostrati (20,50 m² in italiano). */
     open val virgola: Char get() = ','
     open val comuni: Comuni = Comuni()

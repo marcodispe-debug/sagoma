@@ -243,7 +243,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 FloorButton(state.building, vm, Modifier.padding(start = 8.dp))
                 RoomTabs(state.plan.rooms, state.focusedRoomId, onTap = vm::openRoomProperties, modifier = Modifier.weight(1f), compact = true)
-                Box(Modifier.padding(end = 8.dp)) { GuidesButton(onGuide = { openGuide = it }, tours = guidedTours) }
+                // Sul telefono in verticale "Guide" resta solo "❔", per lasciare posto alle schede delle stanze.
+                Box(Modifier.padding(end = 8.dp)) { GuidesButton(onGuide = { openGuide = it }, tours = guidedTours, iconOnly = true) }
             }
             toolbar(false, true, 40.dp)
         }
@@ -821,19 +822,23 @@ private fun ToolsButton(
 }
 
 /**
- * "❔ Guide", in alto a destra: prima le guide passo passo sulla pianta (`tours`), poi le miniguide animate, una per argomento.
+ * Pulsante della lingua e "❔ Guide", in alto a destra. "❔ Guide": prima le guide passo passo sulla pianta (`tours`), poi le miniguide animate, una per argomento.
  */
 @Composable
-private fun GuidesButton(onGuide: (Guide) -> Unit, tours: List<MenuEntry>) {
+private fun GuidesButton(onGuide: (Guide) -> Unit, tours: List<MenuEntry>, iconOnly: Boolean = false) {
     var open by remember { mutableStateOf(false) }
-    Box {
-        OutlinedButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = 12.dp)) {
-            Text(T.editor.guide, maxLines = 1)
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            for (t in tours) DropdownMenuItem(text = { Text(t.label) }, onClick = { open = false; t.action?.invoke() })
-            HorizontalDivider()
-            for (g in Guides) DropdownMenuItem(text = { Text("${g.icon}  ${g.title}") }, onClick = { open = false; onGuide(g) })
+    // La lingua sta accanto alle guide, così si trova in ogni disposizione della striscia in alto.
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        LanguageButton(Modifier.padding(end = 6.dp))
+        Box {
+            OutlinedButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = if (iconOnly) 4.dp else 12.dp)) {
+                Text(if (iconOnly) "❔" else T.editor.guide, maxLines = 1)
+            }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                for (t in tours) DropdownMenuItem(text = { Text(t.label) }, onClick = { open = false; t.action?.invoke() })
+                HorizontalDivider()
+                for (g in Guides) DropdownMenuItem(text = { Text("${g.icon}  ${g.title}") }, onClick = { open = false; onGuide(g) })
+            }
         }
     }
 }

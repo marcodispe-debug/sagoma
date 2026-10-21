@@ -28,6 +28,7 @@ import com.sagoma.planimetria.testi.TestiVista3D
 
 /** Inglese: ogni area è tradotta nel suo oggetto *En. */
 object Inglese : Lingua("en") {
+    override val sigla: String get() = "ENG"
     override val virgola: Char get() = '.'
     override val comuni: Comuni = ComuniEn
     override val nomi: Nomi = NomiEn
