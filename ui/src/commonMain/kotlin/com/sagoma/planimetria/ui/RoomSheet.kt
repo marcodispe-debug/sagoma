@@ -176,7 +176,18 @@ fun RoomInfo(room: Room, plan: FloorPlan, vm: EditorViewModel, modifier: Modifie
 }
 
 /** Schede della tendina della stanza. */
-private enum class RoomTab(val label: String) { Measures(T.schedaStanza.misure), Finishes(T.schedaStanza.finiture), Openings(T.schedaStanza.porteImpianti), Project(T.schedaStanza.progetto), Photos(T.schedaStanza.foto) }
+// Etichette lette ogni volta (non nel costruttore dell'enum), così seguono il cambio di lingua.
+private enum class RoomTab {
+    Measures, Finishes, Openings, Project, Photos;
+
+    val label: String get() = when (this) {
+        Measures -> T.schedaStanza.misure
+        Finishes -> T.schedaStanza.finiture
+        Openings -> T.schedaStanza.porteImpianti
+        Project -> T.schedaStanza.progetto
+        Photos -> T.schedaStanza.foto
+    }
+}
 
 /** Ultima scheda aperta: resta passando da una stanza all'altra (e riaprendo la tendina). */
 private var lastRoomTab by mutableStateOf(RoomTab.Measures)

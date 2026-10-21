@@ -849,14 +849,14 @@ data class Building(
         fun single(plan: FloorPlan, autoLevel: Boolean = false) =
             Building(listOf(Floor(1, floorName(0), plan, autoLevel = autoLevel).synced()))
 
-        /** Nome proposto per il piano `index` (0 = piano terra). */
-        fun floorName(index: Int): String = when (index) {
-            0 -> T.piani.pianoTerra
-            1 -> T.piani.primoPiano
-            2 -> T.piani.secondoPiano
-            3 -> T.piani.terzoPiano
-            4 -> T.piani.quartoPiano
-            else -> T.piani.piano(index)
+        /** Nome proposto per il piano `index` (0 = piano terra), nella lingua dell'app o in quella data. */
+        fun floorName(index: Int, lingua: com.sagoma.planimetria.testi.Lingua = T.lingua): String = when (index) {
+            0 -> lingua.piani.pianoTerra
+            1 -> lingua.piani.primoPiano
+            2 -> lingua.piani.secondoPiano
+            3 -> lingua.piani.terzoPiano
+            4 -> lingua.piani.quartoPiano
+            else -> lingua.piani.piano(index)
         }
     }
 }

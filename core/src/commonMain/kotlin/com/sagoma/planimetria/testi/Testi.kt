@@ -46,6 +46,9 @@ object Italiano : Lingua("it")
 
 /** Le lingue dell'app e quale usare per la scelta dell'utente. */
 object Lingue {
+    /** Tutte le lingue dell'app. */
+    val tutte: List<Lingua> get() = listOf(Italiano, Inglese)
+
     /**
      * Lingua per la scelta: con "come il sistema" l'italiano se il sistema è in italiano, altrimenti l'inglese
      * (capito da più persone dell'italiano). `sistema`: codice della lingua del sistema ("it", "en-US"…).

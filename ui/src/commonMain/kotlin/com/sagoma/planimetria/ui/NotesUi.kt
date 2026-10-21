@@ -32,7 +32,7 @@ import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.testi.T
 
 /** Dimensioni dei testi (altezza in cm sulla pianta: a 1:50 un testo da 25 cm è alto 5 mm sul foglio). */
-private val TextSizes = listOf(T.note.piccolo to 15.0, T.note.medio to 25.0, T.note.grande to 40.0)
+private val TextSizes get() = listOf(T.note.piccolo to 15.0, T.note.medio to 25.0, T.note.grande to 40.0)
 
 /** Scheda in alto mentre è attivo lo strumento "Quota" o "Testo". */
 @Composable

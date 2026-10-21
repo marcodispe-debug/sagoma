@@ -23,6 +23,12 @@ class History<T>(private val limit: Int = 200) {
         past.removeLastOrNull()
     }
 
+    /** Stessa modifica su tutti gli stati salvati (es. nomi tradotti cambiando lingua), senza toccare l'ordine. */
+    fun mapAll(transform: (T) -> T) {
+        for (i in past.indices) past[i] = transform(past[i])
+        for (i in future.indices) future[i] = transform(future[i])
+    }
+
     fun undo(current: T): T? {
         val prev = past.removeLastOrNull() ?: return null
         future.addLast(current)

@@ -104,6 +104,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         }
     }
     val state by vm.state.collectAsStateWithLifecycle()
+    // Nomi automatici di stanze e piani ("Piano terra", "Cucina 2") nella lingua scelta, anche aprendo un progetto fatto in un'altra.
+    LaunchedEffect(vm, T.lingua.codice) { vm.translateAutoNames() }
     // Quando l'app va in background si salva subito, senza aspettare il ritardo del salvataggio automatico.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { vm.saveNow() }
     // Chiudendo la finestra (computer) o uscendo dal progetto si salva subito, senza aspettare.
