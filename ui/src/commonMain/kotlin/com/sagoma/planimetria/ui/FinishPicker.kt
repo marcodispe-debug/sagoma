@@ -45,6 +45,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import com.sagoma.planimetria.model.ProPalette
 import com.sagoma.planimetria.model.WallFinish
+import com.sagoma.planimetria.testi.T
 import kotlin.math.roundToInt
 
 /** Colori scelti di recente con il selettore libero (per questa sessione), il più recente per primo. */
@@ -66,29 +67,29 @@ object RecentColors {
 fun FinishPicker(label: String, finish: WallFinish, onChange: (WallFinish) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-        FreeColorPicker("Pittura", finish.argb) { onChange(finish.copy(argb = it)) }
+        FreeColorPicker(T.finiture.pittura, finish.argb) { onChange(finish.copy(argb = it)) }
         val coverings = Covering.entries.filter { it != Covering.Material || MaterialCatalog.items.any { m -> m.forWall } }
-        ModelPicker("Rivestimento", coverings, finish.covering, { it.label }, { c ->
+        ModelPicker(T.finiture.rivestimento, coverings, finish.covering, { it.label }, { c ->
             val material = if (c == Covering.Material) finish.material ?: MaterialCatalog.items.firstOrNull { it.forWall }?.id else finish.material
             onChange(finish.copy(covering = c, coveringArgb = null, coveringHeight = null, material = material))
         }) { coveringPreview(it, if (it == finish.covering) finish.coverArgb else it.defaultArgb, finish.argb) }
         if (finish.covering == Covering.Material) {
-            MaterialPicker("Materiale", finish.material, forFloor = false) { onChange(finish.copy(material = it)) }
+            MaterialPicker(T.finiture.materiale, finish.material, forFloor = false) { onChange(finish.copy(material = it)) }
         }
         if (finish.covering != Covering.None) {
             if (finish.covering != Covering.Material) {
-                FreeColorPicker("Colore ${finish.covering.label.lowercase()}", finish.coverArgb) { onChange(finish.copy(coveringArgb = it)) }
+                FreeColorPicker(T.finiture.colore(finish.covering.label.lowercase()), finish.coverArgb) { onChange(finish.copy(coveringArgb = it)) }
             }
             val full = finish.coverHeight == null
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
                 Checkbox(checked = full, onCheckedChange = { on ->
                     onChange(finish.copy(coveringHeight = if (on) WallFinish.FULL_HEIGHT else 120.0))
                 })
-                Text("Tutta la parete", style = MaterialTheme.typography.bodyMedium)
+                Text(T.finiture.tuttaParete, style = MaterialTheme.typography.bodyMedium)
             }
             if (!full) {
                 val h = finish.coverHeight ?: 120.0
-                Text("Alto ${h.roundToInt()} cm da terra", style = MaterialTheme.typography.labelMedium)
+                Text(T.finiture.altoCmTerra(h.roundToInt()), style = MaterialTheme.typography.labelMedium)
                 Slider(
                     value = h.toFloat(),
                     onValueChange = { onChange(finish.copy(coveringHeight = (it / 5).roundToInt() * 5.0)) },
@@ -151,7 +152,7 @@ private fun CustomColorDialog(initial: Long, onDismiss: () -> Unit, onPick: (Lon
     fun syncHex() { hex = com.sagoma.planimetria.geometry.hex6(current()) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Colore personalizzato") },
+        title = { Text(T.finiture.colorePersonalizzato) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Box(Modifier.fillMaxWidth().height(56.dp).background(Color(current()), RoundedCornerShape(10.dp)).border(1.dp, Color(0x33000000), RoundedCornerShape(10.dp)))
@@ -159,13 +160,13 @@ private fun CustomColorDialog(initial: Long, onDismiss: () -> Unit, onPick: (Lon
                 // Sopra ogni cursore la sfumatura che si ottiene spostandolo.
                 @Composable
                 fun strip(colors: List<Color>) = Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(10.dp).background(Brush.horizontalGradient(colors), RoundedCornerShape(5.dp)))
-                Text("Tinta", style = MaterialTheme.typography.labelMedium)
+                Text(T.finiture.tinta, style = MaterialTheme.typography.labelMedium)
                 strip((0..6).map { hsv(it * 60f, 0.8f, 0.9f) })
                 Slider(value = hue, onValueChange = { hue = it; syncHex() }, valueRange = 0f..360f)
-                Text("Saturazione", style = MaterialTheme.typography.labelMedium)
+                Text(T.finiture.saturazione, style = MaterialTheme.typography.labelMedium)
                 strip(listOf(hsv(hue, 0f, value), hsv(hue, 1f, value)))
                 Slider(value = sat, onValueChange = { sat = it; syncHex() })
-                Text("Luminosità", style = MaterialTheme.typography.labelMedium)
+                Text(T.finiture.luminosita, style = MaterialTheme.typography.labelMedium)
                 strip(listOf(Color.Black, hsv(hue, sat, 1f)))
                 Slider(value = value, onValueChange = { value = it; syncHex() })
                 OutlinedTextField(
@@ -178,14 +179,14 @@ private fun CustomColorDialog(initial: Long, onDismiss: () -> Unit, onPick: (Lon
                             hue = out[0]; sat = out[1]; value = out[2]
                         }
                     },
-                    label = { Text("Codice (es. C9D3BF)") },
+                    label = { Text(T.finiture.codiceEsC9d3bf) },
                     prefix = { Text("#") },
                     singleLine = true,
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onPick(current()) }) { Text("Usa questo colore") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla") } },
+        confirmButton = { TextButton(onClick = { onPick(current()) }) { Text(T.finiture.usaQuestoColore) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(T.comuni.annulla) } },
     )
 }
 
@@ -208,7 +209,7 @@ fun MaterialPicker(label: String, selected: String?, forFloor: Boolean, allowNon
         }
         ArrowLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 8.dp)) {
             if (allowNone) item {
-                Swatch("Nessuno", null, selected == null) { onSelect(null) }
+                Swatch(T.finiture.nessuno, null, selected == null) { onSelect(null) }
             }
             items(all.filter { it.category == category }) { m ->
                 Swatch(m.label, m.id, m.id == selected) { onSelect(m.id) }

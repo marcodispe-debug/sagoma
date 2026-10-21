@@ -15,6 +15,7 @@ import com.sagoma.planimetria.model.LampModel
 import com.sagoma.planimetria.model.Layer
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Parapet
+import com.sagoma.planimetria.model.ParametricFurniture
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.model.RadiatorModel
@@ -258,6 +259,38 @@ open class Nomi {
         RoomType.Balcone -> "Balcone"
         RoomType.Terrazza -> "Terrazza"
     }
+
+    open fun furnitureKind(v: ParametricFurniture.Kind): String = when (v) {
+        ParametricFurniture.Kind.WARDROBE -> "Armadio su misura"
+        ParametricFurniture.Kind.SLIDING_WARDROBE -> "Armadio scorrevole su misura"
+        ParametricFurniture.Kind.BED -> "Letto matrimoniale su misura"
+        ParametricFurniture.Kind.SINGLE_BED -> "Letto singolo su misura"
+        ParametricFurniture.Kind.NIGHTSTAND -> "Comodino su misura"
+        ParametricFurniture.Kind.CHEST -> "Cassettiera su misura"
+        ParametricFurniture.Kind.BOOKCASE -> "Libreria su misura"
+        ParametricFurniture.Kind.SIDEBOARD -> "Madia su misura"
+        ParametricFurniture.Kind.TV_UNIT -> "Mobile TV su misura"
+        ParametricFurniture.Kind.SHELF -> "Mensola su misura"
+        ParametricFurniture.Kind.TABLE -> "Tavolo su misura"
+        ParametricFurniture.Kind.DESK -> "Scrivania su misura"
+    }
+
+    open fun kitchenKind(v: KitchenModules.Kind): String = when (v) {
+        KitchenModules.Kind.BASE_DOORS -> "Base con ante"
+        KitchenModules.Kind.BASE_DRAWERS -> "Base con cassetti"
+        KitchenModules.Kind.SINK -> "Base con lavello"
+        KitchenModules.Kind.OVEN_HOB -> "Base forno e piano cottura"
+        KitchenModules.Kind.DISHWASHER -> "Lavastoviglie a incasso"
+        KitchenModules.Kind.CORNER -> "Base d'angolo"
+        KitchenModules.Kind.WALL_DOORS -> "Pensile"
+        KitchenModules.Kind.WALL_HOOD -> "Pensile con cappa"
+        KitchenModules.Kind.TALL_PANTRY -> "Colonna dispensa"
+        KitchenModules.Kind.TALL_OVEN -> "Colonna forno e microonde"
+        KitchenModules.Kind.TALL_FRIDGE -> "Colonna frigorifero"
+    }
+
+    /** Tra il nome del modulo e il piano di lavoro: "Base con ante · Bianco opaco · piano laminato bianco". */
+    open val pianoCucina: String get() = " · piano "
 
     open fun kitchenFront(v: KitchenModules.Front): String = when (v) {
         KitchenModules.Front.WHITE -> "Bianco opaco"

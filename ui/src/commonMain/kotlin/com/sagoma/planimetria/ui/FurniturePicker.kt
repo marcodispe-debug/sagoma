@@ -49,12 +49,13 @@ import com.sagoma.planimetria.assets.AssetPaths
 import com.sagoma.planimetria.assets.remote.AssetPriority
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.model.FurnitureCatalog
+import com.sagoma.planimetria.testi.T
 
 /** "+ Arredi": apre il catalogo dei mobili. */
 @Composable
 fun FurnitureButton(vm: EditorViewModel, buttonModifier: Modifier = Modifier, contentPadding: PaddingValues = ButtonDefaults.ContentPadding) {
     var open by remember { mutableStateOf(false) }
-    OutlinedButton(onClick = { open = true }, modifier = buttonModifier, contentPadding = contentPadding) { Text("🛋 Arredi", maxLines = 1) }
+    OutlinedButton(onClick = { open = true }, modifier = buttonModifier, contentPadding = contentPadding) { Text(T.arredi.arredi, maxLines = 1) }
     if (open) FurnitureCatalogDialog(onDismiss = { open = false }) { item ->
         open = false
         vm.addFurniture(item)
@@ -71,13 +72,13 @@ private fun FurnitureCatalogDialog(onDismiss: () -> Unit, onPick: (FurnitureCata
     val shown = if (query.isBlank()) FurnitureCatalog.visible.filter { it.category == category } else FurnitureCatalog.search(query)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Arredi (${FurnitureCatalog.visible.size})") },
+        title = { Text(T.arredi.arredi2(FurnitureCatalog.visible.size)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("Cerca: divano, lavello, lampada…") },
+                    placeholder = { Text(T.arredi.cercaDivanoLavelloLampada) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -86,7 +87,7 @@ private fun FurnitureCatalogDialog(onDismiss: () -> Unit, onPick: (FurnitureCata
                         FilterChip(selected = c == category, onClick = { category = c }, label = { Text(c) })
                     }
                 }
-                if (shown.isEmpty()) Text("Nessun arredo con questo nome.", style = MaterialTheme.typography.bodyMedium)
+                if (shown.isEmpty()) Text(T.arredi.nessunArredoQuestoNome, style = MaterialTheme.typography.bodyMedium)
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(100.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -95,10 +96,10 @@ private fun FurnitureCatalogDialog(onDismiss: () -> Unit, onPick: (FurnitureCata
                 ) {
                     items(shown, key = { it.model }) { item -> CatalogCard(item) { onPick(item) } }
                 }
-                TextButton(onClick = { credits = true }) { Text("Fonti e licenze dei modelli") }
+                TextButton(onClick = { credits = true }) { Text(T.arredi.fontiLicenzeModelli) }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Chiudi") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(T.comuni.chiudi) } },
     )
     if (credits) CreditsDialog { credits = false }
 }
@@ -136,7 +137,7 @@ private fun CatalogCard(item: FurnitureCatalog.Item, onClick: () -> Unit) {
             }
             Text(item.label, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center, maxLines = 2, modifier = Modifier.padding(top = 4.dp).height(30.dp))
             Text(
-                "${formatCm(item.width)}×${formatCm(item.depth)}×${formatCm(item.height)}",
+                T.arredi.testoTesto(formatCm(item.width), formatCm(item.depth), formatCm(item.height)),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -156,46 +157,42 @@ private fun CreditsDialog(onDismiss: () -> Unit) {
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Fonti e licenze") },
+        title = { Text(T.arredi.fontiLicenze) },
         text = {
             LazyColumn(Modifier.heightIn(max = 460.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item {
                     Text(
-                        "I modelli 3D degli arredi vengono da Poly Haven (polyhaven.com, licenza CC0: pubblico dominio), dalle " +
-                            "librerie gratuite di Sweet Home 3D (sweethome3d.com) e da Sketchfab (sketchfab.com) tramite la raccolta " +
-                            "Objaverse. Quelli con licenza CC-BY sono elencati uno per uno con autore e fonte. I materiali dei pavimenti e " +
-                            "delle pareti e le luci ambiente vengono da ambientCG e Poly Haven (CC0). Grazie a tutti gli autori.",
+                        T.arredi.modelli3dArrediVengono,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 if (attributed.isNotEmpty()) item {
                     Column {
-                        Text("Modelli con licenza CC-BY (attribuzione)", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Text(T.arredi.modelliLicenzaCcBy, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                         Text(
-                            "Libreria Scopia di Sweet Home 3D: © Space Mushrooms e Scopia Visual Interfaces Systems, s.l. (scopia.es), " +
-                                "licenza Creative Commons Attribuzione 3.0. Modelli di Sketchfab: licenza Creative Commons Attribuzione 4.0.",
+                            T.arredi.libreriaScopiaSweetHome,
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
                 }
                 items(attributed.sortedBy { it.source }) { m ->
                     Text(
-                        "“${m.label}” di ${m.author.ifBlank { "autore sconosciuto" }} · ${m.license} · ${m.source.substringAfter("(").removeSuffix(")")}",
+                        T.arredi.di(m.label, m.author.ifBlank { T.arredi.autoreSconosciuto }, m.license, m.source.substringAfter("(").removeSuffix(")")),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 if (groups.isNotEmpty()) item {
-                    Text("Modelli di pubblico dominio (CC0)", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Text(T.arredi.modelliPubblicoDominioCc0, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                 }
                 items(groups) { (key, labels) ->
                     Column {
                         Row { Text(key.first, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold) }
-                        Text("Autore: ${key.second.ifBlank { "—" }} · Licenza: ${key.third.ifBlank { "—" }}", style = MaterialTheme.typography.bodySmall)
+                        Text(T.arredi.autoreLicenza(key.second.ifBlank { "—" }, key.third.ifBlank { "—" }), style = MaterialTheme.typography.bodySmall)
                         Text(labels.joinToString(", "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Chiudi") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(T.comuni.chiudi) } },
     )
 }

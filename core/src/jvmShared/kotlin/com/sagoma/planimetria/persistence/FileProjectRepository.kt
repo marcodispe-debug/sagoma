@@ -1,6 +1,7 @@
 package com.sagoma.planimetria.persistence
 
 import com.sagoma.planimetria.model.Building
+import com.sagoma.planimetria.testi.T
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayOutputStream
@@ -37,7 +38,7 @@ class FileProjectRepository(private val root: File) : ProjectRepository {
         if (!index.exists()) {
             val old = File(root, "planimetria.json")
             val now = System.currentTimeMillis()
-            val first = ProjectInfo(1, "La mia casa", created = now, modified = now)
+            val first = ProjectInfo(1, T.progetti.miaCasa, created = now, modified = now)
             folder(1).mkdirs()
             if (old.exists()) old.copyTo(File(folder(1), "planimetria.json"), overwrite = true)
             write(Index(listOf(first), last = 1))
@@ -75,7 +76,7 @@ class FileProjectRepository(private val root: File) : ProjectRepository {
     override fun create(name: String, client: String, address: String): ProjectInfo {
         val i = read()
         val now = System.currentTimeMillis()
-        val p = ProjectInfo(nextId(i), name.ifBlank { "Progetto ${nextId(i)}" }, client, address, created = now, modified = now)
+        val p = ProjectInfo(nextId(i), name.ifBlank { T.progetti.progetto2(nextId(i)) }, client, address, created = now, modified = now)
         folder(p.id).mkdirs()
         write(i.copy(projects = i.projects + p))
         return p
@@ -165,7 +166,7 @@ class FileProjectRepository(private val root: File) : ProjectRepository {
             target.deleteRecursively()
             return null
         }
-        val p = (info ?: ProjectInfo(id, "Progetto importato")).copy(id = id, created = now, modified = now)
+        val p = (info ?: ProjectInfo(id, T.progetti.progettoImportato2)).copy(id = id, created = now, modified = now)
         write(i.copy(projects = i.projects + p))
         return p
     }

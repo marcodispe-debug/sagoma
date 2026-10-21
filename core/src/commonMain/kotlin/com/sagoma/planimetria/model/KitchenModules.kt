@@ -18,7 +18,6 @@ object KitchenModules {
 
     enum class Kind(
         val code: String,
-        val label: String,
         val placement: Placement,
         val width: Double,
         val depth: Double,
@@ -26,18 +25,21 @@ object KitchenModules {
         val elevation: Double = 0.0,
         val symbol: FurnitureSymbol = FurnitureSymbol.Cabinet,
     ) {
-        BASE_DOORS("base", "Base con ante", Placement.BASE, 60.0, 60.0, 90.0),
-        BASE_DRAWERS("cassetti", "Base con cassetti", Placement.BASE, 60.0, 60.0, 90.0),
-        SINK("lavello", "Base con lavello", Placement.BASE, 80.0, 60.0, 90.0, symbol = FurnitureSymbol.Sink),
-        OVEN_HOB("forno", "Base forno e piano cottura", Placement.BASE, 60.0, 60.0, 90.0, symbol = FurnitureSymbol.Hob),
-        DISHWASHER("lavastoviglie", "Lavastoviglie a incasso", Placement.BASE, 60.0, 60.0, 90.0),
-        CORNER("angolo", "Base d'angolo", Placement.BASE, 90.0, 60.0, 90.0),
-        WALL_DOORS("pensile", "Pensile", Placement.WALL, 60.0, 35.0, 72.0, elevation = 145.0),
-        WALL_HOOD("cappa", "Pensile con cappa", Placement.WALL, 60.0, 35.0, 72.0, elevation = 145.0),
-        TALL_PANTRY("dispensa", "Colonna dispensa", Placement.TALL, 60.0, 60.0, 217.0),
-        TALL_OVEN("colonna-forno", "Colonna forno e microonde", Placement.TALL, 60.0, 60.0, 217.0),
-        TALL_FRIDGE("frigo", "Colonna frigorifero", Placement.TALL, 60.0, 60.0, 217.0),
+        BASE_DOORS("base", Placement.BASE, 60.0, 60.0, 90.0),
+        BASE_DRAWERS("cassetti", Placement.BASE, 60.0, 60.0, 90.0),
+        SINK("lavello", Placement.BASE, 80.0, 60.0, 90.0, symbol = FurnitureSymbol.Sink),
+        OVEN_HOB("forno", Placement.BASE, 60.0, 60.0, 90.0, symbol = FurnitureSymbol.Hob),
+        DISHWASHER("lavastoviglie", Placement.BASE, 60.0, 60.0, 90.0),
+        CORNER("angolo", Placement.BASE, 90.0, 60.0, 90.0),
+        WALL_DOORS("pensile", Placement.WALL, 60.0, 35.0, 72.0, elevation = 145.0),
+        WALL_HOOD("cappa", Placement.WALL, 60.0, 35.0, 72.0, elevation = 145.0),
+        TALL_PANTRY("dispensa", Placement.TALL, 60.0, 60.0, 217.0),
+        TALL_OVEN("colonna-forno", Placement.TALL, 60.0, 60.0, 217.0),
+        TALL_FRIDGE("frigo", Placement.TALL, 60.0, 60.0, 217.0),
         ;
+
+        /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+        val label: String get() = com.sagoma.planimetria.testi.T.nomi.kitchenKind(this)
 
         /** Ha il piano di lavoro (le basi). */
         val hasTop: Boolean get() = placement == Placement.BASE
@@ -92,7 +94,7 @@ object KitchenModules {
 
     /** Nome leggibile: tipo e finiture (il piano solo per le basi). */
     fun label(spec: Spec): String =
-        spec.kind.label + " · " + spec.front.label + if (spec.kind.hasTop) " · piano " + spec.top.label.replaceFirstChar { it.lowercase() } else ""
+        spec.kind.label + " · " + spec.front.label + if (spec.kind.hasTop) com.sagoma.planimetria.testi.T.nomi.pianoCucina + spec.top.label.replaceFirstChar { it.lowercase() } else ""
 
     /** Voce del catalogo per un modulo (anche con finiture diverse da quelle proposte nel catalogo). */
     fun item(model: String): FurnitureCatalog.Item? = parse(model)?.let { s ->

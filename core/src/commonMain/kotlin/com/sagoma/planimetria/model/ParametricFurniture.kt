@@ -11,7 +11,6 @@ object ParametricFurniture {
 
     enum class Kind(
         val code: String,
-        val label: String,
         val category: String,
         val symbol: FurnitureSymbol,
         val width: Double,
@@ -19,18 +18,22 @@ object ParametricFurniture {
         val height: Double,
         val elevation: Double = 0.0,
     ) {
-        WARDROBE("armadio", "Armadio su misura", "Camera", FurnitureSymbol.Cabinet, 150.0, 60.0, 240.0),
-        SLIDING_WARDROBE("armadio-scorrevole", "Armadio scorrevole su misura", "Camera", FurnitureSymbol.Cabinet, 200.0, 65.0, 240.0),
-        BED("letto", "Letto matrimoniale su misura", "Camera", FurnitureSymbol.Bed, 160.0, 205.0, 100.0),
-        SINGLE_BED("letto-singolo", "Letto singolo su misura", "Camera", FurnitureSymbol.Bed, 90.0, 205.0, 90.0),
-        NIGHTSTAND("comodino", "Comodino su misura", "Camera", FurnitureSymbol.Cabinet, 50.0, 40.0, 50.0),
-        CHEST("cassettiera", "Cassettiera su misura", "Camera", FurnitureSymbol.Cabinet, 100.0, 50.0, 85.0),
-        BOOKCASE("libreria", "Libreria su misura", "Soggiorno", FurnitureSymbol.Cabinet, 100.0, 35.0, 200.0),
-        SIDEBOARD("madia", "Madia su misura", "Soggiorno", FurnitureSymbol.Cabinet, 160.0, 45.0, 80.0),
-        TV_UNIT("mobile-tv", "Mobile TV su misura", "Soggiorno", FurnitureSymbol.Tv, 180.0, 42.0, 45.0),
-        SHELF("mensola", "Mensola su misura", "Soggiorno", FurnitureSymbol.Cabinet, 80.0, 22.0, 3.0, elevation = 140.0),
-        TABLE("tavolo", "Tavolo su misura", "Pranzo", FurnitureSymbol.Table, 160.0, 90.0, 75.0),
-        DESK("scrivania", "Scrivania su misura", "Studio", FurnitureSymbol.Desk, 120.0, 60.0, 75.0),
+        WARDROBE("armadio", "Camera", FurnitureSymbol.Cabinet, 150.0, 60.0, 240.0),
+        SLIDING_WARDROBE("armadio-scorrevole", "Camera", FurnitureSymbol.Cabinet, 200.0, 65.0, 240.0),
+        BED("letto", "Camera", FurnitureSymbol.Bed, 160.0, 205.0, 100.0),
+        SINGLE_BED("letto-singolo", "Camera", FurnitureSymbol.Bed, 90.0, 205.0, 90.0),
+        NIGHTSTAND("comodino", "Camera", FurnitureSymbol.Cabinet, 50.0, 40.0, 50.0),
+        CHEST("cassettiera", "Camera", FurnitureSymbol.Cabinet, 100.0, 50.0, 85.0),
+        BOOKCASE("libreria", "Soggiorno", FurnitureSymbol.Cabinet, 100.0, 35.0, 200.0),
+        SIDEBOARD("madia", "Soggiorno", FurnitureSymbol.Cabinet, 160.0, 45.0, 80.0),
+        TV_UNIT("mobile-tv", "Soggiorno", FurnitureSymbol.Tv, 180.0, 42.0, 45.0),
+        SHELF("mensola", "Soggiorno", FurnitureSymbol.Cabinet, 80.0, 22.0, 3.0, elevation = 140.0),
+        TABLE("tavolo", "Pranzo", FurnitureSymbol.Table, 160.0, 90.0, 75.0),
+        DESK("scrivania", "Studio", FurnitureSymbol.Desk, 120.0, 60.0, 75.0),
+        ;
+
+        /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+        val label: String get() = com.sagoma.planimetria.testi.T.nomi.furnitureKind(this)
     }
 
     /** Finitura: le stesse tinte delle ante della cucina (legni e laccati). */

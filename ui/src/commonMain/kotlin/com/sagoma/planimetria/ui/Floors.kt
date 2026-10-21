@@ -30,6 +30,7 @@ import com.sagoma.planimetria.editor.FloorDialog
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.testi.T
 
 /**
  * Pulsante del piano, in alto a sinistra: mostra il piano che si sta modificando e apre il menu per
@@ -59,8 +60,8 @@ fun FloorButton(building: Building, vm: EditorViewModel, modifier: Modifier = Mo
                 )
             }
             HorizontalDivider()
-            DropdownMenuItem(text = { Text("+ Aggiungi un piano sopra") }, onClick = { open = false; vm.openFloorDialog(null) })
-            DropdownMenuItem(text = { Text("✎ Modifica «${building.floor.name}»") }, onClick = { open = false; vm.openFloorDialog(building.current) })
+            DropdownMenuItem(text = { Text(T.piani.aggiungiPianoSopra) }, onClick = { open = false; vm.openFloorDialog(null) })
+            DropdownMenuItem(text = { Text(T.piani.modifica(building.floor.name)) }, onClick = { open = false; vm.openFloorDialog(building.current) })
         }
     }
 }
@@ -85,57 +86,56 @@ fun FloorEditDialog(dialog: FloorDialog, building: Building, vm: EditorViewModel
     if (confirmDelete && existing != null && index != null) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Eliminare ${existing.name}?") },
-            text = { Text("Verranno tolte tutte le stanze e le scale di questo piano. Potrai recuperarlo con ↶ Annulla in alto.") },
-            confirmButton = { TextButton(onClick = { vm.deleteFloor(index) }) { Text("Elimina", color = MaterialTheme.colorScheme.error) } },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Mantieni") } },
+            title = { Text(T.piani.eliminare(existing.name)) },
+            text = { Text(T.piani.verrannoTolteTutteStanze) },
+            confirmButton = { TextButton(onClick = { vm.deleteFloor(index) }) { Text(T.comuni.elimina, color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(T.comuni.mantieni) } },
         )
         return
     }
 
     AlertDialog(
         onDismissRequest = vm::closeFloorDialog,
-        title = { Text(if (existing == null) "Nuovo piano" else "Modifica piano") },
+        title = { Text(if (existing == null) T.piani.nuovoPiano else T.piani.modificaPiano) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SelectAllTextField(name, { name = it }, "Nome", Modifier.fillMaxWidth())
+                SelectAllTextField(name, { name = it }, T.comuni.nome, Modifier.fillMaxWidth())
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = auto, onCheckedChange = { on ->
                         auto = on
                         if (!on) level = formatCm(autoValue) // passando a manuale si parte dal valore calcolato
                     })
-                    Text("Interpiano automatico", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 4.dp))
+                    Text(T.piani.interpianoAutomatico, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 4.dp))
                 }
                 if (auto) {
-                    Text("Interpiano: ${formatCm(autoValue)} cm", style = MaterialTheme.typography.bodyLarge)
+                    Text(T.piani.interpianoCm(formatCm(autoValue)), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Calcolato come altezza della stanza più alta del piano più ${Floor.SLAB.toInt()} cm di solaio: si aggiorna se cambi l'altezza delle stanze.",
+                        T.piani.calcolatoAltezzaStanzaPiu(Floor.SLAB.toInt()),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 } else {
                     SelectAllTextField(
-                        level, { level = it }, "Interpiano", Modifier.fillMaxWidth(),
+                        level, { level = it }, T.piani.interpiano, Modifier.fillMaxWidth(),
                         numeric = true, suffix = "cm", isError = levelValue == null,
                     )
                     Text(
-                        "Dal pavimento di questo piano a quello del piano di sopra: l'altezza del soffitto più lo spessore del solaio (di solito ${Floor.SLAB.toInt()} cm). " +
-                            "Resta quello che scrivi, anche se cambi l'altezza delle stanze.",
+                        T.piani.pavimentoQuestoPianoQuello(Floor.SLAB.toInt()),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
-                Text("Le scale di questo piano salgono di questa altezza.", style = MaterialTheme.typography.bodySmall)
+                Text(T.piani.scaleQuestoPianoSalgono, style = MaterialTheme.typography.bodySmall)
                 if (existing == null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = copyRooms, onCheckedChange = { copyRooms = it })
                         Text(
-                            "Parti dai muri di «${building.floors.last().name}» (poi li modifichi)",
+                            T.piani.partiMuriLiModifichi(building.floors.last().name),
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(start = 4.dp),
                         )
                     }
                 }
                 if (existing != null && building.floors.size > 1) {
-                    TextButton(onClick = { confirmDelete = true }) { Text("Elimina questo piano", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = { confirmDelete = true }) { Text(T.piani.eliminaQuestoPiano, color = MaterialTheme.colorScheme.error) }
                 }
             }
         },
@@ -146,8 +146,8 @@ fun FloorEditDialog(dialog: FloorDialog, building: Building, vm: EditorViewModel
                     val h = levelValue ?: return@TextButton
                     if (index == null) vm.addFloor(name, h, copyRooms, auto) else vm.updateFloor(index, name, h, auto)
                 },
-            ) { Text(if (existing == null) "Aggiungi" else "Salva") }
+            ) { Text(if (existing == null) T.piani.aggiungi else T.comuni.salva) }
         },
-        dismissButton = { TextButton(onClick = vm::closeFloorDialog) { Text("Annulla") } },
+        dismissButton = { TextButton(onClick = vm::closeFloorDialog) { Text(T.comuni.annulla) } },
     )
 }

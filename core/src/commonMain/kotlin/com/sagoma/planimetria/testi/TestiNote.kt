@@ -1,0 +1,33 @@
+package com.sagoma.planimetria.testi
+
+/** Quote, testi e livelli. */
+open class TestiNote {
+    open val piccolo: String get() = "Piccolo"
+    open val medio: String get() = "Medio"
+    open val grande: String get() = "Grande"
+    open val quotaToccaPrimoPunto: String get() = "↔ Quota: tocca il primo punto (si aggancia ad angoli e facce dei muri)"
+    open val quotaToccaSecondoPunto: String get() = "↔ Quota: tocca il secondo punto"
+    open val tTestoToccaDove: String get() = "T Testo: tocca dove scriverlo"
+    open val nuovoTesto: String get() = "Nuovo testo"
+    open val testoTesto: String get() = "Testo"
+    open val dimensione: String get() = "Dimensione"
+    open val metti: String get() = "Metti"
+    open fun misuraCmAggiornaSpostando(p1: Any?): String = "Misura: $p1 cm (si aggiorna spostando le estremità)."
+    open val scrittaPostoMisuraVuoto: String get() = "Scritta al posto della misura (vuoto = la misura)"
+    open val distanzaLineaCm: String get() = "Distanza della linea (cm)"
+    open val dallAltraParte: String get() = "⇅ Dall'altra parte"
+    open val trascinaLineaAllontanarlaEstremita: String get() = "Trascina la linea per allontanarla, le estremità per misurare altro: si agganciano ad angoli e facce dei muri."
+    open val verticale: String get() = "↺ In verticale"
+    open val orizzontale: String get() = "↻ In orizzontale"
+    open val freccia: String get() = "↘ Freccia"
+    open val togliFreccia: String get() = "Togli freccia"
+    open val trascinaTestoSpostarlo: String get() = "Trascina il testo per spostarlo"
+    open val trascinaPuntaFrecciaIndicare: String get() = "; trascina la punta della freccia per indicare un punto."
+    open val demolire: String get() = "Da demolire"
+    open val nuovo: String get() = "Nuovo"
+    open val livelli: String get() = "Livelli"
+    open val nascostoNonVedePianta: String get() = "Nascosto: non si vede sulla pianta né nel PDF e nell'immagine. Bloccato: si vede ma non si tocca. Stanze, muri, porte e finestre sono sempre attivi."
+    open val visibile: String get() = "Visibile"
+    open val bloccato: String get() = "Bloccato"
+    open val fatto: String get() = "Fatto"
+}

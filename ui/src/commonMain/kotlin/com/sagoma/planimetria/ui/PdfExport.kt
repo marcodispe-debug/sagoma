@@ -47,6 +47,7 @@ import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.persistence.ProjectInfo
+import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -149,7 +150,7 @@ object PdfExport {
         }
         drawFrame(paper)
         drawScaleBar(paper, k, denom, measurer)
-        drawTitleBlock(paper, info, "Pianta ${fl.name.lowercase()}", "1:$denom", sheet, sheets, measurer, date)
+        drawTitleBlock(paper, info, T.pdf.pianta(fl.name.lowercase()), "1:$denom", sheet, sheets, measurer, date)
     }
 
     // ---------------------------------------------------------------------------------------------------
@@ -269,8 +270,8 @@ object PdfExport {
         drawRect(Color.White, Offset(l, t), Size(BLOCK_W, BLOCK_H))
         box(l, t, r, bottom, 1.2f)
         // Riga 1: progetto (grande)
-        text(m, "PROGETTO", l + 5, t + 9, 5.5f, color = Grey)
-        text(m, info?.name ?: "Progetto", l + 5, t + 22, 11f, bold = true, maxWidth = BLOCK_W - 10)
+        text(m, T.pdf.progetto, l + 5, t + 9, 5.5f, color = Grey)
+        text(m, info?.name ?: T.pdf.progetto2, l + 5, t + 22, 11f, bold = true, maxWidth = BLOCK_W - 10)
         line(l, t + 28, r, t + 28)
         // Righe 2-3: cliente | progettista, indirizzo
         fun cell(x: Float, y: Float, w: Float, k: String, v: String) {
@@ -278,16 +279,16 @@ object PdfExport {
             text(m, v.ifBlank { "—" }, x + 5, y + 19, 8.5f, maxWidth = w - 10)
         }
         val half = BLOCK_W / 2
-        cell(l, t + 28, half, "CLIENTE", info?.client.orEmpty())
-        cell(l + half, t + 28, half, "PROGETTISTA", info?.author.orEmpty())
+        cell(l, t + 28, half, T.pdf.cliente, info?.client.orEmpty())
+        cell(l + half, t + 28, half, T.pdf.progettista, info?.author.orEmpty())
         line(l + half, t + 28, l + half, t + 51)
         line(l, t + 51, r, t + 51)
-        cell(l, t + 51, BLOCK_W, "INDIRIZZO", info?.address.orEmpty())
+        cell(l, t + 51, BLOCK_W, T.pdf.indirizzo, info?.address.orEmpty())
         line(l, t + 74, r, t + 74)
         // Ultima riga: tavola, scala, data, foglio
         val w4 = floatArrayOf(96f, 44f, 60f, 50f)
         var x = l
-        listOf("TAVOLA" to sheetTitle, "SCALA" to scale, "DATA" to date, "FOGLIO" to "$sheet / $sheets").forEachIndexed { i, (k, v) ->
+        listOf(T.pdf.tavola to sheetTitle, T.pdf.scala to scale, T.pdf.data to date, T.pdf.foglio to "$sheet / $sheets").forEachIndexed { i, (k, v) ->
             text(m, k, x + 4, t + 80, 5.5f, color = Grey)
             text(m, v, x + 4, t + 91, 7.5f, bold = i == 1, maxWidth = w4[i] - 8)
             x += w4[i]
@@ -295,8 +296,8 @@ object PdfExport {
         }
         // Nota sulle misure, a sinistra del cartiglio
         val note = Color(0xFF495057)
-        text(m, "Quote in cm. Quote interne dei muri e aree al netto dello spessore dei muri.", MARGIN + 6, bottom - 18, 6.5f, color = note)
-        text(m, "Aperture: larghezza × altezza (h = altezza del davanzale). Stampare a dimensione reale (100%).", MARGIN + 6, bottom - 8, 6.5f, color = note)
+        text(m, T.pdf.quoteCmQuoteInterne, MARGIN + 6, bottom - 18, 6.5f, color = note)
+        text(m, T.pdf.apertureLarghezzaAltezzaH, MARGIN + 6, bottom - 8, 6.5f, color = note)
     }
 
     /** Scala grafica 0–1–2–5 m (0–5–10 m nelle scale piccole) sopra la nota. */
@@ -310,7 +311,7 @@ object PdfExport {
             if (i % 2 == 0) drawRect(Ink, Offset(a, y), Size(b - a, 3f)) else box(a, y, b, y + 3, 0.5f)
         }
         for (s in steps) text(m, if (s == steps.last()) "$s m" else "$s", x0 + s * 100 * k - 2, y - 2, 6f)
-        text(m, "Scala 1:$denom", x0 + steps.last() * 100 * k + 16, y + 4, 7f, bold = true)
+        text(m, T.pdf.scala1(denom), x0 + steps.last() * 100 * k + 16, y + 4, 7f, bold = true)
     }
 
     // ---------------------------------------------------------------------------------------------------
@@ -319,7 +320,7 @@ object PdfExport {
     private fun DrawScope.drawTakeoffSheet(res: Takeoff.Result, info: ProjectInfo?, p: Paper, sheet: Int, m: TextMeasurer, date: String) {
         drawRect(Color.White)
         drawFrame(p)
-        drawTitleBlock(p, info, "Computo e arredi", "—", sheet, sheet, m, date)
+        drawTitleBlock(p, info, T.pdf.computoArredi, "—", sheet, sheet, m, date)
         val left = MARGIN + 14
         val maxY = p.h - MARGIN - BLOCK_H - 10
         var y = MARGIN + 22
@@ -342,24 +343,24 @@ object PdfExport {
         val w = listOf(colW * 0.30f, colW * 0.13f, colW * 0.15f, colW * 0.14f, colW * 0.28f)
         val multi = res.rooms.map { it.floor }.distinct().size > 1
         val nums = setOf(1, 2, 3)
-        title("Stanze")
-        row(listOf("Stanza", "Pav. m²", "Pareti m²", "Battisc. m", "Pavimento"), w, bold = true, right = nums)
+        title(T.pdf.stanze)
+        row(listOf(T.pdf.stanza, T.pdf.pavM2, T.pdf.paretiM2, T.pdf.battiscM, T.pdf.pavimento), w, bold = true, right = nums)
         for (l in res.rooms) row(listOf(if (multi) "${l.room} (${l.floor})" else l.room, fmt2(l.floorArea), fmt2(l.wallArea), fmt2(l.skirting), l.floorFinish), w, right = nums)
-        row(listOf("Totale", fmt2(res.totalFloor), fmt2(res.totalWalls), fmt2(res.totalSkirting), ""), w, bold = true, right = nums)
+        row(listOf(T.pdf.totale, fmt2(res.totalFloor), fmt2(res.totalWalls), fmt2(res.totalSkirting), ""), w, bold = true, right = nums)
         val w2 = listOf(colW * 0.55f, colW * 0.2f, colW * 0.25f)
         val nums2 = setOf(1, 2)
-        title("Pavimenti")
-        row(listOf("Materiale", "m²", "+10% sfrido"), w2, bold = true, right = nums2)
+        title(T.pdf.pavimenti)
+        row(listOf(T.pdf.materiale, "m²", T.pdf.n10Sfrido), w2, bold = true, right = nums2)
         for (t in res.floorMaterials) row(listOf(t.what, fmt2(t.quantity), fmt2(t.quantity * 1.1)), w2, right = nums2)
-        title("Pareti (al netto delle aperture)")
+        title(T.pdf.paretiNettoAperture)
         for (t in res.wallFinishes) row(listOf(t.what, fmt2(t.quantity), ""), w2, right = nums2)
         if (res.furniture.isNotEmpty()) {
-            title("Arredi")
+            title(T.pdf.arredi)
             val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.24f, colW * 0.28f)
             for (i in res.furniture) row(listOf("${i.count}×", i.name, i.size, i.where), w3, right = setOf(2))
         }
         if (res.fixtures.isNotEmpty()) {
-            title("Impianti")
+            title(T.pdf.impianti)
             val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.52f)
             for (i in res.fixtures) row(listOf("${i.count}×", i.name, i.where), w3)
         }
@@ -386,51 +387,51 @@ fun PdfExportDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> U
         val pages = PdfExport.pages(state.fullBuilding, info, opts, measurer, platform.formatDate(platform.now()))
         val pdf = runCatching { platform.createPdf(pages, PdfExport.drawDensity) }.onFailure { it.printStackTrace() }.getOrNull()
         if (pdf == null) {
-            platform.toast("Tavola PDF non disponibile su questa piattaforma")
+            platform.toast(T.pdf.tavolaPdfNonDisponibile)
             return
         }
         val name = (info?.name ?: "planimetria").replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifEmpty { "planimetria" }
         platform.saveFile("$name.pdf", "application/pdf", pdf) { ok ->
-            platform.toast(if (!ok) "Esportazione non riuscita" else if (watermark) "Tavola PDF salvata con il marchio Sagoma" else "Tavola PDF salvata")
+            platform.toast(if (!ok) T.pdf.esportazioneNonRiuscita else if (watermark) T.pdf.tavolaPdfSalvataMarchio else T.pdf.tavolaPdfSalvata)
             if (ok) onDismiss()
         }
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tavola PDF in scala") },
+        title = { Text(T.pdf.tavolaPdfScala) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Foglio (orizzontale)", style = MaterialTheme.typography.labelLarge)
+                Text(T.pdf.foglioOrizzontale, style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (p in PdfExport.Paper.entries) FilterChip(selected = paper == p, onClick = { paper = p }, label = { Text(p.label) })
                 }
-                Text("Scala", style = MaterialTheme.typography.labelLarge)
+                Text(T.pdf.scala2, style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(selected = scale == null, onClick = { scale = null }, label = { Text("Auto (1:$auto)") })
+                    FilterChip(selected = scale == null, onClick = { scale = null }, label = { Text(T.pdf.auto1(auto)) })
                     for (d in listOf(50, 100, 200)) FilterChip(selected = scale == d, onClick = { scale = d }, label = { Text("1:$d") })
                 }
                 val chosen = scale
                 if (chosen != null && chosen < auto) Text(
-                    "A 1:$chosen la pianta non entra tutta nel foglio $paper: scegli un foglio più grande o una scala più piccola.",
+                    T.pdf.n1PiantaNonEntra(chosen, paper),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
                 if (state.fullBuilding.floors.size > 1) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = allFloors, onCheckedChange = { allFloors = it })
-                    Text("Tutti i piani (una tavola per piano)")
+                    Text(T.pdf.tuttiPianiTavolaPiano)
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = takeoff, onCheckedChange = { takeoff = it })
-                    Text("Aggiungi il foglio del computo")
+                    Text(T.pdf.aggiungiFoglioComputo)
                 }
                 Text(
-                    "Il cartiglio usa nome, cliente, indirizzo e progettista del progetto (si cambiano dall'elenco dei progetti).",
+                    T.pdf.cartiglioUsaNomeCliente,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { save() }) { Text("Salva PDF") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla") } },
+        confirmButton = { TextButton(onClick = { save() }) { Text(T.pdf.salvaPdf) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(T.comuni.annulla) } },
     )
 }

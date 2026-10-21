@@ -6,6 +6,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import com.sagoma.planimetria.access.OutputFormat
 import com.sagoma.planimetria.access.Rights
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.testi.T
 
 /**
  * Restituisce l'azione "Esporta PNG": la pianta viene disegnata in un'immagine, poi l'utente sceglie dove
@@ -19,9 +20,9 @@ fun rememberPngExporter(plan: FloorPlan, layers: com.sagoma.planimetria.model.La
     return {
         val watermark = !Rights.cleanOutput(platform.account, OutputFormat.Plan, plan.rooms.map { it.id })
         val png = PlanExport.render(plan, measurer, density, layers = layers, watermark = watermark)?.let(platform::encodePng)
-        if (png == null) platform.toast("Non c'è niente da esportare")
+        if (png == null) platform.toast(T.vari.nonNienteEsportare)
         else platform.saveFile("planimetria-${isoDate(platform.now())}.png", "image/png", png) { ok ->
-            platform.toast(if (!ok) "Esportazione non riuscita" else if (watermark) "Pianta esportata con il marchio Sagoma" else "Pianta esportata")
+            platform.toast(if (!ok) T.vari.esportazioneNonRiuscita else if (watermark) T.vari.piantaEsportataMarchioSagoma else T.vari.piantaEsportata)
         }
     }
 }

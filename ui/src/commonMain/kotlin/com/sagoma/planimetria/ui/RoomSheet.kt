@@ -63,6 +63,7 @@ import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.geometry.interiorArea
 import com.sagoma.planimetria.geometry.zoneArea
 import androidx.compose.ui.text.style.TextAlign
+import com.sagoma.planimetria.testi.T
 
 /** Trascinamento minimo (px) sulla striscia per aprire (verso l'alto) o chiudere (verso il basso) la tendina. */
 private const val DRAG_THRESHOLD_PX = 24f
@@ -150,7 +151,7 @@ fun InfoSheet(
                     modifier = Modifier.weight(1f),
                 )
                 actions()
-                TextButton(onClick = onToggle) { Text("Info") }
+                TextButton(onClick = onToggle) { Text(T.schedaStanza.info) }
                 IconButton(onClick = onToggle) {
                     Text(if (expanded) "▼" else "▲", style = MaterialTheme.typography.titleMedium)
                 }
@@ -175,7 +176,7 @@ fun RoomInfo(room: Room, plan: FloorPlan, vm: EditorViewModel, modifier: Modifie
 }
 
 /** Schede della tendina della stanza. */
-private enum class RoomTab(val label: String) { Measures("Misure"), Finishes("Finiture"), Openings("Porte e impianti"), Project("Progetto"), Photos("Foto") }
+private enum class RoomTab(val label: String) { Measures(T.schedaStanza.misure), Finishes(T.schedaStanza.finiture), Openings(T.schedaStanza.porteImpianti), Project(T.schedaStanza.progetto), Photos(T.schedaStanza.foto) }
 
 /** Ultima scheda aperta: resta passando da una stanza all'altra (e riaprendo la tendina). */
 private var lastRoomTab by mutableStateOf(RoomTab.Measures)
@@ -193,7 +194,7 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
             // Copia intera della stanza (o del balcone), con porte, finestre e impianti; eliminazione. In cima, sempre a portata di mano.
             PanelActions {
                 DuplicateButton(vm)
-                TextButton(onClick = { vm.requestDeleteRoom(room.id) }) { Text("Elimina stanza", color = MaterialTheme.colorScheme.error) }
+                TextButton(onClick = { vm.requestDeleteRoom(room.id) }) { Text(T.schedaStanza.eliminaStanza, color = MaterialTheme.colorScheme.error) }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // Nome: si applica alla conferma o quando il campo perde il fuoco, non a ogni lettera
@@ -203,7 +204,7 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
                 SelectAllTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = "Nome",
+                    label = T.comuni.nome,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { vm.renameRoom(room.id, name); focusManager.clearFocus() }),
                     modifier = Modifier.weight(1f).onFocusChanged {
@@ -216,8 +217,8 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
             // Lunghezze e perimetro sul lato interno dei muri, come l'area; con un sottotetto il soffitto in pendenza abbassa il volume.
             val perimeter = interiorLengths(room).sum()
             Text(
-                "${formatArea(room)} · perimetro ${formatCm(perimeter)} cm" +
-                    if (room.outdoor) " · all'aperto" else " · ${com.sagoma.planimetria.geometry.formatDecimal(Ceilings.volumeM3(room), 2)} m³",
+                T.schedaStanza.perimetroCm(formatArea(room), formatCm(perimeter)) +
+                    if (room.outdoor) T.schedaStanza.allAperto else " · ${com.sagoma.planimetria.geometry.formatDecimal(Ceilings.volumeM3(room), 2)} m³",
                 style = MaterialTheme.typography.bodyMedium,
             )
             // Schede a larghezza fissa: tutte visibili anche sul telefono ("Porte e impianti" va su due righe).
@@ -285,7 +286,7 @@ private fun MeasuresTab(room: Room, vm: EditorViewModel) {
     }
     if (room.outdoor) {
         // Balcone o terrazza: niente soffitto, si sceglie il parapetto.
-        Choice("Parapetto", Parapet.entries.map { it.label }, room.parapet.ordinal, Modifier.fillMaxWidth()) { k ->
+        Choice(T.schedaStanza.parapetto, Parapet.entries.map { it.label }, room.parapet.ordinal, Modifier.fillMaxWidth()) { k ->
             vm.setParapet(room.id, parapet = Parapet.entries[k])
         }
         var parapetH by remember(room.parapetHeight) { mutableStateOf(formatCm(room.parapetHeight)) }
@@ -295,15 +296,14 @@ private fun MeasuresTab(room: Room, vm: EditorViewModel) {
                 parapetH = it
                 parsePositive(it)?.let { h -> vm.setParapet(room.id, height = h) }
             },
-            label = "Altezza del parapetto",
+            label = T.schedaStanza.altezzaParapetto,
             numeric = true,
             suffix = "cm",
             isError = parsePositive(parapetH) == null,
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            "Il parapetto c'è sui lati verso l'esterno; dove il balcone tocca la casa resta il muro. " +
-                "Per uscirci metti una porta-finestra (🧱 Elementi architettonici → Porte-finestre) sul muro della stanza.",
+            T.schedaStanza.parapettoSuiLatiVerso,
             style = MaterialTheme.typography.bodySmall,
         )
     } else {
@@ -316,7 +316,7 @@ private fun MeasuresTab(room: Room, vm: EditorViewModel) {
                     ceiling = it
                     parsePositive(it)?.let { h -> vm.setCeilingHeight(room.id, h) }
                 },
-                label = "Altezza soffitto",
+                label = T.schedaStanza.altezzaSoffitto,
                 numeric = true,
                 suffix = "cm",
                 isError = parsePositive(ceiling) == null,
@@ -328,7 +328,7 @@ private fun MeasuresTab(room: Room, vm: EditorViewModel) {
                     thick = it
                     parsePositive(it)?.let { t -> vm.setRoomWallThickness(room.id, t) }
                 },
-                label = "Spessore muri",
+                label = T.schedaStanza.spessoreMuri,
                 numeric = true,
                 suffix = "cm",
                 isError = parsePositive(thick)?.let { it in 3.0..120.0 } != true,
@@ -336,26 +336,25 @@ private fun MeasuresTab(room: Room, vm: EditorViewModel) {
             )
         }
         Text(
-            "Lo spessore vale per tutti i muri della stanza; un singolo muro (per esempio un portante da 40 cm o un tramezzo da 10 cm) " +
-                "si cambia toccandolo.",
+            T.schedaStanza.spessoreValeTuttiMuri,
             style = MaterialTheme.typography.bodySmall,
         )
     }
     InteriorMeasuresNotice(Modifier.fillMaxWidth())
 
     // Muri: lunghezza (come i campi sulla pianta) e altezza, anche personalizzata per mansarde (§2).
-    SectionTitle("Muri")
+    SectionTitle(T.schedaStanza.muri)
     val lengths = interiorLengths(room)
     for (i in 0 until room.wallCount) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Muro ${i + 1}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(64.dp))
+            Text(T.schedaStanza.muro(i + 1), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(64.dp))
             CommitNumberField(
-                label = "Lunghezza",
+                label = T.comuni.lunghezza,
                 value = lengths[i],
                 modifier = Modifier.weight(1f),
             ) { vm.setWallLength(room.id, i, it) }
             if (!room.outdoor) CommitNumberField(
-                label = if (room.wallHeights.containsKey(i)) "Altezza (pers.)" else "Altezza",
+                label = if (room.wallHeights.containsKey(i)) T.schedaStanza.altezzaPers else T.comuni.altezza,
                 value = room.wallHeight(i),
                 modifier = Modifier.weight(1f),
             ) { vm.setWallHeight(room.id, i, it) }
@@ -363,9 +362,9 @@ private fun MeasuresTab(room: Room, vm: EditorViewModel) {
     }
 
     // Zone non calpestabili: si tolgono dai m² come nelle planimetrie (mansarde sotto 1,50 m, cavedi, pilastri).
-    SectionTitle("Zone non calpestabili")
+    SectionTitle(T.schedaStanza.zoneNonCalpestabili)
     if (room.excludedZones.isEmpty()) Text(
-        "Parti che non contano nei m², per esempio la zona non accessibile di una mansarda o un cavedio: si disegnano toccando gli angoli.",
+        T.schedaStanza.partiNonContanoNei,
         style = MaterialTheme.typography.bodySmall,
     )
     for (z in room.excludedZones) {
@@ -375,29 +374,29 @@ private fun MeasuresTab(room: Room, vm: EditorViewModel) {
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = { vm.removeExcludedZone(room.id, z.id) }) { Text("Togli", color = MaterialTheme.colorScheme.error) }
+            TextButton(onClick = { vm.removeExcludedZone(room.id, z.id) }) { Text(T.schedaStanza.togli, color = MaterialTheme.colorScheme.error) }
         }
     }
     if (room.excludedZones.isNotEmpty()) Text(
-        "Pavimento intero ${com.sagoma.planimetria.geometry.formatDecimal(room.interiorArea() / 10_000.0, 2)} m² (il computo usa questo).",
+        T.schedaStanza.pavimentoInteroM2Computo(com.sagoma.planimetria.geometry.formatDecimal(room.interiorArea() / 10_000.0, 2)),
         style = MaterialTheme.typography.bodySmall,
     )
-    androidx.compose.material3.OutlinedButton(onClick = { vm.startExcludedZone(room.id) }) { Text("▧ Aggiungi zona non calpestabile") }
+    androidx.compose.material3.OutlinedButton(onClick = { vm.startExcludedZone(room.id) }) { Text(T.schedaStanza.aggiungiZonaNonCalpestabile) }
 }
 
 /** Scheda Finiture: aspetto nel 3D, pavimento e pareti. */
 @Composable
 private fun FinishesTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
-    ModelPicker("Pavimento", FloorFinish.entries, room.floorFinish, { it.label }, { vm.setRoomLook(room.id, floor = it) }) {
+    ModelPicker(T.schedaStanza.pavimento, FloorFinish.entries, room.floorFinish, { it.label }, { vm.setRoomLook(room.id, floor = it) }) {
         floorPreview(it, Color(room.type.argb))
     }
     // Pavimento con un materiale fotografico (vince sulla finitura qui sopra), dove ci sono i materiali.
     if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS)) {
-        MaterialPicker("Pavimento fotografico", room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
+        MaterialPicker(T.schedaStanza.pavimentoFotografico, room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
     }
     // Colore qualsiasi e rivestimenti. La facciata è una sola per tutto il piano: si cambia da qualunque stanza.
-    if (!room.outdoor) FinishPicker("Pareti interne", room.roomFinish, { vm.setRoomFinish(room.id, it) })
-    FinishPicker("Pareti esterne (facciata del piano)", plan.facadeOrPaint, { vm.setFacadeFinish(it) })
+    if (!room.outdoor) FinishPicker(T.schedaStanza.paretiInterne, room.roomFinish, { vm.setRoomFinish(room.id, it) })
+    FinishPicker(T.schedaStanza.paretiEsterneFacciataPiano, plan.facadeOrPaint, { vm.setFacadeFinish(it) })
 }
 
 /** Una riga dell'elenco: un tocco seleziona l'oggetto e ne apre il riquadro caratteristiche. */
@@ -420,18 +419,18 @@ private fun ItemRow(title: String, detail: String, onClick: () -> Unit) {
 /** Scheda Porte e impianti: elenco delle aperture e degli impianti della stanza. */
 @Composable
 private fun OpeningsTab(room: Room, vm: EditorViewModel) {
-    SectionTitle("Aperture (${room.openings.size})")
+    SectionTitle(T.schedaStanza.aperture(room.openings.size))
     if (room.openings.isEmpty()) {
-        Text("Nessuna. Usa 🧱 Elementi architettonici in basso: Porte, Finestre o Porte-finestre.", style = MaterialTheme.typography.bodySmall)
+        Text(T.schedaStanza.nessunaUsaElementiArchitettonici, style = MaterialTheme.typography.bodySmall)
     }
     for (o in room.openings) ItemRow(
         openingLabel(o),
-        "muro ${o.wallIndex + 1} · ${formatCm(o.width)}×${formatCm(o.height)} cm" + (if (o.kind.hasSill) " · da terra ${formatCm(o.sillHeight)}" else ""),
+        T.schedaStanza.muroCm(o.wallIndex + 1, formatCm(o.width), formatCm(o.height)) + (if (o.kind.hasSill) T.schedaStanza.terra(formatCm(o.sillHeight)) else ""),
     ) { vm.selectOpening(room.id, o.id) }
 
-    SectionTitle("Impianti (${room.fixtures.size})")
+    SectionTitle(T.schedaStanza.impianti(room.fixtures.size))
     if (room.fixtures.isEmpty()) {
-        Text("Nessuno. Usa 🧱 Elementi architettonici → Impianti per caloriferi, prese, interruttori, punti acqua e luci.", style = MaterialTheme.typography.bodySmall)
+        Text(T.schedaStanza.nessunoUsaElementiArchitettonici, style = MaterialTheme.typography.bodySmall)
     }
     for (f in room.fixtures) ItemRow(f.kind.label, fixtureSummary(f)) { vm.selectFixture(room.id, f.id) }
 }
@@ -442,29 +441,29 @@ private fun ProjectTab(room: Room, vm: EditorViewModel) {
     val phases = (0 until room.wallCount).map { room.phaseOf(it) }.distinct()
     val all = phases.singleOrNull()
     Text(
-        "Muri della stanza: " + (all?.label?.lowercase() ?: "stati diversi (si cambiano muro per muro)"),
+        T.schedaStanza.muriStanza + (all?.label?.lowercase() ?: T.schedaStanza.statiDiversiCambianoMuro),
         style = MaterialTheme.typography.labelLarge,
     )
     androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for ((p, label) in com.sagoma.planimetria.model.Phase.entries.zip(listOf("Tutti esistenti", "Tutti da demolire", "Tutti nuovi"))) {
+        for ((p, label) in com.sagoma.planimetria.model.Phase.entries.zip(listOf(T.schedaStanza.tuttiEsistenti, T.schedaStanza.tuttiDemolire, T.schedaStanza.tuttiNuovi))) {
             androidx.compose.material3.OutlinedButton(onClick = { vm.setRoomPhase(room.id, p) }, enabled = all != p, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)) {
                 Text(label, style = MaterialTheme.typography.labelMedium)
             }
         }
     }
     Text(
-        "Un singolo muro, porta o finestra si cambia toccandolo. Nella tavola comparativa i muri da demolire sono gialli, quelli nuovi rossi.",
+        T.schedaStanza.singoloMuroPortaFinestra,
         style = MaterialTheme.typography.bodySmall,
     )
 }
 
 /** Dati principali di un impianto per l'elenco della stanza. */
 private fun fixtureSummary(f: Fixture): String = when (f.kind) {
-    FixtureKind.Radiator -> "muro ${f.wallIndex + 1} · ${formatCm(f.length)}×${formatCm(f.height)} cm · da terra ${formatCm(f.elevation)}"
-    FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint, FixtureKind.WallLight, FixtureKind.WallSpot -> "muro ${f.wallIndex + 1} · da terra ${formatCm(f.elevation)} cm"
-    FixtureKind.WallLedStrip -> "muro ${f.wallIndex + 1} · ${formatCm(f.length)} cm · da terra ${formatCm(f.elevation)} cm"
-    FixtureKind.Neon, FixtureKind.LedStrip -> "${formatCm(f.length)} cm · ${formatCm(f.rotation)}°"
-    else -> "soffitto"
+    FixtureKind.Radiator -> T.schedaStanza.muroCmTerra(f.wallIndex + 1, formatCm(f.length), formatCm(f.height), formatCm(f.elevation))
+    FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint, FixtureKind.WallLight, FixtureKind.WallSpot -> T.schedaStanza.muroTerraCm(f.wallIndex + 1, formatCm(f.elevation))
+    FixtureKind.WallLedStrip -> T.schedaStanza.muroCmTerraCm(f.wallIndex + 1, formatCm(f.length), formatCm(f.elevation))
+    FixtureKind.Neon, FixtureKind.LedStrip -> T.schedaStanza.cm(formatCm(f.length), formatCm(f.rotation))
+    else -> T.schedaStanza.soffitto
 }
 
 @Composable
@@ -508,6 +507,6 @@ private fun CommitNumberField(label: String, value: Double, modifier: Modifier, 
 @Composable
 internal fun SnapToggle(on: Boolean, onChange: (Boolean) -> Unit, compact: Boolean = false) {
     // Sulla striscia Info la versione corta, per lasciare spazio al nome di ciò che è selezionato.
-    val label = if (compact) (if (on) "🧲 Sì" else "🧲 No") else (if (on) "🧲 Agganci sì" else "🧲 Agganci no")
+    val label = if (compact) (if (on) T.schedaStanza.si else T.schedaStanza.no) else (if (on) T.schedaStanza.agganci else T.schedaStanza.agganciNo)
     androidx.compose.material3.FilterChip(selected = on, onClick = { onChange(!on) }, label = { Text(label, maxLines = 1) })
 }

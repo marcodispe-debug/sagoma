@@ -22,6 +22,7 @@ import com.sagoma.planimetria.model.ColumnShape
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.testi.T
 import kotlin.math.atan2
 
 private val ColumnFill = Color(0xFF4A4E53)
@@ -105,7 +106,7 @@ internal fun DrawScope.drawBeam(b: Beam, cam: Camera, measurer: TextMeasurer, se
     drawLine(color.copy(alpha = 0.5f), cam.pt(b.start), cam.pt(b.end), 0.8.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 4.dp.toPx())))
     val a = cam.pt(b.start)
     val e = cam.pt(b.end)
-    val label = measurer.measure("trave ${formatCm(b.width)}×${formatCm(b.depth)}", TextStyle(fontSize = 10.sp, color = color))
+    val label = measurer.measure(T.vari.trave2(formatCm(b.width), formatCm(b.depth)), TextStyle(fontSize = 10.sp, color = color))
     if ((e - a).getDistance() > label.size.width * 1.3f) {
         var deg = com.sagoma.planimetria.geometry.toDegrees(atan2((e.y - a.y).toDouble(), (e.x - a.x).toDouble())).toFloat()
         if (deg > 90f) deg -= 180f

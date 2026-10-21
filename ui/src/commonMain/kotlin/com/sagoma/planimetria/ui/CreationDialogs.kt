@@ -48,6 +48,7 @@ import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomShape
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.testi.T
 
 /**
  * Flusso di creazione stanza: forma → (orientamento L) → misure (§1). `onOpenProjects`: dalla scelta obbligatoria della prima stanza
@@ -63,13 +64,13 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
         is CreationStep.PickShape -> com.sagoma.planimetria.ui.sketch.PickShapeEntry(step, vm, props) { sketchMode, backToQuestion -> AlertDialog(
             onDismissRequest = vm::cancelCreation,
             properties = props,
-            title = { Text(if (sketchMode) com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.sketchShapeTitle else "Scegli la forma della stanza") },
+            title = { Text(if (sketchMode) com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.sketchShapeTitle else T.creazione.scegliFormaStanza) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (sketchMode) Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.approximateMeasuresHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ShapeOption("Quadrato", RoomFactory.rectangle(10.0, 10.0), Modifier.weight(1f)) { vm.pickShape(RoomShape.Square) }
-                        ShapeOption("Rettangolo", RoomFactory.rectangle(14.0, 9.0), Modifier.weight(1f)) { vm.pickShape(RoomShape.Rectangle) }
+                        ShapeOption(T.creazione.quadrato, RoomFactory.rectangle(10.0, 10.0), Modifier.weight(1f)) { vm.pickShape(RoomShape.Square) }
+                        ShapeOption(T.creazione.rettangolo, RoomFactory.rectangle(14.0, 9.0), Modifier.weight(1f)) { vm.pickShape(RoomShape.Rectangle) }
                         ShapeOption("A L", lIcon(LOrientation.TopRight), Modifier.weight(1f)) { vm.pickShape(RoomShape.L) }
                     }
                     // Rilievo: lati e diagonali misurati sul posto, anche per stanze fuori squadra o con più lati.
@@ -79,9 +80,9 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
                             ShapeIcon(listOf(Vec2(0.0, 0.0), Vec2(14.0, 1.5), Vec2(12.0, 10.0), Vec2(1.0, 9.0)), Modifier.size(48.dp))
                             Spacer(Modifier.size(12.dp))
                             Column {
-                                Text("Da rilievo", style = MaterialTheme.typography.bodyLarge)
+                                Text(T.creazione.rilievo, style = MaterialTheme.typography.bodyLarge)
                                 Text(
-                                    "Lati e diagonali misurati: anche stanze fuori squadra o con 5 o più lati",
+                                    T.creazione.latiDiagonaliMisuratiAnche,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -96,9 +97,9 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
                             ShapeIcon(listOf(Vec2(0.0, 0.0), Vec2(9.0, 0.0), Vec2(9.0, 4.0), Vec2(14.0, 4.0), Vec2(14.0, 10.0), Vec2(0.0, 10.0)), Modifier.size(48.dp))
                             Spacer(Modifier.size(12.dp))
                             Column {
-                                Text("Muro per muro", style = MaterialTheme.typography.bodyLarge)
+                                Text(T.creazione.muroMuro, style = MaterialTheme.typography.bodyLarge)
                                 Text(
-                                    "Disegni gli angoli sulla pianta, con agganci e misure esatte: qualsiasi forma",
+                                    T.creazione.disegniAngoliPiantaAgganci,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -112,10 +113,10 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
                                 Text("🗺", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center, modifier = Modifier.size(48.dp))
                                 Spacer(Modifier.size(12.dp))
                                 Column {
-                                    Text("Ricalca una piantina", style = MaterialTheme.typography.bodyLarge)
+                                    Text(T.creazione.ricalcaPiantina, style = MaterialTheme.typography.bodyLarge)
                                     Text(
-                                        if (LocalPlatform.current.pdfAsBackground) "Carichi la foto o il PDF della piantina, la metti in scala con una misura e ripassi i muri"
-                                        else "Carichi la foto della piantina, la metti in scala con una misura e ripassi i muri",
+                                        if (LocalPlatform.current.pdfAsBackground) T.creazione.carichiFotoPdfPiantina
+                                        else T.creazione.carichiFotoPiantinaMetti,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -131,9 +132,9 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
                                 ShapeIcon(RoomFactory.rectangle(14.0, 1.6), Modifier.size(48.dp))
                                 Spacer(Modifier.size(12.dp))
                                 Column {
-                                    Text("Muro singolo", style = MaterialTheme.typography.bodyLarge)
+                                    Text(T.creazione.muroSingolo, style = MaterialTheme.typography.bodyLarge)
                                     Text(
-                                        "Un tramezzo da solo, che si aggancia agli altri muri",
+                                        T.creazione.tramezzoSoloAgganciaAgli,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -147,8 +148,8 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
             dismissButton = {
                 Row {
                     backToQuestion?.let { TextButton(onClick = it) { Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.back) } }
-                    if (step.cancellable) TextButton(onClick = vm::cancelCreation) { Text("Annulla") }
-                    else if (onOpenProjects != null) TextButton(onClick = onOpenProjects) { Text("📁 Progetti") }
+                    if (step.cancellable) TextButton(onClick = vm::cancelCreation) { Text(T.comuni.annulla) }
+                    else if (onOpenProjects != null) TextButton(onClick = onOpenProjects) { Text(T.creazione.progetti) }
                 }
             },
         )
@@ -157,7 +158,7 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
         is CreationStep.PickLOrientation -> AlertDialog(
             onDismissRequest = vm::cancelCreation,
             properties = props,
-            title = { Text("Dove sporge la stanza?") },
+            title = { Text(T.creazione.doveSporgeStanza) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LOrientation.entries.chunked(2).forEach { row ->
@@ -168,7 +169,7 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = vm::backToShapePicker) { Text("Indietro") } },
+            dismissButton = { TextButton(onClick = vm::backToShapePicker) { Text(T.comuni.indietro) } },
         )
 
         is CreationStep.Measures -> MeasuresDialog(step, vm, props)
@@ -200,27 +201,26 @@ private fun SurveyDialog(vm: EditorViewModel, props: DialogProperties) {
     AlertDialog(
         onDismissRequest = vm::cancelCreation,
         properties = props,
-        title = { Text("Stanza da rilievo") },
+        title = { Text(T.creazione.stanzaRilievo) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Tipo di stanza", style = MaterialTheme.typography.labelLarge)
+                Text(T.creazione.tipoStanza, style = MaterialTheme.typography.labelLarge)
                 RoomTypePicker(type) { type = it }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Numero di lati", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                    Text(T.creazione.numeroLati, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
                     TextButton(onClick = { if (count > 3) count-- }, enabled = count > 3) { Text("−") }
                     Text("$count", style = MaterialTheme.typography.titleMedium)
                     TextButton(onClick = { if (count < 12) count++ }, enabled = count < 12) { Text("+") }
                 }
                 Text(
-                    "Misura i lati sul filo interno dei muri, girando in senso orario dall'angolo A; poi le diagonali dall'angolo A " +
-                        "agli angoli opposti. Con le diagonali la forma è quella vera, anche se gli angoli non sono a 90°.",
+                    T.creazione.misuraLatiFiloInterno,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 for (i in 0 until count) {
                     SelectAllTextField(
                         value = sides[i],
                         onValueChange = { v -> sides = sides.toMutableList().also { it[i] = v } },
-                        label = "Lato ${letters[i]}${letters[(i + 1) % count]}",
+                        label = T.creazione.lato(letters[i], letters[(i + 1) % count]),
                         numeric = true,
                         suffix = "cm",
                         isError = sides[i].isNotEmpty() && sideValues[i] == null,
@@ -231,7 +231,7 @@ private fun SurveyDialog(vm: EditorViewModel, props: DialogProperties) {
                     SelectAllTextField(
                         value = diagonals[k],
                         onValueChange = { v -> diagonals = diagonals.toMutableList().also { it[k] = v } },
-                        label = "Diagonale A${letters[k + 2]}",
+                        label = T.creazione.diagonale(letters[k + 2]),
                         numeric = true,
                         suffix = "cm",
                         isError = diagonals[k].isNotEmpty() && diagValues[k] == null,
@@ -239,17 +239,17 @@ private fun SurveyDialog(vm: EditorViewModel, props: DialogProperties) {
                     )
                 }
                 if (solved != null) {
-                    Text("Anteprima", style = MaterialTheme.typography.labelLarge)
+                    Text(T.creazione.anteprima, style = MaterialTheme.typography.labelLarge)
                     ShapeIcon(solved.map { it - Vec2(solved.minOf { p -> p.x }, solved.minOf { p -> p.y }) + Vec2(0.01, 0.01) }, Modifier.fillMaxWidth().height(120.dp))
                 } else if (sideValues.all { it != null } && diagValues.all { it != null }) {
-                    Text("Con queste misure la stanza non si chiude: controlla lati e diagonali.", color = MaterialTheme.colorScheme.error)
+                    Text(T.creazione.questeMisureStanzaNon, color = MaterialTheme.colorScheme.error)
                 }
                 SelectAllTextField(
-                    value = thickness, onValueChange = { thickness = it }, label = "Spessore dei muri", numeric = true, suffix = "cm",
+                    value = thickness, onValueChange = { thickness = it }, label = T.creazione.spessoreMuri, numeric = true, suffix = "cm",
                     isError = thicknessValue == null, modifier = Modifier.fillMaxWidth(),
                 )
                 if (!type.outdoor) SelectAllTextField(
-                    value = ceiling, onValueChange = { ceiling = it }, label = "Altezza soffitto", numeric = true, suffix = "cm",
+                    value = ceiling, onValueChange = { ceiling = it }, label = T.creazione.altezzaSoffitto, numeric = true, suffix = "cm",
                     isError = ceilingValue == null, modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -258,12 +258,12 @@ private fun SurveyDialog(vm: EditorViewModel, props: DialogProperties) {
             TextButton(
                 enabled = solved != null && thicknessValue != null && (ceilingValue != null || type.outdoor),
                 onClick = { vm.createRoomFromSurvey(type, solved!!, ceilingValue ?: Room.DEFAULT_CEILING_HEIGHT, thicknessValue!!) },
-            ) { Text("Crea stanza") }
+            ) { Text(T.creazione.creaStanza) }
         },
         dismissButton = {
             Row {
-                TextButton(onClick = vm::backToShapePicker) { Text("Indietro") }
-                if (props.dismissOnBackPress) TextButton(onClick = vm::cancelCreation) { Text("Annulla") }
+                TextButton(onClick = vm::backToShapePicker) { Text(T.comuni.indietro) }
+                if (props.dismissOnBackPress) TextButton(onClick = vm::cancelCreation) { Text(T.comuni.annulla) }
             }
         },
     )
@@ -346,9 +346,9 @@ private fun MeasuresDialog(step: CreationStep.Measures, vm: EditorViewModel, pro
     val valid = parsed.all { it != null } && (ceilingValue != null || type.outdoor) && !lInvalid
 
     val labels = when (step.shape) {
-        RoomShape.Square -> listOf("Lato")
-        RoomShape.Rectangle -> listOf("Larghezza", "Profondità")
-        RoomShape.L -> listOf("Larghezza principale", "Profondità principale", "Larghezza protuberanza", "Profondità protuberanza")
+        RoomShape.Square -> listOf(T.creazione.lato2)
+        RoomShape.Rectangle -> listOf(T.comuni.larghezza, T.comuni.profondita)
+        RoomShape.L -> listOf(T.creazione.larghezzaPrincipale, T.creazione.profonditaPrincipale, T.creazione.larghezzaProtuberanza, T.creazione.profonditaProtuberanza)
     }
 
     AlertDialog(
@@ -357,9 +357,9 @@ private fun MeasuresDialog(step: CreationStep.Measures, vm: EditorViewModel, pro
         title = {
             Text(
                 when (type) {
-                    RoomType.Balcone -> "Misure del balcone"
-                    RoomType.Terrazza -> "Misure della terrazza"
-                    else -> "Misure della stanza"
+                    RoomType.Balcone -> T.creazione.misureBalcone
+                    RoomType.Terrazza -> T.creazione.misureTerrazza
+                    else -> T.creazione.misureStanza
                 },
             )
         },
@@ -369,7 +369,7 @@ private fun MeasuresDialog(step: CreationStep.Measures, vm: EditorViewModel, pro
                 if (vm.state.collectAsState().value.creationIntent?.isSketch == true) {
                     Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.approximateMeasuresHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                 }
-                Text("Tipo di stanza", style = MaterialTheme.typography.labelLarge)
+                Text(T.creazione.tipoStanza, style = MaterialTheme.typography.labelLarge)
                 RoomTypePicker(type) { type = it }
                 labels.forEachIndexed { i, label ->
                     SelectAllTextField(
@@ -382,17 +382,17 @@ private fun MeasuresDialog(step: CreationStep.Measures, vm: EditorViewModel, pro
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                if (lInvalid) Text("La protuberanza deve essere più stretta della stanza principale.", color = MaterialTheme.colorScheme.error)
+                if (lInvalid) Text(T.creazione.protuberanzaDeveEsserePiu, color = MaterialTheme.colorScheme.error)
                 // Le misure inserite qui sono interne (calpestabili): lo si dice prima che l'utente le scriva.
                 InteriorMeasuresNotice(Modifier.fillMaxWidth())
                 // All'aperto non c'è soffitto: il parapetto si sceglie dopo, da Info.
                 if (type.outdoor) Text(
-                    "Spazio all'aperto: al posto dei muri c'è un parapetto (ringhiera, muretto o vetro), da scegliere poi in Info.",
+                    T.creazione.spazioAllApertoPosto,
                     style = MaterialTheme.typography.bodySmall,
                 ) else SelectAllTextField(
                     value = ceiling,
                     onValueChange = { ceiling = it },
-                    label = "Altezza soffitto",
+                    label = T.creazione.altezzaSoffitto,
                     numeric = true,
                     suffix = "cm",
                     isError = ceilingValue == null,
@@ -412,12 +412,12 @@ private fun MeasuresDialog(step: CreationStep.Measures, vm: EditorViewModel, pro
                     }
                     vm.createRoom(type, dims, ceilingValue ?: Room.DEFAULT_CEILING_HEIGHT)
                 },
-            ) { Text(if (type.outdoor) "Crea" else "Crea stanza") }
+            ) { Text(if (type.outdoor) T.creazione.crea else T.creazione.creaStanza) }
         },
         dismissButton = {
             Row {
-                TextButton(onClick = vm::backToShapePicker) { Text("Indietro") }
-                if (step.cancellable) TextButton(onClick = vm::cancelCreation) { Text("Annulla") }
+                TextButton(onClick = vm::backToShapePicker) { Text(T.comuni.indietro) }
+                if (step.cancellable) TextButton(onClick = vm::cancelCreation) { Text(T.comuni.annulla) }
             }
         },
     )

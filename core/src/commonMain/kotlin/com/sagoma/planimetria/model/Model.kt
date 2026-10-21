@@ -1,5 +1,6 @@
 package com.sagoma.planimetria.model
 
+import com.sagoma.planimetria.testi.T
 import kotlinx.serialization.Serializable
 import kotlin.math.hypot
 
@@ -850,12 +851,12 @@ data class Building(
 
         /** Nome proposto per il piano `index` (0 = piano terra). */
         fun floorName(index: Int): String = when (index) {
-            0 -> "Piano terra"
-            1 -> "Primo piano"
-            2 -> "Secondo piano"
-            3 -> "Terzo piano"
-            4 -> "Quarto piano"
-            else -> "Piano ${index}"
+            0 -> T.piani.pianoTerra
+            1 -> T.piani.primoPiano
+            2 -> T.piani.secondoPiano
+            3 -> T.piani.terzoPiano
+            4 -> T.piani.quartoPiano
+            else -> T.piani.piano(index)
         }
     }
 }

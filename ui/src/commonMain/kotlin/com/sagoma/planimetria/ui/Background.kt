@@ -47,6 +47,7 @@ import com.sagoma.planimetria.editor.TutorialStep
 import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.model.Underlay
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.testi.T
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -127,7 +128,7 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
             loading = false
             if (img == null || !saved) {
                 // Letta ma non salvata: di solito manca spazio (nel browser c'è un limite di pochi MB).
-                platform.toast(if (img == null) "Impossibile leggere il file" else "Non c'è spazio per salvare lo sfondo: prova con un'immagine più piccola")
+                platform.toast(if (img == null) T.sfondo.impossibileLeggereFile else T.sfondo.nonSpazioSalvareSfondo)
                 return@launch
             }
             val w = img.width
@@ -144,66 +145,64 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
     AlertDialog(
         // Mentre si legge il file non si chiude: l'immagine arriverebbe dopo, a finestra già chiusa.
         onDismissRequest = { if (!loading) onDismiss() },
-        title = { Text(if (tracing) "Ricalca una piantina" else "Pianta di sfondo") },
+        title = { Text(if (tracing) T.sfondo.ricalcaPiantina else T.sfondo.piantaSfondo) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 state.tutorial?.takeIf { it.step == TutorialStep.TraceLoad }?.let { t ->
                     Text(
-                        "Guida al ricalco · passo ${t.number} di ${t.total}",
+                        T.sfondo.guidaRicalcoPasso(t.number, t.total),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
                 if (tracing) {
                     Text(
-                        if (platform.pdfAsBackground) "Carica la piantina che hai (foto, scansione o PDF del catasto o del progetto)."
-                        else "Carica la piantina che hai come immagine (foto, scansione, JPG o PNG). Per un PDF salvane la pagina come immagine.",
+                        if (platform.pdfAsBackground) T.sfondo.caricaPiantinaHaiFoto
+                        else T.sfondo.caricaPiantinaHaiImmagine,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
-                        "Poi tocchi i due estremi di una misura che conosci e scrivi quanto è lunga: la piantina va in scala. " +
-                            "Infine ripassi i muri con \"Muro per muro\", angolo dopo angolo.",
+                        T.sfondo.tocchiDueEstremiMisura,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else Text(
-                    "Metti sotto al disegno una pianta esistente (foto, scansione o PDF del catasto o del progetto), " +
-                        "tarala su una misura che conosci e ricalca le stanze sopra.",
+                    T.sfondo.mettiSottoDisegnoPianta,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(enabled = !loading, onClick = { platform.openFile(listOf("image/*")) { import(it, pdf = false) } }) {
-                        Text(if (u == null) "Foto / immagine" else "Altra immagine")
+                        Text(if (u == null) T.sfondo.fotoImmagine else T.sfondo.altraImmagine)
                     }
                     if (platform.pdfAsBackground) {
-                        OutlinedButton(enabled = !loading, onClick = { platform.openFile(listOf("application/pdf")) { import(it, pdf = true) } }) { Text("PDF") }
+                        OutlinedButton(enabled = !loading, onClick = { platform.openFile(listOf("application/pdf")) { import(it, pdf = true) } }) { Text(T.sfondo.pdf) }
                     }
                 }
-                if (loading) Text("Caricamento…", style = MaterialTheme.typography.bodySmall)
+                if (loading) Text(T.sfondo.caricamento, style = MaterialTheme.typography.bodySmall)
                 if (u != null) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Visibile", Modifier.weight(1f))
+                        Text(T.sfondo.visibile, Modifier.weight(1f))
                         Switch(checked = u.visible, onCheckedChange = { vm.setUnderlayVisible(it) })
                     }
-                    Text("Trasparenza: ${(u.opacity * 100).roundToInt()}%", style = MaterialTheme.typography.labelLarge)
+                    Text(T.sfondo.trasparenza((u.opacity * 100).roundToInt()), style = MaterialTheme.typography.labelLarge)
                     // Dal vivo: la piantina sotto la finestra cambia mentre si trascina.
                     Slider(
                         value = u.opacity.toFloat(), onValueChange = { vm.previewUnderlayOpacity(it.toDouble()) },
                         valueRange = 0.1f..1f, onValueChangeFinished = vm::endUnderlayOpacity,
                     )
                     Text(
-                        "Scala attuale: 1 px = ${fmt2(u.cmPerPx)} cm · immagine ${fmt2(u.widthCm / 100)} × ${fmt2(u.heightCm / 100)} m",
+                        T.sfondo.scalaAttuale1Px(fmt2(u.cmPerPx), fmt2(u.widthCm / 100), fmt2(u.heightCm / 100)),
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { vm.setUnderlayTool(UnderlayTool.Calibrate()); onDismiss() }) { Text("📏 Tara") }
-                        OutlinedButton(onClick = { vm.setUnderlayTool(UnderlayTool.Move); onDismiss() }) { Text("✋ Sposta") }
+                        OutlinedButton(onClick = { vm.setUnderlayTool(UnderlayTool.Calibrate()); onDismiss() }) { Text(T.sfondo.tara) }
+                        OutlinedButton(onClick = { vm.setUnderlayTool(UnderlayTool.Move); onDismiss() }) { Text(T.sfondo.sposta) }
                     }
-                    TextButton(onClick = { vm.setUnderlay(null) }) { Text("Togli lo sfondo", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = { vm.setUnderlay(null) }) { Text(T.sfondo.togliSfondo, color = MaterialTheme.colorScheme.error) }
                 }
             }
         },
-        confirmButton = { TextButton(enabled = !loading, onClick = onDismiss) { Text(if (tracing && u == null) "Indietro" else "Chiudi") } },
+        confirmButton = { TextButton(enabled = !loading, onClick = onDismiss) { Text(if (tracing && u == null) T.comuni.indietro else T.comuni.chiudi) } },
     )
 }
 
@@ -212,17 +211,17 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
 fun UnderlayToolCard(state: EditorUiState, vm: EditorViewModel) {
     val tool = state.underlayTool ?: return
     val hint = when (tool) {
-        UnderlayTool.Move -> "Trascina con un dito per spostare la pianta di sfondo sotto al disegno."
+        UnderlayTool.Move -> T.sfondo.trascinaDitoSpostarePianta
         is UnderlayTool.Calibrate -> when {
-            tool.first == null -> "Taratura: tocca l'inizio di una misura che conosci (es. un muro quotato)."
-            tool.second == null -> "Ora tocca la fine della misura. Ingrandisci con due dita per essere preciso."
-            else -> "Scrivi la misura reale tra A e B."
+            tool.first == null -> T.sfondo.taraturaToccaInizioMisura
+            tool.second == null -> T.sfondo.oraToccaFineMisura
+            else -> T.sfondo.scriviMisuraRealeB
         }
     }
     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.inverseSurface) {
         Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(hint, color = MaterialTheme.colorScheme.inverseOnSurface, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f, fill = false))
-            TextButton(onClick = { vm.setUnderlayTool(null) }) { Text("Fine", color = MaterialTheme.colorScheme.inversePrimary) }
+            TextButton(onClick = { vm.setUnderlayTool(null) }) { Text(T.comuni.fine, color = MaterialTheme.colorScheme.inversePrimary) }
         }
     }
     if (tool is UnderlayTool.Calibrate && tool.first != null && tool.second != null) {
@@ -230,16 +229,16 @@ fun UnderlayToolCard(state: EditorUiState, vm: EditorViewModel) {
         val cm = text.replace(',', '.').toDoubleOrNull()
         AlertDialog(
             onDismissRequest = { vm.setUnderlayTool(UnderlayTool.Calibrate()) },
-            title = { Text("Misura reale") },
+            title = { Text(T.sfondo.misuraReale) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Quanto è lunga davvero la distanza tra A e B?")
+                    Text(T.sfondo.quantoLungaDavveroDistanza)
                     SelectAllTextField(value = text, onValueChange = { text = it }, label = "cm", modifier = Modifier.fillMaxWidth())
-                    Text("Più la misura è lunga, più la taratura è precisa.", style = MaterialTheme.typography.bodySmall)
+                    Text(T.sfondo.piuMisuraLungaPiu, style = MaterialTheme.typography.bodySmall)
                 }
             },
-            confirmButton = { TextButton(enabled = cm != null && cm > 0, onClick = { vm.calibrateUnderlay(cm!!) }) { Text("Tara") } },
-            dismissButton = { TextButton(onClick = { vm.setUnderlayTool(UnderlayTool.Calibrate()) }) { Text("Rifai") } },
+            confirmButton = { TextButton(enabled = cm != null && cm > 0, onClick = { vm.calibrateUnderlay(cm!!) }) { Text(T.sfondo.tara2) } },
+            dismissButton = { TextButton(onClick = { vm.setUnderlayTool(UnderlayTool.Calibrate()) }) { Text(T.sfondo.rifai) } },
         )
     }
 }

@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.persistence.ThemeChoice
+import com.sagoma.planimetria.testi.T
 
 /** Colori dell'app chiara: il verde petrolio di Sagoma. */
 internal val SagomaLightColors: ColorScheme = lightColorScheme(primary = Color(0xFF2F5D62))
@@ -63,7 +64,7 @@ fun ThemeDialog(onDismiss: () -> Unit) {
     val setting = LocalThemeSetting.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tema") },
+        title = { Text(T.vari.tema) },
         text = {
             Column {
                 for (c in ThemeChoice.entries) {
@@ -77,6 +78,6 @@ fun ThemeDialog(onDismiss: () -> Unit) {
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Chiudi") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(T.comuni.chiudi) } },
     )
 }

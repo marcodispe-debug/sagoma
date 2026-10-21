@@ -8,6 +8,7 @@ import com.sagoma.planimetria.persistence.ProjectInfo
 import com.sagoma.planimetria.persistence.ProjectRepository
 import com.sagoma.planimetria.persistence.ThemeChoice
 import com.sagoma.planimetria.persistence.ThemeStore
+import com.sagoma.planimetria.testi.T
 import kotlinx.browser.localStorage
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -32,7 +33,7 @@ class BrowserProjectRepository(private val now: () -> Long) : ProjectRepository 
     init {
         if (localStorage.getItem(INDEX) == null) {
             val t = now()
-            write(Index(listOf(ProjectInfo(1, "Il mio progetto", created = t, modified = t)), last = 1))
+            write(Index(listOf(ProjectInfo(1, T.progetti.mioProgetto, created = t, modified = t)), last = 1))
         }
     }
 
@@ -59,7 +60,7 @@ class BrowserProjectRepository(private val now: () -> Long) : ProjectRepository 
     override fun create(name: String, client: String, address: String): ProjectInfo {
         val i = read()
         val t = now()
-        val p = ProjectInfo(nextId(i), name.ifBlank { "Progetto ${nextId(i)}" }, client, address, created = t, modified = t)
+        val p = ProjectInfo(nextId(i), name.ifBlank { T.progetti.progetto(nextId(i)) }, client, address, created = t, modified = t)
         write(i.copy(projects = i.projects + p))
         return p
     }
@@ -105,7 +106,7 @@ class BrowserProjectRepository(private val now: () -> Long) : ProjectRepository 
     override fun import(bytes: ByteArray): ProjectInfo? {
         val text = bytes.decodeToString()
         if (runCatching { PlanJson.decodeBuilding(text) }.isFailure) return null
-        val p = create("Progetto importato")
+        val p = create(T.progetti.progettoImportato)
         localStorage.setItem(planKey(p.id), text)
         return p
     }

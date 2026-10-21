@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.geometry.Takeoff
 import com.sagoma.planimetria.persistence.ProjectInfo
+import com.sagoma.planimetria.testi.T
 
 /** Formato italiano con due decimali (12,35). */
 internal fun fmt2(v: Double) = com.sagoma.planimetria.geometry.formatDecimal(v, 2)
@@ -37,51 +38,51 @@ internal fun fmt2(v: Double) = com.sagoma.planimetria.geometry.formatDecimal(v, 
 fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Unit) {
     val platform = LocalPlatform.current
     val res = remember(state.fullBuilding) { Takeoff.of(state.fullBuilding) }
-    val title = info?.name ?: "Progetto"
+    val title = info?.name ?: T.computo.progetto
     fun exportCsv() {
         // BOM: Excel riconosce così l'UTF-8 (accenti e m²).
         val bytes = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) + Takeoff.csv(res).encodeToByteArray()
         val name = "computo-${title.replace(Regex("[^A-Za-z0-9 _-]"), "")}-${isoDate(platform.now())}.csv"
-        platform.saveFile(name, "text/csv", bytes) { ok -> platform.toast(if (ok) "Computo esportato" else "Esportazione non riuscita") }
+        platform.saveFile(name, "text/csv", bytes) { ok -> platform.toast(if (ok) T.computo.computoEsportato else T.computo.esportazioneNonRiuscita) }
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Computo e lista arredi") },
+        title = { Text(T.computo.computoListaArredi) },
         text = {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (res.rooms.isEmpty()) Text("Non ci sono ancora stanze.")
-                Section("Stanze")
+                if (res.rooms.isEmpty()) Text(T.computo.nonSonoAncoraStanze)
+                Section(T.computo.stanze)
                 Column(Modifier.horizontalScroll(rememberScrollState())) {
-                    TableRow(listOf("Stanza", "Pav. m²", "Pareti m²", "Battisc. m", "Pavimento"), header = true)
+                    TableRow(listOf(T.computo.stanza, T.computo.pavM2, T.computo.paretiM2, T.computo.battiscM, T.computo.pavimento), header = true)
                     val multi = state.fullBuilding.floors.size > 1
                     for (l in res.rooms) TableRow(listOf(if (multi) "${l.room} (${l.floor})" else l.room, fmt2(l.floorArea), fmt2(l.wallArea), fmt2(l.skirting), l.floorFinish))
-                    TableRow(listOf("Totale", fmt2(res.totalFloor), fmt2(res.totalWalls), fmt2(res.totalSkirting), ""), header = true)
+                    TableRow(listOf(T.computo.totale, fmt2(res.totalFloor), fmt2(res.totalWalls), fmt2(res.totalSkirting), ""), header = true)
                 }
                 Text(
-                    "Pareti: superficie interna al netto di porte e finestre. Battiscopa: perimetro interno meno porte e balconi.",
+                    T.computo.paretiSuperficieInternaNetto,
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Section("Pavimenti da ordinare")
+                Section(T.computo.pavimentiOrdinare)
                 for (t in res.floorMaterials) Line(t.what, "${fmt2(t.quantity)} m²  (+10% ${fmt2(t.quantity * 1.1)})")
-                Section("Finiture delle pareti")
+                Section(T.computo.finiturePareti)
                 for (t in res.wallFinishes) Line(t.what, "${fmt2(t.quantity)} m²")
-                Section("Arredi")
-                if (res.furniture.isEmpty()) Text("Nessun arredo.", style = MaterialTheme.typography.bodySmall)
+                Section(T.computo.arredi)
+                if (res.furniture.isEmpty()) Text(T.computo.nessunArredo, style = MaterialTheme.typography.bodySmall)
                 for (i in res.furniture) Line("${i.count}× ${i.name}", "${i.size}\n${i.where}")
                 if (res.fixtures.isNotEmpty()) {
-                    Section("Impianti")
+                    Section(T.computo.impianti)
                     for (i in res.fixtures) Line("${i.count}× ${i.name}", i.where)
                 }
             }
         },
         confirmButton = {
             Row {
-                TextButton(onClick = { platform.shareText("Computo – $title", Takeoff.csv(res).replace(';', '\t')) }) { Text("Condividi") }
-                TextButton(onClick = { exportCsv() }) { Text("Esporta CSV") }
+                TextButton(onClick = { platform.shareText(T.computo.computo(title), Takeoff.csv(res).replace(';', '\t')) }) { Text(T.computo.condividi) }
+                TextButton(onClick = { exportCsv() }) { Text(T.computo.esportaCsv) }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Chiudi") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(T.comuni.chiudi) } },
     )
 }
 

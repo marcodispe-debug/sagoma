@@ -23,6 +23,7 @@ import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Stair
 import com.sagoma.planimetria.model.StairRailing
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.testi.T
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
@@ -82,7 +83,7 @@ internal fun DrawScope.drawStair(s: Stair, rise: Double, cam: Camera, measurer: 
     drawWalkLine(l.path, cam, line, dashed = false)
     val start = cam.px(l.path.first())
     drawCircle(line, 3.5.dp.toPx(), start)
-    val layout = measurer.measure("sale", TextStyle(fontSize = 10.sp, color = line, fontWeight = FontWeight.Medium))
+    val layout = measurer.measure(T.vari.sale, TextStyle(fontSize = 10.sp, color = line, fontWeight = FontWeight.Medium))
     val d = l.path[1] - l.path[0]
     val side = Vec2(-d.y, d.x).normalized() * (s.width * 0.28)
     val at = cam.px(l.path.first() + side)
@@ -135,7 +136,7 @@ internal fun DrawScope.drawStairArrival(
     // "scende" al centro del vuoto (più corto se il pavimento copre i primi gradini).
     val wellBounds = com.sagoma.planimetria.geometry.Polygon.bounds(well.flatten())
     val c = cam.px(wellBounds.center)
-    val layout = measurer.measure("scende",TextStyle(fontSize = 10.sp, color = StairLine))
+    val layout = measurer.measure(T.vari.scende,TextStyle(fontSize = 10.sp, color = StairLine))
     if (cam.scale * maxOf(wellBounds.width, wellBounds.height) > layout.size.width * 0.8) {
         drawText(layout, topLeft = Offset(c.x - layout.size.width / 2f, c.y - layout.size.height / 2f))
     }

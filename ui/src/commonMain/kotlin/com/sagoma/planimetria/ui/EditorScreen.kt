@@ -34,6 +34,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
+import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
 import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.layout.heightIn
@@ -119,12 +120,12 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
     var showLayers by remember { mutableStateOf(false) }
     var showTheme by remember { mutableStateOf(false) }
     val extraMenu = listOf(
-        "📁 Progetti" to { vm.saveNow(); onOpenProjects() },
-        "🗂 Livelli…" to { showLayers = true },
-        "📄 Tavola PDF in scala…" to { showPdf = true },
-        "🧮 Computo e lista arredi" to { showTakeoff = true },
-        "🗺 Pianta di sfondo…" to { showBackground = true },
-        "🌓 Tema chiaro o scuro…" to { showTheme = true },
+        T.editor.progetti to { vm.saveNow(); onOpenProjects() },
+        T.editor.livelli to { showLayers = true },
+        T.editor.tavolaPdfScala to { showPdf = true },
+        T.editor.computoListaArredi to { showTakeoff = true },
+        T.editor.piantaSfondo to { showBackground = true },
+        T.editor.temaChiaroScuro to { showTheme = true },
     )
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
@@ -165,12 +166,12 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                     // Copia e incolla come nei programmi del computer: Ctrl+C copia l'oggetto selezionato (con un
                     // messaggio), Ctrl+V incolla subito dove c'è il mouse (o accanto all'originale).
                     e.key == Key.C && !state.view3d -> {
-                        if (vm.copy()) vm.state.value.clipboard?.let { platform.toast("Copiato: ${clipLabel(it)} · Ctrl+V per incollare") }
-                        else platform.toast("Seleziona prima qualcosa da copiare")
+                        if (vm.copy()) vm.state.value.clipboard?.let { platform.toast(T.editor.copiatoCtrlVIncollare(clipLabel(it))) }
+                        else platform.toast(T.editor.selezionaPrimaQualcosaCopiare)
                         true
                     }
                     e.key == Key.V && !state.view3d -> {
-                        if (!vm.pasteNow()) platform.toast(if (state.clipboard == null) "Niente da incollare: copia prima qualcosa con Ctrl+C" else "Qui non si può incollare")
+                        if (!vm.pasteNow()) platform.toast(if (state.clipboard == null) T.editor.nienteIncollareCopiaPrima else T.editor.quiNonPuoIncollare)
                         true
                     }
                     // Ctrl+D: duplica l'oggetto selezionato (come il pulsante "⧉ Duplica" nella scheda Info).
@@ -196,8 +197,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         openGuide?.let { GuideDialog(it, onDismiss = { openGuide = null }, onOpen3d = { vm.setView3d(true) }) }
         // Guide passo passo che si fanno sulla pianta: avanzano da sole a ogni azione.
         val guidedTours = listOf(
-            MenuEntry("🎓  Tutorial passo passo", vm::restartTutorial),
-            MenuEntry("🧭  Ricalco passo passo", {
+            MenuEntry(T.editor.tutorialPassoPasso, vm::restartTutorial),
+            MenuEntry(T.editor.ricalcoPassoPasso, {
                 if (state.plan.underlay == null) showBackground = true
                 vm.startTracingGuide()
             }),
@@ -261,10 +262,10 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             // Marchio del piano gratuito sopra pianta e 3D (non sui pulsanti), così resta anche in uno screenshot.
             WatermarkOverlay(Modifier.fillMaxSize())
             // Suggerimento durante il posizionamento di un'apertura o di un impianto.
-            val placingHint = state.pendingOpening?.let { "Tocca il muro su cui posizionare: ${it.kind.label.lowercase()}" }
+            val placingHint = state.pendingOpening?.let { T.editor.toccaMuroCuiPosizionare(it.kind.label.lowercase()) }
                 ?: state.pendingFixture?.let {
-                    if (it.mount == Mount.Wall) "Tocca il muro su cui posizionare: ${it.label.lowercase()}"
-                    else "Tocca il punto della stanza in cui mettere: ${it.label.lowercase()}"
+                    if (it.mount == Mount.Wall) T.editor.toccaMuroCuiPosizionare2(it.label.lowercase())
+                    else T.editor.toccaPuntoStanzaCui(it.label.lowercase())
                 }
             // Schede in alto (posizionamento, suggerimento, tutorial): la pianta si centra sotto di loro.
             var topCardsHeightPx by remember { mutableIntStateOf(0) }
@@ -292,7 +293,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.weight(1f, fill = false),
                             )
-                            TextButton(onClick = vm::cancelPlacingOpening) { Text("Annulla", color = MaterialTheme.colorScheme.inversePrimary) }
+                            TextButton(onClick = vm::cancelPlacingOpening) { Text(T.comuni.annulla, color = MaterialTheme.colorScheme.inversePrimary) }
                         }
                     }
                 }
@@ -312,12 +313,12 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 state.saveError?.let { err ->
                     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.errorContainer) {
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                            Text("⚠ Il progetto NON è stato salvato", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                            Text(T.editor.progettoNonStatoSalvato, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onErrorContainer)
                             Text(
-                                "Le ultime modifiche sono solo in memoria: non chiudere Sagoma. Riprovo a ogni modifica. ($err)",
+                                T.editor.ultimeModificheSonoSolo(err),
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer,
                             )
-                            TextButton(onClick = vm::saveNow) { Text("Riprova a salvare") }
+                            TextButton(onClick = vm::saveNow) { Text(T.editor.riprovaSalvare) }
                         }
                     }
                 }
@@ -432,7 +433,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             // Angolo in basso a destra: passaggio 2D/3D, e la legenda (2D) o Cammina / Vista dall'alto (3D).
             Column(cornerModifier, horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 LegendButton(
-                    if (state.view3d) "◱ Pianta 2D" else "🧊 Vista 3D",
+                    if (state.view3d) T.editor.pianta2d else T.editor.vista3d,
                     onClick = {
                         if (state.view3d && view3dState.walking) view3dState.stopWalking()
                         vm.setView3d(!state.view3d)
@@ -442,9 +443,9 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 else {
                     // Mostra/nascondi e trasparenza di piantina e disegno, regolate dal vivo.
                     if (showVisibility) VisibilityPanel(state, vm, onLoadPlan = { showBackground = true })
-                    LegendButton(if (showVisibility) "◐ Chiudi" else "◐ Piantina e disegno", onClick = { showVisibility = !showVisibility })
+                    LegendButton(if (showVisibility) T.editor.chiudi else T.editor.piantinaDisegno, onClick = { showVisibility = !showVisibility })
                     PhaseLegend(state)
-                    LegendButton("Legenda", onClick = { showLegend = true })
+                    LegendButton(T.editor.legenda, onClick = { showLegend = true })
                 }
             }
             // Ora del giorno: su schermo largo o telefono girato, verticale a sinistra (sopra il joystick).
@@ -513,19 +514,19 @@ private fun MeasureCard(m: MeasureState, state: EditorUiState, vm: EditorViewMod
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.inverseSurface, shadowElevation = 6.dp) {
         Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 10.dp)) {
             val onColor = MaterialTheme.colorScheme.inverseOnSurface
-            Text("📐 Distanza", style = MaterialTheme.typography.titleSmall, color = onColor)
+            Text(T.editor.distanza, style = MaterialTheme.typography.titleSmall, color = onColor)
             val text = when {
-                first == null -> "Tocca il primo oggetto: un muro, una porta o finestra, un termosifone, una presa, una luce, una colonna, una trave o una scala."
-                second == null -> "Primo: ${measureName(state.plan, first)}. Ora tocca il secondo oggetto."
-                result == null -> "Non riesco a misurare questi due oggetti."
-                else -> "Tra ${measureName(state.plan, first)} e ${measureName(state.plan, second)}"
+                first == null -> T.editor.toccaPrimoOggettoMuro
+                second == null -> T.editor.primoOraToccaSecondo(measureName(state.plan, first))
+                result == null -> T.editor.nonRiescoMisurareQuesti
+                else -> T.editor.traE(measureName(state.plan, first), measureName(state.plan, second))
             }
             Text(text, style = MaterialTheme.typography.bodyMedium, color = onColor, modifier = Modifier.padding(top = 2.dp, end = 8.dp))
             if (result != null) {
                 val dx = kotlin.math.abs(result.b.x - result.a.x)
                 val dy = kotlin.math.abs(result.b.y - result.a.y)
                 Text(
-                    if (result.distance < 0.05) "Si toccano (0 cm)" else formatDistance(result.distance),
+                    if (result.distance < 0.05) T.editor.toccano0Cm else formatDistance(result.distance),
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.inversePrimary,
                     modifier = Modifier.padding(top = 4.dp),
@@ -533,20 +534,20 @@ private fun MeasureCard(m: MeasureState, state: EditorUiState, vm: EditorViewMod
                 // Se la distanza è di sbieco, anche le due componenti.
                 if (dx > 0.5 && dy > 0.5) {
                     Text(
-                        "in orizzontale ${formatDistance(dx)} · in verticale ${formatDistance(dy)}",
+                        T.editor.orizzontaleVerticale(formatDistance(dx), formatDistance(dy)),
                         style = MaterialTheme.typography.bodySmall,
                         color = onColor.copy(alpha = 0.8f),
                     )
                 }
                 Text(
-                    "Distanza tra i bordi più vicini. Tocca un altro oggetto per una nuova misura.",
+                    T.editor.distanzaBordiPiuVicini,
                     style = MaterialTheme.typography.bodySmall,
                     color = onColor.copy(alpha = 0.7f),
                 )
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                if (m.first != null) TextButton(onClick = vm::startMeasure) { Text("Nuova misura", color = onColor.copy(alpha = 0.8f)) }
-                TextButton(onClick = vm::closeMeasure) { Text("Chiudi", color = MaterialTheme.colorScheme.inversePrimary) }
+                if (m.first != null) TextButton(onClick = vm::startMeasure) { Text(T.editor.nuovaMisura, color = onColor.copy(alpha = 0.8f)) }
+                TextButton(onClick = vm::closeMeasure) { Text(T.comuni.chiudi, color = MaterialTheme.colorScheme.inversePrimary) }
             }
         }
     }
@@ -580,9 +581,9 @@ private fun TipCard(tip: Tip, onDismiss: () -> Unit, onSkipAll: () -> Unit) {
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onSkipAll) {
-                    Text("Salta tutti", color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.7f))
+                    Text(T.editor.saltaTutti, color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.7f))
                 }
-                TextButton(onClick = onDismiss) { Text("Ho capito", color = MaterialTheme.colorScheme.inversePrimary) }
+                TextButton(onClick = onDismiss) { Text(T.editor.hoCapito, color = MaterialTheme.colorScheme.inversePrimary) }
             }
         }
     }
@@ -615,7 +616,7 @@ private fun TutorialCard(t: TutorialUi, vm: EditorViewModel) {
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     if (t.step.action) {
                         Text(
-                            "${if (t.course == TutorialCourse.Tracing) "Guida al ricalco" else "Tutorial"} · passo ${t.number} di ${t.total}",
+                            T.editor.passo(if (t.course == TutorialCourse.Tracing) T.editor.guidaRicalco else T.editor.tutorial, t.number, t.total),
                             style = MaterialTheme.typography.labelMedium,
                             color = onColor.copy(alpha = 0.7f),
                         )
@@ -640,13 +641,13 @@ private fun TutorialCard(t: TutorialUi, vm: EditorViewModel) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 when (t.step) {
                     TutorialStep.Intro -> {
-                        TextButton(onClick = { vm.finishTutorial(completed = false) }) { Text("No, grazie", color = onColor.copy(alpha = 0.7f)) }
-                        TextButton(onClick = vm::nextTutorialStep) { Text("Inizia") }
+                        TextButton(onClick = { vm.finishTutorial(completed = false) }) { Text(T.editor.noGrazie, color = onColor.copy(alpha = 0.7f)) }
+                        TextButton(onClick = vm::nextTutorialStep) { Text(T.editor.inizia) }
                     }
-                    TutorialStep.Done, TutorialStep.TraceDone -> TextButton(onClick = { vm.finishTutorial() }) { Text("Fine") }
+                    TutorialStep.Done, TutorialStep.TraceDone -> TextButton(onClick = { vm.finishTutorial() }) { Text(T.comuni.fine) }
                     else -> {
-                        TextButton(onClick = { vm.finishTutorial(completed = false) }) { Text("Esci", color = onColor.copy(alpha = 0.7f)) }
-                        TextButton(onClick = vm::nextTutorialStep) { Text("Salta passo") }
+                        TextButton(onClick = { vm.finishTutorial(completed = false) }) { Text(T.comuni.esci, color = onColor.copy(alpha = 0.7f)) }
+                        TextButton(onClick = vm::nextTutorialStep) { Text(T.editor.saltaPasso) }
                     }
                 }
             }
@@ -695,67 +696,67 @@ private fun ArchitectureButton(
     )
     // Ogni gruppo di aperture ha anche la versione scorrevole; battente/scorrevole si cambia comunque dopo da Info.
     MenuButton(
-        if (compact) "🧱 Elementi" else "🧱 Elementi architettonici",
+        if (compact) T.editor.elementi else T.editor.elementiArchitettonici,
         true,
         listOf(
-            MenuEntry("▭ Stanza", vm::startAddRoom),
+            MenuEntry(T.editor.stanza, vm::startAddRoom),
             MenuEntry(
-                "🚪 Porte",
+                T.editor.porte,
                 enabled = hasRooms,
                 children = listOf(
-                    MenuEntry("Porta ad 1 anta", opening(OpeningKind.Door)),
-                    MenuEntry("Porta a 2 ante", opening(OpeningKind.Door2)),
-                    MenuEntry("Porta scorrevole", opening(OpeningKind.Door, sliding = true)),
+                    MenuEntry(T.editor.portaAd1Anta, opening(OpeningKind.Door)),
+                    MenuEntry(T.editor.porta2Ante, opening(OpeningKind.Door2)),
+                    MenuEntry(T.editor.portaScorrevole, opening(OpeningKind.Door, sliding = true)),
                     MenuEntry(
-                        "Apertura senza porta",
+                        T.editor.aperturaSenzaPorta,
                         children = PassageStyle.entries.map { st -> MenuEntry(st.label, opening(OpeningKind.Passage, st)) },
                     ),
                 ),
             ),
             MenuEntry(
-                "🪟 Finestre",
+                T.editor.finestre,
                 enabled = hasRooms,
                 children = listOf(
-                    MenuEntry("Finestra ad 1 anta", opening(OpeningKind.Window1)),
-                    MenuEntry("Finestra a 2 ante", opening(OpeningKind.Window2)),
-                    MenuEntry("Finestra scorrevole", opening(OpeningKind.Window2, sliding = true)),
+                    MenuEntry(T.editor.finestraAd1Anta, opening(OpeningKind.Window1)),
+                    MenuEntry(T.editor.finestra2Ante, opening(OpeningKind.Window2)),
+                    MenuEntry(T.editor.finestraScorrevole, opening(OpeningKind.Window2, sliding = true)),
                 ),
             ),
             MenuEntry(
-                "🚪 Porte-finestre",
+                T.editor.porteFinestre,
                 enabled = hasRooms,
                 children = listOf(
-                    MenuEntry("Balcone ad 1 anta", opening(OpeningKind.Balcony1)),
-                    MenuEntry("Balcone a 2 ante", opening(OpeningKind.Balcony2)),
-                    MenuEntry("Balcone scorrevole", opening(OpeningKind.Balcony2, sliding = true)),
+                    MenuEntry(T.editor.balconeAd1Anta, opening(OpeningKind.Balcony1)),
+                    MenuEntry(T.editor.balcone2Ante, opening(OpeningKind.Balcony2)),
+                    MenuEntry(T.editor.balconeScorrevole, opening(OpeningKind.Balcony2, sliding = true)),
                 ),
             ),
             MenuEntry(
-                "🔌 Impianti",
+                T.editor.impianti,
                 enabled = hasRooms,
                 children = listOf(
-                    MenuEntry("Calorifero", fixture(FixtureKind.Radiator)),
-                    MenuEntry("Presa di corrente", fixture(FixtureKind.Outlet)),
-                    MenuEntry("Interruttore", fixture(FixtureKind.Switch)),
-                    MenuEntry("Punto acqua", fixture(FixtureKind.WaterPoint)),
-                    MenuEntry("Luci", children = lights.map { MenuEntry(it.label, fixture(it)) }),
+                    MenuEntry(T.editor.calorifero, fixture(FixtureKind.Radiator)),
+                    MenuEntry(T.editor.presaCorrente, fixture(FixtureKind.Outlet)),
+                    MenuEntry(T.editor.interruttore, fixture(FixtureKind.Switch)),
+                    MenuEntry(T.editor.puntoAcqua, fixture(FixtureKind.WaterPoint)),
+                    MenuEntry(T.editor.luci, children = lights.map { MenuEntry(it.label, fixture(it)) }),
                 ),
             ),
             MenuEntry(
-                "🪜 Scale",
+                T.editor.scale,
                 children = listOf(StairKind.Straight, StairKind.StraightLanding, StairKind.LTurn, StairKind.LWinder, StairKind.UTurn, StairKind.Spiral)
                     .map { k -> MenuEntry(k.label, { vm.addStair(k) }) },
             ),
             MenuEntry(
-                "▣ Colonne e travi",
+                T.editor.colonneTravi,
                 children = listOf(
-                    MenuEntry("Colonna quadrata", { vm.addColumn(ColumnShape.Square) }),
-                    MenuEntry("Colonna rotonda", { vm.addColumn(ColumnShape.Round) }),
-                    MenuEntry("Trave a soffitto", { vm.addBeam() }),
+                    MenuEntry(T.editor.colonnaQuadrata, { vm.addColumn(ColumnShape.Square) }),
+                    MenuEntry(T.editor.colonnaRotonda, { vm.addColumn(ColumnShape.Round) }),
+                    MenuEntry(T.editor.traveSoffitto, { vm.addBeam() }),
                 ),
             ),
             MenuEntry(
-                "🌿 Balconi e terrazze",
+                T.editor.balconiTerrazze,
                 children = listOf(RoomType.Balcone, RoomType.Terrazza).map { t -> MenuEntry(t.label, { vm.startAddOutdoor(t) }) },
             ),
         ),
@@ -779,35 +780,35 @@ private fun ToolsButton(
     compact: Boolean = false,
 ) {
     val active = when {
-        state.selectMode -> "Seleziona"
-        state.measure != null -> "Distanza"
-        state.dimensionDraw != null -> "Quota"
-        state.textPlacing -> "Testo"
+        state.selectMode -> T.editor.seleziona
+        state.measure != null -> T.editor.distanza2
+        state.dimensionDraw != null -> T.editor.quota
+        state.textPlacing -> T.editor.testoTesto
         state.phaseView != PhaseView.Compare -> state.phaseView.label
         else -> null
     }
     MenuButton(
-        if (compact || active == null) "🛠 Strumenti" else "🛠 Strumenti · $active",
+        if (compact || active == null) T.editor.strumenti else T.editor.strumenti2(active),
         true,
         listOf(
-            MenuEntry(if (state.selectMode) "☑ Seleziona più oggetti (in uso)" else "☐ Seleziona più oggetti", vm::toggleSelectMode),
+            MenuEntry(if (state.selectMode) T.editor.selezionaPiuOggettiUso else T.editor.selezionaPiuOggetti, vm::toggleSelectMode),
             MenuEntry(
-                "🟡🔴 Vista: ${state.phaseView.label}",
+                T.editor.vista(state.phaseView.label),
                 children = PhaseView.entries.map { v ->
                     MenuEntry(
                         (if (v == state.phaseView) "✓ " else "") + v.label,
                         { vm.setPhaseView(v) },
                         hint = when (v) {
-                            PhaseView.Compare -> "Tutto: demolizioni in giallo, costruzioni in rosso"
-                            PhaseView.Existing -> "Com'è ora, senza le parti nuove"
-                            PhaseView.Project -> "Come sarà, senza le parti demolite (anche nel 3D)"
+                            PhaseView.Compare -> T.editor.tuttoDemolizioniGialloCostruzioni
+                            PhaseView.Existing -> T.editor.comOraSenzaParti
+                            PhaseView.Project -> T.editor.saraSenzaPartiDemolite
                         },
                     )
                 },
             ),
-            MenuEntry("📐 Distanza tra due oggetti", vm::startMeasure),
-            MenuEntry("↔ Quota", vm::startDimension),
-            MenuEntry("T Testo", vm::startText),
+            MenuEntry(T.editor.distanzaDueOggetti, vm::startMeasure),
+            MenuEntry(T.editor.quota2, vm::startDimension),
+            MenuEntry(T.editor.tTesto, vm::startText),
         ),
         buttonModifier,
         contentPadding,
@@ -824,7 +825,7 @@ private fun GuidesButton(onGuide: (Guide) -> Unit, tours: List<MenuEntry>) {
     var open by remember { mutableStateOf(false) }
     Box {
         OutlinedButton(onClick = { open = true }, contentPadding = PaddingValues(horizontal = 12.dp)) {
-            Text("❔ Guide", maxLines = 1)
+            Text(T.editor.guide, maxLines = 1)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             for (t in tours) DropdownMenuItem(text = { Text(t.label) }, onClick = { open = false; t.action?.invoke() })
@@ -846,14 +847,14 @@ private fun OpeningButtons(enabled: Boolean, vm: EditorViewModel, compact: Boole
     // Ogni gruppo ha anche la versione scorrevole (2 ante sovrapposte per finestre e balconi, 1 anta per la porta);
     // battente/scorrevole si può comunque cambiare dopo dal riquadro dell'apertura.
     MenuButton(
-        "+ Porte",
+        T.editor.porte2,
         enabled,
         listOf(
-            MenuEntry("Porta ad 1 anta", place(OpeningKind.Door)),
-            MenuEntry("Porta a 2 ante", place(OpeningKind.Door2)),
-            MenuEntry("Porta scorrevole", place(OpeningKind.Door, sliding = true)),
+            MenuEntry(T.editor.portaAd1Anta, place(OpeningKind.Door)),
+            MenuEntry(T.editor.porta2Ante, place(OpeningKind.Door2)),
+            MenuEntry(T.editor.portaScorrevole, place(OpeningKind.Door, sliding = true)),
             MenuEntry(
-                "Apertura senza porta",
+                T.editor.aperturaSenzaPorta,
                 children = PassageStyle.entries.map { s -> MenuEntry(s.label, place(OpeningKind.Passage, s)) },
             ),
         ),
@@ -861,23 +862,23 @@ private fun OpeningButtons(enabled: Boolean, vm: EditorViewModel, compact: Boole
         pad,
     )
     MenuButton(
-        "+ Infissi",
+        T.editor.infissi,
         enabled,
         listOf(
             MenuEntry(
-                "Finestre",
+                T.editor.finestre2,
                 children = listOf(
-                    MenuEntry("Finestra ad 1 anta", place(OpeningKind.Window1)),
-                    MenuEntry("Finestra a 2 ante", place(OpeningKind.Window2)),
-                    MenuEntry("Finestra scorrevole", place(OpeningKind.Window2, sliding = true)),
+                    MenuEntry(T.editor.finestraAd1Anta, place(OpeningKind.Window1)),
+                    MenuEntry(T.editor.finestra2Ante, place(OpeningKind.Window2)),
+                    MenuEntry(T.editor.finestraScorrevole, place(OpeningKind.Window2, sliding = true)),
                 ),
             ),
             MenuEntry(
-                "Balcone",
+                T.editor.balcone,
                 children = listOf(
-                    MenuEntry("Balcone ad 1 anta", place(OpeningKind.Balcony1)),
-                    MenuEntry("Balcone a 2 ante", place(OpeningKind.Balcony2)),
-                    MenuEntry("Balcone scorrevole", place(OpeningKind.Balcony2, sliding = true)),
+                    MenuEntry(T.editor.balconeAd1Anta, place(OpeningKind.Balcony1)),
+                    MenuEntry(T.editor.balcone2Ante, place(OpeningKind.Balcony2)),
+                    MenuEntry(T.editor.balconeScorrevole, place(OpeningKind.Balcony2, sliding = true)),
                 ),
             ),
         ),
@@ -900,14 +901,14 @@ private fun FixtureButton(
         FixtureKind.WallLight, FixtureKind.WallSpot, FixtureKind.WallLedStrip,
     )
     MenuButton(
-        "+ Impianti",
+        T.editor.impianti2,
         enabled,
         listOf(
-            MenuEntry("Calorifero", place(FixtureKind.Radiator)),
-            MenuEntry("Presa di corrente", place(FixtureKind.Outlet)),
-            MenuEntry("Interruttore", place(FixtureKind.Switch)),
-            MenuEntry("Punto acqua", place(FixtureKind.WaterPoint)),
-            MenuEntry("Luci", children = lights.map { MenuEntry(it.label, place(it)) }),
+            MenuEntry(T.editor.calorifero, place(FixtureKind.Radiator)),
+            MenuEntry(T.editor.presaCorrente, place(FixtureKind.Outlet)),
+            MenuEntry(T.editor.interruttore, place(FixtureKind.Switch)),
+            MenuEntry(T.editor.puntoAcqua, place(FixtureKind.WaterPoint)),
+            MenuEntry(T.editor.luci, children = lights.map { MenuEntry(it.label, place(it)) }),
         ),
         buttonModifier,
         contentPadding,
@@ -953,7 +954,7 @@ private fun MenuButton(
         DropdownMenu(expanded = open, onDismissRequest = ::close) {
             val current = path.lastOrNull()
             if (current != null) {
-                DropdownMenuItem(text = { Text("‹ Indietro") }, onClick = { path = path.dropLast(1) })
+                DropdownMenuItem(text = { Text(T.comuni.indietroFreccia) }, onClick = { path = path.dropLast(1) })
                 Text(
                     current.label,
                     style = MaterialTheme.typography.labelLarge,
@@ -1013,28 +1014,28 @@ private fun Toolbar(
             IconButton(onClick = vm::undo, enabled = canUndo) { Text("↶", style = MaterialTheme.typography.titleLarge) }
             IconButton(onClick = vm::redo, enabled = canRedo) { Text("↷", style = MaterialTheme.typography.titleLarge) }
         } else {
-            TextButton(onClick = vm::undo, enabled = canUndo, contentPadding = pad) { Text("↶ Annulla", maxLines = 1) }
-            TextButton(onClick = vm::redo, enabled = canRedo, contentPadding = pad) { Text("↷ Ripeti", maxLines = 1) }
+            TextButton(onClick = vm::undo, enabled = canUndo, contentPadding = pad) { Text(T.editor.annulla, maxLines = 1) }
+            TextButton(onClick = vm::redo, enabled = canRedo, contentPadding = pad) { Text(T.editor.ripeti, maxLines = 1) }
             if (fill) Box(Modifier.weight(1f))
         }
         guides()
         IconButton(onClick = { onZoom(1f / 1.25f) }) { Text("−", style = MaterialTheme.typography.titleLarge) }
         IconButton(onClick = { onZoom(1.25f) }) { Text("+", style = MaterialTheme.typography.titleLarge) }
-        TextButton(onClick = onFit, contentPadding = pad) { Text("Adatta", maxLines = 1) }
+        TextButton(onClick = onFit, contentPadding = pad) { Text(T.editor.adatta, maxLines = 1) }
         var menu by remember { mutableStateOf(false) }
         Box {
             IconButton(onClick = { menu = true }) { Text("⋮", style = MaterialTheme.typography.titleLarge) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 // Azioni sulla stanza selezionata; senza selezione restano visibili ma disattivate, così si scoprono.
                 DropdownMenuItem(
-                    text = { Text(focusedRoom?.let { "Proprietà di ${it.name}…" } ?: "Proprietà stanza…") },
+                    text = { Text(focusedRoom?.let { T.editor.proprieta(it.name) } ?: T.editor.proprietaStanza) },
                     enabled = focusedRoom != null,
                     onClick = { menu = false; focusedRoom?.let { vm.showRoomInfo(it.id) } },
                 )
                 DropdownMenuItem(
                     text = {
                         Text(
-                            if (focusedRoom == null) "Elimina stanza…" else "Elimina ${focusedRoom.name}…",
+                            if (focusedRoom == null) T.editor.eliminaStanza else T.editor.elimina(focusedRoom.name),
                         )
                     },
                     enabled = focusedRoom != null,
@@ -1042,8 +1043,8 @@ private fun Toolbar(
                 )
                 HorizontalDivider()
                 for ((label, action) in extraMenu) DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; action() })
-                DropdownMenuItem(text = { Text("Esporta PNG") }, onClick = { menu = false; onExport() })
-                DropdownMenuItem(text = { Text("Rivedi i suggerimenti") }, onClick = { menu = false; vm.resetTips() })
+                DropdownMenuItem(text = { Text(T.editor.esportaPng) }, onClick = { menu = false; onExport() })
+                DropdownMenuItem(text = { Text(T.editor.rivediSuggerimenti) }, onClick = { menu = false; vm.resetTips() })
             }
         }
     }

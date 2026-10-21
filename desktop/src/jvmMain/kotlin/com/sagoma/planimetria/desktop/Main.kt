@@ -25,6 +25,7 @@ import com.sagoma.planimetria.assets.remote.createJvmRemoteAssets
 import com.sagoma.planimetria.persistence.FileProjectRepository
 import com.sagoma.planimetria.persistence.FileThemeStore
 import com.sagoma.planimetria.persistence.FileTipStore
+import com.sagoma.planimetria.testi.T
 import com.sagoma.planimetria.ui.FurnitureAssets
 import com.sagoma.planimetria.ui.SagomaApp
 import kotlinx.coroutines.delay
@@ -112,8 +113,7 @@ private fun app(remote: RemoteAssets?) = application(exitProcessOnExit = false) 
             logError("finestra", e)
             JOptionPane.showMessageDialog(
                 window,
-                "Sagoma ha avuto un errore e deve chiudersi.\nIl progetto è salvato fino all'ultima modifica.\n" +
-                    "Dettagli in: ${File(dataDir(), "errori.log").absolutePath}\n\n$e",
+                T.vari.sagomaHaAvutoErrore(File(dataDir(), "errori.log").absolutePath, e),
                 "Sagoma", JOptionPane.ERROR_MESSAGE,
             )
             exitProcess(1)

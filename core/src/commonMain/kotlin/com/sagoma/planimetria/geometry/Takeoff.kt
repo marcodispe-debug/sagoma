@@ -8,6 +8,7 @@ import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.model.MaterialCatalog
 import com.sagoma.planimetria.model.ProPalette
 import com.sagoma.planimetria.model.Room
+import com.sagoma.planimetria.testi.T
 
 /**
  * Computo metrico della casa: per ogni stanza pavimento, pareti da finire (al netto di porte e finestre),
@@ -45,19 +46,19 @@ object Takeoff {
     }
 
     fun floorFinishName(r: Room): String =
-        MaterialCatalog.item(r.floorMaterial)?.label ?: if (r.floorFinish == FloorFinish.RoomColor) "Da definire" else r.floorFinish.label
+        MaterialCatalog.item(r.floorMaterial)?.label ?: if (r.floorFinish == FloorFinish.RoomColor) T.computo.definire else r.floorFinish.label
 
     /** "Pittura salvia", oppure "Pittura colore #D9C8B0" per i colori fuori tavolozza. */
     fun paintName(argb: Long): String {
         val n = ProPalette.nameOf(argb)
-        return if (n.startsWith("#")) "Pittura colore $n" else "Pittura ${n.lowercase()}"
+        return if (n.startsWith("#")) T.computo.pitturaColore(n) else T.computo.pittura(n.lowercase())
     }
 
     fun wallFinishName(r: Room, i: Int): String {
         val f = r.finishOf(i)
         return when (f.covering) {
             Covering.None -> paintName(f.argb)
-            Covering.Material -> MaterialCatalog.item(f.material)?.label ?: "Rivestimento"
+            Covering.Material -> MaterialCatalog.item(f.material)?.label ?: T.computo.rivestimento
             else -> "${f.covering.label} + ${paintName(f.argb).lowercase()}"
         }
     }
@@ -77,10 +78,10 @@ object Takeoff {
         fun area(lo: Double, hi: Double) = ((length * (hi - lo) - holesBetween(lo, hi)) / 10_000.0).coerceAtLeast(0.0)
         val paint = paintName(f.argb)
         if (f.covering == Covering.None) return listOf(paint to area(0.0, height))
-        val cover = if (f.covering == Covering.Material) MaterialCatalog.item(f.material)?.label ?: "Rivestimento" else f.covering.label
+        val cover = if (f.covering == Covering.Material) MaterialCatalog.item(f.material)?.label ?: T.computo.rivestimento else f.covering.label
         val h = f.coverHeight?.coerceAtMost(height) ?: height
         if (h >= height) return listOf(cover to area(0.0, height))
-        return listOf("$cover fino a ${h.toInt()} cm" to area(0.0, h), paint to area(h, height))
+        return listOf(T.computo.finoCm(cover, h.toInt()) to area(0.0, h), paint to area(h, height))
     }
 
     /** Somma `v` al totale della voce `key`. */
@@ -110,8 +111,8 @@ object Takeoff {
                 }
             }
             for (f in plan.furniture) {
-                val name = FurnitureCatalog.item(f.model)?.label ?: "Arredo"
-                val size = "${cm(f.width)}×${cm(f.depth)}×${cm(f.height)} cm"
+                val name = FurnitureCatalog.item(f.model)?.label ?: T.computo.arredo
+                val size = T.computo.cm(cm(f.width), cm(f.depth), cm(f.height))
                 val where = plan.rooms.lastOrNull { Polygon.contains(it.points, f.center) }?.name ?: fl.name
                 val e = furniture.getOrPut(name to size) { 0 to mutableSetOf() }
                 furniture[name to size] = (e.first + 1) to e.second.also { it += where }
@@ -154,21 +155,21 @@ object Takeoff {
     /** Tabella in formato CSV (separatore ";", come la aprono Excel e LibreOffice in italiano). */
     fun csv(res: Result): String = buildString {
         fun n(v: Double) = formatDecimal(v, 2)
-        appendLine("STANZE")
-        appendLine("Piano;Stanza;Pavimento m²;Perimetro m;Pareti nette m²;Aperture m²;Battiscopa m;Pavimento;Pareti;Porte;Finestre")
+        appendLine(T.computo.stanze2)
+        appendLine(T.computo.pianoStanzaPavimentoM2)
         for (l in res.rooms) appendLine("${l.floor};${l.room};${n(l.floorArea)};${n(l.perimeter)};${n(l.wallArea)};${n(l.openingsArea)};${n(l.skirting)};${l.floorFinish};${l.wallFinish};${l.doors};${l.windows}")
-        appendLine("Totale;;${n(res.totalFloor)};;${n(res.totalWalls)};;${n(res.totalSkirting)};;;;")
+        appendLine(T.computo.totale2(n(res.totalFloor), n(res.totalWalls), n(res.totalSkirting)))
         appendLine()
-        appendLine("PAVIMENTI;m²;m² con 10% di sfrido")
+        appendLine(T.computo.pavimentiM2M210)
         for (t in res.floorMaterials) appendLine("${t.what};${n(t.quantity)};${n(t.quantity * 1.1)}")
         appendLine()
-        appendLine("PARETI;m²")
+        appendLine(T.computo.paretiM22)
         for (t in res.wallFinishes) appendLine("${t.what};${n(t.quantity)}")
         appendLine()
-        appendLine("ARREDI;Misure;Quantità;Dove")
+        appendLine(T.computo.arrediMisureQuantitaDove)
         for (i in res.furniture) appendLine("${i.name};${i.size};${i.count};${i.where}")
         appendLine()
-        appendLine("IMPIANTI;Quantità;Dove")
+        appendLine(T.computo.impiantiQuantitaDove)
         for (i in res.fixtures) appendLine("${i.name};${i.count};${i.where}")
     }
 }
