@@ -296,6 +296,32 @@ object NomiEn : Nomi() {
         KitchenModules.Kind.TALL_FRIDGE -> "Tall fridge unit"
     }
 
+    override fun categoria(chiave: String): String = when (chiave) {
+        "Soggiorno" -> "Living room"
+        "Pranzo" -> "Dining"
+        "Cucina componibile" -> "Modular kitchen"
+        "Cucina" -> "Kitchen"
+        "Camera" -> "Bedroom"
+        "Bagno" -> "Bathroom"
+        "Studio" -> "Study"
+        "Luci" -> "Lights"
+        "Tappeti" -> "Rugs"
+        "Elettrodomestici e TV" -> "Appliances and TV"
+        "Decori" -> "Decor"
+        "Piante" -> "Plants"
+        "Esterni" -> "Outdoor"
+        "Sport e hobby" -> "Sport and hobbies"
+        "Garage e cantina" -> "Garage and cellar"
+        "Intonaco e cemento" -> "Plaster and concrete"
+        "Marmo e pietra" -> "Marble and stone"
+        "Mattoni e pietra" -> "Brick and stone"
+        "Moquette" -> "Carpet"
+        "Parquet e legno" -> "Parquet and wood"
+        "Piastrelle" -> "Tiles"
+        "Tessuti" -> "Fabrics"
+        else -> chiave
+    }
+
     override val pianoCucina: String get() = " · worktop "
 
     override fun kitchenFront(v: KitchenModules.Front): String = when (v) {

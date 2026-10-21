@@ -28,13 +28,13 @@ private fun Camera.q(v: Vec2) = Offset(toScreenX(v.x), toScreenY(v.y))
 /** Nome dell'oggetto scelto, per la scheda della misura: "Calorifero (Soggiorno)", "Muro 3 (Cucina)"… */
 internal fun measureName(plan: FloorPlan, t: MeasureTarget): String = when (t) {
     is MeasureTarget.Wall -> plan.room(t.roomId)?.let { T.vari.muro2(t.index + 1, it.name) } ?: T.vari.muro4
-    is MeasureTarget.Opening -> plan.room(t.roomId)?.let { r -> r.opening(t.openingId)?.let { "${openingLabel(it).lowercase()} (${r.name})" } } ?: T.vari.apertura2
-    is MeasureTarget.Fixture -> plan.room(t.roomId)?.let { r -> r.fixture(t.fixtureId)?.let { "${it.kind.label.lowercase()} (${r.name})" } } ?: T.vari.impianto2
+    is MeasureTarget.Opening -> plan.room(t.roomId)?.let { r -> r.opening(t.openingId)?.let { "${T.lingua.minuscola(openingLabel(it))} (${r.name})" } } ?: T.vari.apertura2
+    is MeasureTarget.Fixture -> plan.room(t.roomId)?.let { r -> r.fixture(t.fixtureId)?.let { "${T.lingua.minuscola(it.kind.label)} (${r.name})" } } ?: T.vari.impianto2
     is MeasureTarget.Column -> T.vari.colonna3
     is MeasureTarget.Beam -> T.vari.trave4
     is MeasureTarget.Stair -> T.vari.scala3
     is MeasureTarget.FreeWall -> T.vari.muroSingolo2
-    is MeasureTarget.Furniture -> plan.furniture(t.furnitureId)?.let { f -> com.sagoma.planimetria.model.FurnitureCatalog.item(f.model)?.label?.lowercase() } ?: T.vari.arredo3
+    is MeasureTarget.Furniture -> plan.furniture(t.furnitureId)?.let { f -> com.sagoma.planimetria.model.FurnitureCatalog.item(f.model)?.label?.let(T.lingua::minuscola) } ?: T.vari.arredo3
 }
 
 /** Distanza con un decimale, come la si scrive: "123,4 cm". */

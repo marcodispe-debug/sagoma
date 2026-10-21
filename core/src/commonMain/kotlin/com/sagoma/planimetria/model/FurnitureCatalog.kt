@@ -163,6 +163,6 @@ object FurnitureCatalog {
     fun search(query: String): List<Item> {
         val q = query.trim().lowercase()
         if (q.isEmpty()) return visible
-        return visible.filter { q in it.label.lowercase() || q in it.category.lowercase() }
+        return visible.filter { q in it.label.lowercase() || q in it.category.lowercase() || q in com.sagoma.planimetria.testi.T.nomi.categoria(it.category).lowercase() }
     }
 }

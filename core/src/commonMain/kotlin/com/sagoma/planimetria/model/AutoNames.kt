@@ -6,7 +6,8 @@ import com.sagoma.planimetria.testi.T
 
 /**
  * Nomi automatici di stanze e piani ("Cucina 2", "Piano terra") portati nella lingua dell'app: cambiando lingua
- * diventano "Kitchen 2", "Ground floor". I nomi scritti dall'utente restano come sono.
+ * diventano "Kitchen 2", "Ground floor"; così anche le zone non calpestabili proposte e, solo a schermo, i nomi
+ * dei progetti dati dall'app. I nomi scritti dall'utente restano come sono.
  */
 object AutoNames {
     /** Nome del piano nella lingua `lingua`, se `name` è un nome automatico di un'altra lingua; altrimenti `name`. */
@@ -32,6 +33,29 @@ object AutoNames {
         return name
     }
 
+    /** Nome di una zona non calpestabile scelto tra quelli proposti ("Cavedio", "Pilastro"…), nella lingua `lingua`. */
+    fun zone(name: String, lingua: Lingua = T.lingua): String {
+        fun presets(l: Lingua) = with(l.muroPerMuro) { listOf(nonAccessibile, cavedio, pilastro, cannaFumaria) }
+        for (altra in Lingue.tutte) {
+            if (altra === lingua) continue
+            val i = presets(altra).indexOf(name)
+            if (i >= 0) return presets(lingua)[i]
+        }
+        return name
+    }
+
+    /** Nome di un progetto dato dall'app ("Il mio progetto", "Progetto 3", "Progetto importato"), da mostrare nella lingua `lingua`. */
+    fun project(name: String, lingua: Lingua = T.lingua): String {
+        for (altra in Lingue.tutte) {
+            if (altra === lingua) continue
+            if (name == altra.progetti.progettoImportato) return lingua.progetti.progettoImportato
+            if (name == altra.progetti.mioProgetto) return lingua.progetti.mioProgetto
+            val n = name.removePrefix(altra.progetti.progetto("")).takeIf { it.length < name.length }
+            if (n != null && n.isNotEmpty() && n.all { it.isDigit() }) return lingua.progetti.progetto(n)
+        }
+        return name
+    }
+
     /** "" se `name` è `base`, " 3" se è "`base` 3"; null se non è un nome automatico di `base`. */
     private fun matchesAuto(name: String, base: String): String? {
         if (name == base) return ""
@@ -47,7 +71,12 @@ fun Building.withAutoNames(lingua: Lingua = T.lingua): Building {
     val out = copy(floors = floors.map { f ->
         f.copy(
             name = AutoNames.floor(f.name, lingua),
-            plan = f.plan.copy(rooms = f.plan.rooms.map { r -> r.copy(name = AutoNames.room(r.name, lingua)) }),
+            plan = f.plan.copy(rooms = f.plan.rooms.map { r ->
+                r.copy(
+                    name = AutoNames.room(r.name, lingua),
+                    excludedZones = r.excludedZones.map { z -> z.copy(name = AutoNames.zone(z.name, lingua)) },
+                )
+            }),
         )
     })
     return if (out == this) this else out

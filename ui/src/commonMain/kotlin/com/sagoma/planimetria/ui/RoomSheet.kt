@@ -452,7 +452,7 @@ private fun ProjectTab(room: Room, vm: EditorViewModel) {
     val phases = (0 until room.wallCount).map { room.phaseOf(it) }.distinct()
     val all = phases.singleOrNull()
     Text(
-        T.schedaStanza.muriStanza + (all?.label?.lowercase() ?: T.schedaStanza.statiDiversiCambianoMuro),
+        T.schedaStanza.muriStanza + (all?.label?.let(T.lingua::minuscola) ?: T.schedaStanza.statiDiversiCambianoMuro),
         style = MaterialTheme.typography.labelLarge,
     )
     androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

@@ -123,7 +123,7 @@ private fun ProjectCard(p: ProjectInfo, onOpen: () -> Unit, onEdit: () -> Unit, 
     OutlinedCard(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
         Row(Modifier.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(p.name, style = MaterialTheme.typography.titleMedium)
+                Text(com.sagoma.planimetria.model.AutoNames.project(p.name), style = MaterialTheme.typography.titleMedium)
                 val details = listOf(p.client, p.address).filter { it.isNotBlank() }.joinToString(" · ")
                 if (details.isNotEmpty()) Text(details, style = MaterialTheme.typography.bodyMedium)
                 if (p.modified > 0) Text(

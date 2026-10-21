@@ -16,6 +16,9 @@ class AutoNamesTest {
         assertEquals("Ground floor", AutoNames.floor("Piano terra", Inglese))
         assertEquals("Floor 7", AutoNames.floor("Piano 7", Inglese))
         assertEquals("Primo piano", AutoNames.floor("First floor", Italiano))
+        assertEquals("Shaft", AutoNames.zone("Cavedio", Inglese))
+        assertEquals("Project 4", AutoNames.project("Progetto 4", Inglese))
+        assertEquals(Inglese.progetti.mioProgetto, AutoNames.project("Il mio progetto", Inglese))
     }
 
     @Test

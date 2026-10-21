@@ -29,6 +29,10 @@ import com.sagoma.planimetria.testi.TestiVista3D
 /** Inglese: ogni area è tradotta nel suo oggetto *En. */
 object Inglese : Lingua("en") {
     override val sigla: String get() = "ENG"
+    // In inglese solo l'iniziale: "single French window", "LED strip" restano scritti giusti.
+    override fun minuscola(s: String): String =
+        if (s.length > 1 && s[1].isUpperCase()) s else s.replaceFirstChar { it.lowercaseChar() }
+
     override val virgola: Char get() = '.'
     override val comuni: Comuni = ComuniEn
     override val nomi: Nomi = NomiEn

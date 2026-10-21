@@ -14,6 +14,9 @@ open class Lingua(val codice: String) {
     /** Sigla sul pulsante della lingua, accanto alla bandiera. */
     open val sigla: String get() = "ITA"
 
+    /** Nome in minuscolo dentro una frase ("Tocca il muro su cui posizionare: porta ad 1 anta"). */
+    open fun minuscola(s: String): String = s.lowercase()
+
     /** Separatore dei decimali nei numeri mostrati (20,50 m² in italiano). */
     open val virgola: Char get() = ','
     open val comuni: Comuni = Comuni()

@@ -150,7 +150,7 @@ object PdfExport {
         }
         drawFrame(paper)
         drawScaleBar(paper, k, denom, measurer)
-        drawTitleBlock(paper, info, T.pdf.pianta(fl.name.lowercase()), "1:$denom", sheet, sheets, measurer, date)
+        drawTitleBlock(paper, info, T.pdf.pianta(T.lingua.minuscola(fl.name)), "1:$denom", sheet, sheets, measurer, date)
     }
 
     // ---------------------------------------------------------------------------------------------------

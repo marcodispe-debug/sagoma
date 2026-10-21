@@ -268,10 +268,10 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             // Marchio del piano gratuito sopra pianta e 3D (non sui pulsanti), così resta anche in uno screenshot.
             WatermarkOverlay(Modifier.fillMaxSize())
             // Suggerimento durante il posizionamento di un'apertura o di un impianto.
-            val placingHint = state.pendingOpening?.let { T.editor.toccaMuroCuiPosizionare(it.kind.label.lowercase()) }
+            val placingHint = state.pendingOpening?.let { T.editor.toccaMuroCuiPosizionare(T.lingua.minuscola(it.kind.label)) }
                 ?: state.pendingFixture?.let {
-                    if (it.mount == Mount.Wall) T.editor.toccaMuroCuiPosizionare2(it.label.lowercase())
-                    else T.editor.toccaPuntoStanzaCui(it.label.lowercase())
+                    if (it.mount == Mount.Wall) T.editor.toccaMuroCuiPosizionare2(T.lingua.minuscola(it.label))
+                    else T.editor.toccaPuntoStanzaCui(T.lingua.minuscola(it.label))
                 }
             // Schede in alto (posizionamento, suggerimento, tutorial): la pianta si centra sotto di loro.
             var topCardsHeightPx by remember { mutableIntStateOf(0) }

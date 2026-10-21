@@ -84,7 +84,7 @@ private fun FurnitureCatalogDialog(onDismiss: () -> Unit, onPick: (FurnitureCata
                 )
                 if (query.isBlank()) ArrowLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(categories) { c ->
-                        FilterChip(selected = c == category, onClick = { category = c }, label = { Text(c) })
+                        FilterChip(selected = c == category, onClick = { category = c }, label = { Text(T.nomi.categoria(c)) })
                     }
                 }
                 if (shown.isEmpty()) Text(T.arredi.nessunArredoQuestoNome, style = MaterialTheme.typography.bodyMedium)
