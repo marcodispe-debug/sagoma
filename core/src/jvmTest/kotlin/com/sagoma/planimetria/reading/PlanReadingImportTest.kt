@@ -223,4 +223,23 @@ class PlanReadingImportTest {
         assertEquals(200.0, path.minOf { it.x }, 16.0)
         assertEquals(500.0, path.maxOf { it.x }, 1.0)
     }
+
+    @Test
+    fun muriEsterniDalContornoEsterno() {
+        // Contorno esterno a 15 px sopra e a sinistra, a 25 px sotto e a destra: muri esterni da 30 e da 50 cm.
+        val reading = twoRooms.copy(
+            exteriorOutline = listOf(listOf(85.0, 85.0), listOf(481.0, 85.0), listOf(481.0, 275.0), listOf(85.0, 275.0)),
+        )
+        val (a, b) = PlanReadingImport.toPlan(reading, "sfondo.jpg").plan.rooms
+        assertEquals(listOf(30.0, 50.0), listOf(a, b).flatMap { r -> r.thicknesses }.distinct().filter { it > 12 }.sorted())
+        assertEquals(12.0, a.thicknesses.min(), 1e-9)
+        // Lati esterni: sopra 30, sotto 50 in entrambe le stanze.
+        for (r in listOf(a, b)) {
+            val top = (0 until r.wallCount).minBy { (r.wallStart(it).y + r.wallEnd(it).y) }
+            val bottom = (0 until r.wallCount).maxBy { (r.wallStart(it).y + r.wallEnd(it).y) }
+            assertEquals(30.0, r.thicknessOf(top), 1e-9)
+            assertEquals(50.0, r.thicknessOf(bottom), 1e-9)
+        }
+    }
 }
+

@@ -20,6 +20,11 @@ data class PlanReading(
     val stairs: List<ReadStair> = emptyList(),
     /** Spessore dei muri esterni sulla piantina, in pixel (null = non stimato: si usa uno spessore tipico). */
     @SerialName("exterior_wall_px") val exteriorWallPx: Double? = null,
+    /**
+     * Filo esterno dell'edificio, in pixel (vuoto = non letto). Se c'è, ogni muro esterno è spesso quanto la distanza dal suo
+     * filo interno a questo contorno: così i muri esterni possono avere spessori diversi.
+     */
+    @SerialName("exterior_outline") val exteriorOutline: List<List<Double>> = emptyList(),
     /** Unità delle misure scritte sulla piantina: "m" (5.03) o "cm" (503); il progetto le mostra allo stesso modo. */
     val units: String = "cm",
     /** Cosa ha notato chi ha letto (misure dubbie, parti illeggibili): solo da mostrare. */

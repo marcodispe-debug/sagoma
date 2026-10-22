@@ -90,7 +90,10 @@ object PlanReadingImport {
         val exterior = reading.exteriorWallPx?.let { (it * k).coerceIn(MIN_WALL, MAX_WALL) } ?: EXTERIOR_WALL
         val types = read.map { (r, _) -> typeOf(r.name) }
         val interiors = read.map { (r, px) -> fitted(px.map { it * k }, r.sidesM.map { it * 100 }) }
-        val thicknesses = thicknesses(interiors) { i -> if (types[i].outdoor) Room.WALL_THICKNESS else exterior }
+        val outline = reading.exteriorOutline.filter { it.size >= 2 }.map { Vec2(it[0], it[1]) * k }
+        val thicknesses = thicknesses(interiors) { i, a, b ->
+            if (types[i].outdoor) Room.WALL_THICKNESS else outlineDistance(outline, a, b) ?: exterior
+        }
             .map { room -> room.map { it.roundToInt().toDouble() } }
         val centerlines = aligned(interiors.mapIndexed { i, pts -> Polygon.inset(pts, thicknesses[i].map { -it / 2 }) }, tolerance = ALIGN_TOLERANCE)
         val placed = read.mapIndexed { i, (r, _) ->
@@ -206,7 +209,7 @@ object PlanReadingImport {
      * un'altra stanza è un muro in comune, spesso quanto lo spazio tra le due (così le due stanze finiscono sulla stessa mezzeria);
      * gli altri sono muri esterni, spessi [exterior] (per stanza).
      */
-    internal fun thicknesses(interiors: List<List<Vec2>>, exterior: (Int) -> Double): List<List<Double>> =
+    internal fun thicknesses(interiors: List<List<Vec2>>, exterior: (room: Int, a: Vec2, b: Vec2) -> Double): List<List<Double>> =
         interiors.mapIndexed { ri, pts ->
             List(pts.size) { i ->
                 val a = pts[i]
@@ -232,9 +235,31 @@ object PlanReadingImport {
                         if (best == null || gap < best) best = gap
                     }
                 }
-                best?.coerceIn(MIN_WALL, MAX_WALL) ?: exterior(ri)
+                best?.coerceIn(MIN_WALL, MAX_WALL) ?: exterior(ri, a, b)
             }
         }
+
+    /**
+     * Spessore di un muro esterno dal filo interno `a`-`b` (stanza a destra del verso a→b, come nei contorni letti) al filo
+     * esterno [outline]: distanza verso l'esterno dal centro del lato. Null se manca il contorno o se è troppo lontano.
+     */
+    internal fun outlineDistance(outline: List<Vec2>, a: Vec2, b: Vec2): Double? {
+        if (outline.size < 3 || a.distanceTo(b) < 1e-6) return null
+        val m = (a + b) / 2.0
+        val out = (b - a).normalized().perp() * -1.0
+        var best: Double? = null
+        for (j in outline.indices) {
+            val c = outline[j]
+            val e = outline[(j + 1) % outline.size]
+            val s = e - c
+            val det = out.cross(s)
+            if (abs(det) < 1e-9) continue
+            val t = (c - m).cross(s) / det
+            val u = (c - m).cross(out) / det
+            if (t > 0.5 && u >= -1e-9 && u <= 1 + 1e-9 && (best == null || t < best)) best = t
+        }
+        return best?.takeIf { it <= MAX_WALL }?.coerceAtLeast(MIN_WALL)
+    }
 
     /**
      * Centimetri per pixel: per ogni stanza rettangolare con due lati scritti, lato scritto / lato in pixel (il più lungo con il
