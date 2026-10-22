@@ -153,5 +153,22 @@ class CurvedWallTest {
         val back = com.sagoma.planimetria.persistence.PlanJson.decode(com.sagoma.planimetria.persistence.PlanJson.encode(FloorPlan(listOf(r))))
         assertEquals(mapOf(1 to 50.0), back.rooms.single().wallBulges)
     }
+
+    @Test
+    fun `accanto alla finestra il muro curvo parte nella direzione della finestra`() {
+        val r = room.copy(wallBulges = mapOf(1 to 90.0), wallThickness = 30.0)
+        val e = r.expandCurves().room
+        val o = e.openings.single()
+        val dir = (e.wallEnd(o.wallIndex) - e.wallStart(o.wallIndex)).normalized()
+        // Il primo pezzo accanto alla finestra è quasi nella sua direzione (meno di 2°), poi curva.
+        for (j in listOf(o.wallIndex - 1, o.wallIndex + 1)) {
+            val d = (e.wallEnd(j) - e.wallStart(j)).normalized()
+            assertTrue((d dot dir) > kotlin.math.cos(2.0 * kotlin.math.PI / 180))
+            assertTrue(e.wallLength(j) < 15.0)
+        }
+        // Più in là torna sulla curva.
+        val arc = r.arcOf(1)!!
+        assertTrue(arc.distanceTo(e.wallStart(o.wallIndex - 20)) < 0.5)
+    }
 }
 
