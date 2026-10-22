@@ -26,4 +26,6 @@ object TestiPianiFr : TestiPiani() {
     override val terzoPiano: String get() = "3e étage"
     override val quartoPiano: String get() = "4e étage"
     override fun piano(index: Any?): String = "Étage $index"
+
+    override val pianiComuni: List<String> get() = listOf("Rez-de-chaussée surélevé", "Demi-sous-sol", "Sous-sol", "Entresol", "Mezzanine")
 }

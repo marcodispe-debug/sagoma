@@ -269,6 +269,19 @@ object NomiEs : Nomi() {
         RoomType.Terrazza -> "Terraza"
     }
 
+    override val stanzeComuni: List<String>
+        get() = listOf(
+            "Distribuidor", "Entrada", "Vestíbulo", "Sala de estar", "Comedor", "Zona de comedor", "Cocina americana",
+            "Cocina pequeña", "Despensa", "Dormitorio principal", "Dormitorio doble", "Dormitorio individual",
+            "Habitación de invitados", "Vestidor", "Ropero", "Antebaño", "Aseo", "Baño de servicio", "Baño principal", "Ducha",
+            "Lavadero", "Cuarto de plancha", "Zona fitness", "Gimnasio", "Sauna", "Sala de juegos", "Sala de ocio",
+            "Biblioteca", "Espacio abierto", "Trastero", "Bodega", "Garaje", "Desván", "Bajo cubierta", "Mansarda",
+            "Cuarto técnico", "Sala de calderas", "Hueco de escalera", "Escalera", "Rellano", "Logia", "Galería", "Porche",
+            "Jardín", "Patio",
+        )
+
+    override val sinonimiStanze: Map<String, String> get() = emptyMap()
+
     override fun furnitureKind(v: ParametricFurniture.Kind): String = when (v) {
         ParametricFurniture.Kind.WARDROBE -> "Armario a medida"
         ParametricFurniture.Kind.SLIDING_WARDROBE -> "Armario corredero a medida"
