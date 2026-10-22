@@ -1131,7 +1131,7 @@ private class SceneBuilder(
     private class Gap(
         val t0: Double, val t1: Double, val bottom: Double, val top: Double, val arched: Boolean, val pick: Pick,
         /** Sguincio (cm per lato) verso l'interno della stanza `splayRoom`: sulla sua faccia il varco è più largo. */
-        val splay: Double = 0.0, val splayRoom: Long? = null,
+        val splay: Double = 0.0, val splayRoom: Long? = null, val splayRounded: Boolean = false,
     ) {
         /** Bordo superiore del varco nel punto t: dritto, oppure ad arco (semicerchio ribassato). */
         fun topAt(t: Double): Double {
@@ -1152,7 +1152,7 @@ private class SceneBuilder(
         val top = min(wallTop((ta + tb) / 2) - 1, bottom + o.height)
         return Gap(
             min(ta, tb), max(ta, tb), bottom, top, o.kind == OpeningKind.Passage && o.style == PassageStyle.Arched, Pick.Opening(owner.id, o.id),
-            splay = Openings.splayOf(owner, o), splayRoom = owner.id,
+            splay = Openings.splayOf(owner, o), splayRoom = owner.id, splayRounded = o.splayRounded,
         )
     }
 
@@ -1293,17 +1293,21 @@ private class SceneBuilder(
         val splayed = if (interior) gaps.filter { it.splay > 0 && it.splayRoom == room.id } else emptyList()
         @Suppress("NAME_SHADOWING")
         val gaps = if (splayed.isEmpty()) gaps else gaps.map { g ->
-            if (g in splayed) Gap(g.t0 - g.splay, g.t1 + g.splay, g.bottom, g.top, g.arched, g.pick, g.splay, g.splayRoom) else g
+            if (g in splayed) Gap(g.t0 - g.splay, g.t1 + g.splay, g.bottom, g.top, g.arched, g.pick, g.splay, g.splayRoom, g.splayRounded) else g
         }
         for (g in splayed) {
             val color = tint(paint, g.pick)
             for ((t, toward) in listOf(g.t0 to -1.0, g.t1 to 1.0)) {
                 if (t + toward * g.splay < range.start - 0.01 || t + toward * g.splay > range.endInclusive + 0.01) continue
-                val p0 = s + u * t
-                val p1 = s + u * (t + toward * g.splay) + side * half
-                val n = (p1 - p0).perp().normalized().let { if ((it dot (u * -toward)) < 0) it * -1.0 else it }
-                quad(p0.at(g.bottom), p1.at(g.bottom), p1.at(g.top), p0.at(g.top), Vec3(n.x, 0.0, n.y), color, g.pick)
-                quad(p1.at(g.bottom), p0.at(g.bottom), p0.at(g.top), p1.at(g.top), Vec3(-n.x, 0.0, -n.y), color, g.pick)
+                val profile = Openings.splayProfile(s + u * t, u, side, half, g.splay, toward, g.splayRounded)
+                for (k in 0 until profile.size - 1) {
+                    val p0 = profile[k]
+                    val p1 = profile[k + 1]
+                    if (p0.distanceTo(p1) < 1e-6) continue
+                    val n = (p1 - p0).perp().normalized().let { if ((it dot (u * -toward)) < 0) it * -1.0 else it }
+                    quad(p0.at(g.bottom), p1.at(g.bottom), p1.at(g.top), p0.at(g.top), Vec3(n.x, 0.0, n.y), color, g.pick)
+                    quad(p1.at(g.bottom), p0.at(g.bottom), p0.at(g.top), p1.at(g.top), Vec3(-n.x, 0.0, -n.y), color, g.pick)
+                }
             }
         }
         val coverTop = finish.coverHeight ?: Double.MAX_VALUE

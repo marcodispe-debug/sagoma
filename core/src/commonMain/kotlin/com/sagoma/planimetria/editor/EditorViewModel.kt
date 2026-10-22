@@ -2384,6 +2384,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         return true
     }
 
+    /** Muro curvo: tanti pezzi dritti lungo un arco che a metà sporge di `bulge` cm (verso l'esterno; negativo verso l'interno). */
+    fun curveWall(roomId: Long, index: Int, bulge: Double) {
+        commit { plan ->
+            val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
+            plan.replace(room.curveWall(index, bulge))
+        }
+        _state.update { it.copy(selection = Selection.Wall(roomId, index), focusedRoomId = roomId) }
+    }
+
     /** Aggiunge un angolo a metà del muro: il muro diventa due, da spostare liberamente (forme libere). */
     fun splitWall(roomId: Long, index: Int) {
         commit { plan ->

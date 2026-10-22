@@ -187,9 +187,12 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
         if (splay <= 0 || o.wallIndex >= r.wallCount) continue
         val (a, b) = Openings.span(r, o)
         val u = (b - a).normalized()
-        val n = Openings.inwardNormal(r, o.wallIndex) * (r.thicknessOf(o.wallIndex) / 2 + 1 / cam.scale)
+        val inward = Openings.inwardNormal(r, o.wallIndex)
+        val half = r.thicknessOf(o.wallIndex) / 2 + 1 / cam.scale
+        val left = Openings.splayProfile(a, u, inward, half, splay, -1.0, o.splayRounded)
+        val right = Openings.splayProfile(b, u, inward, half, splay, 1.0, o.splayRounded)
         val trapezoid = Path().apply {
-            listOf(a, b, b + u * splay + n, a - u * splay + n).forEachIndexed { i, p -> val q = cam.o(p); if (i == 0) moveTo(q.x, q.y) else lineTo(q.x, q.y) }
+            (left.reversed() + right).forEachIndexed { i, p -> val q = cam.o(p); if (i == 0) moveTo(q.x, q.y) else lineTo(q.x, q.y) }
             close()
         }
         drawPath(trapezoid, background)
@@ -666,7 +669,8 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
     for ((p, toward) in listOf(a to -1.0, b to 1.0)) {
         if (splay > 0) {
             drawLine(color, cam.o(p - n * half), cam.o(p), strokeWidth = thin)
-            drawLine(color, cam.o(p), cam.o(p + u * (toward * splay) + n * half), strokeWidth = thin)
+            val profile = Openings.splayProfile(p, u, n, half, splay, toward, o.splayRounded)
+            for (k in 0 until profile.size - 1) drawLine(color, cam.o(profile[k]), cam.o(profile[k + 1]), strokeWidth = thin)
         } else drawLine(color, cam.o(p - n * half), cam.o(p + n * half), strokeWidth = thin)
     }
     // Infisso a filo esterno o interno: linea doppia dove sta, e le ante partono da lì.

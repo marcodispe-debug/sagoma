@@ -60,6 +60,23 @@ object Openings {
     fun splayOf(room: Room, o: Opening): Double =
         if (o.kind.glazed && o.wallIndex < room.wallCount) o.splay.coerceIn(0.0, room.thicknessOf(o.wallIndex)) else 0.0
 
+    /**
+     * Lato del vano con lo sguincio, dal punto `p` sulla mezzeria (bordo del varco) alla faccia del muro verso la stanza:
+     * `toward` = −1 dal lato dell'inizio del varco, +1 da quello della fine. Dritto (due punti) o arrotondato (una curva
+     * che parte lungo il muro e arriva sulla faccia).
+     */
+    fun splayProfile(p: Vec2, u: Vec2, inward: Vec2, half: Double, splay: Double, toward: Double, rounded: Boolean): List<Vec2> {
+        val end = p + u * (toward * splay) + inward * half
+        if (!rounded) return listOf(p, end)
+        val control = p + inward * half
+        return (0..SPLAY_STEPS).map { k ->
+            val t = k.toDouble() / SPLAY_STEPS
+            p * ((1 - t) * (1 - t)) + control * (2 * t * (1 - t)) + end * (t * t)
+        }
+    }
+
+    private const val SPLAY_STEPS = 6
+
     /** Normale verso l'interno della stanza (poligoni orari su schermo). */
     fun inwardNormal(room: Room, wallIndex: Int): Vec2 =
         (room.wallEnd(wallIndex) - room.wallStart(wallIndex)).normalized().perp()

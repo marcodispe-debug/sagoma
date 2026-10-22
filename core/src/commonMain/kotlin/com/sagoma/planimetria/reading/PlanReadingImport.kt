@@ -158,6 +158,7 @@ object PlanReadingImport {
                 height = o.heightCm ?: d.height,
                 sillHeight = if (kind == OpeningKind.Window1 || kind == OpeningKind.Window2) o.sillCm ?: d.sillHeight else 0.0,
                 splay = if (kind.glazed) o.splayCm ?: 0.0 else 0.0,
+                splayRounded = o.splayRounded,
                 frame = when (o.frame?.lowercase()) {
                     "outside" -> FramePosition.Outside
                     "inside" -> FramePosition.Inside

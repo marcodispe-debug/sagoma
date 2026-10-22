@@ -581,6 +581,12 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.padding(end = 8.dp),
     )
+    // Muro curvo: quanto sporge a metà (verso l'esterno; con il meno verso l'interno), poi «Curva».
+    var bulge by remember(sel) { mutableStateOf(50.0) }
+    Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        NumberField(T.pannelli.sporgenzaCurva, bulge, Modifier.weight(1f), allowNegative = true) { v -> bulge = v }
+        OutlinedButton(onClick = { vm.curveWall(room.id, sel.index, bulge) }, modifier = Modifier.weight(1f)) { Text(T.pannelli.curvaMuro, maxLines = 2) }
+    }
     WallCutSection(sel, room, vm)
     // Oggetti su questo muro che non ci stanno sotto la parete.
     for (c in Collisions.of(plan).filter { it.roomId == room.id && it.wallIndex == sel.index }) {
@@ -758,6 +764,11 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                 update { it.copy(frame = FramePosition.entries[i]) }
             }
             NumberField(T.pannelli.sguincio, o.splay, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(splay = v.coerceIn(0.0, 60.0)) } }
+        }
+        if (o.splay > 0) Row(Modifier.padding(end = 8.dp)) {
+            Choice(T.pannelli.latiVano, listOf(T.pannelli.inclinati, T.pannelli.arrotondati), if (o.splayRounded) 1 else 0, Modifier.weight(1f)) { i ->
+                update { it.copy(splayRounded = i == 1) }
+            }
         }
     } else if (o.kind.hasLeaves) {
         ModelPicker(T.comuni.modello, DoorModel.entries, o.doorModel, { it.label }, { v -> update { it.copy(doorModel = v) } }) {

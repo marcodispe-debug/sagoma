@@ -157,6 +157,8 @@ data class Opening(
      * (lati inclinati, come nei muri spessi). 0 = lati dritti.
      */
     val splay: Double = 0.0,
+    /** Sguincio arrotondato (lati del vano curvi) invece che inclinato dritto. */
+    val splayRounded: Boolean = false,
     /** Porte: è l'ingresso di casa (in pianta il triangolo con «INGRESSO» fuori dalla porta). */
     val entrance: Boolean = false,
     /** Stato di fatto / progetto: [Phase.New] = apertura da realizzare, [Phase.Demolish] = da chiudere (tamponare). */
@@ -393,6 +395,73 @@ data class Room(
     }
 
     /**
+     * Stessa stanza con il muro `i` curvo: diventa `pieces` muri dritti corti lungo l'arco di cerchio che passa per i
+     * suoi due angoli e a metà si scosta di `bulge` cm (positivo = verso l'esterno della stanza, negativo = verso
+     * l'interno). I pezzi tengono spessore, altezza, colori e stato del muro; porte, finestre e impianti vanno sul
+     * pezzo dove cadono.
+     */
+    fun curveWall(i: Int, bulge: Double, pieces: Int = CURVE_PIECES): Room {
+        if (i !in 0 until wallCount || pieces < 2 || kotlin.math.abs(bulge) < 1.0) return this
+        val a = wallStart(i)
+        val b = wallEnd(i)
+        val len = a.distanceTo(b)
+        if (len < 1.0) return this
+        val u = (b - a) / len
+        // Verso l'esterno: opposto alla normale interna (poligoni orari su schermo, o il contrario).
+        val area2 = points.indices.sumOf { k -> val p = points[k]; val q = points[(k + 1) % points.size]; p.x * q.y - q.x * p.y }
+        val outward = u.perp() * (if (area2 >= 0) -1.0 else 1.0)
+        val h = bulge.coerceIn(-len / 2, len / 2)
+        // Metà angolo al centro dell'arco: tan(α/2) = 2h / L; raggio con segno R = L / (2 sin α).
+        val alpha = 2 * kotlin.math.atan(2 * h / len)
+        val r = len / (2 * kotlin.math.sin(alpha))
+        val mid = (a + b) / 2.0
+        fun at(t: Double): Vec2 {
+            val beta = t * alpha
+            return mid + u * (r * kotlin.math.sin(beta)) + outward * (r * kotlin.math.cos(beta) - r + h)
+        }
+        val arc = (0..pieces).map { k -> if (k == 0) a else if (k == pieces) b else at(-1.0 + 2.0 * k / pieces) }
+        val added = pieces - 1
+        // Dove cade un oggetto: il pezzo che contiene la sua proiezione sulla corda, e la posizione lungo quel pezzo.
+        val along = arc.map { (it - a) dot u }
+        fun place(position: Double): Pair<Int, Double> {
+            val k = (0 until pieces).firstOrNull { position <= along[it + 1] } ?: (pieces - 1)
+            val span = (along[k + 1] - along[k]).coerceAtLeast(1e-6)
+            return k to (position - along[k]) / span * arc[k].distanceTo(arc[k + 1])
+        }
+        fun <T> shift(m: Map<Int, T>, dup: Boolean) = buildMap {
+            for ((k, v) in m) when {
+                k < i -> put(k, v)
+                k == i -> if (dup) for (j in 0..added) put(i + j, v) else put(i, v)
+                else -> put(k + added, v)
+            }
+        }
+        return copy(
+            points = points.take(i + 1) + arc.subList(1, pieces) + points.drop(i + 1),
+            wallHeights = shift(wallHeights, dup = true),
+            wallCuts = shift(wallCuts, dup = false),
+            wallPaints = shift(wallPaints, dup = true),
+            wallFinishes = shift(wallFinishes, dup = true),
+            wallThicknesses = shift(wallThicknesses, dup = true),
+            removedWalls = shift(removedWalls.associateWith { }, dup = true).keys,
+            wallPhases = shift(wallPhases, dup = true),
+            openings = openings.map { o ->
+                when {
+                    o.wallIndex < i -> o
+                    o.wallIndex > i -> o.copy(wallIndex = o.wallIndex + added)
+                    else -> place(o.position).let { (k, p) -> o.copy(wallIndex = i + k, position = p) }
+                }
+            },
+            fixtures = fixtures.map { f ->
+                when {
+                    f.kind.mount != Mount.Wall || f.wallIndex < i -> f
+                    f.wallIndex > i -> f.copy(wallIndex = f.wallIndex + added)
+                    else -> place(f.position).let { (k, p) -> f.copy(wallIndex = i + k, position = p) }
+                }
+            },
+        )
+    }
+
+    /**
      * Stessa stanza senza l'angolo `c` (tra il muro `c - 1` e il muro `c`, che diventano uno solo). Serve
      * almeno un triangolo: con 3 angoli non si toglie nulla. Le aperture del muro `c` passano sul muro unito.
      */
@@ -456,6 +525,8 @@ data class Room(
     companion object {
         const val DEFAULT_CEILING_HEIGHT = 270.0
         const val WALL_THICKNESS = 15.0
+        /** Pezzi dritti di un muro curvo: abbastanza per vederlo tondo, non troppi da toccare. */
+        const val CURVE_PIECES = 8
         const val DEFAULT_PARAPET_HEIGHT = 100.0
     }
 }

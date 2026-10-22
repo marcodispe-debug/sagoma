@@ -102,6 +102,8 @@ open class TestiPannelli {
     open val spessoreMuro: String get() = "Spessore muro"
     open fun altriCm(p1: Any?): String = "Come gli altri\n($p1 cm)"
     open val angoloMetaMuro: String get() = "＋ Angolo a metà muro"
+    open val sporgenzaCurva: String get() = "Sporge a metà"
+    open val curvaMuro: String get() = "◠ Curva il muro"
     open val unisciMuroDopo: String get() = "Unisci al muro dopo"
     open val angoloMetaMuroMuro: String get() =
         "Con \"Angolo a metà muro\" il muro si divide in due: trascina il nuovo angolo per fare pareti inclinate, rientranze o " +
@@ -140,6 +142,9 @@ open class TestiPannelli {
     open val oscuranti: String get() = "Oscuranti"
     open val infisso: String get() = "Infisso"
     open val sguincio: String get() = "Sguincio"
+    open val latiVano: String get() = "Lati del vano"
+    open val inclinati: String get() = "Inclinati"
+    open val arrotondati: String get() = "Arrotondati"
     open val tipoPorta: String get() = "Porta"
     open val portaInterna: String get() = "Interna"
     open val ingresso: String get() = "Ingresso"

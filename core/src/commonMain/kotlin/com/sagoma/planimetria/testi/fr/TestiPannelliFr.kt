@@ -103,6 +103,8 @@ object TestiPannelliFr : TestiPannelli() {
     override val spessoreMuro: String get() = "Épaisseur du mur"
     override fun altriCm(p1: Any?): String = "Comme les autres\n($p1 cm)"
     override val angoloMetaMuro: String get() = "＋ Angle au milieu du mur"
+    override val sporgenzaCurva: String get() = "Flèche au milieu"
+    override val curvaMuro: String get() = "◠ Courber le mur"
     override val unisciMuroDopo: String get() = "Fusionner avec le mur suivant"
     override val angoloMetaMuroMuro: String get() =
         "Avec « Angle au milieu du mur », le mur est coupé en deux : faites glisser le nouvel angle pour faire des murs en biais, des renfoncements ou " +
@@ -141,6 +143,9 @@ object TestiPannelliFr : TestiPannelli() {
     override val oscuranti: String get() = "Occultation"
     override val infisso: String get() = "Châssis"
     override val sguincio: String get() = "Ébrasement"
+    override val latiVano: String get() = "Côtés de la baie"
+    override val inclinati: String get() = "Inclinés"
+    override val arrotondati: String get() = "Arrondis"
     override val tipoPorta: String get() = "Porte"
     override val portaInterna: String get() = "Intérieure"
     override val ingresso: String get() = "Entrée"

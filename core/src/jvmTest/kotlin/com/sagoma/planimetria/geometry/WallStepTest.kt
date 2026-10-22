@@ -81,3 +81,45 @@ class OpeningDetailsTest {
         }
     }
 }
+
+/** Muro curvo fatto di pezzi dritti lungo un arco, e sguincio arrotondato. */
+class CurvedWallTest {
+    // Stanza 400×300; il muro 1 (destro, x = 400) ha una finestra a metà.
+    private val room = Room(1, "Soggiorno", RoomType.Soggiorno, RoomFactory.rectangle(400.0, 300.0))
+        .copy(openings = listOf(com.sagoma.planimetria.model.Opening.default(1, com.sagoma.planimetria.model.OpeningKind.Window1, 1, 150.0).copy(width = 60.0)))
+
+    @Test
+    fun `il muro diventa un arco che sporge verso l'esterno`() {
+        val c = room.curveWall(1, 60.0)
+        assertEquals(room.wallCount + Room.CURVE_PIECES - 1, c.wallCount)
+        // Gli angoli restano dove erano, il punto a metà sporge di 60 verso l'esterno (x = 460).
+        assertEquals(Vec2(400.0, 0.0), c.wallStart(1))
+        assertEquals(Vec2(400.0, 300.0), c.wallEnd(Room.CURVE_PIECES))
+        val apex = c.points[1 + Room.CURVE_PIECES / 2]
+        assertEquals(460.0, apex.x, 1e-6)
+        assertEquals(150.0, apex.y, 1e-6)
+        // Tutti i punti stanno sullo stesso cerchio (raggio da corda 300 e freccia 60).
+        val r = (150.0 * 150.0 + 60.0 * 60.0) / (2 * 60.0)
+        val center = Vec2(460.0 - r, 150.0)
+        for (k in 1..Room.CURVE_PIECES) assertEquals(r, c.wallStart(k).distanceTo(center), 1e-6)
+        // La stanza è più grande; la finestra sta su un pezzo vicino a metà muro.
+        assertTrue(c.interiorArea() > room.interiorArea())
+        val o = c.openings.single()
+        val (a, b) = Openings.span(c, o)
+        assertEquals(150.0, (a.y + b.y) / 2, 25.0)
+        // Verso l'interno: il punto a metà rientra.
+        assertEquals(340.0, room.curveWall(1, -60.0).points[1 + Room.CURVE_PIECES / 2].x, 1e-6)
+        Scene3D.build(FloorPlan(listOf(c)), null, null, ceilings = true)
+    }
+
+    @Test
+    fun `sguincio arrotondato`() {
+        val p = Openings.splayProfile(Vec2(0.0, 0.0), Vec2(1.0, 0.0), Vec2(0.0, 1.0), 20.0, 10.0, -1.0, rounded = true)
+        assertTrue(p.size > 2)
+        assertEquals(Vec2(0.0, 0.0), p.first())
+        assertEquals(-10.0, p.last().x, 1e-9)
+        assertEquals(20.0, p.last().y, 1e-9)
+        val w = room.copy(wallThickness = 40.0, openings = room.openings.map { it.copy(splay = 10.0, splayRounded = true) })
+        Scene3D.build(FloorPlan(listOf(w)), null, null, ceilings = true)
+    }
+}

@@ -70,6 +70,8 @@ data class PlanReading(
         @SerialName("sill_cm") val sillCm: Double? = null,
         /** Finestre e balconi: sguincio per lato in cm (lati del vano inclinati verso l'interno). */
         @SerialName("splay_cm") val splayCm: Double? = null,
+        /** Sguincio arrotondato (lati del vano curvi). */
+        @SerialName("splay_rounded") val splayRounded: Boolean = false,
         /** Finestre e balconi: infisso "outside" (verso l'esterno), "inside" o "center". */
         val frame: String? = null,
         /** Porte: è l'ingresso di casa. */
