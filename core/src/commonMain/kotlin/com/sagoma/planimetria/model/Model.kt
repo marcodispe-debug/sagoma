@@ -325,6 +325,11 @@ data class Room(
     /** Stato di fatto / progetto dei muri (indici): da demolire o nuovi; assente = esistente. */
     val wallPhases: Map<Int, Phase> = emptyMap(),
     /**
+     * Muri curvi (indici): ad arco di cerchio tra i due angoli, che a metà si scosta di tanti cm dalla linea dritta
+     * (freccia; positiva verso l'esterno della stanza, negativa verso l'interno). Assente = muro dritto.
+     */
+    val wallBulges: Map<Int, Double> = emptyMap(),
+    /**
      * Stanza creata come SCHIZZO (forma e misure approssimative) e non ancora misurata con la scansione guidata: offre
      * "Avvia scansione". Torna false quando la scansione aggiorna la stanza. Assente nei file vecchi = false; non viene scritta
      * quando è false (i file delle stanze normali restano identici a prima).
@@ -347,6 +352,16 @@ data class Room(
     /** Spessore del muro `i`. */
     fun thicknessOf(i: Int): Double = wallThicknesses[i] ?: wallThickness
 
+    /** Versore perpendicolare al muro `i`, verso l'esterno della stanza (qualunque sia il verso degli angoli). */
+    fun outwardOf(i: Int): Vec2 {
+        val a = wallStart(i)
+        val b = wallEnd(i)
+        val len = a.distanceTo(b)
+        if (len < 1e-9) return Vec2.Zero
+        val area2 = points.indices.sumOf { k -> val p = points[k]; val q = points[(k + 1) % points.size]; p.x * q.y - q.x * p.y }
+        return ((b - a) / len).perp() * (if (area2 >= 0) -1.0 else 1.0)
+    }
+
     /** Spessori di tutti i muri, nell'ordine dei muri. */
     val thicknesses: List<Double> get() = List(wallCount) { thicknessOf(it) }
 
@@ -357,8 +372,15 @@ data class Room(
     fun splitWall(i: Int): Room {
         val a = wallStart(i)
         val b = wallEnd(i)
-        val mid = (a + b) / 2.0
+        val bulge = wallBulges[i] ?: 0.0
+        // Muro curvo: l'angolo nuovo va sulla curva, e le due metà restano parti dello stesso arco.
+        val mid = (a + b) / 2.0 + outwardOf(i) * bulge
         val half = a.distanceTo(b) / 2
+        val halfBulge = if (bulge == 0.0) 0.0 else {
+            val r = (half * half + bulge * bulge) / (2 * bulge)
+            val c = a.distanceTo(mid) / 2
+            r - kotlin.math.sign(r) * kotlin.math.sqrt((r * r - c * c).coerceAtLeast(0.0))
+        }
         fun <T> shift(m: Map<Int, T>, dup: Boolean) = buildMap {
             for ((k, v) in m) when {
                 k < i -> put(k, v)
@@ -375,6 +397,7 @@ data class Room(
             wallThicknesses = shift(wallThicknesses, dup = true),
             removedWalls = shift(removedWalls.associateWith { }, dup = true).keys,
             wallPhases = shift(wallPhases, dup = true),
+            wallBulges = shift(wallBulges, dup = false).let { if (halfBulge == 0.0) it - i else it + (i to halfBulge) + (i + 1 to halfBulge) },
             openings = openings.map { o ->
                 when {
                     o.wallIndex < i -> o
@@ -389,73 +412,6 @@ data class Room(
                     f.wallIndex > i -> f.copy(wallIndex = f.wallIndex + 1)
                     f.position <= half -> f
                     else -> f.copy(wallIndex = i + 1, position = f.position - half)
-                }
-            },
-        )
-    }
-
-    /**
-     * Stessa stanza con il muro `i` curvo: diventa `pieces` muri dritti corti lungo l'arco di cerchio che passa per i
-     * suoi due angoli e a metà si scosta di `bulge` cm (positivo = verso l'esterno della stanza, negativo = verso
-     * l'interno). I pezzi tengono spessore, altezza, colori e stato del muro; porte, finestre e impianti vanno sul
-     * pezzo dove cadono.
-     */
-    fun curveWall(i: Int, bulge: Double, pieces: Int = CURVE_PIECES): Room {
-        if (i !in 0 until wallCount || pieces < 2 || kotlin.math.abs(bulge) < 1.0) return this
-        val a = wallStart(i)
-        val b = wallEnd(i)
-        val len = a.distanceTo(b)
-        if (len < 1.0) return this
-        val u = (b - a) / len
-        // Verso l'esterno: opposto alla normale interna (poligoni orari su schermo, o il contrario).
-        val area2 = points.indices.sumOf { k -> val p = points[k]; val q = points[(k + 1) % points.size]; p.x * q.y - q.x * p.y }
-        val outward = u.perp() * (if (area2 >= 0) -1.0 else 1.0)
-        val h = bulge.coerceIn(-len / 2, len / 2)
-        // Metà angolo al centro dell'arco: tan(α/2) = 2h / L; raggio con segno R = L / (2 sin α).
-        val alpha = 2 * kotlin.math.atan(2 * h / len)
-        val r = len / (2 * kotlin.math.sin(alpha))
-        val mid = (a + b) / 2.0
-        fun at(t: Double): Vec2 {
-            val beta = t * alpha
-            return mid + u * (r * kotlin.math.sin(beta)) + outward * (r * kotlin.math.cos(beta) - r + h)
-        }
-        val arc = (0..pieces).map { k -> if (k == 0) a else if (k == pieces) b else at(-1.0 + 2.0 * k / pieces) }
-        val added = pieces - 1
-        // Dove cade un oggetto: il pezzo che contiene la sua proiezione sulla corda, e la posizione lungo quel pezzo.
-        val along = arc.map { (it - a) dot u }
-        fun place(position: Double): Pair<Int, Double> {
-            val k = (0 until pieces).firstOrNull { position <= along[it + 1] } ?: (pieces - 1)
-            val span = (along[k + 1] - along[k]).coerceAtLeast(1e-6)
-            return k to (position - along[k]) / span * arc[k].distanceTo(arc[k + 1])
-        }
-        fun <T> shift(m: Map<Int, T>, dup: Boolean) = buildMap {
-            for ((k, v) in m) when {
-                k < i -> put(k, v)
-                k == i -> if (dup) for (j in 0..added) put(i + j, v) else put(i, v)
-                else -> put(k + added, v)
-            }
-        }
-        return copy(
-            points = points.take(i + 1) + arc.subList(1, pieces) + points.drop(i + 1),
-            wallHeights = shift(wallHeights, dup = true),
-            wallCuts = shift(wallCuts, dup = false),
-            wallPaints = shift(wallPaints, dup = true),
-            wallFinishes = shift(wallFinishes, dup = true),
-            wallThicknesses = shift(wallThicknesses, dup = true),
-            removedWalls = shift(removedWalls.associateWith { }, dup = true).keys,
-            wallPhases = shift(wallPhases, dup = true),
-            openings = openings.map { o ->
-                when {
-                    o.wallIndex < i -> o
-                    o.wallIndex > i -> o.copy(wallIndex = o.wallIndex + added)
-                    else -> place(o.position).let { (k, p) -> o.copy(wallIndex = i + k, position = p) }
-                }
-            },
-            fixtures = fixtures.map { f ->
-                when {
-                    f.kind.mount != Mount.Wall || f.wallIndex < i -> f
-                    f.wallIndex > i -> f.copy(wallIndex = f.wallIndex + added)
-                    else -> place(f.position).let { (k, p) -> f.copy(wallIndex = i + k, position = p) }
                 }
             },
         )
@@ -489,6 +445,8 @@ data class Room(
             removedWalls = remap(removedWalls.associateWith { }).keys.filter { k -> k != map(c) || (c in removedWalls && prev in removedWalls) }.toSet(),
             // Il muro unito tiene lo stato solo se i due pezzi lo avevano uguale.
             wallPhases = remap(wallPhases).filterKeys { k -> k != map(c) || wallPhases[c] == wallPhases[prev] },
+            // Il muro unito torna dritto.
+            wallBulges = remap(wallBulges).filterKeys { k -> k != map(c) },
             openings = openings.map { o -> if (o.wallIndex == c) o.copy(wallIndex = map(c), position = o.position + offset) else o.copy(wallIndex = map(o.wallIndex)) },
             fixtures = fixtures.map { f ->
                 if (f.kind.mount != Mount.Wall) f
@@ -525,8 +483,6 @@ data class Room(
     companion object {
         const val DEFAULT_CEILING_HEIGHT = 270.0
         const val WALL_THICKNESS = 15.0
-        /** Pezzi dritti di un muro curvo: abbastanza per vederlo tondo, non troppi da toccare. */
-        const val CURVE_PIECES = 8
         const val DEFAULT_PARAPET_HEIGHT = 100.0
     }
 }

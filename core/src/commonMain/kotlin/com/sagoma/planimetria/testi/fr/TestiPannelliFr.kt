@@ -103,8 +103,12 @@ object TestiPannelliFr : TestiPannelli() {
     override val spessoreMuro: String get() = "Épaisseur du mur"
     override fun altriCm(p1: Any?): String = "Comme les autres\n($p1 cm)"
     override val angoloMetaMuro: String get() = "＋ Angle au milieu du mur"
-    override val sporgenzaCurva: String get() = "Flèche au milieu"
-    override val curvaMuro: String get() = "◠ Courber le mur"
+    override val curvaMuro: String get() = "◠ Courbe du mur"
+    override val frecciaCurva: String get() = "Flèche"
+    override val raggioCurva: String get() = "Rayon"
+    override val angoloCurva: String get() = "Angle"
+    override val raddrizzaMuro: String get() = "Redresser"
+    override val curvaSuggerimento: String get() = "Faites glisser le point au milieu du mur pour le courber, ou saisissez la flèche (de combien le milieu dépasse ; négative = vers l'intérieur de la pièce). Pour ne courber qu'une partie du mur, ajoutez d'abord un angle là où la courbe commence et un autre là où elle finit."
     override val unisciMuroDopo: String get() = "Fusionner avec le mur suivant"
     override val angoloMetaMuroMuro: String get() =
         "Avec « Angle au milieu du mur », le mur est coupé en deux : faites glisser le nouvel angle pour faire des murs en biais, des renfoncements ou " +

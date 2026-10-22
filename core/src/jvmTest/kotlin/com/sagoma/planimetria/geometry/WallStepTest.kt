@@ -89,30 +89,6 @@ class CurvedWallTest {
         .copy(openings = listOf(com.sagoma.planimetria.model.Opening.default(1, com.sagoma.planimetria.model.OpeningKind.Window1, 1, 150.0).copy(width = 60.0)))
 
     @Test
-    fun `il muro diventa un arco che sporge verso l'esterno`() {
-        val c = room.curveWall(1, 60.0)
-        assertEquals(room.wallCount + Room.CURVE_PIECES - 1, c.wallCount)
-        // Gli angoli restano dove erano, il punto a metà sporge di 60 verso l'esterno (x = 460).
-        assertEquals(Vec2(400.0, 0.0), c.wallStart(1))
-        assertEquals(Vec2(400.0, 300.0), c.wallEnd(Room.CURVE_PIECES))
-        val apex = c.points[1 + Room.CURVE_PIECES / 2]
-        assertEquals(460.0, apex.x, 1e-6)
-        assertEquals(150.0, apex.y, 1e-6)
-        // Tutti i punti stanno sullo stesso cerchio (raggio da corda 300 e freccia 60).
-        val r = (150.0 * 150.0 + 60.0 * 60.0) / (2 * 60.0)
-        val center = Vec2(460.0 - r, 150.0)
-        for (k in 1..Room.CURVE_PIECES) assertEquals(r, c.wallStart(k).distanceTo(center), 1e-6)
-        // La stanza è più grande; la finestra sta su un pezzo vicino a metà muro.
-        assertTrue(c.interiorArea() > room.interiorArea())
-        val o = c.openings.single()
-        val (a, b) = Openings.span(c, o)
-        assertEquals(150.0, (a.y + b.y) / 2, 25.0)
-        // Verso l'interno: il punto a metà rientra.
-        assertEquals(340.0, room.curveWall(1, -60.0).points[1 + Room.CURVE_PIECES / 2].x, 1e-6)
-        Scene3D.build(FloorPlan(listOf(c)), null, null, ceilings = true)
-    }
-
-    @Test
     fun `sguincio arrotondato`() {
         val p = Openings.splayProfile(Vec2(0.0, 0.0), Vec2(1.0, 0.0), Vec2(0.0, 1.0), 20.0, 10.0, -1.0, rounded = true)
         assertTrue(p.size > 2)
@@ -122,4 +98,60 @@ class CurvedWallTest {
         val w = room.copy(wallThickness = 40.0, openings = room.openings.map { it.copy(splay = 10.0, splayRounded = true) })
         Scene3D.build(FloorPlan(listOf(w)), null, null, ceilings = true)
     }
+
+    @Test
+    fun `l'arco passa dagli angoli e sporge a metà`() {
+        val r = room.copy(wallBulges = mapOf(1 to 50.0))
+        val arc = r.arcOf(1)!!
+        assertEquals(0.0, arc.at(-1.0).distanceTo(Vec2(400.0, 0.0)), 1e-6)
+        assertEquals(0.0, arc.at(1.0).distanceTo(Vec2(400.0, 300.0)), 1e-6)
+        assertEquals(0.0, arc.at(0.0).distanceTo(Vec2(450.0, 150.0)), 1e-6)
+        // Raggio: (150² + 50²) / (2·50) = 250.
+        assertEquals(250.0, arc.radius, 1e-6)
+        assertEquals(50.0, WallArc.bulgeForRadius(300.0, 250.0), 1e-6)
+        assertEquals(50.0, WallArc.bulgeForDegrees(300.0, arc.degrees), 1e-6)
+        // Verso l'interno la stanza si restringe, verso l'esterno si allarga.
+        val straight = room.interiorArea()
+        assertTrue(r.interiorArea() > straight + 0.6 * 300 * 50)
+        assertTrue(room.copy(wallBulges = mapOf(1 to -50.0)).interiorArea() < straight - 0.6 * 300 * 50)
+        assertTrue(r.interiorLengths()[1] > 300.0)
+    }
+
+    @Test
+    fun `la finestra sul muro curvo ha il suo pezzo dritto`() {
+        val r = room.copy(wallBulges = mapOf(1 to 60.0))
+        val e = r.expandCurves()
+        assertTrue(e.room.wallCount > r.wallCount + 4)
+        val o = e.room.openings.single()
+        assertEquals(1, e.origin[o.wallIndex])
+        assertEquals(60.0, o.width, 1e-6)
+        assertEquals(60.0, e.room.wallLength(o.wallIndex), 1e-6)
+        assertEquals(30.0, o.position, 1e-6)
+        // La finestra sta sull'arco.
+        val (a, b) = Openings.span(r, r.openings.single())
+        val arc = r.arcOf(1)!!
+        assertTrue(arc.distanceTo(a) < 0.5 && arc.distanceTo(b) < 0.5)
+        Scene3D.build(FloorPlan(listOf(r)), null, null, ceilings = true)
+    }
+
+    @Test
+    fun `angolo a metà di un muro curvo, specchio e salvataggio`() {
+        val r = room.copy(wallBulges = mapOf(1 to 50.0))
+        val arc = r.arcOf(1)!!
+        val center = arc.at(0.0) - arc.outward * arc.radius
+        val split = r.splitWall(1)
+        assertEquals(0.0, split.points[2].distanceTo(Vec2(450.0, 150.0)), 1e-6)
+        for (i in 1..2) {
+            val half = split.arcOf(i)!!
+            assertEquals(250.0, half.at(0.0).distanceTo(center), 1e-6)
+        }
+        val mirrored = GroupOps.mirror(FloorPlan(listOf(r)), setOf(GroupItem.RoomItem(1)), Vec2(200.0, 150.0), horizontal = true).rooms.single()
+        val m = (0 until mirrored.wallCount).single { mirrored.arcOf(it) != null }
+        // Lo specchio tiene la curva verso l'esterno (qualunque sia l'asse).
+        val apex = mirrored.wallMiddle(m)
+        assertEquals(0.0, minOf(apex.distanceTo(Vec2(-50.0, 150.0)), apex.distanceTo(Vec2(450.0, 150.0))), 1e-6)
+        val back = com.sagoma.planimetria.persistence.PlanJson.decode(com.sagoma.planimetria.persistence.PlanJson.encode(FloorPlan(listOf(r))))
+        assertEquals(mapOf(1 to 50.0), back.rooms.single().wallBulges)
+    }
 }
+

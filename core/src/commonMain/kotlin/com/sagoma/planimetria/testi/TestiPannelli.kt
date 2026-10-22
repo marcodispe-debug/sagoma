@@ -102,8 +102,12 @@ open class TestiPannelli {
     open val spessoreMuro: String get() = "Spessore muro"
     open fun altriCm(p1: Any?): String = "Come gli altri\n($p1 cm)"
     open val angoloMetaMuro: String get() = "＋ Angolo a metà muro"
-    open val sporgenzaCurva: String get() = "Sporge a metà"
-    open val curvaMuro: String get() = "◠ Curva il muro"
+    open val curvaMuro: String get() = "◠ Curva del muro"
+    open val frecciaCurva: String get() = "Freccia"
+    open val raggioCurva: String get() = "Raggio"
+    open val angoloCurva: String get() = "Angolo"
+    open val raddrizzaMuro: String get() = "Raddrizza"
+    open val curvaSuggerimento: String get() = "Trascina il pallino a metà muro per curvarlo, oppure scrivi la freccia (quanto sporge a metà; negativa = verso dentro la stanza). Per curvare solo un tratto, metti prima un angolo dove inizia la curva e uno dove finisce."
     open val unisciMuroDopo: String get() = "Unisci al muro dopo"
     open val angoloMetaMuroMuro: String get() =
         "Con \"Angolo a metà muro\" il muro si divide in due: trascina il nuovo angolo per fare pareti inclinate, rientranze o " +

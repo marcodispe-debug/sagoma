@@ -16,20 +16,23 @@ fun Room.interior(): List<Vec2> = Polygon.inset(points, thicknesses.map { it / 2
 fun Room.exterior(): List<Vec2> = Polygon.inset(points, thicknesses.map { -it / 2 })
 
 /** Filo interno con gli scalini dove un muro cambia spessore a metà (per disegnare e misurare, non un punto per angolo). */
-fun Room.interiorOutline(): List<Vec2> = Polygon.insetSteps(points, thicknesses.map { it / 2 })
+fun Room.interiorOutline(): List<Vec2> = expandCurves().room.let { r -> Polygon.insetSteps(r.points, r.thicknesses.map { it / 2 }) }
 
 /** Filo esterno con gli scalini dove un muro cambia spessore a metà. */
-fun Room.exteriorOutline(): List<Vec2> = Polygon.insetSteps(points, thicknesses.map { -it / 2 })
+fun Room.exteriorOutline(): List<Vec2> = expandCurves().room.let { r -> Polygon.insetSteps(r.points, r.thicknesses.map { -it / 2 }) }
 
 /** Lunghezza di ogni muro sul lato interno (cm). */
-fun Room.interiorLengths(): List<Double> = Polygon.interiorEdgeLengths(points, thicknesses)
+fun Room.interiorLengths(): List<Double> = Polygon.interiorEdgeLengths(points, thicknesses).mapIndexed { i, l ->
+    // Muro curvo: la lunghezza dell'arco sul filo interno.
+    arcOf(i)?.arcLength(thicknessOf(i) / 2) ?: l
+}
 
 /** Superficie calpestabile (cm²). */
-fun Room.interiorArea(): Double = Polygon.interiorArea(points, thicknesses)
+fun Room.interiorArea(): Double = expandCurves().room.let { Polygon.interiorArea(it.points, it.thicknesses) }
 
 /** cm² della zona non calpestabile che cadono dentro la stanza (una zona disegnata fin dentro il muro conta solo per la parte interna). */
 fun Room.zoneArea(zone: ExcludedZone): Double {
-    val inner = interior()
+    val inner = interiorOutline()
     return when {
         Polygon.isConvex(zone.points) -> Polygon.area(Polygon.clipConvex(inner, zone.points))
         Polygon.isConvex(inner) -> Polygon.area(Polygon.clipConvex(zone.points, inner))

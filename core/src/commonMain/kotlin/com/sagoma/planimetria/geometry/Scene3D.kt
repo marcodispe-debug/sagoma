@@ -251,7 +251,11 @@ class Scene3D(
 }
 
 /** Un piano nella scena: la sua pianta, la quota del pavimento e l'interpiano (altezza delle scale). */
-internal class Level(val plan: FloorPlan, val base: Double, val levelHeight: Double, val current: Boolean)
+internal class Level(source: FloorPlan, val base: Double, val levelHeight: Double, val current: Boolean) {
+    /** Muri curvi srotolati in pezzi dritti: il 3D si costruisce su questi. */
+    val expanded = source.expandCurves()
+    val plan: FloorPlan = expanded.plan
+}
 
 /** Array di float che cresce da solo. */
 private class FloatList {
@@ -370,6 +374,7 @@ private class SceneBuilder(
 
     // Piano in costruzione: pianta, quota del pavimento, se è quello che si modifica (solo lui si tocca).
     private var plan = FloorPlan()
+    private var expanded = ExpandedPlan(FloorPlan(), emptyMap())
     private var base = 0.0
     private var current = true
     /** Ingombro delle scale del piano di sotto: il vuoto nel pavimento di questo piano. */
@@ -418,6 +423,7 @@ private class SceneBuilder(
         var previous: Level? = null
         for (level in levels) {
             plan = level.plan
+            expanded = level.expanded
             base = level.base
             current = level.current
             holes = previous?.let { p -> p.plan.stairs.flatMap { Stairs.well(it, p.levelHeight) } }.orEmpty()
@@ -1181,7 +1187,8 @@ private class SceneBuilder(
         val len = s.distanceTo(e)
         if (len < 1.0) return
         val u = (e - s) / len
-        val wallPick = Pick.Wall(room.id, i)
+        // Un pezzo di muro curvo si seleziona come il muro intero.
+        val wallPick = Pick.Wall(room.id, expanded.originOf(room.id, i))
         val sign = if (Polygon.signedArea(room.points) >= 0) 1.0 else -1.0
         val inward = u.perp() * sign
         val sloped = Ceilings.effectiveCut(room, i) != null

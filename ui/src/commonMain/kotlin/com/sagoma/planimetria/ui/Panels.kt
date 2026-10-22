@@ -31,6 +31,8 @@ import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.MergeRequest
 import com.sagoma.planimetria.editor.Selection
 import com.sagoma.planimetria.geometry.RoomMerge
+import com.sagoma.planimetria.geometry.WallArc
+import com.sagoma.planimetria.geometry.arcOf
 import com.sagoma.planimetria.geometry.Ceilings
 import com.sagoma.planimetria.geometry.Collisions
 import com.sagoma.planimetria.geometry.WallCollision
@@ -581,11 +583,27 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.padding(end = 8.dp),
     )
-    // Muro curvo: quanto sporge a metà (verso l'esterno; con il meno verso l'interno), poi «Curva».
-    var bulge by remember(sel) { mutableStateOf(50.0) }
-    Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        NumberField(T.pannelli.sporgenzaCurva, bulge, Modifier.weight(1f), allowNegative = true) { v -> bulge = v }
-        OutlinedButton(onClick = { vm.curveWall(room.id, sel.index, bulge) }, modifier = Modifier.weight(1f)) { Text(T.pannelli.curvaMuro, maxLines = 2) }
+    // Muro curvo: la curva si sceglie trascinando il pallino a metà muro, oppure con i numeri (freccia, raggio o angolo).
+    if (!room.outdoor) {
+        val arc = room.arcOf(sel.index)
+        val chord = room.wallLength(sel.index)
+        val sign = if ((arc?.bulge ?: 1.0) < 0) -1.0 else 1.0
+        Text(T.pannelli.curvaMuro, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 8.dp))
+        Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            NumberField(T.pannelli.frecciaCurva, arc?.bulge ?: 0.0, Modifier.weight(1f), allowZero = true, allowNegative = true) { v ->
+                vm.setWallBulge(room.id, sel.index, v)
+            }
+            if (arc != null) TextButton(onClick = { vm.setWallBulge(room.id, sel.index, 0.0) }) { Text(T.pannelli.raddrizzaMuro) }
+        }
+        if (arc != null) Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            NumberField(T.pannelli.raggioCurva, kotlin.math.abs(arc.radius), Modifier.weight(1f)) { v ->
+                vm.setWallBulge(room.id, sel.index, WallArc.bulgeForRadius(chord, sign * v))
+            }
+            NumberField(T.pannelli.angoloCurva, arc.degrees, Modifier.weight(1f), suffix = "°") { v ->
+                vm.setWallBulge(room.id, sel.index, WallArc.bulgeForDegrees(chord, sign * v))
+            }
+        }
+        Text(T.pannelli.curvaSuggerimento, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(end = 8.dp))
     }
     WallCutSection(sel, room, vm)
     // Oggetti su questo muro che non ci stanno sotto la parete.

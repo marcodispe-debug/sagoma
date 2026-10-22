@@ -24,6 +24,12 @@ object Openings {
 
     /** Estremi reali dell'apertura sul muro, da `a` (lato inizio muro) a `b`. */
     fun span(room: Room, o: Opening): Pair<Vec2, Vec2> {
+        // Muro curvo: gli estremi stanno sull'arco, distanti in linea retta quanto è larga l'apertura.
+        room.arcOf(o.wallIndex)?.let { arc ->
+            val c = clampPosition(arc.length, min(o.width, arc.length), o.position)
+            val (s1, s2) = arc.span(c, o.width)
+            return arc.at(s1) to arc.at(s2)
+        }
         val start = room.wallStart(o.wallIndex)
         val len = room.wallLength(o.wallIndex)
         val u = (room.wallEnd(o.wallIndex) - start).normalized()

@@ -103,8 +103,12 @@ object TestiPannelliEs : TestiPannelli() {
     override val spessoreMuro: String get() = "Grosor de la pared"
     override fun altriCm(p1: Any?): String = "Como las demás\n($p1 cm)"
     override val angoloMetaMuro: String get() = "＋ Esquina a media pared"
-    override val sporgenzaCurva: String get() = "Flecha en el centro"
-    override val curvaMuro: String get() = "◠ Curvar el muro"
+    override val curvaMuro: String get() = "◠ Curva del muro"
+    override val frecciaCurva: String get() = "Flecha"
+    override val raggioCurva: String get() = "Radio"
+    override val angoloCurva: String get() = "Ángulo"
+    override val raddrizzaMuro: String get() = "Enderezar"
+    override val curvaSuggerimento: String get() = "Arrastra el punto en el centro del muro para curvarlo, o escribe la flecha (cuánto sobresale el centro; negativa = hacia dentro de la habitación). Para curvar solo un tramo, añade antes una esquina donde empieza la curva y otra donde termina."
     override val unisciMuroDopo: String get() = "Unir con la pared siguiente"
     override val angoloMetaMuroMuro: String get() =
         "Con «Esquina a media pared» la pared se divide en dos: arrastra la nueva esquina para hacer paredes inclinadas, entrantes o " +

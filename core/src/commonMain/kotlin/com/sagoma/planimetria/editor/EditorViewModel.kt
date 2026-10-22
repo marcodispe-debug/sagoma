@@ -76,6 +76,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 import kotlin.math.min
 
 class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipStore) : ViewModel() {
@@ -1615,6 +1616,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     private fun measureTarget(target: DragTarget, s: EditorUiState): MeasureTarget? = when (target) {
         is DragTarget.Wall -> MeasureTarget.Wall(target.roomId, target.index)
         is DragTarget.CutStart -> MeasureTarget.Wall(target.roomId, target.index)
+        is DragTarget.WallBulge -> MeasureTarget.Wall(target.roomId, target.index)
         is DragTarget.Opening -> MeasureTarget.Opening(target.roomId, target.openingId)
         is DragTarget.Fixture -> MeasureTarget.Fixture(target.roomId, target.fixtureId)
         is DragTarget.Column -> MeasureTarget.Column(target.columnId)
@@ -1687,6 +1689,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.Fixture -> selectFixture(target.roomId, target.fixtureId)
             is DragTarget.SpotAim -> selectFixture(target.roomId, target.fixtureId)
             is DragTarget.CutStart -> selectWall(target.roomId, target.index)
+            is DragTarget.WallBulge -> selectWall(target.roomId, target.index)
             is DragTarget.Corner -> focusRoom(target.roomId)
             is DragTarget.RoomLabel -> focusRoom(target.roomId)
             is DragTarget.RoomInterior -> focusRoom(target.roomId)
@@ -1947,6 +1950,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.RulerRotate -> _state.update { it.copy(rotatingRulerId = target.rulerId) }
             is DragTarget.RulerEnd, is DragTarget.RulerBody -> Unit
             is DragTarget.CutStart -> selectWall(target.roomId, target.index)
+            is DragTarget.WallBulge -> selectWall(target.roomId, target.index)
             is DragTarget.SpotAim -> selectFixture(target.roomId, target.fixtureId)
             is DragTarget.Stair -> selectStair(target.stairId)
             is DragTarget.Column -> selectColumn(target.columnId)
@@ -1997,6 +2001,13 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 val away = (other - corner).normalized()
                 // Un solo inizio di falda: l'altro lato della mansarda segue il pallino.
                 start.replace(Ceilings.withCutStart(room, target.index, cut.start + (totalDelta dot away)))
+            }
+            // Maniglia della curva: la freccia segue il dito di lato al muro; vicino alla linea dritta il muro torna dritto.
+            is DragTarget.WallBulge -> {
+                val room = start.room(target.roomId) ?: return
+                val i = target.index
+                val bulge = (room.wallBulges[i] ?: 0.0) + (totalDelta dot room.outwardOf(i))
+                start.replace(withBulge(room, i, if (abs(bulge) < BULGE_SNAP) 0.0 else bulge))
             }
             is DragTarget.Wall -> {
                 val room = start.room(target.roomId) ?: return
@@ -2384,13 +2395,21 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         return true
     }
 
-    /** Muro curvo: tanti pezzi dritti lungo un arco che a metà sporge di `bulge` cm (verso l'esterno; negativo verso l'interno). */
-    fun curveWall(roomId: Long, index: Int, bulge: Double) {
+    /**
+     * Curva del muro: freccia in cm (di quanto il muro si scosta a metà dalla linea dritta; positiva verso l'esterno,
+     * negativa verso l'interno, 0 = dritto). Al massimo mezzo cerchio.
+     */
+    fun setWallBulge(roomId: Long, index: Int, bulge: Double) {
         commit { plan ->
             val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
-            plan.replace(room.curveWall(index, bulge))
+            plan.replace(withBulge(room, index, bulge))
         }
         _state.update { it.copy(selection = Selection.Wall(roomId, index), focusedRoomId = roomId) }
+    }
+
+    private fun withBulge(room: Room, i: Int, bulge: Double): Room {
+        val b = bulge.coerceIn(-room.wallLength(i) / 2, room.wallLength(i) / 2)
+        return room.copy(wallBulges = if (abs(b) < com.sagoma.planimetria.geometry.MIN_BULGE) room.wallBulges - i else room.wallBulges + (i to b))
     }
 
     /** Aggiunge un angolo a metà del muro: il muro diventa due, da spostare liberamente (forme libere). */
@@ -2772,6 +2791,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun setCamera(camera: Camera) = _state.update { it.copy(camera = camera) }
 
     private companion object {
+        /** Trascinando la maniglia della curva, entro questi cm dalla linea dritta il muro torna dritto. */
+        private const val BULGE_SNAP = 4.0
         const val AUTOSAVE_DELAY_MS = 400L
         /** Funzioni già spiegate dal tutorial: finito il tutorial, i loro suggerimenti non servono più. */
         val TUTORIAL_TIPS = listOf(Tip.Welcome, Tip.Room, Tip.Wall, Tip.NewRoom, Tip.Opening, Tip.Fixture)
