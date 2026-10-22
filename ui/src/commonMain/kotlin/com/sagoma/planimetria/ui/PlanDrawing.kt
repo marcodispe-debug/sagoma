@@ -142,8 +142,10 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     val maxWallPx = ((state.plan.rooms.flatMap { it.thicknesses }.maxOrNull() ?: Room.WALL_THICKNESS) * cam.scale).toFloat().coerceAtLeast(2f)
     val gaps = rooms.flatMap { r -> r.openings.filter { it.wallIndex < r.wallCount }.map { Openings.span(r, it) to (r.thicknessOf(it.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f) } } +
         Openings.sharedGaps(state.plan).map { (it.a to it.b) to maxWallPx } +
-        // Muri eliminati: tutto il muro diventa un varco.
-        rooms.flatMap { r -> r.removedWalls.filter { it < r.wallCount }.map { i -> (r.wallStart(i) to r.wallEnd(i)) to (r.thicknessOf(i) * cam.scale).toFloat().coerceAtLeast(2f) } }
+        // Muri eliminati: tutto il muro diventa un varco, tranne dove la stanza accanto ha ancora il suo muro.
+        Openings.removedStretches(state.plan).filter { g -> rooms.any { it.id == g.roomId } }.map { g ->
+            (g.a to g.b) to (state.plan.room(g.roomId)!!.thicknessOf(g.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f)
+        }
     for ((ab, px) in gaps) {
         val (a, b) = ab
         drawLine(background, cam.o(a), cam.o(b), strokeWidth = px + 2f, cap = StrokeCap.Butt)

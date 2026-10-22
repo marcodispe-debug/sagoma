@@ -1205,7 +1205,8 @@ private class SceneBuilder(
         val hiddenInterior = mutableListOf<ClosedFloatingPointRange<Double>>()
         val area = Polygon.area(room.points)
         for (o in others) for (j in 0 until o.wallCount) {
-            if (!Dimensions.inContact(s, e, o.wallStart(j), o.wallEnd(j))) continue
+            // Un muro eliminato dell'altra stanza non copre la faccia: da quella parte il muro si vede intero.
+            if (o.isRemoved(j) || !Dimensions.inContact(s, e, o.wallStart(j), o.wallEnd(j))) continue
             val t1 = ((o.wallStart(j) - s) dot u).coerceIn(0.0, len)
             val t2 = ((o.wallEnd(j) - s) dot u).coerceIn(0.0, len)
             if (kotlin.math.abs(t2 - t1) <= 0.5) continue

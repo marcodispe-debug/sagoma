@@ -81,4 +81,21 @@ class RemoveWallTest {
         assertEquals(0.0, m.wallStart(k).x, 1e-6)
         assertEquals(0.0, m.wallEnd(k).x, 1e-6)
     }
+
+    @Test
+    fun `muro eliminato da una sola parte non cancella il muro della stanza accanto`() {
+        // Il soggiorno ha eliminato il muro in comune, la cucina no: il muro della cucina resta (si disegna e fa facciata).
+        val i = sharedIndex(living)
+        val plan = FloorPlan(listOf(living.copy(removedWalls = setOf(i)), kitchen))
+        assertTrue(com.sagoma.planimetria.geometry.Openings.removedStretches(plan).isEmpty())
+        // Con il muro eliminato da tutte e due le parti, il tratto si toglie.
+        val both = FloorPlan(listOf(living.copy(removedWalls = setOf(i)), kitchen.copy(removedWalls = setOf(sharedIndex(kitchen)))))
+        assertEquals(2, com.sagoma.planimetria.geometry.Openings.removedStretches(both).size)
+        // Muro eliminato più lungo del muro accanto: si toglie solo il tratto in più.
+        val tall = living.copy(points = RoomFactory.rectangle(400.0, 450.0), removedWalls = setOf(1))
+        val g = com.sagoma.planimetria.geometry.Openings.removedStretches(FloorPlan(listOf(tall, kitchen))).single()
+        assertEquals(300.0, minOf(g.a.y, g.b.y), 1e-6)
+        assertEquals(450.0, maxOf(g.a.y, g.b.y), 1e-6)
+        Scene3D.build(plan, null, null, ceilings = true)
+    }
 }
