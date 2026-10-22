@@ -1238,7 +1238,13 @@ private class SceneBuilder(
             if (abs(c) < 1e-6) return 0.0
             val w = d.perp() * (sign * side * otherHalf) - inward * (side * half)
             val t = (w.x * d.y - w.y * d.x) / c
-            return if (abs(t) > 2 * max(half, otherHalf) + 1) 0.0 else t
+            // Solo allungata: accorciata lascerebbe uno spiraglio sul lato della mezzeria; dove le facce si incrociano, il
+            // pezzetto in più sta dentro il muro accanto e non si vede.
+            return when {
+                abs(t) > 2 * max(half, otherHalf) + 1 -> 0.0
+                atEnd -> max(t, 0.0)
+                else -> min(t, 0.0)
+            }
         }
         val others = plan.rooms.filter { it.id != room.id && !it.outdoor }
         /** Un'altra stanza tocca questo punto (con un suo muro): lì la casa continua, non è uno spigolo esterno. */
