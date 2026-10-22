@@ -682,10 +682,28 @@ data class FreeWall(
     val finish: WallFinish? = null,
     /** Stato di fatto / progetto: esistente, da demolire, nuovo. */
     val phase: Phase = Phase.Existing,
+    /** Porte, finestre e passaggi nel muro: tutti sul muro 0, da `start` verso `end` (vedi [host]). */
+    val openings: List<Opening> = emptyList(),
 ) {
     val finishOrPaint: WallFinish get() = finish ?: WallFinish.of(paint)
     val length: Double get() = start.distanceTo(end)
     val mid: Vec2 get() = (start + end) / 2.0
+
+    /**
+     * Il muro visto come "stanza" di due muri (andata e ritorno sulla mezzeria) che porta le aperture: così porte e finestre
+     * sui muri singoli si posizionano, si trascinano e si modificano come quelle delle stanze. Ha l'id negativo ([hostId]); le
+     * aperture stanno sul muro 0.
+     */
+    val host: Room get() = Room(
+        id = hostId(id), name = com.sagoma.planimetria.testi.T.vari.muroSingolo, type = RoomType.Altro,
+        points = listOf(start, end), wallThickness = thickness, openings = openings,
+        wallPhases = if (phase == Phase.Existing) emptyMap() else mapOf(0 to phase, 1 to phase),
+    )
+
+    companion object {
+        /** Id della [host] del muro singolo `wallId`: negativo, così non si confonde con le stanze. */
+        fun hostId(wallId: Long): Long = -wallId
+    }
 }
 
 /**
@@ -782,10 +800,16 @@ data class FloorPlan(
     fun replace(stair: Stair): FloorPlan = copy(stairs = stairs.map { if (it.id == stair.id) stair else it })
     val nextStairId: Long get() = (stairs.maxOfOrNull { it.id } ?: 0L) + 1
 
-    fun room(id: Long?): Room? = rooms.firstOrNull { it.id == id }
-    fun replace(room: Room): FloorPlan = copy(rooms = rooms.map { if (it.id == room.id) room else it })
+    /** Stanza con questo id; con un id negativo, il muro singolo come porta-aperture ([FreeWall.host]). */
+    fun room(id: Long?): Room? = rooms.firstOrNull { it.id == id } ?: id?.takeIf { it < 0 }?.let { freeWall(-it)?.host }
+    /** Con l'id negativo di un muro singolo cambia solo le sue aperture. */
+    fun replace(room: Room): FloorPlan =
+        if (room.id < 0) freeWall(-room.id)?.let { replace(it.copy(openings = room.openings)) } ?: this
+        else copy(rooms = rooms.map { if (it.id == room.id) room else it })
+    /** Stanze e muri singoli con aperture, tutti come porta-aperture. */
+    val openingHosts: List<Room> get() = rooms + freeWalls.filter { it.openings.isNotEmpty() }.map { it.host }
     val nextId: Long get() = (rooms.maxOfOrNull { it.id } ?: 0L) + 1
-    val nextOpeningId: Long get() = (rooms.flatMap { it.openings }.maxOfOrNull { it.id } ?: 0L) + 1
+    val nextOpeningId: Long get() = (openingHosts.flatMap { it.openings }.maxOfOrNull { it.id } ?: 0L) + 1
     val nextFixtureId: Long get() = (rooms.flatMap { it.fixtures }.maxOfOrNull { it.id } ?: 0L) + 1
 }
 

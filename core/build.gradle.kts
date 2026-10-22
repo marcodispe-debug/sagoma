@@ -173,3 +173,20 @@ tasks.register<Test>("realDataQuality") {
     maxHeapSize = "3g"
     outputs.upToDateWhen { false }
 }
+
+// Piantina letta (prove senza server): dalla lettura JSON e dall'immagine della piantina a un progetto .sagoma da importare.
+//   ./gradlew :core:readPlan -Preading=<lettura.json> -Pimage=<piantina.jpg> -Pout=<progetto.sagoma> [-Pname=<nome>]
+tasks.register<JavaExec>("readPlan") {
+    group = "application"
+    description = "Progetto .sagoma da una piantina letta (-Preading=json -Pimage=jpg -Pout=file.sagoma)."
+    val jvmMain = kotlin.targets.getByName("jvm").compilations.getByName("main")
+    dependsOn("jvmMainClasses")
+    classpath = files(jvmMain.output.allOutputs, jvmMain.runtimeDependencyFiles)
+    mainClass.set("com.sagoma.planimetria.reading.PlanReadingCli")
+    args = listOfNotNull(
+        providers.gradleProperty("reading").orNull,
+        providers.gradleProperty("image").orNull,
+        providers.gradleProperty("out").orNull,
+        providers.gradleProperty("name").orNull,
+    )
+}

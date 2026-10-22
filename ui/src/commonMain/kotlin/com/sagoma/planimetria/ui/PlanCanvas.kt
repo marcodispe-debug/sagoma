@@ -41,6 +41,8 @@ import com.sagoma.planimetria.editor.UnderlayTool
 import com.sagoma.planimetria.geometry.Collisions
 import com.sagoma.planimetria.geometry.Fixtures
 import com.sagoma.planimetria.geometry.Openings
+import com.sagoma.planimetria.model.FreeWall
+import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.Mount
 import com.sagoma.planimetria.geometry.Polygon
@@ -149,7 +151,11 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         // Muri singoli: si prendono anche un po' fuori dal loro spessore, come i muri.
         s.plan.freeWalls.takeIf { s.building.layers.editable(Layer.Structure) }.orEmpty().asReversed().firstOrNull {
             Polygon.distanceToSegment(world, it.start, it.end) <= it.thickness / 2 + wallStrictPx / cam.scale
-        }?.let { return DragTarget.FreeWallBody(it.id) }
+        }?.let { w ->
+            // Su una sua porta o finestra si prende l'apertura, come nei muri delle stanze.
+            freeWallOpeningAt(w, world)?.let { return DragTarget.Opening(FreeWall.hostId(w.id), it.id) }
+            return DragTarget.FreeWallBody(w.id)
+        }
         // Colonne, poi travi: stanno sopra le stanze (le colonne anche sui muri, come pilastri).
         s.plan.columns.takeIf { s.building.layers.editable(Layer.Structure) }.orEmpty().asReversed().firstOrNull { c ->
             Structure.contains(c, world) || world.distanceTo(c.center) * cam.scale <= fixtureHitPx
@@ -238,7 +244,10 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         val walls = mutableListOf<DragTarget>()
         s.plan.furniture.takeIf { s.building.layers.editable(Layer.Furniture) }.orEmpty().asReversed().filter { Furnishings.contains(it, world) }.forEach { objects += DragTarget.FurnitureBody(it.id) }
         s.plan.freeWalls.takeIf { s.building.layers.editable(Layer.Structure) }.orEmpty().asReversed().filter { Polygon.distanceToSegment(world, it.start, it.end) <= it.thickness / 2 + wallStrictPx / cam.scale }
-            .forEach { objects += DragTarget.FreeWallBody(it.id) }
+            .forEach { w ->
+                freeWallOpeningAt(w, world)?.let { objects += DragTarget.Opening(FreeWall.hostId(w.id), it.id) }
+                objects += DragTarget.FreeWallBody(w.id)
+            }
         s.plan.columns.takeIf { s.building.layers.editable(Layer.Structure) }.orEmpty().asReversed().filter { Structure.contains(it, world) || world.distanceTo(it.center) * cam.scale <= fixtureHitPx }
             .forEach { objects += DragTarget.Column(it.id) }
         s.plan.beams.takeIf { s.building.layers.editable(Layer.Structure) }.orEmpty().asReversed().filter { Structure.contains(it, world) }.forEach { objects += DragTarget.BeamBody(it.id) }
@@ -495,3 +504,9 @@ private fun DrawScope.drawGrid(cam: Camera) {
 /** Formattazione cm senza decimali inutili. */
 internal fun formatCm(v: Double): String =
     if (abs(v - v.roundToLong()) < 0.05) v.roundToLong().toString() else com.sagoma.planimetria.geometry.formatDecimal(v, 1)
+
+/** Porta o finestra del muro singolo sotto il punto (lungo il muro, dentro il varco). */
+private fun freeWallOpeningAt(w: FreeWall, world: Vec2): Opening? {
+    val host = w.host
+    return w.openings.firstOrNull { o -> Openings.span(host, o).let { (a, b) -> Polygon.distanceToSegment(world, a, b) <= w.thickness / 2 + 1.0 } }
+}

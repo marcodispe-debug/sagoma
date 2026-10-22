@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.sp
 import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.Selection
+import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.Structure
 import com.sagoma.planimetria.model.Beam
 import com.sagoma.planimetria.model.Column
@@ -42,7 +43,10 @@ internal fun DrawScope.drawStructures(state: EditorUiState, measurer: TextMeasur
     val selColumn = (state.selection as? Selection.Column)?.columnId
     val selBeam = (state.selection as? Selection.Beam)?.beamId
     val selWall = (state.selection as? Selection.FreeWall)?.wallId
-    for (w in state.plan.freeWalls) drawFreeWall(w, cam, measurer, w.id == selWall)
+    val selOpening = state.selection as? Selection.Opening
+    for (w in state.plan.freeWalls) {
+        drawFreeWall(w, cam, measurer, w.id == selWall, selOpening?.takeIf { it.roomId == FreeWall.hostId(w.id) }?.openingId)
+    }
     for (b in state.plan.beams) drawBeam(b, cam, measurer, b.id == selBeam)
     for (c in state.plan.columns) drawColumn(c, cam, c.id == selColumn)
 }
@@ -55,8 +59,11 @@ internal fun DrawScope.drawStructures(plan: FloorPlan, cam: Camera, measurer: Te
 
 private val FreeWallColor = Color(0xFF3A3F44)
 
-/** Muro singolo: pieno come i muri delle stanze, con la lunghezza scritta accanto. */
-internal fun DrawScope.drawFreeWall(w: FreeWall, cam: Camera, measurer: TextMeasurer, selected: Boolean) {
+/**
+ * Muro singolo: pieno come i muri delle stanze, con la lunghezza scritta accanto; porte e finestre con il loro simbolo nei varchi
+ * (`selectedOpening`: l'apertura selezionata, evidenziata).
+ */
+internal fun DrawScope.drawFreeWall(w: FreeWall, cam: Camera, measurer: TextMeasurer, selected: Boolean, selectedOpening: Long? = null) {
     // Tavola comparativa: da demolire in giallo, nuovo in rosso (con il bordo scuro).
     val fill = when {
         selected -> StructureSelected
@@ -64,9 +71,20 @@ internal fun DrawScope.drawFreeWall(w: FreeWall, cam: Camera, measurer: TextMeas
         w.phase == com.sagoma.planimetria.model.Phase.New -> PhaseNewColor
         else -> FreeWallColor
     }
-    val path = outlinePath(Structure.outline(w), cam)
-    drawPath(path, fill)
-    if (!selected && w.phase != com.sagoma.planimetria.model.Phase.Existing) drawPath(path, FreeWallColor, style = androidx.compose.ui.graphics.drawscope.Stroke(1f))
+    val u = if (w.length > 1e-6) (w.end - w.start) / w.length else Vec2.Zero
+    for (r in if (w.openings.isEmpty()) listOf(0.0..w.length) else Structure.solidRanges(w)) {
+        val path = outlinePath(Structure.outline(w.copy(start = w.start + u * r.start, end = w.start + u * r.endInclusive)), cam)
+        drawPath(path, fill)
+        if (!selected && w.phase != com.sagoma.planimetria.model.Phase.Existing) drawPath(path, FreeWallColor, style = androidx.compose.ui.graphics.drawscope.Stroke(1f))
+    }
+    val host = w.host
+    for (o in w.openings) {
+        if (o.id == selectedOpening) {
+            val (oa, ob) = Openings.span(host, o)
+            drawLine(StructureSelected.copy(alpha = 0.35f), cam.pt(oa), cam.pt(ob), strokeWidth = (w.thickness * cam.scale).toFloat() + 8.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        }
+        drawOpening(host, o, cam)
+    }
     val a = cam.pt(w.start)
     val e = cam.pt(w.end)
     val label = measurer.measure(formatCm(w.length), TextStyle(fontSize = 10.sp, color = if (selected) StructureSelected else Color(0xFF495057)))

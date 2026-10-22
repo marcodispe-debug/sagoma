@@ -24,6 +24,7 @@ import kotlin.math.atan2
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -77,6 +78,15 @@ private fun Camera.o(v: Vec2) = Offset(toScreenX(v.x), toScreenY(v.y))
 
 private fun roomPath(room: Room, cam: Camera) = Path().apply {
     room.points.forEachIndexed { i, p -> val o = cam.o(p); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) }
+    close()
+}
+
+/** Fascia del muro da `a` a `b` larga `half` per parte (cm), in coordinate dello schermo. */
+private fun wallBand(a: Vec2, b: Vec2, half: Double, cam: Camera) = Path().apply {
+    val len = a.distanceTo(b)
+    if (len < 1e-6) return@apply
+    val n = (b - a).perp() / len * half
+    listOf(a - n, b - n, b + n, a + n).forEachIndexed { i, p -> val o = cam.o(p); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) }
     close()
 }
 
@@ -139,18 +149,33 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     }
 
     // Varchi: si "cancella" il muro e si ripristina il riempimento delle stanze su entrambi i lati.
-    val maxWallPx = ((state.plan.rooms.flatMap { it.thicknesses }.maxOrNull() ?: Room.WALL_THICKNESS) * cam.scale).toFloat().coerceAtLeast(2f)
-    val gaps = rooms.flatMap { r -> r.openings.filter { it.wallIndex < r.wallCount }.map { Openings.span(r, it) to (r.thicknessOf(it.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f) } } +
-        Openings.sharedGaps(state.plan).map { (it.a to it.b) to maxWallPx } +
-        // Muri eliminati: tutto il muro diventa un varco.
-        rooms.flatMap { r -> r.removedWalls.filter { it < r.wallCount }.map { i -> (r.wallStart(i) to r.wallEnd(i)) to (r.thicknessOf(i) * cam.scale).toFloat().coerceAtLeast(2f) } }
-    for ((ab, px) in gaps) {
-        val (a, b) = ab
+    fun clearGap(a: Vec2, b: Vec2, px: Float) {
         drawLine(background, cam.o(a), cam.o(b), strokeWidth = px + 2f, cap = StrokeCap.Butt)
         for (r in rooms) clipPath(paths.getValue(r.id)) {
             drawLine(fill(r), cam.o(a), cam.o(b), strokeWidth = px + 2f, cap = StrokeCap.Butt)
         }
     }
+    // Muri eliminati: tutto il muro diventa un varco, tranne dove la stanza accanto ha ancora il suo muro.
+    val removed = Openings.removedStretches(state.plan).filter { g -> rooms.any { it.id == g.roomId } }
+    for (g in removed) clearGap(g.a, g.b, (state.plan.room(g.roomId)!!.thicknessOf(g.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f))
+    // Dove il varco passa sopra l'angolo del muro di un'altra stanza (per esempio il muro di testa che arriva
+    // al lato tolto), quel muro torna intero: il muro eliminato non ci lascia una tacca.
+    for (g in removed) {
+        val band = wallBand(g.a, g.b, state.plan.room(g.roomId)!!.thicknessOf(g.wallIndex) / 2 + 1 / cam.scale, cam)
+        for (r in rooms) {
+            if (r.outdoor || r.id == g.roomId) continue
+            val own = r.removedWalls.filter { it < r.wallCount }
+            val clip = if (own.isEmpty()) band else Path().apply {
+                val holes = Path().apply { for (i in own) addPath(wallBand(r.wallStart(i), r.wallEnd(i), r.thicknessOf(i) / 2 + 1 / cam.scale, cam)) }
+                op(band, holes, PathOperation.Difference)
+            }
+            clipPath(clip) { drawPath(wallRing(r, cam), if (r.id == state.focusedRoomId) WallFocusedColor else WallColor) }
+        }
+    }
+    val gaps = rooms.flatMap { r -> r.openings.filter { it.wallIndex < r.wallCount }.map { Openings.span(r, it) to (r.thicknessOf(it.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f) } } +
+        // Varco indotto sul muro della stanza accanto: largo quanto il suo muro (non di più, o intacca i muri vicini).
+        Openings.sharedGaps(state.plan).map { g -> (g.a to g.b) to (state.plan.room(g.roomId)!!.thicknessOf(g.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f) }
+    for ((ab, px) in gaps) clearGap(ab.first, ab.second, px)
 
     // Dove c'era il muro resta una linea tratteggiata sottile: il confine della stanza (si tocca per rimetterlo).
     val dash = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
@@ -577,7 +602,7 @@ private fun DrawScope.drawFixture(room: Room, f: Fixture, cam: Camera, selected:
 }
 
 /** Simboli architettonici standard delle aperture (§5). */
-private fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
+internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
     val (a, b) = Openings.span(room, o)
     val n = Openings.inwardNormal(room, o.wallIndex)
     val half = room.thicknessOf(o.wallIndex) / 2

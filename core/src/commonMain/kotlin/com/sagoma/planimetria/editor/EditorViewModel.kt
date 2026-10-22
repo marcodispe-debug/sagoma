@@ -509,6 +509,30 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         showTip(Tip.FreeWall)
     }
 
+    /**
+     * Se il muro singolo `id` sta sul lato eliminato di una stanza (vedi [Structure.closedWall]), il lato si rimette (anche nella
+     * stanza accanto che lo condivide), le porte e finestre del muro singolo passano sul lato e il muro singolo sparisce.
+     */
+    /**
+     * Il muro singolo appena trascinato copre il lato eliminato di una stanza: il lato torna, con le porte e
+     * finestre del muro singolo, e il muro singolo sparisce. Fa parte dello stesso passo di Annulla del trascinamento.
+     */
+    private fun closeRoomWith(id: Long) {
+        val plan = _state.value.plan
+        val w = plan.freeWall(id) ?: return
+        val (roomId, index) = Structure.closedWall(plan, w) ?: return
+        val p = withWallRemoved(plan, roomId, index, removed = false)
+        val room = p.room(roomId) ?: return
+        var nextId = p.nextOpeningId
+        val moved = w.openings.map { o ->
+            val (a, b) = Openings.span(w.host, o)
+            val pos = Openings.clampPosition(room.wallLength(index), o.width, Openings.projectOnWall(room, index, (a + b) / 2.0))
+            o.copy(id = nextId++, wallIndex = index, position = pos)
+        }
+        setPlan(p.replace(room.copy(openings = room.openings + moved)).copy(freeWalls = p.freeWalls.filter { it.id != id }))
+        _state.update { it.copy(selection = Selection.Wall(roomId, index), focusedRoomId = roomId) }
+    }
+
     fun selectFreeWall(id: Long) = _state.update { it.copy(focusedRoomId = null, selection = Selection.FreeWall(id)) }
     fun updateFreeWall(w: FreeWall) = commit { it.replace(w) }
 
@@ -926,7 +950,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         is DragTarget.RoomLabel -> GroupItem.RoomItem(target.roomId)
         is DragTarget.Wall -> GroupItem.RoomItem(target.roomId)
         is DragTarget.Corner -> GroupItem.RoomItem(target.roomId)
-        is DragTarget.Opening -> GroupItem.RoomItem(target.roomId)
+        is DragTarget.Opening -> if (target.roomId < 0) GroupItem.FreeWallItem(-target.roomId) else GroupItem.RoomItem(target.roomId)
         is DragTarget.Fixture -> GroupItem.RoomItem(target.roomId)
         is DragTarget.FurnitureBody -> GroupItem.FurnitureItem(target.furnitureId)
         is DragTarget.FurnitureRotate -> GroupItem.FurnitureItem(target.furnitureId)
@@ -1069,6 +1093,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         is DragTarget.Opening -> plan.room(target.roomId)?.opening(target.openingId)?.let { target.roomId to it.wallIndex }
         is DragTarget.Fixture -> plan.room(target.roomId)?.fixture(target.fixtureId)
             ?.takeIf { it.kind.mount == Mount.Wall }?.let { target.roomId to it.wallIndex }
+        // Muro singolo: solo per le aperture (gli impianti vanno sui muri delle stanze).
+        is DragTarget.FreeWallBody -> FreeWall.hostId(target.wallId) to 0
+        is DragTarget.FreeWallEnd -> FreeWall.hostId(target.wallId) to 0
         else -> null
     }
 
@@ -1088,7 +1115,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is Clip.FixtureClip -> {
                 val f = clip.fixture
                 if (f.kind.mount == Mount.Wall) {
-                    val (roomId, w) = wall() ?: return null
+                    val (roomId, w) = wall()?.takeIf { it.first >= 0 } ?: return null
                     val room = plan.room(roomId) ?: return null
                     val pos = Openings.clampPosition(room.wallLength(w), f.length, Openings.projectOnWall(room, w, at))
                     val copy = f.copy(id = plan.nextFixtureId, wallIndex = w, position = pos)
@@ -1179,7 +1206,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                     is Clip.OpeningClip -> Triple(clip.opening.wallIndex, clip.opening.position, clip.opening.width)
                     else -> return null
                 }
-                val room = plan.rooms.firstOrNull { r ->
+                val room = plan.openingHosts.firstOrNull { r ->
                     when (clip) {
                         is Clip.FixtureClip -> r.fixtures.any { it.id == clip.fixture.id }
                         is Clip.OpeningClip -> r.openings.any { it.id == clip.opening.id }
@@ -1529,8 +1556,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun setCameraOffset(offsetX: Float, offsetY: Float) =
         _state.update { it.copy(camera = it.camera.copy(offsetX = offsetX, offsetY = offsetY)) }
 
+    /** Le aperture di un muro singolo (id negativo) non mettono a fuoco nessuna stanza. */
     fun selectOpening(roomId: Long, openingId: Long) =
-        _state.update { it.copy(focusedRoomId = roomId, selection = Selection.Opening(roomId, openingId)) }
+        _state.update { it.copy(focusedRoomId = roomId.takeIf { id -> id >= 0 }, selection = Selection.Opening(roomId, openingId)) }
 
     fun selectFixture(roomId: Long, fixtureId: Long) =
         _state.update { it.copy(focusedRoomId = roomId, selection = Selection.Fixture(roomId, fixtureId)) }
@@ -1624,8 +1652,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                     is DragTarget.Opening -> target.roomId to (s.plan.room(target.roomId)?.opening(target.openingId)?.wallIndex ?: -1)
                     else -> null
                 }
-                // Su un muro eliminato (lato aperto) non si mette niente.
-                if (wall != null && wall.second >= 0 && !isRemovedWall(s.plan, wall)) { placeWallFixture(wall.first, wall.second, at); return }
+                // Su un muro eliminato (lato aperto) non si mette niente; sui muri singoli nemmeno (id negativo).
+                if (wall != null && wall.first >= 0 && wall.second >= 0 && !isRemovedWall(s.plan, wall)) { placeWallFixture(wall.first, wall.second, at); return }
             } else {
                 val room = s.plan.rooms.lastOrNull { Polygon.contains(it.points, at) }
                 if (room != null) { placeCeilingFixture(room.id, at); return }
@@ -1637,6 +1665,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             val wall = when (target) {
                 is DragTarget.Wall -> target.roomId to target.index
                 is DragTarget.Opening -> target.roomId to (s.plan.room(target.roomId)?.opening(target.openingId)?.wallIndex ?: -1)
+                // Muro singolo: le aperture vanno sul suo muro 0, come in una stanza ([FreeWall.host]).
+                is DragTarget.FreeWallBody -> FreeWall.hostId(target.wallId) to 0
+                is DragTarget.FreeWallEnd -> FreeWall.hostId(target.wallId) to 0
                 else -> null
             }
             if (wall != null && wall.second >= 0 && !isRemovedWall(s.plan, wall)) {
@@ -1877,7 +1908,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val opening = base.copy(position = pos)
         commit { it.replace(room.copy(openings = room.openings + opening)) }
         _state.update {
-            it.copy(pendingOpening = null, focusedRoomId = roomId, selection = Selection.Opening(roomId, opening.id))
+            it.copy(pendingOpening = null, focusedRoomId = roomId.takeIf { id -> id >= 0 }, selection = Selection.Opening(roomId, opening.id))
         }
         tutorialEvent(TutorialEvent.OpeningAdded)
     }
@@ -2174,6 +2205,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         if (!moved) history.discardLast()
         snapGuides = emptyList()
         _state.update { it.copy(canUndo = history.canUndo, canRedo = history.canRedo, rotatingRulerId = null, dragging = false, aimDrag = null, snapGuides = emptyList()) }
+        // Muro singolo portato dove una stanza ha il lato eliminato: diventa di nuovo quel lato.
+        (dragTarget as? DragTarget.FreeWallBody)?.wallId?.let { if (moved) closeRoomWith(it) }
+        (dragTarget as? DragTarget.FreeWallEnd)?.wallId?.let { if (moved) closeRoomWith(it) }
         if (moved) when (dragTarget) {
             is DragTarget.Wall -> tutorialEvent(TutorialEvent.WallDragged)
             is DragTarget.Corner -> tutorialEvent(TutorialEvent.CornerDragged)
@@ -2246,8 +2280,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
      * finestre e impianti su quel muro spariscono con lui. Un muro in comune con un'altra stanza è lo stesso
      * muro fisico: si toglie (o si rimette) anche per lei, altrimenti resterebbe in piedi il suo.
      */
-    fun setWallRemoved(roomId: Long, index: Int, removed: Boolean) = commit { plan ->
-        val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
+    fun setWallRemoved(roomId: Long, index: Int, removed: Boolean) = commit { withWallRemoved(it, roomId, index, removed) }
+
+    private fun withWallRemoved(plan: FloorPlan, roomId: Long, index: Int, removed: Boolean): FloorPlan {
+        val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return plan
         fun apply(r: Room, i: Int) = if (removed) r.copy(
             removedWalls = r.removedWalls + i,
             openings = r.openings.filter { it.wallIndex != i },
@@ -2262,7 +2298,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 if (Dimensions.sharesWall(a, b, other.wallStart(j), other.wallEnd(j))) result = result.replace(apply(result.room(other.id)!!, j))
             }
         }
-        result
+        return result
     }
 
     // ---------- Stato di fatto / progetto ----------

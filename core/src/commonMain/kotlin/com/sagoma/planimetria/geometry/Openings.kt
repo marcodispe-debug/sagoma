@@ -52,7 +52,8 @@ object Openings {
      * impianti lungo tutto il perimetro. Null se nessun muro è abbastanza lungo.
      */
     fun alongPerimeter(room: Room, p: Vec2, width: Double): Pair<Int, Double>? {
-        val j = (0 until room.wallCount)
+        // Muro singolo ([com.sagoma.planimetria.model.FreeWall.host]): le aperture restano sul suo unico muro.
+        val j = (0 until if (room.id < 0) 1 else room.wallCount)
             .filter { room.wallLength(it) >= width }
             .minByOrNull { Polygon.distanceToSegment(p, room.wallStart(it), room.wallEnd(it)) } ?: return null
         return j to clampPosition(room.wallLength(j), width, projectOnWall(room, j, p))
@@ -73,6 +74,39 @@ object Openings {
         for (r in plan.rulers) { pts += r.start; pts += r.end }
         pts += Stairs.footprint(plan, rise)
         return if (pts.isEmpty()) null else Polygon.bounds(pts)
+    }
+
+    /**
+     * Tratti dei muri eliminati da togliere dal disegno: tutto il muro, tranne dove un'altra stanza ha lì un suo muro non eliminato
+     * (quello resta: una stanza aperta verso un'altra che invece ha il muro).
+     */
+    fun removedStretches(plan: FloorPlan): List<WallGap> {
+        val out = mutableListOf<WallGap>()
+        for (room in plan.rooms) for (i in room.removedWalls) {
+            if (i >= room.wallCount) continue
+            val s = room.wallStart(i)
+            val e = room.wallEnd(i)
+            val len = s.distanceTo(e)
+            if (len < 1e-6) continue
+            val u = (e - s) / len
+            var ranges = listOf(0.0..len)
+            for (other in plan.rooms) {
+                if (other.id == room.id) continue
+                for (j in 0 until other.wallCount) {
+                    if (other.isRemoved(j) || !Dimensions.inContact(s, e, other.wallStart(j), other.wallEnd(j))) continue
+                    val t0 = ((other.wallStart(j) - s) dot u).coerceIn(0.0, len)
+                    val t1 = ((other.wallEnd(j) - s) dot u).coerceIn(0.0, len)
+                    val lo = min(t0, t1)
+                    val hi = max(t0, t1)
+                    ranges = ranges.flatMap { r ->
+                        if (hi <= r.start || lo >= r.endInclusive) listOf(r)
+                        else listOfNotNull((r.start..lo).takeIf { lo > r.start }, (hi..r.endInclusive).takeIf { hi < r.endInclusive })
+                    }
+                }
+            }
+            for (r in ranges) if (r.endInclusive - r.start > 0.5) out += WallGap(room.id, i, s + u * r.start, s + u * r.endInclusive)
+        }
+        return out
     }
 
     /**

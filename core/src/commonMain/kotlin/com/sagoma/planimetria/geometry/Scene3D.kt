@@ -480,7 +480,12 @@ private class SceneBuilder(
                 val pick = Pick.FreeWall(w.id)
                 val h = Structure.freeWallHeight(plan, w, level.levelHeight)
                 freeWall(w, h, pick)
-                if (current && h > 40) obstacles += Obstacle(w.start, w.end)
+                // Si passa solo dalle porte e dai passaggi: i tratti pieni e le finestre fermano chi cammina.
+                if (current && h > 40) {
+                    val u = (w.end - w.start) / w.length
+                    for (r in Structure.solidRanges(w)) obstacles += Obstacle(w.start + u * r.start, w.start + u * r.endInclusive)
+                    for (o in w.openings) if (o.kind.glazed && o.sillHeight > 0) Openings.span(w.host, o).let { (a, b) -> obstacles += Obstacle(a, b) }
+                }
             }
             for (b in plan.beams) {
                 val pick = Pick.Beam(b.id)
@@ -1200,7 +1205,8 @@ private class SceneBuilder(
         val hiddenInterior = mutableListOf<ClosedFloatingPointRange<Double>>()
         val area = Polygon.area(room.points)
         for (o in others) for (j in 0 until o.wallCount) {
-            if (!Dimensions.inContact(s, e, o.wallStart(j), o.wallEnd(j))) continue
+            // Un muro eliminato dell'altra stanza non copre la faccia: da quella parte il muro si vede intero.
+            if (o.isRemoved(j) || !Dimensions.inContact(s, e, o.wallStart(j), o.wallEnd(j))) continue
             val t1 = ((o.wallStart(j) - s) dot u).coerceIn(0.0, len)
             val t2 = ((o.wallEnd(j) - s) dot u).coerceIn(0.0, len)
             if (kotlin.math.abs(t2 - t1) <= 0.5) continue
@@ -1346,8 +1352,28 @@ private class SceneBuilder(
         }
     }
 
-    /** Muro singolo: colore (o rivestimento fino alla sua altezza) uguale sui due lati. */
+    /**
+     * Muro singolo: colore (o rivestimento fino alla sua altezza) uguale sui due lati. Con porte e finestre: i tratti pieni tra
+     * un'apertura e l'altra, sotto il davanzale e sopra l'architrave, e il modello dell'apertura (come nei muri delle stanze).
+     */
     private fun freeWall(w: FreeWall, h: Double, pick: Pick) {
+        if (w.openings.isEmpty()) return freeWallSolid(w, h, pick)
+        val len = w.length
+        val u = (w.end - w.start) / len
+        for (r in Structure.solidRanges(w)) freeWallSolid(w.copy(start = w.start + u * r.start, end = w.start + u * r.endInclusive, openings = emptyList()), h, pick)
+        val host = w.host
+        val paint = tint(Rgba.argb(w.finishOrPaint.argb), pick)
+        for (o in w.openings) {
+            val (a, b) = Openings.span(host, o)
+            val bottom = if (o.kind.glazed) o.sillHeight else 0.0
+            val top = min(h - 1, bottom + o.height)
+            if (bottom > 0.5) box(a, b, w.thickness / 2, wallBottom, bottom, paint, pick, top = paint)
+            if (top < h - 0.5) box(a, b, w.thickness / 2, top, h, paint, pick, top = wallTop)
+            openingModel(host, o)
+        }
+    }
+
+    private fun freeWallSolid(w: FreeWall, h: Double, pick: Pick) {
         val f = w.finishOrPaint
         val paint = tint(Rgba.argb(f.argb), pick)
         val coverTop = min(f.coverHeight ?: h, h)
