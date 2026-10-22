@@ -50,8 +50,8 @@ object Polygon {
             val p1 = cur + d1.perp() * (d[(i - 1 + n) % n] * sign)
             val p2 = cur + d2.perp() * (d[i] * sign)
             val cross = d1.x * d2.y - d1.y * d2.x
-            if (abs(cross) < 1e-9) {
-                p1 // lati allineati (o degeneri): basta traslare il punto
+            if (abs(cross) < 1e-9 || steppedAt(pts, i, d)) {
+                p1 // lati allineati (o degeneri, o quasi allineati con spessori diversi): basta traslare il punto
             } else {
                 val w = p2 - p1
                 p1 + d1 * ((w.x * d2.y - w.y * d2.x) / cross)
@@ -72,7 +72,7 @@ object Polygon {
         val out = ArrayList<Vec2>(n + 2)
         for (i in 0 until n) {
             val prevD = d[(i - 1 + n) % n]
-            if (straightAt(pts, i) && abs(prevD - d[i]) > 1e-6) {
+            if (steppedAt(pts, i, d)) {
                 val cur = pts[i]
                 val d1 = (cur - pts[(i - 1 + n) % n]).normalized()
                 val d2 = (pts[(i + 1) % n] - cur).normalized()
@@ -81,6 +81,23 @@ object Polygon {
             } else out += plain[i]
         }
         return out
+    }
+
+    /**
+     * Nel vertice `i` il contorno spostato fa lo scalino: i due lati hanno spostamenti diversi e sono allineati, o
+     * quasi (es. la fine di un muro curvo che prosegue dritto) tanto che i lati spostati si incontrerebbero lontano.
+     */
+    private fun steppedAt(pts: List<Vec2>, i: Int, d: List<Double>): Boolean {
+        val n = pts.size
+        val prevD = d[(i - 1 + n) % n]
+        if (abs(prevD - d[i]) <= 1e-6) return false
+        if (straightAt(pts, i)) return true
+        val d1 = (pts[i] - pts[(i - 1 + n) % n]).normalized()
+        val d2 = (pts[(i + 1) % n] - pts[i]).normalized()
+        if ((d1 dot d2) <= 0) return false
+        // Distanza del punto d'incontro dei lati spostati: oltre tre spessori è una punta, non un angolo.
+        val sin = abs(d1.x * d2.y - d1.y * d2.x)
+        return abs(prevD - d[i]) / sin > 3 * maxOf(abs(prevD), abs(d[i]))
     }
 
     /** Il vertice `i` sta su una retta: i due lati che vi si incontrano sono allineati e vanno nello stesso verso. */

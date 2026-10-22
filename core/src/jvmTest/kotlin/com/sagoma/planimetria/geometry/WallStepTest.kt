@@ -170,5 +170,17 @@ class CurvedWallTest {
         val arc = r.arcOf(1)!!
         assertTrue(arc.distanceTo(e.wallStart(o.wallIndex - 20)) < 0.5)
     }
+
+    @Test
+    fun `angolo al tondo con un muro di altro spessore, senza punte`() {
+        // Angolo smussato a 45° e curvato di 90°: la curva finisce tangente ai muri accanto, che sono più sottili.
+        val pts = listOf(Vec2(0.0, 0.0), Vec2(300.0, 0.0), Vec2(400.0, 100.0), Vec2(400.0, 300.0), Vec2(0.0, 300.0))
+        val chord = pts[1].distanceTo(pts[2])
+        val r = Room(1, "Camera", RoomType.Camera, pts, wallThickness = 28.0)
+            .copy(wallThicknesses = mapOf(1 to 44.0), wallBulges = mapOf(1 to chord / 2 * kotlin.math.tan(kotlin.math.PI / 8)))
+        for (p in r.exteriorOutline() + r.interiorOutline()) {
+            assertTrue(p.x in -30.0..430.0 && p.y in -30.0..330.0, "punto fuori posto: $p")
+        }
+    }
 }
 
