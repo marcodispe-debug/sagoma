@@ -143,6 +143,33 @@ object Structure {
 
     fun contains(w: FreeWall, p: Vec2): Boolean = Polygon.distanceToSegment(p, w.start, w.end) <= w.thickness / 2
 
+    /**
+     * Muro eliminato di una stanza che il muro singolo `w` richiude: parallelo, sulla sua linea (entro [CLOSE_TOLERANCE]) e lungo
+     * più o meno quanto lui (si coprono per almeno l'80% di entrambi). Restituisce stanza e muro, o null.
+     */
+    fun closedWall(plan: FloorPlan, w: FreeWall): Pair<Long, Int>? {
+        val len = w.length
+        if (len < 1.0) return null
+        val u = (w.end - w.start) / len
+        return plan.rooms.flatMap { r -> r.removedWalls.filter { it < r.wallCount }.map { r to it } }.mapNotNull { (r, i) ->
+            val a = r.wallStart(i)
+            val b = r.wallEnd(i)
+            val wl = a.distanceTo(b)
+            if (wl < 1.0) return@mapNotNull null
+            val v = (b - a) / wl
+            if (abs(u.cross(v)) > 0.05) return@mapNotNull null
+            val dist = abs((w.start - a) dot v.perp())
+            if (dist > CLOSE_TOLERANCE) return@mapNotNull null
+            val t0 = (w.start - a) dot v
+            val t1 = (w.end - a) dot v
+            val overlap = minOf(maxOf(t0, t1), wl) - maxOf(minOf(t0, t1), 0.0)
+            if (overlap < 0.8 * wl || overlap < 0.8 * len) null else Triple(r.id, i, dist)
+        }.minByOrNull { it.third }?.let { it.first to it.second }
+    }
+
+    /** Distanza massima (cm) tra un muro singolo e il muro eliminato che richiude. */
+    const val CLOSE_TOLERANCE = 20.0
+
     /** Tratti del muro singolo fuori dalle sue aperture (porte e finestre), in cm lungo il muro da `start`. */
     fun solidRanges(w: FreeWall): List<ClosedFloatingPointRange<Double>> {
         val len = w.length

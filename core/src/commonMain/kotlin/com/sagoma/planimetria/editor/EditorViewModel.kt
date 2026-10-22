@@ -509,6 +509,30 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         showTip(Tip.FreeWall)
     }
 
+    /**
+     * Se il muro singolo `id` sta sul lato eliminato di una stanza (vedi [Structure.closedWall]), il lato si rimette (anche nella
+     * stanza accanto che lo condivide), le porte e finestre del muro singolo passano sul lato e il muro singolo sparisce.
+     */
+    /**
+     * Il muro singolo appena trascinato copre il lato eliminato di una stanza: il lato torna, con le porte e
+     * finestre del muro singolo, e il muro singolo sparisce. Fa parte dello stesso passo di Annulla del trascinamento.
+     */
+    private fun closeRoomWith(id: Long) {
+        val plan = _state.value.plan
+        val w = plan.freeWall(id) ?: return
+        val (roomId, index) = Structure.closedWall(plan, w) ?: return
+        val p = withWallRemoved(plan, roomId, index, removed = false)
+        val room = p.room(roomId) ?: return
+        var nextId = p.nextOpeningId
+        val moved = w.openings.map { o ->
+            val (a, b) = Openings.span(w.host, o)
+            val pos = Openings.clampPosition(room.wallLength(index), o.width, Openings.projectOnWall(room, index, (a + b) / 2.0))
+            o.copy(id = nextId++, wallIndex = index, position = pos)
+        }
+        setPlan(p.replace(room.copy(openings = room.openings + moved)).copy(freeWalls = p.freeWalls.filter { it.id != id }))
+        _state.update { it.copy(selection = Selection.Wall(roomId, index), focusedRoomId = roomId) }
+    }
+
     fun selectFreeWall(id: Long) = _state.update { it.copy(focusedRoomId = null, selection = Selection.FreeWall(id)) }
     fun updateFreeWall(w: FreeWall) = commit { it.replace(w) }
 
@@ -2181,6 +2205,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         if (!moved) history.discardLast()
         snapGuides = emptyList()
         _state.update { it.copy(canUndo = history.canUndo, canRedo = history.canRedo, rotatingRulerId = null, dragging = false, aimDrag = null, snapGuides = emptyList()) }
+        // Muro singolo portato dove una stanza ha il lato eliminato: diventa di nuovo quel lato.
+        (dragTarget as? DragTarget.FreeWallBody)?.wallId?.let { if (moved) closeRoomWith(it) }
+        (dragTarget as? DragTarget.FreeWallEnd)?.wallId?.let { if (moved) closeRoomWith(it) }
         if (moved) when (dragTarget) {
             is DragTarget.Wall -> tutorialEvent(TutorialEvent.WallDragged)
             is DragTarget.Corner -> tutorialEvent(TutorialEvent.CornerDragged)
@@ -2253,8 +2280,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
      * finestre e impianti su quel muro spariscono con lui. Un muro in comune con un'altra stanza è lo stesso
      * muro fisico: si toglie (o si rimette) anche per lei, altrimenti resterebbe in piedi il suo.
      */
-    fun setWallRemoved(roomId: Long, index: Int, removed: Boolean) = commit { plan ->
-        val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
+    fun setWallRemoved(roomId: Long, index: Int, removed: Boolean) = commit { withWallRemoved(it, roomId, index, removed) }
+
+    private fun withWallRemoved(plan: FloorPlan, roomId: Long, index: Int, removed: Boolean): FloorPlan {
+        val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return plan
         fun apply(r: Room, i: Int) = if (removed) r.copy(
             removedWalls = r.removedWalls + i,
             openings = r.openings.filter { it.wallIndex != i },
@@ -2269,7 +2298,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 if (Dimensions.sharesWall(a, b, other.wallStart(j), other.wallEnd(j))) result = result.replace(apply(result.room(other.id)!!, j))
             }
         }
-        result
+        return result
     }
 
     // ---------- Stato di fatto / progetto ----------

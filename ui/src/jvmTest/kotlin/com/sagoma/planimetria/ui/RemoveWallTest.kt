@@ -1,5 +1,6 @@
 package com.sagoma.planimetria.ui
 
+import com.sagoma.planimetria.editor.DragTarget
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.Selection
 import com.sagoma.planimetria.geometry.GroupItem
@@ -8,6 +9,7 @@ import com.sagoma.planimetria.geometry.RoomFactory
 import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
@@ -97,5 +99,43 @@ class RemoveWallTest {
         assertEquals(300.0, minOf(g.a.y, g.b.y), 1e-6)
         assertEquals(450.0, maxOf(g.a.y, g.b.y), 1e-6)
         Scene3D.build(plan, null, null, ceilings = true)
+    }
+
+    @Test
+    fun `muro singolo portato sul lato eliminato richiude la stanza`() {
+        // Soggiorno da solo con il lato destro (x = 400) eliminato; muro singolo con una porta più in là, a x = 600.
+        val room = living.copy(openings = emptyList(), removedWalls = setOf(1))
+        val door = Opening.default(7, OpeningKind.Door, 0, 100.0)
+        val wall = FreeWall(1, Vec2(600.0, 0.0), Vec2(600.0, 300.0), thickness = 10.0, openings = listOf(door))
+        val vm = EditorViewModel(object : PlanStore {
+            override fun load() = Building.single(FloorPlan(listOf(room), freeWalls = listOf(wall)))
+            override fun save(building: Building) {}
+        })
+        // Trascinato a metà strada non succede niente.
+        vm.beginDrag(DragTarget.FreeWallBody(1), Vec2(600.0, 150.0))
+        vm.dragBy(DragTarget.FreeWallBody(1), Vec2(-100.0, 0.0))
+        vm.endDrag()
+        assertTrue(vm.state.value.plan.room(1)!!.isRemoved(1))
+        assertEquals(1, vm.state.value.plan.freeWalls.size)
+        // Portato sul lato aperto (anche non preciso): il lato torna, il muro singolo sparisce, la porta passa sul lato.
+        vm.beginDrag(DragTarget.FreeWallBody(1), Vec2(500.0, 150.0))
+        vm.dragBy(DragTarget.FreeWallBody(1), Vec2(-94.0, 4.0))
+        vm.endDrag()
+        val p = vm.state.value.plan
+        val r = p.room(1)!!
+        assertFalse(r.isRemoved(1))
+        assertTrue(p.freeWalls.isEmpty())
+        val o = r.openings.single()
+        assertEquals(1, o.wallIndex)
+        assertEquals(OpeningKind.Door, o.kind)
+        val (a, b) = com.sagoma.planimetria.geometry.Openings.span(r, o)
+        // La porta resta dove era sul muro singolo (circa a 100, più lo spostamento e l'eventuale aggancio).
+        assertEquals(104.0, (a.y + b.y) / 2.0, 6.0)
+        assertEquals(Selection.Wall(1, 1), vm.state.value.selection)
+        Scene3D.build(p, null, null, ceilings = true)
+        // Un solo Annulla torna a prima del trascinamento.
+        vm.undo()
+        assertTrue(vm.state.value.plan.room(1)!!.isRemoved(1))
+        assertEquals(500.0, vm.state.value.plan.freeWall(1)!!.start.x, 1e-6)
     }
 }
