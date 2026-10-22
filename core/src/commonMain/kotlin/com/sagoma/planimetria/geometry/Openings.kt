@@ -3,6 +3,7 @@ package com.sagoma.planimetria.geometry
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
+import com.sagoma.planimetria.model.FramePosition
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
@@ -37,6 +38,27 @@ object Openings {
         val u = (room.wallEnd(wallIndex) - start).normalized()
         return (p - start) dot u
     }
+
+    /** Profondità dell'infisso (cm): a filo esterno o interno resta così distante dalla faccia del muro. */
+    const val FRAME_DEPTH = 6.0
+
+    /**
+     * Spostamento dell'infisso dalla mezzeria del muro, verso l'interno della stanza (negativo = verso l'esterno).
+     * Solo finestre e balconi; le porte stanno sempre a metà muro.
+     */
+    fun frameOffset(room: Room, o: Opening): Double {
+        if (!o.kind.glazed) return 0.0
+        val reach = (room.thicknessOf(o.wallIndex) / 2 - FRAME_DEPTH).coerceAtLeast(0.0)
+        return when (o.frame) {
+            FramePosition.Center -> 0.0
+            FramePosition.Outside -> -reach
+            FramePosition.Inside -> reach
+        }
+    }
+
+    /** Sguincio effettivo (cm per lato): solo finestre e balconi, mai più dello spessore del muro. */
+    fun splayOf(room: Room, o: Opening): Double =
+        if (o.kind.glazed && o.wallIndex < room.wallCount) o.splay.coerceIn(0.0, room.thicknessOf(o.wallIndex)) else 0.0
 
     /** Normale verso l'interno della stanza (poligoni orari su schermo). */
     fun inwardNormal(room: Room, wallIndex: Int): Vec2 =

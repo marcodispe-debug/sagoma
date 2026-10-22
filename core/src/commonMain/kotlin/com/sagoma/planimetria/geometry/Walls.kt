@@ -15,6 +15,12 @@ fun Room.interior(): List<Vec2> = Polygon.inset(points, thicknesses.map { it / 2
 /** Contorno sul filo esterno dei muri. */
 fun Room.exterior(): List<Vec2> = Polygon.inset(points, thicknesses.map { -it / 2 })
 
+/** Filo interno con gli scalini dove un muro cambia spessore a metà (per disegnare e misurare, non un punto per angolo). */
+fun Room.interiorOutline(): List<Vec2> = Polygon.insetSteps(points, thicknesses.map { it / 2 })
+
+/** Filo esterno con gli scalini dove un muro cambia spessore a metà. */
+fun Room.exteriorOutline(): List<Vec2> = Polygon.insetSteps(points, thicknesses.map { -it / 2 })
+
 /** Lunghezza di ogni muro sul lato interno (cm). */
 fun Room.interiorLengths(): List<Double> = Polygon.interiorEdgeLengths(points, thicknesses)
 

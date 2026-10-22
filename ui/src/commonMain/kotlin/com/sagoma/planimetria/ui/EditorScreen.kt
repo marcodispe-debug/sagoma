@@ -34,6 +34,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
+import com.sagoma.planimetria.model.LengthUnit
 import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
 import kotlinx.coroutines.flow.first
@@ -129,6 +130,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         T.editor.computoListaArredi to { showTakeoff = true },
         T.editor.piantaSfondo to { showBackground = true },
         T.editor.temaChiaroScuro to { showTheme = true },
+        if (state.building.units == LengthUnit.Meters) T.editor.misureInCentimetri to { vm.setUnits(LengthUnit.Centimeters) }
+        else T.editor.misureInMetri to { vm.setUnits(LengthUnit.Meters) },
         T.editor.linguaMenu to { showLanguage = true },
     )
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })

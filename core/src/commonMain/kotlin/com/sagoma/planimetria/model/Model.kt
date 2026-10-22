@@ -150,6 +150,15 @@ data class Opening(
     /** Modello di finestre e balconi, e oscurante all'esterno. */
     val windowModel: WindowModel = WindowModel.Classic,
     val shading: Shading = Shading.None,
+    /** Finestre e balconi: infisso a metà muro, a filo esterno o a filo interno. */
+    val frame: FramePosition = FramePosition.Center,
+    /**
+     * Finestre e balconi: sguincio, cioè di quanti cm per lato il vano si allarga verso l'interno della stanza
+     * (lati inclinati, come nei muri spessi). 0 = lati dritti.
+     */
+    val splay: Double = 0.0,
+    /** Porte: è l'ingresso di casa (in pianta il triangolo con «INGRESSO» fuori dalla porta). */
+    val entrance: Boolean = false,
     /** Stato di fatto / progetto: [Phase.New] = apertura da realizzare, [Phase.Demolish] = da chiudere (tamponare). */
     val phase: Phase = Phase.Existing,
 ) {
@@ -489,6 +498,26 @@ data class Ruler(val id: Long, val start: Vec2, val end: Vec2) {
  * a→b, spostata di `offset` cm di lato (positivo a sinistra guardando da a verso b); dagli estremi partono le
  * linee di richiamo. `text`: scritta al posto della misura (null = la misura in cm).
  */
+/** Unità delle misure scritte sulla pianta. I nomi finiscono nel file salvato. */
+enum class LengthUnit { Centimeters, Meters }
+
+/**
+ * Misure scritte sulla pianta nell'unità scelta per il progetto: in centimetri (503) o in metri con due
+ * decimali (5,03), come nelle piantine degli architetti. I campi da compilare restano in centimetri.
+ */
+object PlanUnits {
+    /** Unità del progetto aperto (la imposta il disegno della pianta). */
+    var unit: LengthUnit = LengthUnit.Centimeters
+
+    fun format(cm: Double): String = when (unit) {
+        LengthUnit.Centimeters -> Dimension.formatLength(cm)
+        LengthUnit.Meters -> com.sagoma.planimetria.geometry.formatDecimal(cm / 100, 2)
+    }
+
+    /** Con l'unità dopo: "503 cm" o "5,03 m". */
+    fun withUnit(cm: Double): String = format(cm) + if (unit == LengthUnit.Meters) " m" else " cm"
+}
+
 @Serializable
 data class Dimension(val id: Long, val a: Vec2, val b: Vec2, val offset: Double = 40.0, val text: String? = null) {
     val length: Double get() = a.distanceTo(b)
@@ -498,7 +527,7 @@ data class Dimension(val id: Long, val a: Vec2, val b: Vec2, val offset: Double 
     /** Estremi della linea di quota. */
     val lineA: Vec2 get() = a + normal * offset
     val lineB: Vec2 get() = b + normal * offset
-    val label: String get() = text?.takeIf { it.isNotBlank() } ?: formatLength(length)
+    val label: String get() = text?.takeIf { it.isNotBlank() } ?: PlanUnits.format(length)
 
     companion object {
         /** Misura in cm, con un decimale solo se serve (come le altre quote dell'app). */
@@ -848,6 +877,8 @@ data class Building(
     val current: Int = 0,
     /** Livelli nascosti o bloccati (valgono per tutti i piani). */
     val layers: LayerSettings = LayerSettings(),
+    /** Unità delle misure scritte sulla pianta (quote, righelli, tavola PDF). */
+    val units: LengthUnit = LengthUnit.Centimeters,
 ) {
     init {
         require(floors.isNotEmpty()) { "Serve almeno un piano" }

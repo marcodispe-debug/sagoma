@@ -46,6 +46,17 @@ enum class WindowModel {
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.windowModel(this)
 }
 
+/** Dove sta l'infisso di finestre e balconi nello spessore del muro. */
+enum class FramePosition {
+    Center,
+    Outside,
+    Inside,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.framePosition(this)
+}
+
 /** Oscuranti di finestre e balconi, all'esterno. */
 enum class Shading {
     None,

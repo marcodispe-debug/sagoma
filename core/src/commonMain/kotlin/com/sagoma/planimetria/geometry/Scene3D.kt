@@ -957,7 +957,7 @@ private class SceneBuilder(
     private fun floorPattern(room: Room, base: Rgba) {
         val pattern = room.floorFinish.pattern
         if (pattern == FloorPattern.None) return
-        val inner = room.interior()
+        val inner = room.interiorOutline()
         if (inner.size < 3) return
         val line = base.mix(Rgba(0f, 0f, 0f), 0.16f)
         val b = Polygon.bounds(inner)
@@ -1128,7 +1128,11 @@ private class SceneBuilder(
     // ---------- Muri con i varchi ----------
 
     /** Varco nel muro, in cm lungo il muro (t) e in altezza. */
-    private class Gap(val t0: Double, val t1: Double, val bottom: Double, val top: Double, val arched: Boolean, val pick: Pick) {
+    private class Gap(
+        val t0: Double, val t1: Double, val bottom: Double, val top: Double, val arched: Boolean, val pick: Pick,
+        /** Sguincio (cm per lato) verso l'interno della stanza `splayRoom`: sulla sua faccia il varco è più largo. */
+        val splay: Double = 0.0, val splayRoom: Long? = null,
+    ) {
         /** Bordo superiore del varco nel punto t: dritto, oppure ad arco (semicerchio ribassato). */
         fun topAt(t: Double): Double {
             if (!arched) return top
@@ -1146,7 +1150,10 @@ private class SceneBuilder(
         val bottom = if (o.kind.glazed) o.sillHeight else 0.0
         // Il varco non supera il muro, che in mansarda può essere più basso dell'apertura.
         val top = min(wallTop((ta + tb) / 2) - 1, bottom + o.height)
-        return Gap(min(ta, tb), max(ta, tb), bottom, top, o.kind == OpeningKind.Passage && o.style == PassageStyle.Arched, Pick.Opening(owner.id, o.id))
+        return Gap(
+            min(ta, tb), max(ta, tb), bottom, top, o.kind == OpeningKind.Passage && o.style == PassageStyle.Arched, Pick.Opening(owner.id, o.id),
+            splay = Openings.splayOf(owner, o), splayRoom = owner.id,
+        )
     }
 
     /**
@@ -1188,6 +1195,10 @@ private class SceneBuilder(
             val next = (room.points[(corner + 1) % n] - room.points[corner]).normalized()
             return (prev.x * next.y - prev.y * next.x) * sign >= -1e-6
         }
+        // Muro che continua dritto con un altro spessore (scalino): lì nessuna fascia si allunga, i due tratti
+        // finiscono pari e la testata del più spesso fa lo scalino.
+        val startStraight = Polygon.straightAt(room.points, i)
+        val endStraight = Polygon.straightAt(room.points, (i + 1) % room.wallCount)
         val startConvex = convexAt(i)
         // Agli angoli la fascia si allunga di mezzo spessore del muro accanto (che può essere diverso).
         val prevHalf = room.thicknessOf((i - 1 + room.wallCount) % room.wallCount) / 2
@@ -1255,15 +1266,15 @@ private class SceneBuilder(
         val facade = plan.facadeOrPaint
         // Fascia interna: da angolo ad angolo, allungata solo negli angoli rientranti; tolti i tratti coperti da una
         // stanza ricavata dentro questa (lì si vede la parete di quella stanza).
-        var interiorRanges = listOf((if (startConvex) 0.0 else -prevHalf)..(if (endConvex) len else len + nextHalf))
+        var interiorRanges = listOf((if (startConvex || startStraight) 0.0 else -prevHalf)..(if (endConvex || endStraight) len else len + nextHalf))
         for (h in hiddenInterior) interiorRanges = interiorRanges.flatMap { cut(it, h) }
         for (r in interiorRanges) if (r.endInclusive - r.start > 0.5) {
             band(s, u, len, gaps, sloped, room, i, wallPick, r, inward, paint, interior = true)
         }
         // Fascia esterna, sui tratti che danno all'esterno: allungata solo negli spigoli sporgenti della casa.
         for (r in exterior) {
-            val a = if (r.start < 0.5 && startConvex && !touched(s)) -prevHalf else r.start
-            val b = if (r.endInclusive > len - 0.5 && endConvex && !touched(e)) len + nextHalf else r.endInclusive
+            val a = if (r.start < 0.5 && startConvex && !startStraight && !touched(s)) -prevHalf else r.start
+            val b = if (r.endInclusive > len - 0.5 && endConvex && !endStraight && !touched(e)) len + nextHalf else r.endInclusive
             band(s, u, len, gaps, sloped, room, i, wallPick, a..b, inward * -1.0, facade, interior = false)
         }
     }
@@ -1278,6 +1289,23 @@ private class SceneBuilder(
         range: ClosedFloatingPointRange<Double>, side: Vec2, finish: WallFinish, interior: Boolean,
     ) {
         val paint = Rgba.argb(finish.argb)
+        // Sguinci: sulla faccia verso la stanza il varco si allarga, e i lati inclinati vanno dalla mezzeria alla faccia.
+        val splayed = if (interior) gaps.filter { it.splay > 0 && it.splayRoom == room.id } else emptyList()
+        @Suppress("NAME_SHADOWING")
+        val gaps = if (splayed.isEmpty()) gaps else gaps.map { g ->
+            if (g in splayed) Gap(g.t0 - g.splay, g.t1 + g.splay, g.bottom, g.top, g.arched, g.pick, g.splay, g.splayRoom) else g
+        }
+        for (g in splayed) {
+            val color = tint(paint, g.pick)
+            for ((t, toward) in listOf(g.t0 to -1.0, g.t1 to 1.0)) {
+                if (t + toward * g.splay < range.start - 0.01 || t + toward * g.splay > range.endInclusive + 0.01) continue
+                val p0 = s + u * t
+                val p1 = s + u * (t + toward * g.splay) + side * half
+                val n = (p1 - p0).perp().normalized().let { if ((it dot (u * -toward)) < 0) it * -1.0 else it }
+                quad(p0.at(g.bottom), p1.at(g.bottom), p1.at(g.top), p0.at(g.top), Vec3(n.x, 0.0, n.y), color, g.pick)
+                quad(p1.at(g.bottom), p0.at(g.bottom), p0.at(g.top), p1.at(g.top), Vec3(-n.x, 0.0, -n.y), color, g.pick)
+            }
+        }
         val coverTop = finish.coverHeight ?: Double.MAX_VALUE
         fun topFn(t: Double) = Ceilings.wallTopAt(room, i, t.coerceIn(0.0, len))
         val cuts = mutableSetOf(range.start, range.endInclusive)
@@ -1581,7 +1609,11 @@ private class SceneBuilder(
 
         when {
             o.kind == OpeningKind.Passage -> Unit // varco libero
-            o.kind.glazed -> window(a, b, u, n, bottom, top, o, pick)
+            o.kind.glazed -> {
+                // Infisso a filo esterno o interno: spostato nello spessore del muro.
+                val f = n * Openings.frameOffset(room, o)
+                window(a + f, b + f, u, n, bottom, top, o, pick)
+            }
             o.sliding -> {
                 // Porta scorrevole: anta nel muro, aperta a metà verso il lato scelto.
                 casing(a, b, u, n, top, o, pick)

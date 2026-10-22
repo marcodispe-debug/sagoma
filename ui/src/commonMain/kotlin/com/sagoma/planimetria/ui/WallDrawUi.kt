@@ -93,7 +93,7 @@ internal fun DrawScope.drawWallDraft(wd: WallDraw, cam: Camera, measurer: TextMe
 
 /** Lunghezza del muro al centro del segmento, in un'etichetta. */
 private fun DrawScope.lengthLabel(measurer: TextMeasurer, a: Offset, b: Offset, cm: Double, color: Color) {
-    val t = measurer.measure("${formatCm(cm)} cm", TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White))
+    val t = measurer.measure(com.sagoma.planimetria.model.PlanUnits.withUnit(cm), TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White))
     val mid = (a + b) / 2f
     val pad = 4.dp.toPx()
     val tl = mid - Offset(t.size.width / 2f, t.size.height + 10.dp.toPx())

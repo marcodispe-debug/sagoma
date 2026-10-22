@@ -61,6 +61,7 @@ import com.sagoma.planimetria.model.Underlay
 import com.sagoma.planimetria.model.Dimension
 import com.sagoma.planimetria.model.TextNote
 import com.sagoma.planimetria.model.Layer
+import com.sagoma.planimetria.model.LengthUnit
 import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.geometry.PhaseView
 import androidx.lifecycle.viewModelScope
@@ -343,8 +344,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         if (_state.value.wallDraw?.points?.isNotEmpty() == true) return drawWallsUndo()
         // I livelli (nascosti, bloccati) sono un modo di guardare il disegno, non una modifica: restano come sono.
         val layers = _state.value.building.layers
+        val units = _state.value.building.units
         history.undo(_state.value.fullBuilding)?.let {
-            setBuilding(it.copy(layers = layers))
+            setBuilding(it.copy(layers = layers, units = units))
             dropStaleCreation()
             tutorialEvent(TutorialEvent.Undo)
         }
@@ -352,7 +354,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     fun redo() {
         val layers = _state.value.building.layers
-        history.redo(_state.value.fullBuilding)?.let { setBuilding(it.copy(layers = layers)); dropStaleCreation() }
+        val units = _state.value.building.units
+        history.redo(_state.value.fullBuilding)?.let { setBuilding(it.copy(layers = layers, units = units)); dropStaleCreation() }
     }
 
     /** La scelta obbligatoria della stanza iniziale non ha più senso se annullando (o ripetendo) il piano ha di nuovo delle stanze. */
@@ -369,6 +372,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val sel = s.selection?.takeIf { visible || layerOf(it) != layer }
         s.copy(building = s.building.copy(layers = nl), selection = sel)
     }
+
+    /** Misure sulla pianta in centimetri o in metri: come i livelli è un modo di guardare il disegno, non si annulla. */
+    fun setUnits(units: LengthUnit) = _state.update { s -> s.copy(building = s.building.copy(units = units)) }
 
     /** Blocca o sblocca un livello (bloccato: si vede ma non si tocca). */
     fun setLayerLocked(layer: Layer, locked: Boolean) = _state.update { s ->

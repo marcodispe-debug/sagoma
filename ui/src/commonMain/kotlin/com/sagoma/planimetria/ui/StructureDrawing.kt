@@ -87,7 +87,7 @@ internal fun DrawScope.drawFreeWall(w: FreeWall, cam: Camera, measurer: TextMeas
     }
     val a = cam.pt(w.start)
     val e = cam.pt(w.end)
-    val label = measurer.measure(formatCm(w.length), TextStyle(fontSize = 10.sp, color = if (selected) StructureSelected else Color(0xFF495057)))
+    val label = measurer.measure(com.sagoma.planimetria.model.PlanUnits.format(w.length), TextStyle(fontSize = 10.sp, color = if (selected) StructureSelected else Color(0xFF495057)))
     if ((e - a).getDistance() > label.size.width * 1.5f) {
         var deg = com.sagoma.planimetria.geometry.toDegrees(atan2((e.y - a.y).toDouble(), (e.x - a.x).toDouble())).toFloat()
         if (deg > 90f) deg -= 180f

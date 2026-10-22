@@ -62,6 +62,7 @@ import com.sagoma.planimetria.geometry.Structure
 import com.sagoma.planimetria.model.Finish
 import com.sagoma.planimetria.model.LampModel
 import com.sagoma.planimetria.model.RadiatorModel
+import com.sagoma.planimetria.model.FramePosition
 import com.sagoma.planimetria.model.Shading
 import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.StairRailing
@@ -751,9 +752,22 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
         ModelPicker(T.pannelli.oscuranti, Shading.entries, o.shading, { it.label }, { v -> update { it.copy(shading = v) } }) {
             windowPreview(o.windowModel, it, color)
         }
+        // Nei muri spessi: infisso verso l'esterno e lati del vano inclinati verso la stanza.
+        Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice(T.pannelli.infisso, FramePosition.entries.map { it.label }, o.frame.ordinal, Modifier.weight(2f)) { i ->
+                update { it.copy(frame = FramePosition.entries[i]) }
+            }
+            NumberField(T.pannelli.sguincio, o.splay, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(splay = v.coerceIn(0.0, 60.0)) } }
+        }
     } else if (o.kind.hasLeaves) {
         ModelPicker(T.comuni.modello, DoorModel.entries, o.doorModel, { it.label }, { v -> update { it.copy(doorModel = v) } }) {
             doorPreview(it, color)
+        }
+        // Porta d'ingresso: in pianta il segno dell'ingresso fuori dalla porta.
+        Row(Modifier.padding(end = 8.dp)) {
+            Choice(T.pannelli.tipoPorta, listOf(T.pannelli.portaInterna, T.pannelli.ingresso), if (o.entrance) 1 else 0, Modifier.weight(1f)) { i ->
+                update { it.copy(entrance = i == 1) }
+            }
         }
     }
     if (o.kind.hasLeaves) {

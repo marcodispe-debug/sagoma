@@ -8,6 +8,7 @@ import com.sagoma.planimetria.geometry.Stairs
 import com.sagoma.planimetria.geometry.toDegrees
 import com.sagoma.planimetria.model.ExcludedZone
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.FramePosition
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
@@ -156,6 +157,13 @@ object PlanReadingImport {
                 width = o.widthCm ?: a.distanceTo(b),
                 height = o.heightCm ?: d.height,
                 sillHeight = if (kind == OpeningKind.Window1 || kind == OpeningKind.Window2) o.sillCm ?: d.sillHeight else 0.0,
+                splay = if (kind.glazed) o.splayCm ?: 0.0 else 0.0,
+                frame = when (o.frame?.lowercase()) {
+                    "outside" -> FramePosition.Outside
+                    "inside" -> FramePosition.Inside
+                    else -> FramePosition.Center
+                },
+                entrance = o.entrance && !kind.glazed,
             ).let { it.copy(position = Openings.clampPosition(rooms[ri].wallLength(j), it.width, t)) }
         }
         return rooms.mapIndexed { i, r -> if (added[i].isEmpty()) r else r.copy(openings = r.openings + added[i]) }
