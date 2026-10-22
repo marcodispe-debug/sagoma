@@ -185,6 +185,7 @@ object GroupOps {
             removedWalls = r.removedWalls.map(::wall).toSet(),
             wallPhases = remap(r.wallPhases),
             wallBulges = remap(r.wallBulges),
+            wallOffsets = remap(r.wallOffsets),
             wallCuts = r.wallCuts.entries.associate { (k, v) -> wall(k) to v.copy(towardEnd = !v.towardEnd) },
             openings = r.openings.map { o -> o.copy(wallIndex = wall(o.wallIndex), position = r.wallLength(o.wallIndex) - o.position, hingeLeft = !o.hingeLeft) },
             fixtures = r.fixtures.map { f ->

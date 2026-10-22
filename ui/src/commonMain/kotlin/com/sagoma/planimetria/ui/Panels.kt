@@ -34,6 +34,7 @@ import com.sagoma.planimetria.geometry.RoomMerge
 import com.sagoma.planimetria.geometry.WallArc
 import com.sagoma.planimetria.geometry.arcOf
 import com.sagoma.planimetria.geometry.arc
+import com.sagoma.planimetria.geometry.isStraightCorner
 import com.sagoma.planimetria.geometry.Ceilings
 import com.sagoma.planimetria.geometry.Collisions
 import com.sagoma.planimetria.geometry.WallCollision
@@ -590,6 +591,19 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
         Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             NumberField(T.pannelli.spessoreMuro, room.thicknessOf(sel.index), Modifier.weight(1f)) { v -> vm.setWallThickness(room.id, sel.index, v) }
             if (own != null) TextButton(onClick = { vm.setWallThickness(room.id, sel.index, null) }) { Text(T.pannelli.altriCm(formatCm(room.wallThickness))) }
+        }
+        // Muro che cambia spessore da un punto in poi: due tratti allineati con lo scalino in mezzo.
+        val n = room.wallCount
+        val stepped = room.isStraightCorner(sel.index) || room.isStraightCorner((sel.index + 1) % n)
+        if (stepped) {
+            NumberField(T.pannelli.lunghezzaTratto, room.wallLength(sel.index), Modifier.padding(end = 8.dp).fillMaxWidth()) { v ->
+                if (v >= 10) vm.setStepPartLength(room.id, sel.index, v)
+            }
+            Text(T.pannelli.scalinoSuggerimento, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(end = 8.dp))
+        } else if (room.arcOf(sel.index) == null && room.wallLength(sel.index) >= 40) {
+            OutlinedButton(onClick = { vm.startWallStep(room.id, sel.index) }, modifier = Modifier.padding(end = 8.dp).fillMaxWidth()) {
+                Text(T.pannelli.spessoreDaUnPunto)
+            }
         }
     }
     Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

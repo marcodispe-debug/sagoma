@@ -35,7 +35,9 @@ object Openings {
         val u = (room.wallEnd(o.wallIndex) - start).normalized()
         val w = min(o.width, len)
         val c = clampPosition(len, w, o.position)
-        return (start + u * (c - w / 2)) to (start + u * (c + w / 2))
+        // Tratto più spesso di un muro a scalini: la sua mezzeria sta più fuori della linea della stanza.
+        val shift = room.outwardOf(o.wallIndex) * room.wallShift(o.wallIndex)
+        return (start + u * (c - w / 2) + shift) to (start + u * (c + w / 2) + shift)
     }
 
     /** Distanza lungo il muro della proiezione di `p` (non limitata). */

@@ -230,6 +230,7 @@ fun Room.expandCurves(): ExpandedRoom {
             removedWalls = origin.indices.filter { origin[it] in removedWalls }.toSet(),
             wallPhases = dup(wallPhases),
             wallBulges = emptyMap(),
+            wallOffsets = dup(wallOffsets),
             openings = openings.map { o ->
                 if (o.wallIndex >= n) return@map o
                 val w = walls[o.wallIndex] ?: return@map o.copy(wallIndex = first[o.wallIndex])

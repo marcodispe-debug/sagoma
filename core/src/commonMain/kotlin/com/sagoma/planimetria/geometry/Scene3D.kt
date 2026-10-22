@@ -28,6 +28,7 @@ import com.sagoma.planimetria.model.WallFinish
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
@@ -100,6 +101,9 @@ data class Rgba(val r: Float, val g: Float, val b: Float, val a: Float = 1f) {
         val White = Rgba(1f, 1f, 1f)
     }
 }
+
+/** Coseno dell'angolo (30°) sotto cui due muri di fila si considerano quasi dritti (vedi `nearlyStraightJoin`). */
+private val NEARLY_STRAIGHT_COS = cos(PI / 6)
 
 /**
  * Scena 3D costruita dalla pianta: triangoli opachi e trasparenti (vetri) pronti per la GPU, triangoli
@@ -1215,6 +1219,27 @@ private class SceneBuilder(
         val prevHalf = room.thicknessOf((i - 1 + room.wallCount) % room.wallCount) / 2
         val nextHalf = room.thicknessOf((i + 1) % room.wallCount) / 2
         val endConvex = convexAt((i + 1) % room.wallCount)
+        /**
+         * Giunta quasi dritta (i pezzi di un muro curvo, o un muro appena storto): dove la faccia di questo muro, dal lato
+         * `side` (1 = verso la stanza, −1 = fuori), incontra quella del muro accanto, in cm lungo il muro dall'angolo
+         * (all'inizio, o alla fine se `atEnd`). Così i pezzi si raccordano senza allungarsi di mezzo spessore uno sull'altro.
+         * Null per gli angoli veri, che si raccordano come sempre; 0 dove lo spessore cambia (scalino).
+         */
+        fun nearlyStraightJoin(atEnd: Boolean, side: Double): Double? {
+            val n = room.wallCount
+            val other = if (atEnd) (i + 1) % n else (i - 1 + n) % n
+            if (room.isRemoved(other)) return null
+            val od = room.wallEnd(other) - room.wallStart(other)
+            if (od.length < 1e-6) return null
+            val d = od.normalized()
+            if ((u dot d) < NEARLY_STRAIGHT_COS) return null
+            val c = u.x * d.y - u.y * d.x
+            val otherHalf = room.thicknessOf(other) / 2
+            if (abs(c) < 1e-6) return 0.0
+            val w = d.perp() * (sign * side * otherHalf) - inward * (side * half)
+            val t = (w.x * d.y - w.y * d.x) / c
+            return if (abs(t) > 2 * max(half, otherHalf) + 1) 0.0 else t
+        }
         val others = plan.rooms.filter { it.id != room.id && !it.outdoor }
         /** Un'altra stanza tocca questo punto (con un suo muro): lì la casa continua, non è uno spigolo esterno. */
         fun touched(p: Vec2) = others.any { o -> (0 until o.wallCount).any { j -> Polygon.distanceToSegment(p, o.wallStart(j), o.wallEnd(j)) < 1.0 } }
@@ -1275,18 +1300,28 @@ private class SceneBuilder(
 
         val paint = room.finishOf(i)
         val facade = plan.facadeOrPaint
+        // Tratto più spesso di un muro a scalini: sporge solo verso fuori, il filo verso la stanza resta dritto.
+        val bandStart = s + room.outwardOf(i) * room.wallShift(i)
         // Fascia interna: da angolo ad angolo, allungata solo negli angoli rientranti; tolti i tratti coperti da una
         // stanza ricavata dentro questa (lì si vede la parete di quella stanza).
-        var interiorRanges = listOf((if (startConvex || startStraight) 0.0 else -prevHalf)..(if (endConvex || endStraight) len else len + nextHalf))
+        val interiorStart = nearlyStraightJoin(atEnd = false, side = 1.0) ?: if (startConvex || startStraight) 0.0 else -prevHalf
+        val interiorEnd = nearlyStraightJoin(atEnd = true, side = 1.0)?.let { len + it } ?: if (endConvex || endStraight) len else len + nextHalf
+        var interiorRanges = listOf(interiorStart..interiorEnd)
         for (h in hiddenInterior) interiorRanges = interiorRanges.flatMap { cut(it, h) }
         for (r in interiorRanges) if (r.endInclusive - r.start > 0.5) {
-            band(s, u, len, gaps, sloped, room, i, wallPick, r, inward, paint, interior = true)
+            band(bandStart, u, len, gaps, sloped, room, i, wallPick, r, inward, paint, interior = true)
         }
         // Fascia esterna, sui tratti che danno all'esterno: allungata solo negli spigoli sporgenti della casa.
         for (r in exterior) {
-            val a = if (r.start < 0.5 && startConvex && !startStraight && !touched(s)) -prevHalf else r.start
-            val b = if (r.endInclusive > len - 0.5 && endConvex && !endStraight && !touched(e)) len + nextHalf else r.endInclusive
-            band(s, u, len, gaps, sloped, room, i, wallPick, a..b, inward * -1.0, facade, interior = false)
+            val a = when {
+                r.start >= 0.5 -> r.start
+                else -> nearlyStraightJoin(atEnd = false, side = -1.0) ?: if (startConvex && !startStraight && !touched(s)) -prevHalf else r.start
+            }
+            val b = when {
+                r.endInclusive <= len - 0.5 -> r.endInclusive
+                else -> nearlyStraightJoin(atEnd = true, side = -1.0)?.let { len + it } ?: if (endConvex && !endStraight && !touched(e)) len + nextHalf else r.endInclusive
+            }
+            band(bandStart, u, len, gaps, sloped, room, i, wallPick, a..b, inward * -1.0, facade, interior = false)
         }
     }
 

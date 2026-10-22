@@ -11,6 +11,8 @@ import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.exterior
 import com.sagoma.planimetria.geometry.exteriorOutline
 import com.sagoma.planimetria.geometry.interiorOutline
+import com.sagoma.planimetria.geometry.innerThicknesses
+import com.sagoma.planimetria.geometry.wallShift
 import com.sagoma.planimetria.geometry.interiorLengths
 import com.sagoma.planimetria.geometry.interiorArea
 import com.sagoma.planimetria.geometry.usableArea
@@ -154,7 +156,8 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     for (r in rooms) for ((i, ph) in r.wallPhases) {
         if (i >= r.wallCount || r.isRemoved(i) || ph == Phase.Existing) continue
         val px = (r.thicknessOf(i) * cam.scale).toFloat().coerceAtLeast(2f)
-        val a = cam.o(r.wallStart(i)); val b = cam.o(r.wallEnd(i))
+        val shift = r.outwardOf(i) * r.wallShift(i)
+        val a = cam.o(r.wallStart(i) + shift); val b = cam.o(r.wallEnd(i) + shift)
         drawLine(WallColor, a, b, strokeWidth = px, cap = StrokeCap.Butt)
         drawLine(if (ph == Phase.Demolish) PhaseDemolishColor else PhaseNewColor, a, b, strokeWidth = (px - 2f).coerceAtLeast(1f), cap = StrokeCap.Butt)
     }
@@ -216,7 +219,8 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     for (r in rooms) {
         if (selWall != null && selWall.roomId == r.id) for (j in 0 until r.wallCount) {
             if (expanded.originOf(r.id, j) != selWall.index) continue
-            drawLine(SelectedColor, cam.o(r.wallStart(j)), cam.o(r.wallEnd(j)), strokeWidth = (r.thicknessOf(j) * cam.scale).toFloat().coerceAtLeast(2f) + 4.dp.toPx(), cap = StrokeCap.Round)
+            val shift = r.outwardOf(j) * r.wallShift(j)
+            drawLine(SelectedColor, cam.o(r.wallStart(j) + shift), cam.o(r.wallEnd(j) + shift), strokeWidth = (r.thicknessOf(j) * cam.scale).toFloat().coerceAtLeast(2f) + 4.dp.toPx(), cap = StrokeCap.Round)
         }
         for (o in r.openings) {
             if (o.wallIndex >= r.wallCount) continue
@@ -348,7 +352,7 @@ internal fun DrawScope.drawWallDimensions(plan: FloorPlan, cam: Camera, measurer
         // Muri curvi: le quote dei muri dritti si prendono dalla stanza srotolata; sull'arco una sola misura (sotto).
         val expanded = logical.expandCurves()
         val room = expanded.room
-        val edges = Polygon.insetEdges(room.points, room.thicknesses.map { it / 2 })
+        val edges = Polygon.insetEdges(room.points, room.innerThicknesses.map { it / 2 })
         val lengths = room.interiorLengths()
         val sign = if (Polygon.signedArea(room.points) >= 0) 1.0 else -1.0
         for (i in 0 until logical.wallCount) {

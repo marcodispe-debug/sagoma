@@ -34,6 +34,9 @@ import com.sagoma.planimetria.geometry.toDegrees
 import com.sagoma.planimetria.geometry.toRadians
 import com.sagoma.planimetria.geometry.Stairs
 import com.sagoma.planimetria.geometry.Structure
+import com.sagoma.planimetria.geometry.isStepCorner
+import com.sagoma.planimetria.geometry.isStraightCorner
+import com.sagoma.planimetria.geometry.slideStepCorner
 import com.sagoma.planimetria.geometry.outward
 import com.sagoma.planimetria.geometry.withBulge
 import com.sagoma.planimetria.geometry.MeasureTarget
@@ -1989,14 +1992,21 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 val room = start.room(target.roomId) ?: return
                 val i = target.index
                 val n = room.points.size
-                // Aggancio CAD: estremità e punti medi delle altre stanze, allineamenti con tutti gli angoli.
-                val neighbors = listOf(room.points[(i - 1 + n) % n], room.points[(i + 1) % n])
-                val own = room.points.filterIndexed { k, _ -> k != i }
-                val r = if (snapOn) SnapEngine.snap(room.points[i] + totalDelta, SnapEngine.targetsWithBelow(start, _state.value.planBelow, excludeRoom = room.id), snapTolerance(), neighbors, own)
-                else SnapResult(room.points[i] + totalDelta, emptyList())
-                val moved = room.points.toMutableList().also { it[i] = r.point }
-                snapGuides = r.guides
-                start.replace(room.copy(points = if (r.snapped) Snapping.straighten(moved, i) else moved))
+                // Scalino (il muro cambia spessore lì e resta dritto): l'angolo scorre lungo il muro.
+                if (room.isStepCorner(i)) {
+                    val a = room.points[(i - 1 + n) % n]
+                    val u = (room.points[(i + 1) % n] - a).normalized()
+                    start.replace(room.slideStepCorner(i, (room.points[i] + totalDelta - a) dot u))
+                } else {
+                    // Aggancio CAD: estremità e punti medi delle altre stanze, allineamenti con tutti gli angoli.
+                    val neighbors = listOf(room.points[(i - 1 + n) % n], room.points[(i + 1) % n])
+                    val own = room.points.filterIndexed { k, _ -> k != i }
+                    val r = if (snapOn) SnapEngine.snap(room.points[i] + totalDelta, SnapEngine.targetsWithBelow(start, _state.value.planBelow, excludeRoom = room.id), snapTolerance(), neighbors, own)
+                    else SnapResult(room.points[i] + totalDelta, emptyList())
+                    val moved = room.points.toMutableList().also { it[i] = r.point }
+                    snapGuides = r.guides
+                    start.replace(room.copy(points = if (r.snapped) Snapping.straighten(moved, i) else moved))
+                }
             }
             // Punto da cui la parete inizia a scendere: scorre lungo il muro.
             is DragTarget.CutStart -> {
@@ -2292,7 +2302,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
         if (thickness != null && thickness !in 3.0..120.0) return@commit plan
         fun apply(r: Room, i: Int) = r.copy(wallThicknesses = if (thickness == null || thickness == r.wallThickness) r.wallThicknesses - i else r.wallThicknesses + (i to thickness))
-        var result = plan.replace(apply(room, index))
+        // Tratto di un muro a scalini (allineato con il muro prima o dopo): il filo verso la stanza resta fermo, il muro
+        // ingrossa o si assottiglia solo verso fuori.
+        fun keepInnerFace(r: Room): Room {
+            val n = r.wallCount
+            if (!r.isStraightCorner(index) && !r.isStraightCorner((index + 1) % n)) return r
+            val off = (r.wallOffsets[index] ?: 0.0) + ((thickness ?: r.wallThickness) - room.thicknessOf(index)) / 2
+            return r.copy(wallOffsets = if (kotlin.math.abs(off) < 0.01) r.wallOffsets - index else r.wallOffsets + (index to off))
+        }
+        var result = plan.replace(keepInnerFace(apply(room, index)))
         val a = room.wallStart(index)
         val b = room.wallEnd(index)
         for (other in plan.rooms) {
@@ -2428,6 +2446,34 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     private fun withBulge(room: Room, i: Int, bulge: Double): Room {
         val b = bulge.coerceIn(-room.wallLength(i) / 2, room.wallLength(i) / 2)
         return room.copy(wallBulges = if (abs(b) < com.sagoma.planimetria.geometry.MIN_BULGE) room.wallBulges - i else room.wallBulges + (i to b))
+    }
+
+    /**
+     * Spessore che cambia da un punto in poi: il muro si divide a metà in due tratti allineati (lì ci sarà lo scalino) e si
+     * seleziona il secondo, a cui scrivere lo spessore.
+     */
+    fun startWallStep(roomId: Long, index: Int) {
+        commit { plan ->
+            val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
+            plan.replace(room.splitWall(index))
+        }
+        _state.update { it.copy(selection = Selection.Wall(roomId, index + 1), focusedRoomId = roomId) }
+    }
+
+    /** Lunghezza del tratto `index` di un muro a scalini: si sposta lo scalino, l'altra estremità resta ferma. */
+    fun setStepPartLength(roomId: Long, index: Int, length: Double) {
+        commit { plan ->
+            val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
+            val n = room.wallCount
+            when {
+                room.isStraightCorner((index + 1) % n) -> plan.replace(room.slideStepCorner((index + 1) % n, length))
+                room.isStraightCorner(index) -> {
+                    val before = room.points[(index - 1 + n) % n].distanceTo(room.wallEnd(index))
+                    plan.replace(room.slideStepCorner(index, before - length))
+                }
+                else -> plan
+            }
+        }
     }
 
     /** Aggiunge un angolo a metà del muro: il muro diventa due, da spostare liberamente (forme libere). */

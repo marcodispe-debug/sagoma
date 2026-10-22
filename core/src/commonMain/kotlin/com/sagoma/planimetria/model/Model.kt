@@ -330,6 +330,12 @@ data class Room(
      */
     val wallBulges: Map<Int, Double> = emptyMap(),
     /**
+     * Muri spostati di lato (indici): di quanti cm la mezzeria del muro sta fuori dalla linea della stanza (negativo = verso
+     * dentro). Nei muri a scalini il tratto ingrossato si sposta di metà della differenza, così il filo verso la stanza resta
+     * dritto. Assente = muro centrato sulla linea.
+     */
+    val wallOffsets: Map<Int, Double> = emptyMap(),
+    /**
      * Stanza creata come SCHIZZO (forma e misure approssimative) e non ancora misurata con la scansione guidata: offre
      * "Avvia scansione". Torna false quando la scansione aggiorna la stanza. Assente nei file vecchi = false; non viene scritta
      * quando è false (i file delle stanze normali restano identici a prima).
@@ -398,6 +404,7 @@ data class Room(
             removedWalls = shift(removedWalls.associateWith { }, dup = true).keys,
             wallPhases = shift(wallPhases, dup = true),
             wallBulges = shift(wallBulges, dup = false).let { if (halfBulge == 0.0) it - i else it + (i to halfBulge) + (i + 1 to halfBulge) },
+            wallOffsets = shift(wallOffsets, dup = true),
             openings = openings.map { o ->
                 when {
                     o.wallIndex < i -> o
@@ -447,6 +454,8 @@ data class Room(
             wallPhases = remap(wallPhases).filterKeys { k -> k != map(c) || wallPhases[c] == wallPhases[prev] },
             // Il muro unito torna dritto.
             wallBulges = remap(wallBulges).filterKeys { k -> k != map(c) },
+            // Il muro unito torna centrato sulla linea.
+            wallOffsets = remap(wallOffsets).filterKeys { k -> k != map(c) },
             openings = openings.map { o -> if (o.wallIndex == c) o.copy(wallIndex = map(c), position = o.position + offset) else o.copy(wallIndex = map(o.wallIndex)) },
             fixtures = fixtures.map { f ->
                 if (f.kind.mount != Mount.Wall) f
