@@ -20,7 +20,8 @@ import kotlin.math.tan
  * copiarle e salvarle funziona allo stesso modo.
  *
  * Per disegnare, misurare e costruire il 3D la stanza si «srotola» ([expandCurves]): ogni muro curvo diventa tanti
- * muri dritti corti lungo l'arco, con un pezzo dritto esattamente dove sta una porta o finestra (largo come lei).
+ * muri dritti cortissimi lungo l'arco (la curva si vede continua), con un pezzo dritto esattamente dove sta una porta
+ * o finestra (largo come lei).
  */
 
 /** Arco di un muro curvo da `a` a `b`, che a metà si scosta di `bulge` cm verso `outward`. */
@@ -103,8 +104,18 @@ fun Room.wallMiddle(i: Int): Vec2 = arcOf(i)?.at(0.0) ?: ((wallStart(i) + wallEn
 /** Freccia sotto cui un muro si considera dritto (cm). */
 const val MIN_BULGE = 0.5
 
-/** Angolo massimo tra due pezzi dritti consecutivi di un muro curvo srotolato. */
-private const val PIECE_DEGREES = 7.5
+/**
+ * Pezzi dritti di un muro curvo srotolato: così fitti che la curva si vede continua. Al massimo 2° tra un pezzo e
+ * l'altro, e mai più di 1 mm di scarto dall'arco vero.
+ */
+private const val MAX_PIECE_DEGREES = 2.0
+private const val PIECE_TOLERANCE = 0.1
+
+private fun WallArc.pieces(): Int {
+    val r = abs(radius)
+    val step = if (r <= PIECE_TOLERANCE) MAX_PIECE_DEGREES else kotlin.math.min(MAX_PIECE_DEGREES, 2 * kotlin.math.acos(1 - PIECE_TOLERANCE / r) * 180 / PI)
+    return ceil(degrees / step).toInt().coerceIn(4, 360)
+}
 
 /** Stanza srotolata: i muri curvi diventano pezzi dritti. [origin] dice per ogni muro nuovo da quale muro viene. */
 class ExpandedRoom(val room: Room, val origin: List<Int>)
@@ -128,7 +139,7 @@ fun Room.expandCurves(): ExpandedRoom {
             continue
         }
         val spans = openings.filter { it.wallIndex == i }.map { arc.span(it.position, it.width) }
-        val pieces = ceil(arc.degrees / PIECE_DEGREES).toInt().coerceAtLeast(4)
+        val pieces = arc.pieces()
         val grid = (0..pieces).map { -1.0 + 2.0 * it / pieces }.filter { s -> spans.none { (s1, s2) -> s > s1 + 1e-6 && s < s2 - 1e-6 } }
         val all = (grid + spans.flatMap { listOf(it.first, it.second) }).sorted()
         val bp = mutableListOf<Double>()
