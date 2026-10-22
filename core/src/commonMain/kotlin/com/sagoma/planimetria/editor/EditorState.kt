@@ -145,6 +145,8 @@ sealed interface DragTarget {
     /** Muro singolo: il corpo lo sposta, le estremità (0 = inizio, 1 = fine) lo allungano e lo ruotano. */
     data class FreeWallBody(val wallId: Long) : DragTarget
     data class FreeWallEnd(val wallId: Long, val endIndex: Int) : DragTarget
+    /** Pallino della curva del muro singolo selezionato. */
+    data class FreeWallBulge(val wallId: Long) : DragTarget
     /** Arredo: il corpo lo sposta (accostandolo ai muri), la maniglia lo ruota. */
     data class FurnitureBody(val furnitureId: Long) : DragTarget
     data class FurnitureRotate(val furnitureId: Long) : DragTarget

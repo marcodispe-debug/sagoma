@@ -137,11 +137,50 @@ object Structure {
     fun outline(w: FreeWall): List<Vec2> {
         val len = w.length
         if (len < 1e-6) return listOf(w.start, w.start, w.start)
+        if (w.arc() != null) return band(centerline(w.pieces()), w.thickness / 2)
         val n = (w.end - w.start).perp() / len * (w.thickness / 2)
         return listOf(w.start - n, w.end - n, w.end + n, w.start + n)
     }
 
-    fun contains(w: FreeWall, p: Vec2): Boolean = Polygon.distanceToSegment(p, w.start, w.end) <= w.thickness / 2
+    /** Linea che passa per i pezzi dritti uno dopo l'altro. */
+    private fun centerline(pieces: List<FreeWall>): List<Vec2> = listOf(pieces.first().start) + pieces.map { it.end }
+
+    /** Striscia larga `2 · half` attorno alla linea `c` (contorno chiuso, come [outline] di un muro dritto). */
+    private fun band(c: List<Vec2>, half: Double): List<Vec2> {
+        val n = c.indices.map { k ->
+            val d = when (k) {
+                0 -> c[1] - c[0]
+                c.lastIndex -> c[k] - c[k - 1]
+                else -> (c[k] - c[k - 1]).normalized() + (c[k + 1] - c[k]).normalized()
+            }
+            d.normalized().perp() * half
+        }
+        return c.indices.map { c[it] - n[it] } + c.indices.reversed().map { c[it] + n[it] }
+    }
+
+    /**
+     * Contorni delle parti piene del muro singolo, fuori dalle porte e finestre. Un muro curvo dà una striscia sola per ogni
+     * tratto tra un'apertura e l'altra (così si disegna liscia, senza giunte tra i pezzi).
+     */
+    fun solidOutlines(w: FreeWall): List<List<Vec2>> {
+        if (w.length < 1e-6) return emptyList()
+        if (w.arc() == null) {
+            val u = (w.end - w.start) / w.length
+            return (if (w.openings.isEmpty()) listOf(0.0..w.length) else solidRanges(w))
+                .map { r -> outline(w.copy(start = w.start + u * r.start, end = w.start + u * r.endInclusive)) }
+        }
+        val runs = mutableListOf<MutableList<FreeWall>>()
+        var open = false
+        for (p in w.pieces()) {
+            if (p.openings.isNotEmpty()) { open = true; continue }
+            if (open || runs.isEmpty()) runs += mutableListOf<FreeWall>()
+            open = false
+            runs.last() += p
+        }
+        return runs.map { band(centerline(it), w.thickness / 2) }
+    }
+
+    fun contains(w: FreeWall, p: Vec2): Boolean = w.distanceTo(p) <= w.thickness / 2
 
     /**
      * Muro eliminato di una stanza che il muro singolo `w` richiude: parallelo, sulla sua linea (entro [CLOSE_TOLERANCE]) e lungo
@@ -149,7 +188,7 @@ object Structure {
      */
     fun closedWall(plan: FloorPlan, w: FreeWall): Pair<Long, Int>? {
         val len = w.length
-        if (len < 1.0) return null
+        if (len < 1.0 || w.arc() != null) return null
         val u = (w.end - w.start) / len
         return plan.rooms.flatMap { r -> r.removedWalls.filter { it < r.wallCount }.map { r to it } }.mapNotNull { (r, i) ->
             val a = r.wallStart(i)

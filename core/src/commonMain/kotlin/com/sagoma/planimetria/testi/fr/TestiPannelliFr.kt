@@ -109,6 +109,7 @@ object TestiPannelliFr : TestiPannelli() {
     override val angoloCurva: String get() = "Angle"
     override val raddrizzaMuro: String get() = "Redresser"
     override val curvaSuggerimento: String get() = "Faites glisser le point au milieu du mur pour le courber, ou saisissez la flèche (de combien le milieu dépasse ; négative = vers l'intérieur de la pièce). Pour ne courber qu'une partie du mur, ajoutez d'abord un angle là où la courbe commence et un autre là où elle finit."
+    override val curvaMuroSingoloSuggerimento: String get() = "Faites glisser le point au milieu du mur pour le courber, ou saisissez la flèche (de combien le milieu dépasse ; négative = de l'autre côté)."
     override val unisciMuroDopo: String get() = "Fusionner avec le mur suivant"
     override val angoloMetaMuroMuro: String get() =
         "Avec « Angle au milieu du mur », le mur est coupé en deux : faites glisser le nouvel angle pour faire des murs en biais, des renfoncements ou " +

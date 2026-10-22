@@ -34,6 +34,8 @@ import com.sagoma.planimetria.geometry.toDegrees
 import com.sagoma.planimetria.geometry.toRadians
 import com.sagoma.planimetria.geometry.Stairs
 import com.sagoma.planimetria.geometry.Structure
+import com.sagoma.planimetria.geometry.outward
+import com.sagoma.planimetria.geometry.withBulge
 import com.sagoma.planimetria.geometry.MeasureTarget
 import com.sagoma.planimetria.model.Beam
 import com.sagoma.planimetria.model.Column
@@ -966,6 +968,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         is DragTarget.BeamEnd -> GroupItem.BeamItem(target.beamId)
         is DragTarget.FreeWallBody -> GroupItem.FreeWallItem(target.wallId)
         is DragTarget.FreeWallEnd -> GroupItem.FreeWallItem(target.wallId)
+        is DragTarget.FreeWallBulge -> GroupItem.FreeWallItem(target.wallId)
         is DragTarget.Stair -> GroupItem.StairItem(target.stairId)
         is DragTarget.RulerBody -> GroupItem.RulerItem(target.rulerId)
         is DragTarget.RulerEnd -> GroupItem.RulerItem(target.rulerId)
@@ -1625,6 +1628,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         is DragTarget.Stair -> MeasureTarget.Stair(target.stairId)
         is DragTarget.FreeWallBody -> MeasureTarget.FreeWall(target.wallId)
         is DragTarget.FreeWallEnd -> MeasureTarget.FreeWall(target.wallId)
+        is DragTarget.FreeWallBulge -> MeasureTarget.FreeWall(target.wallId)
         is DragTarget.FurnitureBody -> MeasureTarget.Furniture(target.furnitureId)
         is DragTarget.FurnitureRotate -> MeasureTarget.Furniture(target.furnitureId)
         // Un angolo: il muro che parte da quell'angolo.
@@ -1701,6 +1705,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.BeamEnd -> selectBeam(target.beamId)
             is DragTarget.FreeWallBody -> selectFreeWall(target.wallId)
             is DragTarget.FreeWallEnd -> selectFreeWall(target.wallId)
+            is DragTarget.FreeWallBulge -> selectFreeWall(target.wallId)
             is DragTarget.FurnitureBody -> selectFurniture(target.furnitureId)
             is DragTarget.FurnitureRotate -> selectFurniture(target.furnitureId)
             is DragTarget.RulerEnd, is DragTarget.RulerBody, is DragTarget.RulerRotate -> Unit
@@ -1958,6 +1963,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.BeamEnd -> selectBeam(target.beamId)
             is DragTarget.FreeWallBody -> selectFreeWall(target.wallId)
             is DragTarget.FreeWallEnd -> selectFreeWall(target.wallId)
+            is DragTarget.FreeWallBulge -> selectFreeWall(target.wallId)
             is DragTarget.FurnitureBody -> selectFurniture(target.furnitureId)
             is DragTarget.FurnitureRotate -> selectFurniture(target.furnitureId)
             is DragTarget.DimensionLine -> selectDimension(target.dimensionId)
@@ -2080,6 +2086,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                     val p = Structure.snapAngle(w.end + totalDelta, w.start)
                     start.replace(w.copy(end = Structure.snapWallEnd(start, p, w.start, w.id)))
                 }
+            }
+            // Pallino della curva: la freccia segue il dito di lato al muro; vicino alla linea dritta il muro torna dritto.
+            is DragTarget.FreeWallBulge -> {
+                val w = start.freeWall(target.wallId) ?: return
+                val bulge = w.bulge + (totalDelta dot w.outward())
+                start.replace(w.withBulge(if (abs(bulge) < BULGE_SNAP) 0.0 else bulge))
             }
             is DragTarget.FurnitureBody -> {
                 val f = start.furniture(target.furnitureId) ?: return
@@ -2363,6 +2375,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val o = _state.value.plan.room(roomId)?.opening(openingId) ?: return
         updateOpening(roomId, o.copy(phase = phase))
         showPhases(phase)
+    }
+
+    /** Curva del muro singolo: freccia in cm (0 = dritto). */
+    fun setFreeWallBulge(id: Long, bulge: Double) {
+        val w = _state.value.plan.freeWall(id) ?: return
+        updateFreeWall(w.withBulge(bulge))
     }
 
     fun setFreeWallPhase(id: Long, phase: Phase) {

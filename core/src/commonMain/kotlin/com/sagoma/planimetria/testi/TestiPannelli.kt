@@ -108,6 +108,7 @@ open class TestiPannelli {
     open val angoloCurva: String get() = "Angolo"
     open val raddrizzaMuro: String get() = "Raddrizza"
     open val curvaSuggerimento: String get() = "Trascina il pallino a metà muro per curvarlo, oppure scrivi la freccia (quanto sporge a metà; negativa = verso dentro la stanza). Per curvare solo un tratto, metti prima un angolo dove inizia la curva e uno dove finisce."
+    open val curvaMuroSingoloSuggerimento: String get() = "Trascina il pallino a metà muro per curvarlo, oppure scrivi la freccia (quanto sporge a metà; negativa = dall'altra parte)."
     open val unisciMuroDopo: String get() = "Unisci al muro dopo"
     open val angoloMetaMuroMuro: String get() =
         "Con \"Angolo a metà muro\" il muro si divide in due: trascina il nuovo angolo per fare pareti inclinate, rientranze o " +

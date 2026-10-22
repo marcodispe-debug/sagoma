@@ -1,6 +1,7 @@
 package com.sagoma.planimetria.geometry
 
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.Mount
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
@@ -256,4 +257,37 @@ fun FloorPlan.expandCurves(): ExpandedPlan {
     if (rooms.none { r -> r.wallBulges.isNotEmpty() }) return ExpandedPlan(this, emptyMap())
     val expanded = rooms.map { it.expandCurves() }
     return ExpandedPlan(copy(rooms = expanded.map { it.room }), rooms.zip(expanded).associate { (r, e) -> r.id to e.origin })
+}
+
+// ---------- Muri singoli curvi ----------
+
+/** Arco del muro singolo, o null se è dritto. */
+fun FreeWall.arc(): WallArc? = host.arcOf(0)
+
+/**
+ * Muro singolo curvo fatto di pezzi dritti lungo l'arco, come i muri curvi delle stanze: ogni porta o finestra sta su un suo
+ * pezzo (sul suo muro 0). Un muro dritto è un pezzo solo, sé stesso.
+ */
+fun FreeWall.pieces(): List<FreeWall> {
+    if (arc() == null) return listOf(this)
+    val e = host.expandCurves()
+    val r = e.room
+    return e.origin.indices.filter { e.origin[it] == 0 }.map { j ->
+        copy(start = r.wallStart(j), end = r.wallEnd(j), bulge = 0.0, openings = r.openings.filter { it.wallIndex == j }.map { it.copy(wallIndex = 0) })
+    }
+}
+
+/** Distanza dalla mezzeria del muro singolo, dritto o curvo. */
+fun FreeWall.distanceTo(p: Vec2): Double = arc()?.distanceTo(p) ?: Polygon.distanceToSegment(p, start, end)
+
+/** Punto a metà della mezzeria (in cima alla curva, se è curvo). */
+fun FreeWall.middle(): Vec2 = arc()?.at(0.0) ?: mid
+
+/** Lato verso cui si incurva il muro singolo con freccia positiva. */
+fun FreeWall.outward(): Vec2 = if (length < 1e-9) Vec2.Zero else ((end - start) / length).perp() * -1.0
+
+/** Freccia ammessa per il muro singolo: al massimo mezzo cerchio, sotto [MIN_BULGE] dritto. */
+fun FreeWall.withBulge(b: Double): FreeWall {
+    val v = b.coerceIn(-length / 2, length / 2)
+    return copy(bulge = if (abs(v) < MIN_BULGE) 0.0 else v)
 }

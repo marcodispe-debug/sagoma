@@ -740,6 +740,11 @@ data class FreeWall(
     val phase: Phase = Phase.Existing,
     /** Porte, finestre e passaggi nel muro: tutti sul muro 0, da `start` verso `end` (vedi [host]). */
     val openings: List<Opening> = emptyList(),
+    /**
+     * Muro curvo: di quanto si scosta a metà dalla linea dritta (cm), positiva verso `−(end − start).perp()` (il lato «fuori»
+     * del muro 0 della [host]). 0 = dritto.
+     */
+    val bulge: Double = 0.0,
 ) {
     val finishOrPaint: WallFinish get() = finish ?: WallFinish.of(paint)
     val length: Double get() = start.distanceTo(end)
@@ -754,6 +759,8 @@ data class FreeWall(
         id = hostId(id), name = com.sagoma.planimetria.testi.T.vari.muroSingolo, type = RoomType.Altro,
         points = listOf(start, end), wallThickness = thickness, openings = openings,
         wallPhases = if (phase == Phase.Existing) emptyMap() else mapOf(0 to phase, 1 to phase),
+        // Andata e ritorno sullo stesso arco: visto dal muro 1 la curva va dall'altra parte.
+        wallBulges = if (bulge == 0.0) emptyMap() else mapOf(0 to bulge, 1 to -bulge),
     )
 
     companion object {

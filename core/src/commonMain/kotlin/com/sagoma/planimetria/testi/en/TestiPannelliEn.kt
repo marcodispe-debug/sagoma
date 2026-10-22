@@ -109,6 +109,7 @@ object TestiPannelliEn : TestiPannelli() {
     override val angoloCurva: String get() = "Angle"
     override val raddrizzaMuro: String get() = "Straighten"
     override val curvaSuggerimento: String get() = "Drag the dot in the middle of the wall to curve it, or type the bulge (how far the middle sticks out; negative = into the room). To curve only part of a wall, first add a corner where the curve starts and one where it ends."
+    override val curvaMuroSingoloSuggerimento: String get() = "Drag the dot in the middle of the wall to curve it, or type the bulge (how far the middle sticks out; negative = the other way)."
     override val unisciMuroDopo: String get() = "Join with the next wall"
     override val angoloMetaMuroMuro: String get() =
         "With \"Corner mid-wall\" the wall is split in two: drag the new corner to make slanted walls, recesses or " +

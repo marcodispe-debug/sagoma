@@ -485,12 +485,16 @@ private class SceneBuilder(
                 if (w.length < 1.0) continue
                 val pick = Pick.FreeWall(w.id)
                 val h = Structure.freeWallHeight(plan, w, level.levelHeight)
-                freeWall(w, h, pick)
-                // Si passa solo dalle porte e dai passaggi: i tratti pieni e le finestre fermano chi cammina.
-                if (current && h > 40) {
-                    val u = (w.end - w.start) / w.length
-                    for (r in Structure.solidRanges(w)) obstacles += Obstacle(w.start + u * r.start, w.start + u * r.endInclusive)
-                    for (o in w.openings) if (o.kind.glazed && o.sillHeight > 0) Openings.span(w.host, o).let { (a, b) -> obstacles += Obstacle(a, b) }
+                // Muro curvo: pezzi dritti lungo l'arco, ognuno con le sue aperture.
+                for (piece in w.pieces()) {
+                    if (piece.length < 0.01) continue
+                    freeWall(piece, h, pick)
+                    // Si passa solo dalle porte e dai passaggi: i tratti pieni e le finestre fermano chi cammina.
+                    if (current && h > 40) {
+                        val u = (piece.end - piece.start) / piece.length
+                        for (r in Structure.solidRanges(piece)) obstacles += Obstacle(piece.start + u * r.start, piece.start + u * r.endInclusive)
+                        for (o in piece.openings) if (o.kind.glazed && o.sillHeight > 0) Openings.span(piece.host, o).let { (a, b) -> obstacles += Obstacle(a, b) }
+                    }
                 }
             }
             for (b in plan.beams) {
