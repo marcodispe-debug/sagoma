@@ -553,6 +553,15 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
     }
     // Stato di fatto / progetto del muro (pratiche edilizie): esistente, da demolire (giallo), nuovo (rosso).
     if (!room.outdoor) PhaseChoice(room.phaseOf(sel.index), PhaseLabels.wall) { vm.setWallPhase(room.id, sel.index, it) }
+    // Lunghezza misurata sul lato interno, scritta a mano (come in Info → Misure). Per i tratti di un muro
+    // con lo scalino c'è «Lunghezza del tratto» più sotto; il muro curvo si misura con la sua curva.
+    val n = room.wallCount
+    val stepped = room.isStraightCorner(sel.index) || room.isStraightCorner((sel.index + 1) % n)
+    if (!stepped && room.arcOf(sel.index) == null) {
+        CommitNumberField(T.comuni.lunghezza, interiorLengths(room)[sel.index], Modifier.padding(end = 8.dp).fillMaxWidth()) {
+            vm.setWallLength(room.id, sel.index, it)
+        }
+    }
     // Lato di un balcone: il parapetto è uguale su tutti i lati e si sceglie da Info del balcone.
     if (room.outdoor) Text(
         T.pannelli.parapettoCmCambiaInfo(T.lingua.minuscola(room.parapet.label), formatCm(room.parapetHeight), room.name),
@@ -593,8 +602,6 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
             if (own != null) TextButton(onClick = { vm.setWallThickness(room.id, sel.index, null) }) { Text(T.pannelli.altriCm(formatCm(room.wallThickness))) }
         }
         // Muro che cambia spessore da un punto in poi: due tratti allineati con lo scalino in mezzo.
-        val n = room.wallCount
-        val stepped = room.isStraightCorner(sel.index) || room.isStraightCorner((sel.index + 1) % n)
         if (stepped) {
             NumberField(T.pannelli.lunghezzaTratto, room.wallLength(sel.index), Modifier.padding(end = 8.dp).fillMaxWidth()) { v ->
                 if (v >= 10) vm.setStepPartLength(room.id, sel.index, v)
