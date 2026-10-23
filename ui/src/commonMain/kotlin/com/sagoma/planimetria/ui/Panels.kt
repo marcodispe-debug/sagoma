@@ -31,6 +31,10 @@ import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.MergeRequest
 import com.sagoma.planimetria.editor.Selection
 import com.sagoma.planimetria.geometry.RoomMerge
+import com.sagoma.planimetria.geometry.WallArc
+import com.sagoma.planimetria.geometry.arcOf
+import com.sagoma.planimetria.geometry.arc
+import com.sagoma.planimetria.geometry.isStraightCorner
 import com.sagoma.planimetria.geometry.Ceilings
 import com.sagoma.planimetria.geometry.Collisions
 import com.sagoma.planimetria.geometry.WallCollision
@@ -62,6 +66,7 @@ import com.sagoma.planimetria.geometry.Structure
 import com.sagoma.planimetria.model.Finish
 import com.sagoma.planimetria.model.LampModel
 import com.sagoma.planimetria.model.RadiatorModel
+import com.sagoma.planimetria.model.FramePosition
 import com.sagoma.planimetria.model.Shading
 import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.StairRailing
@@ -97,7 +102,7 @@ fun selectionTitle(selection: Selection, plan: FloorPlan, levelHeight: Double = 
     }
     if (selection is Selection.FreeWall) {
         val w = plan.freeWall(selection.wallId) ?: return ""
-        return T.pannelli.muroSingoloCm(formatCm(w.length))
+        return T.pannelli.muroSingoloCm(w.arc()?.let { "⌒ " + formatCm(it.arcLength()) } ?: formatCm(w.length))
     }
     if (selection is Selection.Furniture) {
         val f = plan.furniture(selection.furnitureId) ?: return ""
@@ -207,7 +212,23 @@ private fun ColumnPanel(sel: Selection.Column, plan: FloorPlan, vm: EditorViewMo
     )
 }
 
-/** Muro singolo: lunghezza, spessore, altezza (fino al soffitto o più basso), colore. */
+/** Curva di un muro: freccia (anche con il segno), e se è curvo raggio, angolo al centro e «Raddrizza». */
+@Composable
+private fun CurveSection(arc: WallArc?, chord: Double, hint: String, setBulge: (Double) -> Unit) {
+    val sign = if ((arc?.bulge ?: 1.0) < 0) -1.0 else 1.0
+    Text(T.pannelli.curvaMuro, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 8.dp))
+    Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        NumberField(T.pannelli.frecciaCurva, arc?.bulge ?: 0.0, Modifier.weight(1f), allowZero = true, allowNegative = true) { v -> setBulge(v) }
+        if (arc != null) TextButton(onClick = { setBulge(0.0) }) { Text(T.pannelli.raddrizzaMuro) }
+    }
+    if (arc != null) Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        NumberField(T.pannelli.raggioCurva, kotlin.math.abs(arc.radius), Modifier.weight(1f)) { v -> setBulge(WallArc.bulgeForRadius(chord, sign * v)) }
+        NumberField(T.pannelli.angoloCurva, arc.degrees, Modifier.weight(1f), suffix = "°") { v -> setBulge(WallArc.bulgeForDegrees(chord, sign * v)) }
+    }
+    Text(hint, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(end = 8.dp))
+}
+
+/** Muro singolo: lunghezza, spessore, altezza (fino al soffitto o più basso), colore, curva. */
 @Composable
 private fun FreeWallPanel(sel: Selection.FreeWall, plan: FloorPlan, vm: EditorViewModel, levelHeight: Double) {
     val w = plan.freeWall(sel.wallId) ?: return
@@ -235,6 +256,7 @@ private fun FreeWallPanel(sel: Selection.FreeWall, plan: FloorPlan, vm: EditorVi
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.padding(end = 8.dp),
     )
+    CurveSection(w.arc(), w.length, T.pannelli.curvaMuroSingoloSuggerimento) { vm.setFreeWallBulge(w.id, it) }
 }
 
 /** Arredo: misure, rotazione e altezza da terra; si trascina per spostarlo, la maniglia lo ruota. */
@@ -570,6 +592,19 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
             NumberField(T.pannelli.spessoreMuro, room.thicknessOf(sel.index), Modifier.weight(1f)) { v -> vm.setWallThickness(room.id, sel.index, v) }
             if (own != null) TextButton(onClick = { vm.setWallThickness(room.id, sel.index, null) }) { Text(T.pannelli.altriCm(formatCm(room.wallThickness))) }
         }
+        // Muro che cambia spessore da un punto in poi: due tratti allineati con lo scalino in mezzo.
+        val n = room.wallCount
+        val stepped = room.isStraightCorner(sel.index) || room.isStraightCorner((sel.index + 1) % n)
+        if (stepped) {
+            NumberField(T.pannelli.lunghezzaTratto, room.wallLength(sel.index), Modifier.padding(end = 8.dp).fillMaxWidth()) { v ->
+                if (v >= 10) vm.setStepPartLength(room.id, sel.index, v)
+            }
+            Text(T.pannelli.scalinoSuggerimento, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(end = 8.dp))
+        } else if (room.arcOf(sel.index) == null && room.wallLength(sel.index) >= 40) {
+            OutlinedButton(onClick = { vm.startWallStep(room.id, sel.index) }, modifier = Modifier.padding(end = 8.dp).fillMaxWidth()) {
+                Text(T.pannelli.spessoreDaUnPunto)
+            }
+        }
     }
     Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = { vm.splitWall(room.id, sel.index) }, modifier = Modifier.weight(1f)) { Text(T.pannelli.angoloMetaMuro, maxLines = 2) }
@@ -580,6 +615,8 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.padding(end = 8.dp),
     )
+    // Muro curvo: la curva si sceglie trascinando il pallino a metà muro, oppure con i numeri (freccia, raggio o angolo).
+    if (!room.outdoor) CurveSection(room.arcOf(sel.index), room.wallLength(sel.index), T.pannelli.curvaSuggerimento) { vm.setWallBulge(room.id, sel.index, it) }
     WallCutSection(sel, room, vm)
     // Oggetti su questo muro che non ci stanno sotto la parete.
     for (c in Collisions.of(plan).filter { it.roomId == room.id && it.wallIndex == sel.index }) {
@@ -751,9 +788,27 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
         ModelPicker(T.pannelli.oscuranti, Shading.entries, o.shading, { it.label }, { v -> update { it.copy(shading = v) } }) {
             windowPreview(o.windowModel, it, color)
         }
+        // Nei muri spessi: infisso verso l'esterno e lati del vano inclinati verso la stanza.
+        Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice(T.pannelli.infisso, FramePosition.entries.map { it.label }, o.frame.ordinal, Modifier.weight(2f)) { i ->
+                update { it.copy(frame = FramePosition.entries[i]) }
+            }
+            NumberField(T.pannelli.sguincio, o.splay, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(splay = v.coerceIn(0.0, 60.0)) } }
+        }
+        if (o.splay > 0) Row(Modifier.padding(end = 8.dp)) {
+            Choice(T.pannelli.latiVano, listOf(T.pannelli.inclinati, T.pannelli.arrotondati), if (o.splayRounded) 1 else 0, Modifier.weight(1f)) { i ->
+                update { it.copy(splayRounded = i == 1) }
+            }
+        }
     } else if (o.kind.hasLeaves) {
         ModelPicker(T.comuni.modello, DoorModel.entries, o.doorModel, { it.label }, { v -> update { it.copy(doorModel = v) } }) {
             doorPreview(it, color)
+        }
+        // Porta d'ingresso: in pianta il segno dell'ingresso fuori dalla porta.
+        Row(Modifier.padding(end = 8.dp)) {
+            Choice(T.pannelli.tipoPorta, listOf(T.pannelli.portaInterna, T.pannelli.ingresso), if (o.entrance) 1 else 0, Modifier.weight(1f)) { i ->
+                update { it.copy(entrance = i == 1) }
+            }
         }
     }
     if (o.kind.hasLeaves) {

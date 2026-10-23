@@ -34,6 +34,11 @@ import com.sagoma.planimetria.geometry.toDegrees
 import com.sagoma.planimetria.geometry.toRadians
 import com.sagoma.planimetria.geometry.Stairs
 import com.sagoma.planimetria.geometry.Structure
+import com.sagoma.planimetria.geometry.isStepCorner
+import com.sagoma.planimetria.geometry.isStraightCorner
+import com.sagoma.planimetria.geometry.slideStepCorner
+import com.sagoma.planimetria.geometry.outward
+import com.sagoma.planimetria.geometry.withBulge
 import com.sagoma.planimetria.geometry.MeasureTarget
 import com.sagoma.planimetria.model.Beam
 import com.sagoma.planimetria.model.Column
@@ -61,6 +66,7 @@ import com.sagoma.planimetria.model.Underlay
 import com.sagoma.planimetria.model.Dimension
 import com.sagoma.planimetria.model.TextNote
 import com.sagoma.planimetria.model.Layer
+import com.sagoma.planimetria.model.LengthUnit
 import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.geometry.PhaseView
 import androidx.lifecycle.viewModelScope
@@ -75,6 +81,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 import kotlin.math.min
 
 class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipStore) : ViewModel() {
@@ -343,8 +350,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         if (_state.value.wallDraw?.points?.isNotEmpty() == true) return drawWallsUndo()
         // I livelli (nascosti, bloccati) sono un modo di guardare il disegno, non una modifica: restano come sono.
         val layers = _state.value.building.layers
+        val units = _state.value.building.units
         history.undo(_state.value.fullBuilding)?.let {
-            setBuilding(it.copy(layers = layers))
+            setBuilding(it.copy(layers = layers, units = units))
             dropStaleCreation()
             tutorialEvent(TutorialEvent.Undo)
         }
@@ -352,7 +360,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     fun redo() {
         val layers = _state.value.building.layers
-        history.redo(_state.value.fullBuilding)?.let { setBuilding(it.copy(layers = layers)); dropStaleCreation() }
+        val units = _state.value.building.units
+        history.redo(_state.value.fullBuilding)?.let { setBuilding(it.copy(layers = layers, units = units)); dropStaleCreation() }
     }
 
     /** La scelta obbligatoria della stanza iniziale non ha più senso se annullando (o ripetendo) il piano ha di nuovo delle stanze. */
@@ -369,6 +378,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val sel = s.selection?.takeIf { visible || layerOf(it) != layer }
         s.copy(building = s.building.copy(layers = nl), selection = sel)
     }
+
+    /** Misure sulla pianta in centimetri o in metri: come i livelli è un modo di guardare il disegno, non si annulla. */
+    fun setUnits(units: LengthUnit) = _state.update { s -> s.copy(building = s.building.copy(units = units)) }
 
     /** Blocca o sblocca un livello (bloccato: si vede ma non si tocca). */
     fun setLayerLocked(layer: Layer, locked: Boolean) = _state.update { s ->
@@ -959,6 +971,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         is DragTarget.BeamEnd -> GroupItem.BeamItem(target.beamId)
         is DragTarget.FreeWallBody -> GroupItem.FreeWallItem(target.wallId)
         is DragTarget.FreeWallEnd -> GroupItem.FreeWallItem(target.wallId)
+        is DragTarget.FreeWallBulge -> GroupItem.FreeWallItem(target.wallId)
         is DragTarget.Stair -> GroupItem.StairItem(target.stairId)
         is DragTarget.RulerBody -> GroupItem.RulerItem(target.rulerId)
         is DragTarget.RulerEnd -> GroupItem.RulerItem(target.rulerId)
@@ -1609,6 +1622,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     private fun measureTarget(target: DragTarget, s: EditorUiState): MeasureTarget? = when (target) {
         is DragTarget.Wall -> MeasureTarget.Wall(target.roomId, target.index)
         is DragTarget.CutStart -> MeasureTarget.Wall(target.roomId, target.index)
+        is DragTarget.WallBulge -> MeasureTarget.Wall(target.roomId, target.index)
         is DragTarget.Opening -> MeasureTarget.Opening(target.roomId, target.openingId)
         is DragTarget.Fixture -> MeasureTarget.Fixture(target.roomId, target.fixtureId)
         is DragTarget.Column -> MeasureTarget.Column(target.columnId)
@@ -1617,6 +1631,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         is DragTarget.Stair -> MeasureTarget.Stair(target.stairId)
         is DragTarget.FreeWallBody -> MeasureTarget.FreeWall(target.wallId)
         is DragTarget.FreeWallEnd -> MeasureTarget.FreeWall(target.wallId)
+        is DragTarget.FreeWallBulge -> MeasureTarget.FreeWall(target.wallId)
         is DragTarget.FurnitureBody -> MeasureTarget.Furniture(target.furnitureId)
         is DragTarget.FurnitureRotate -> MeasureTarget.Furniture(target.furnitureId)
         // Un angolo: il muro che parte da quell'angolo.
@@ -1681,6 +1696,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.Fixture -> selectFixture(target.roomId, target.fixtureId)
             is DragTarget.SpotAim -> selectFixture(target.roomId, target.fixtureId)
             is DragTarget.CutStart -> selectWall(target.roomId, target.index)
+            is DragTarget.WallBulge -> selectWall(target.roomId, target.index)
             is DragTarget.Corner -> focusRoom(target.roomId)
             is DragTarget.RoomLabel -> focusRoom(target.roomId)
             is DragTarget.RoomInterior -> focusRoom(target.roomId)
@@ -1692,6 +1708,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.BeamEnd -> selectBeam(target.beamId)
             is DragTarget.FreeWallBody -> selectFreeWall(target.wallId)
             is DragTarget.FreeWallEnd -> selectFreeWall(target.wallId)
+            is DragTarget.FreeWallBulge -> selectFreeWall(target.wallId)
             is DragTarget.FurnitureBody -> selectFurniture(target.furnitureId)
             is DragTarget.FurnitureRotate -> selectFurniture(target.furnitureId)
             is DragTarget.RulerEnd, is DragTarget.RulerBody, is DragTarget.RulerRotate -> Unit
@@ -1941,6 +1958,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.RulerRotate -> _state.update { it.copy(rotatingRulerId = target.rulerId) }
             is DragTarget.RulerEnd, is DragTarget.RulerBody -> Unit
             is DragTarget.CutStart -> selectWall(target.roomId, target.index)
+            is DragTarget.WallBulge -> selectWall(target.roomId, target.index)
             is DragTarget.SpotAim -> selectFixture(target.roomId, target.fixtureId)
             is DragTarget.Stair -> selectStair(target.stairId)
             is DragTarget.Column -> selectColumn(target.columnId)
@@ -1948,6 +1966,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.BeamEnd -> selectBeam(target.beamId)
             is DragTarget.FreeWallBody -> selectFreeWall(target.wallId)
             is DragTarget.FreeWallEnd -> selectFreeWall(target.wallId)
+            is DragTarget.FreeWallBulge -> selectFreeWall(target.wallId)
             is DragTarget.FurnitureBody -> selectFurniture(target.furnitureId)
             is DragTarget.FurnitureRotate -> selectFurniture(target.furnitureId)
             is DragTarget.DimensionLine -> selectDimension(target.dimensionId)
@@ -1973,14 +1992,21 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 val room = start.room(target.roomId) ?: return
                 val i = target.index
                 val n = room.points.size
-                // Aggancio CAD: estremità e punti medi delle altre stanze, allineamenti con tutti gli angoli.
-                val neighbors = listOf(room.points[(i - 1 + n) % n], room.points[(i + 1) % n])
-                val own = room.points.filterIndexed { k, _ -> k != i }
-                val r = if (snapOn) SnapEngine.snap(room.points[i] + totalDelta, SnapEngine.targetsWithBelow(start, _state.value.planBelow, excludeRoom = room.id), snapTolerance(), neighbors, own)
-                else SnapResult(room.points[i] + totalDelta, emptyList())
-                val moved = room.points.toMutableList().also { it[i] = r.point }
-                snapGuides = r.guides
-                start.replace(room.copy(points = if (r.snapped) Snapping.straighten(moved, i) else moved))
+                // Scalino (il muro cambia spessore lì e resta dritto): l'angolo scorre lungo il muro.
+                if (room.isStepCorner(i)) {
+                    val a = room.points[(i - 1 + n) % n]
+                    val u = (room.points[(i + 1) % n] - a).normalized()
+                    start.replace(room.slideStepCorner(i, (room.points[i] + totalDelta - a) dot u))
+                } else {
+                    // Aggancio CAD: estremità e punti medi delle altre stanze, allineamenti con tutti gli angoli.
+                    val neighbors = listOf(room.points[(i - 1 + n) % n], room.points[(i + 1) % n])
+                    val own = room.points.filterIndexed { k, _ -> k != i }
+                    val r = if (snapOn) SnapEngine.snap(room.points[i] + totalDelta, SnapEngine.targetsWithBelow(start, _state.value.planBelow, excludeRoom = room.id), snapTolerance(), neighbors, own)
+                    else SnapResult(room.points[i] + totalDelta, emptyList())
+                    val moved = room.points.toMutableList().also { it[i] = r.point }
+                    snapGuides = r.guides
+                    start.replace(room.copy(points = if (r.snapped) Snapping.straighten(moved, i) else moved))
+                }
             }
             // Punto da cui la parete inizia a scendere: scorre lungo il muro.
             is DragTarget.CutStart -> {
@@ -1991,6 +2017,13 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 val away = (other - corner).normalized()
                 // Un solo inizio di falda: l'altro lato della mansarda segue il pallino.
                 start.replace(Ceilings.withCutStart(room, target.index, cut.start + (totalDelta dot away)))
+            }
+            // Maniglia della curva: la freccia segue il dito di lato al muro; vicino alla linea dritta il muro torna dritto.
+            is DragTarget.WallBulge -> {
+                val room = start.room(target.roomId) ?: return
+                val i = target.index
+                val bulge = (room.wallBulges[i] ?: 0.0) + (totalDelta dot room.outwardOf(i))
+                start.replace(withBulge(room, i, if (abs(bulge) < BULGE_SNAP) 0.0 else bulge))
             }
             is DragTarget.Wall -> {
                 val room = start.room(target.roomId) ?: return
@@ -2063,6 +2096,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                     val p = Structure.snapAngle(w.end + totalDelta, w.start)
                     start.replace(w.copy(end = Structure.snapWallEnd(start, p, w.start, w.id)))
                 }
+            }
+            // Pallino della curva: la freccia segue il dito di lato al muro; vicino alla linea dritta il muro torna dritto.
+            is DragTarget.FreeWallBulge -> {
+                val w = start.freeWall(target.wallId) ?: return
+                val bulge = w.bulge + (totalDelta dot w.outward())
+                start.replace(w.withBulge(if (abs(bulge) < BULGE_SNAP) 0.0 else bulge))
             }
             is DragTarget.FurnitureBody -> {
                 val f = start.furniture(target.furnitureId) ?: return
@@ -2263,7 +2302,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
         if (thickness != null && thickness !in 3.0..120.0) return@commit plan
         fun apply(r: Room, i: Int) = r.copy(wallThicknesses = if (thickness == null || thickness == r.wallThickness) r.wallThicknesses - i else r.wallThicknesses + (i to thickness))
-        var result = plan.replace(apply(room, index))
+        // Tratto di un muro a scalini (allineato con il muro prima o dopo): il filo verso la stanza resta fermo, il muro
+        // ingrossa o si assottiglia solo verso fuori.
+        fun keepInnerFace(r: Room): Room {
+            val n = r.wallCount
+            if (!r.isStraightCorner(index) && !r.isStraightCorner((index + 1) % n)) return r
+            val off = (r.wallOffsets[index] ?: 0.0) + ((thickness ?: r.wallThickness) - room.thicknessOf(index)) / 2
+            return r.copy(wallOffsets = if (kotlin.math.abs(off) < 0.01) r.wallOffsets - index else r.wallOffsets + (index to off))
+        }
+        var result = plan.replace(keepInnerFace(apply(room, index)))
         val a = room.wallStart(index)
         val b = room.wallEnd(index)
         for (other in plan.rooms) {
@@ -2348,6 +2395,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         showPhases(phase)
     }
 
+    /** Curva del muro singolo: freccia in cm (0 = dritto). */
+    fun setFreeWallBulge(id: Long, bulge: Double) {
+        val w = _state.value.plan.freeWall(id) ?: return
+        updateFreeWall(w.withBulge(bulge))
+    }
+
     fun setFreeWallPhase(id: Long, phase: Phase) {
         val w = _state.value.plan.freeWall(id) ?: return
         updateFreeWall(w.copy(phase = phase))
@@ -2376,6 +2429,51 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             null -> s.focusedRoomId?.let { requestDeleteRoom(it) } ?: return false
         }
         return true
+    }
+
+    /**
+     * Curva del muro: freccia in cm (di quanto il muro si scosta a metà dalla linea dritta; positiva verso l'esterno,
+     * negativa verso l'interno, 0 = dritto). Al massimo mezzo cerchio.
+     */
+    fun setWallBulge(roomId: Long, index: Int, bulge: Double) {
+        commit { plan ->
+            val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
+            plan.replace(withBulge(room, index, bulge))
+        }
+        _state.update { it.copy(selection = Selection.Wall(roomId, index), focusedRoomId = roomId) }
+    }
+
+    private fun withBulge(room: Room, i: Int, bulge: Double): Room {
+        val b = bulge.coerceIn(-room.wallLength(i) / 2, room.wallLength(i) / 2)
+        return room.copy(wallBulges = if (abs(b) < com.sagoma.planimetria.geometry.MIN_BULGE) room.wallBulges - i else room.wallBulges + (i to b))
+    }
+
+    /**
+     * Spessore che cambia da un punto in poi: il muro si divide a metà in due tratti allineati (lì ci sarà lo scalino) e si
+     * seleziona il secondo, a cui scrivere lo spessore.
+     */
+    fun startWallStep(roomId: Long, index: Int) {
+        commit { plan ->
+            val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
+            plan.replace(room.splitWall(index))
+        }
+        _state.update { it.copy(selection = Selection.Wall(roomId, index + 1), focusedRoomId = roomId) }
+    }
+
+    /** Lunghezza del tratto `index` di un muro a scalini: si sposta lo scalino, l'altra estremità resta ferma. */
+    fun setStepPartLength(roomId: Long, index: Int, length: Double) {
+        commit { plan ->
+            val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
+            val n = room.wallCount
+            when {
+                room.isStraightCorner((index + 1) % n) -> plan.replace(room.slideStepCorner((index + 1) % n, length))
+                room.isStraightCorner(index) -> {
+                    val before = room.points[(index - 1 + n) % n].distanceTo(room.wallEnd(index))
+                    plan.replace(room.slideStepCorner(index, before - length))
+                }
+                else -> plan
+            }
+        }
     }
 
     /** Aggiunge un angolo a metà del muro: il muro diventa due, da spostare liberamente (forme libere). */
@@ -2757,6 +2855,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun setCamera(camera: Camera) = _state.update { it.copy(camera = camera) }
 
     private companion object {
+        /** Trascinando la maniglia della curva, entro questi cm dalla linea dritta il muro torna dritto. */
+        private const val BULGE_SNAP = 4.0
         const val AUTOSAVE_DELAY_MS = 400L
         /** Funzioni già spiegate dal tutorial: finito il tutorial, i loro suggerimenti non servono più. */
         val TUTORIAL_TIPS = listOf(Tip.Welcome, Tip.Room, Tip.Wall, Tip.NewRoom, Tip.Opening, Tip.Fixture)

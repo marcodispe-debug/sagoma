@@ -218,7 +218,7 @@ object PdfExport {
         }
         for (i in 0 until screen.size - 1) {
             val len = world[i + 1] - world[i]
-            val t = measurer.measure(formatCmShort(len), style)
+            val t = measurer.measure(if (com.sagoma.planimetria.model.PlanUnits.unit == com.sagoma.planimetria.model.LengthUnit.Meters) com.sagoma.planimetria.model.PlanUnits.format(len) else formatCmShort(len), style)
             val mid = (screen[i] + screen[i + 1]) / 2
             if (abs(screen[i + 1] - screen[i]) < t.size.width * 0.8f) continue // troppo corto per scriverci
             if (horizontal) {

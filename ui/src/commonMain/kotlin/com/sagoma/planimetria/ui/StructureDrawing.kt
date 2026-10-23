@@ -17,6 +17,10 @@ import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.Selection
 import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.Structure
+import com.sagoma.planimetria.geometry.arc
+import com.sagoma.planimetria.geometry.middle
+import com.sagoma.planimetria.geometry.outward
+import com.sagoma.planimetria.geometry.pieces
 import com.sagoma.planimetria.model.Beam
 import com.sagoma.planimetria.model.Column
 import com.sagoma.planimetria.model.ColumnShape
@@ -71,37 +75,59 @@ internal fun DrawScope.drawFreeWall(w: FreeWall, cam: Camera, measurer: TextMeas
         w.phase == com.sagoma.planimetria.model.Phase.New -> PhaseNewColor
         else -> FreeWallColor
     }
-    val u = if (w.length > 1e-6) (w.end - w.start) / w.length else Vec2.Zero
-    for (r in if (w.openings.isEmpty()) listOf(0.0..w.length) else Structure.solidRanges(w)) {
-        val path = outlinePath(Structure.outline(w.copy(start = w.start + u * r.start, end = w.start + u * r.endInclusive)), cam)
+    for (outline in Structure.solidOutlines(w)) {
+        val path = outlinePath(outline, cam)
         drawPath(path, fill)
         if (!selected && w.phase != com.sagoma.planimetria.model.Phase.Existing) drawPath(path, FreeWallColor, style = androidx.compose.ui.graphics.drawscope.Stroke(1f))
     }
-    val host = w.host
-    for (o in w.openings) {
-        if (o.id == selectedOpening) {
-            val (oa, ob) = Openings.span(host, o)
-            drawLine(StructureSelected.copy(alpha = 0.35f), cam.pt(oa), cam.pt(ob), strokeWidth = (w.thickness * cam.scale).toFloat() + 8.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+    // Muro curvo: ogni apertura sta sul suo pezzo dritto.
+    for (piece in w.pieces()) {
+        val host = piece.host
+        for (o in piece.openings) {
+            if (o.id == selectedOpening) {
+                val (oa, ob) = Openings.span(host, o)
+                drawLine(StructureSelected.copy(alpha = 0.35f), cam.pt(oa), cam.pt(ob), strokeWidth = (w.thickness * cam.scale).toFloat() + 8.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+            drawOpening(host, o, cam)
         }
-        drawOpening(host, o, cam)
     }
     val a = cam.pt(w.start)
     val e = cam.pt(w.end)
-    val label = measurer.measure(formatCm(w.length), TextStyle(fontSize = 10.sp, color = if (selected) StructureSelected else Color(0xFF495057)))
+    val arc = w.arc()
+    val text = arc?.let { "⌒ " + com.sagoma.planimetria.model.PlanUnits.format(it.arcLength()) } ?: com.sagoma.planimetria.model.PlanUnits.format(w.length)
+    val label = measurer.measure(text, TextStyle(fontSize = 10.sp, color = if (selected) StructureSelected else Color(0xFF495057)))
     if ((e - a).getDistance() > label.size.width * 1.5f) {
         var deg = com.sagoma.planimetria.geometry.toDegrees(atan2((e.y - a.y).toDouble(), (e.x - a.x).toDouble())).toFloat()
         if (deg > 90f) deg -= 180f
         if (deg < -90f) deg += 180f
-        val mid = (a + e) / 2f
+        // Sul muro curvo la misura sta in cima alla curva, dalla parte di dentro (fuori c'è il pallino della curva).
+        val bulgeSide = if ((arc?.bulge ?: 0.0) != 0.0) w.outward() * kotlin.math.sign(arc!!.bulge) else null
         val gap = (w.thickness / 2 * cam.scale).toFloat() + 2.dp.toPx()
+        val mid = if (bulgeSide == null) (a + e) / 2f else cam.pt(w.middle())
+        val rad = com.sagoma.planimetria.geometry.toRadians(deg.toDouble())
+        val up = Offset(kotlin.math.sin(rad).toFloat(), -kotlin.math.cos(rad).toFloat())
+        val above = bulgeSide == null || (up.x * bulgeSide.x + up.y * bulgeSide.y) < 0
         rotate(deg, mid) {
-            drawText(label, topLeft = Offset(mid.x - label.size.width / 2f, mid.y - gap - label.size.height))
+            drawText(label, topLeft = Offset(mid.x - label.size.width / 2f, if (above) mid.y - gap - label.size.height else mid.y + gap))
         }
     }
-    if (selected) for (p in listOf(a, e)) {
-        drawCircle(Color.White, 8.dp.toPx(), p)
-        drawCircle(StructureSelected, 6.dp.toPx(), p)
+    if (selected) {
+        for (p in listOf(a, e)) {
+            drawCircle(Color.White, 8.dp.toPx(), p)
+            drawCircle(StructureSelected, 6.dp.toPx(), p)
+        }
+        // Pallino della curva, appena fuori dal muro a metà: trascinandolo il muro si incurva.
+        val c = cam.pt(freeWallBulgeHandle(w, BULGE_HANDLE_GAP.toPx() / cam.scale.toFloat()))
+        drawCircle(Color.White, 9.dp.toPx(), c)
+        drawCircle(StructureSelected, 7.dp.toPx(), c)
+        drawArc(Color.White, 200f, 140f, false, topLeft = c - Offset(4.dp.toPx(), 2.dp.toPx()), size = androidx.compose.ui.geometry.Size(8.dp.toPx(), 8.dp.toPx()), style = Stroke(1.5.dp.toPx()))
     }
+}
+
+/** Pallino della curva del muro singolo: a metà, a `gapCm` dal filo, dalla parte dove si incurva (o dove si incurverebbe). */
+internal fun freeWallBulgeHandle(w: FreeWall, gapCm: Float): Vec2 {
+    val side = w.outward() * (if (w.bulge < 0) -1.0 else 1.0)
+    return w.middle() + side * (w.thickness / 2 + gapCm)
 }
 
 internal fun DrawScope.drawColumn(c: Column, cam: Camera, selected: Boolean) {

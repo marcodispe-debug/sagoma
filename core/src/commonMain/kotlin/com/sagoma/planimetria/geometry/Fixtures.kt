@@ -25,7 +25,7 @@ object Fixtures {
         val u = (room.wallEnd(i) - start).normalized()
         val n = Openings.inwardNormal(room, i)
         val c = Openings.clampPosition(len, f.length, f.position)
-        return (start + u * c + n * (room.thicknessOf(f.wallIndex) / 2)) to n
+        return (start + u * c + n * (room.thicknessOf(i) / 2 - room.wallShift(i))) to n
     }
 
     /** Centro dell'impianto: sul filo interno del muro (a muro) o il punto scelto (al soffitto). */

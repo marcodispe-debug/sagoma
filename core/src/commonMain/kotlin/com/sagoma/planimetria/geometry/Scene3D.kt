@@ -28,6 +28,7 @@ import com.sagoma.planimetria.model.WallFinish
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
@@ -100,6 +101,9 @@ data class Rgba(val r: Float, val g: Float, val b: Float, val a: Float = 1f) {
         val White = Rgba(1f, 1f, 1f)
     }
 }
+
+/** Coseno dell'angolo (30°) sotto cui due muri di fila si considerano quasi dritti (vedi `nearlyStraightJoin`). */
+private val NEARLY_STRAIGHT_COS = cos(PI / 6)
 
 /**
  * Scena 3D costruita dalla pianta: triangoli opachi e trasparenti (vetri) pronti per la GPU, triangoli
@@ -251,7 +255,11 @@ class Scene3D(
 }
 
 /** Un piano nella scena: la sua pianta, la quota del pavimento e l'interpiano (altezza delle scale). */
-internal class Level(val plan: FloorPlan, val base: Double, val levelHeight: Double, val current: Boolean)
+internal class Level(source: FloorPlan, val base: Double, val levelHeight: Double, val current: Boolean) {
+    /** Muri curvi srotolati in pezzi dritti: il 3D si costruisce su questi. */
+    val expanded = source.expandCurves()
+    val plan: FloorPlan = expanded.plan
+}
 
 /** Array di float che cresce da solo. */
 private class FloatList {
@@ -370,6 +378,7 @@ private class SceneBuilder(
 
     // Piano in costruzione: pianta, quota del pavimento, se è quello che si modifica (solo lui si tocca).
     private var plan = FloorPlan()
+    private var expanded = ExpandedPlan(FloorPlan(), emptyMap())
     private var base = 0.0
     private var current = true
     /** Ingombro delle scale del piano di sotto: il vuoto nel pavimento di questo piano. */
@@ -418,6 +427,7 @@ private class SceneBuilder(
         var previous: Level? = null
         for (level in levels) {
             plan = level.plan
+            expanded = level.expanded
             base = level.base
             current = level.current
             holes = previous?.let { p -> p.plan.stairs.flatMap { Stairs.well(it, p.levelHeight) } }.orEmpty()
@@ -479,12 +489,16 @@ private class SceneBuilder(
                 if (w.length < 1.0) continue
                 val pick = Pick.FreeWall(w.id)
                 val h = Structure.freeWallHeight(plan, w, level.levelHeight)
-                freeWall(w, h, pick)
-                // Si passa solo dalle porte e dai passaggi: i tratti pieni e le finestre fermano chi cammina.
-                if (current && h > 40) {
-                    val u = (w.end - w.start) / w.length
-                    for (r in Structure.solidRanges(w)) obstacles += Obstacle(w.start + u * r.start, w.start + u * r.endInclusive)
-                    for (o in w.openings) if (o.kind.glazed && o.sillHeight > 0) Openings.span(w.host, o).let { (a, b) -> obstacles += Obstacle(a, b) }
+                // Muro curvo: pezzi dritti lungo l'arco, ognuno con le sue aperture.
+                for (piece in w.pieces()) {
+                    if (piece.length < 0.01) continue
+                    freeWall(piece, h, pick)
+                    // Si passa solo dalle porte e dai passaggi: i tratti pieni e le finestre fermano chi cammina.
+                    if (current && h > 40) {
+                        val u = (piece.end - piece.start) / piece.length
+                        for (r in Structure.solidRanges(piece)) obstacles += Obstacle(piece.start + u * r.start, piece.start + u * r.endInclusive)
+                        for (o in piece.openings) if (o.kind.glazed && o.sillHeight > 0) Openings.span(piece.host, o).let { (a, b) -> obstacles += Obstacle(a, b) }
+                    }
                 }
             }
             for (b in plan.beams) {
@@ -957,7 +971,7 @@ private class SceneBuilder(
     private fun floorPattern(room: Room, base: Rgba) {
         val pattern = room.floorFinish.pattern
         if (pattern == FloorPattern.None) return
-        val inner = room.interior()
+        val inner = room.interiorOutline()
         if (inner.size < 3) return
         val line = base.mix(Rgba(0f, 0f, 0f), 0.16f)
         val b = Polygon.bounds(inner)
@@ -1128,7 +1142,11 @@ private class SceneBuilder(
     // ---------- Muri con i varchi ----------
 
     /** Varco nel muro, in cm lungo il muro (t) e in altezza. */
-    private class Gap(val t0: Double, val t1: Double, val bottom: Double, val top: Double, val arched: Boolean, val pick: Pick) {
+    private class Gap(
+        val t0: Double, val t1: Double, val bottom: Double, val top: Double, val arched: Boolean, val pick: Pick,
+        /** Sguincio (cm per lato) verso l'interno della stanza `splayRoom`: sulla sua faccia il varco è più largo. */
+        val splay: Double = 0.0, val splayRoom: Long? = null, val splayRounded: Boolean = false,
+    ) {
         /** Bordo superiore del varco nel punto t: dritto, oppure ad arco (semicerchio ribassato). */
         fun topAt(t: Double): Double {
             if (!arched) return top
@@ -1146,7 +1164,10 @@ private class SceneBuilder(
         val bottom = if (o.kind.glazed) o.sillHeight else 0.0
         // Il varco non supera il muro, che in mansarda può essere più basso dell'apertura.
         val top = min(wallTop((ta + tb) / 2) - 1, bottom + o.height)
-        return Gap(min(ta, tb), max(ta, tb), bottom, top, o.kind == OpeningKind.Passage && o.style == PassageStyle.Arched, Pick.Opening(owner.id, o.id))
+        return Gap(
+            min(ta, tb), max(ta, tb), bottom, top, o.kind == OpeningKind.Passage && o.style == PassageStyle.Arched, Pick.Opening(owner.id, o.id),
+            splay = Openings.splayOf(owner, o), splayRoom = owner.id, splayRounded = o.splayRounded,
+        )
     }
 
     /**
@@ -1174,7 +1195,8 @@ private class SceneBuilder(
         val len = s.distanceTo(e)
         if (len < 1.0) return
         val u = (e - s) / len
-        val wallPick = Pick.Wall(room.id, i)
+        // Un pezzo di muro curvo si seleziona come il muro intero.
+        val wallPick = Pick.Wall(room.id, expanded.originOf(room.id, i))
         val sign = if (Polygon.signedArea(room.points) >= 0) 1.0 else -1.0
         val inward = u.perp() * sign
         val sloped = Ceilings.effectiveCut(room, i) != null
@@ -1188,11 +1210,36 @@ private class SceneBuilder(
             val next = (room.points[(corner + 1) % n] - room.points[corner]).normalized()
             return (prev.x * next.y - prev.y * next.x) * sign >= -1e-6
         }
+        // Muro che continua dritto con un altro spessore (scalino): lì nessuna fascia si allunga, i due tratti
+        // finiscono pari e la testata del più spesso fa lo scalino.
+        val startStraight = Polygon.straightAt(room.points, i)
+        val endStraight = Polygon.straightAt(room.points, (i + 1) % room.wallCount)
         val startConvex = convexAt(i)
         // Agli angoli la fascia si allunga di mezzo spessore del muro accanto (che può essere diverso).
         val prevHalf = room.thicknessOf((i - 1 + room.wallCount) % room.wallCount) / 2
         val nextHalf = room.thicknessOf((i + 1) % room.wallCount) / 2
         val endConvex = convexAt((i + 1) % room.wallCount)
+        /**
+         * Giunta quasi dritta (i pezzi di un muro curvo, o un muro appena storto): dove la faccia di questo muro, dal lato
+         * `side` (1 = verso la stanza, −1 = fuori), incontra quella del muro accanto, in cm lungo il muro dall'angolo
+         * (all'inizio, o alla fine se `atEnd`). Così i pezzi si raccordano senza allungarsi di mezzo spessore uno sull'altro.
+         * Null per gli angoli veri, che si raccordano come sempre; 0 dove lo spessore cambia (scalino).
+         */
+        fun nearlyStraightJoin(atEnd: Boolean, side: Double): Double? {
+            val n = room.wallCount
+            val other = if (atEnd) (i + 1) % n else (i - 1 + n) % n
+            if (room.isRemoved(other)) return null
+            val od = room.wallEnd(other) - room.wallStart(other)
+            if (od.length < 1e-6) return null
+            val d = od.normalized()
+            if ((u dot d) < NEARLY_STRAIGHT_COS) return null
+            val c = u.x * d.y - u.y * d.x
+            val otherHalf = room.thicknessOf(other) / 2
+            if (abs(c) < 1e-6) return 0.0
+            val w = d.perp() * (sign * side * otherHalf) - inward * (side * half)
+            val t = (w.x * d.y - w.y * d.x) / c
+            return if (abs(t) > 2 * max(half, otherHalf) + 1) 0.0 else t
+        }
         val others = plan.rooms.filter { it.id != room.id && !it.outdoor }
         /** Un'altra stanza tocca questo punto (con un suo muro): lì la casa continua, non è uno spigolo esterno. */
         fun touched(p: Vec2) = others.any { o -> (0 until o.wallCount).any { j -> Polygon.distanceToSegment(p, o.wallStart(j), o.wallEnd(j)) < 1.0 } }
@@ -1253,18 +1300,28 @@ private class SceneBuilder(
 
         val paint = room.finishOf(i)
         val facade = plan.facadeOrPaint
+        // Tratto più spesso di un muro a scalini: sporge solo verso fuori, il filo verso la stanza resta dritto.
+        val bandStart = s + room.outwardOf(i) * room.wallShift(i)
         // Fascia interna: da angolo ad angolo, allungata solo negli angoli rientranti; tolti i tratti coperti da una
         // stanza ricavata dentro questa (lì si vede la parete di quella stanza).
-        var interiorRanges = listOf((if (startConvex) 0.0 else -prevHalf)..(if (endConvex) len else len + nextHalf))
+        val interiorStart = nearlyStraightJoin(atEnd = false, side = 1.0) ?: if (startConvex || startStraight) 0.0 else -prevHalf
+        val interiorEnd = nearlyStraightJoin(atEnd = true, side = 1.0)?.let { len + it } ?: if (endConvex || endStraight) len else len + nextHalf
+        var interiorRanges = listOf(interiorStart..interiorEnd)
         for (h in hiddenInterior) interiorRanges = interiorRanges.flatMap { cut(it, h) }
         for (r in interiorRanges) if (r.endInclusive - r.start > 0.5) {
-            band(s, u, len, gaps, sloped, room, i, wallPick, r, inward, paint, interior = true)
+            band(bandStart, u, len, gaps, sloped, room, i, wallPick, r, inward, paint, interior = true)
         }
         // Fascia esterna, sui tratti che danno all'esterno: allungata solo negli spigoli sporgenti della casa.
         for (r in exterior) {
-            val a = if (r.start < 0.5 && startConvex && !touched(s)) -prevHalf else r.start
-            val b = if (r.endInclusive > len - 0.5 && endConvex && !touched(e)) len + nextHalf else r.endInclusive
-            band(s, u, len, gaps, sloped, room, i, wallPick, a..b, inward * -1.0, facade, interior = false)
+            val a = when {
+                r.start >= 0.5 -> r.start
+                else -> nearlyStraightJoin(atEnd = false, side = -1.0) ?: if (startConvex && !startStraight && !touched(s)) -prevHalf else r.start
+            }
+            val b = when {
+                r.endInclusive <= len - 0.5 -> r.endInclusive
+                else -> nearlyStraightJoin(atEnd = true, side = -1.0)?.let { len + it } ?: if (endConvex && !endStraight && !touched(e)) len + nextHalf else r.endInclusive
+            }
+            band(bandStart, u, len, gaps, sloped, room, i, wallPick, a..b, inward * -1.0, facade, interior = false)
         }
     }
 
@@ -1278,6 +1335,27 @@ private class SceneBuilder(
         range: ClosedFloatingPointRange<Double>, side: Vec2, finish: WallFinish, interior: Boolean,
     ) {
         val paint = Rgba.argb(finish.argb)
+        // Sguinci: sulla faccia verso la stanza il varco si allarga, e i lati inclinati vanno dalla mezzeria alla faccia.
+        val splayed = if (interior) gaps.filter { it.splay > 0 && it.splayRoom == room.id } else emptyList()
+        @Suppress("NAME_SHADOWING")
+        val gaps = if (splayed.isEmpty()) gaps else gaps.map { g ->
+            if (g in splayed) Gap(g.t0 - g.splay, g.t1 + g.splay, g.bottom, g.top, g.arched, g.pick, g.splay, g.splayRoom, g.splayRounded) else g
+        }
+        for (g in splayed) {
+            val color = tint(paint, g.pick)
+            for ((t, toward) in listOf(g.t0 to -1.0, g.t1 to 1.0)) {
+                if (t + toward * g.splay < range.start - 0.01 || t + toward * g.splay > range.endInclusive + 0.01) continue
+                val profile = Openings.splayProfile(s + u * t, u, side, half, g.splay, toward, g.splayRounded)
+                for (k in 0 until profile.size - 1) {
+                    val p0 = profile[k]
+                    val p1 = profile[k + 1]
+                    if (p0.distanceTo(p1) < 1e-6) continue
+                    val n = (p1 - p0).perp().normalized().let { if ((it dot (u * -toward)) < 0) it * -1.0 else it }
+                    quad(p0.at(g.bottom), p1.at(g.bottom), p1.at(g.top), p0.at(g.top), Vec3(n.x, 0.0, n.y), color, g.pick)
+                    quad(p1.at(g.bottom), p0.at(g.bottom), p0.at(g.top), p1.at(g.top), Vec3(-n.x, 0.0, -n.y), color, g.pick)
+                }
+            }
+        }
         val coverTop = finish.coverHeight ?: Double.MAX_VALUE
         fun topFn(t: Double) = Ceilings.wallTopAt(room, i, t.coerceIn(0.0, len))
         val cuts = mutableSetOf(range.start, range.endInclusive)
@@ -1581,7 +1659,11 @@ private class SceneBuilder(
 
         when {
             o.kind == OpeningKind.Passage -> Unit // varco libero
-            o.kind.glazed -> window(a, b, u, n, bottom, top, o, pick)
+            o.kind.glazed -> {
+                // Infisso a filo esterno o interno: spostato nello spessore del muro.
+                val f = n * Openings.frameOffset(room, o)
+                window(a + f, b + f, u, n, bottom, top, o, pick)
+            }
             o.sliding -> {
                 // Porta scorrevole: anta nel muro, aperta a metà verso il lato scelto.
                 casing(a, b, u, n, top, o, pick)

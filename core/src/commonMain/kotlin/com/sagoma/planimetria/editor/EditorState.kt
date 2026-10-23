@@ -124,6 +124,8 @@ sealed interface DragTarget {
     data class Fixture(val roomId: Long, val fixtureId: Long) : DragTarget
     /** Pallino sul muro selezionato con il taglio diagonale: il punto da cui la parete inizia a scendere. */
     data class CutStart(val roomId: Long, val index: Int) : DragTarget
+    /** Maniglia della curva sul muro selezionato: trascinata di lato, curva il muro (o lo raddrizza). */
+    data class WallBulge(val roomId: Long, val index: Int) : DragTarget
     /** Etichetta del nome: sposta la stanza intera. */
     data class RoomLabel(val roomId: Long) : DragTarget
     /** Interno della stanza: un tocco la mette a fuoco, un trascinamento sposta la vista. */
@@ -143,6 +145,8 @@ sealed interface DragTarget {
     /** Muro singolo: il corpo lo sposta, le estremità (0 = inizio, 1 = fine) lo allungano e lo ruotano. */
     data class FreeWallBody(val wallId: Long) : DragTarget
     data class FreeWallEnd(val wallId: Long, val endIndex: Int) : DragTarget
+    /** Pallino della curva del muro singolo selezionato. */
+    data class FreeWallBulge(val wallId: Long) : DragTarget
     /** Arredo: il corpo lo sposta (accostandolo ai muri), la maniglia lo ruota. */
     data class FurnitureBody(val furnitureId: Long) : DragTarget
     data class FurnitureRotate(val furnitureId: Long) : DragTarget

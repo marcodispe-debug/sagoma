@@ -39,6 +39,8 @@ import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.Selection
 import com.sagoma.planimetria.editor.UnderlayTool
 import com.sagoma.planimetria.geometry.Collisions
+import com.sagoma.planimetria.geometry.distanceToWall
+import com.sagoma.planimetria.geometry.distanceTo
 import com.sagoma.planimetria.geometry.Fixtures
 import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.model.FreeWall
@@ -121,6 +123,11 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
             val sel = s.selection as Selection.Wall
             if (world.distanceTo(h) * cam.scale <= cornerHitPx) return DragTarget.CutStart(sel.roomId, sel.index)
         }
+        // Pallino della curva del muro selezionato.
+        bulgeHandle(s, with(density) { BULGE_HANDLE_GAP.toPx() })?.let { h ->
+            val sel = s.selection as Selection.Wall
+            if (world.distanceTo(h) * cam.scale <= cornerHitPx) return DragTarget.WallBulge(sel.roomId, sel.index)
+        }
         // Estremità della trave selezionata: per allungarla.
         (s.selection as? Selection.Beam)?.let { sel ->
             s.plan.beam(sel.beamId)?.let { b ->
@@ -131,6 +138,8 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         (s.selection as? Selection.FreeWall)?.let { sel ->
             s.plan.freeWall(sel.wallId)?.let { w ->
                 listOf(w.start, w.end).forEachIndexed { k, p -> if (world.distanceTo(p) * cam.scale <= cornerHitPx) return DragTarget.FreeWallEnd(w.id, k) }
+                val bulge = freeWallBulgeHandle(w, with(density) { BULGE_HANDLE_GAP.toPx() } / cam.scale.toFloat())
+                if (world.distanceTo(bulge) * cam.scale <= cornerHitPx) return DragTarget.FreeWallBulge(w.id)
             }
         }
         // Maniglia di rotazione dell'arredo selezionato.
@@ -142,7 +151,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         /** Il dito è su un angolo o proprio su un muro: quelli hanno la precedenza sugli oggetti accostati. */
         fun onWall() = s.plan.rooms.any { r ->
             r.points.any { it.distanceTo(world) * cam.scale <= cornerHitPx } ||
-                (0 until r.wallCount).any { Polygon.distanceToSegment(world, r.wallStart(it), r.wallEnd(it)) * cam.scale <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
+                (0 until r.wallCount).any { r.distanceToWall(it, world) * cam.scale <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
         }
         // Arredi (tranne i tappeti, che stanno sotto a tutto): l'ultimo messo per primo.
         s.plan.furniture.takeIf { s.building.layers.editable(Layer.Furniture) }.orEmpty().asReversed().firstOrNull { it.height >= 3 && Furnishings.contains(it, world) }?.let { f ->
@@ -150,7 +159,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         }
         // Muri singoli: si prendono anche un po' fuori dal loro spessore, come i muri.
         s.plan.freeWalls.takeIf { s.building.layers.editable(Layer.Structure) }.orEmpty().asReversed().firstOrNull {
-            Polygon.distanceToSegment(world, it.start, it.end) <= it.thickness / 2 + wallStrictPx / cam.scale
+            it.distanceTo(world) <= it.thickness / 2 + wallStrictPx / cam.scale
         }?.let { w ->
             // Su una sua porta o finestra si prende l'apertura, come nei muri delle stanze.
             freeWallOpeningAt(w, world)?.let { return DragTarget.Opening(FreeWall.hostId(w.id), it.id) }
@@ -163,7 +172,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         s.plan.beams.takeIf { s.building.layers.editable(Layer.Structure) }.orEmpty().asReversed().firstOrNull { Structure.contains(it, world) }?.let { b ->
             val onWall = s.plan.rooms.any { r ->
                 r.points.any { it.distanceTo(world) * cam.scale <= cornerHitPx } ||
-                    (0 until r.wallCount).any { Polygon.distanceToSegment(world, r.wallStart(it), r.wallEnd(it)) * cam.scale <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
+                    (0 until r.wallCount).any { r.distanceToWall(it, world) * cam.scale <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
             }
             if (!onWall) return DragTarget.BeamBody(b.id)
         }
@@ -171,7 +180,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         s.plan.stairs.takeIf { s.building.layers.editable(Layer.Structure) }.orEmpty().asReversed().firstOrNull { Stairs.layout(it, s.levelHeight).contains(world) }?.let { st ->
             val onWall = s.plan.rooms.any { r ->
                 r.points.any { it.distanceTo(world) * cam.scale <= cornerHitPx } ||
-                    (0 until r.wallCount).any { Polygon.distanceToSegment(world, r.wallStart(it), r.wallEnd(it)) * cam.scale <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
+                    (0 until r.wallCount).any { r.distanceToWall(it, world) * cam.scale <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
             }
             if (!onWall) return DragTarget.Stair(st.id)
         }
@@ -179,7 +188,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         s.planBelow?.stairs?.takeIf { s.building.layers.editable(Layer.Structure) }?.asReversed()?.firstOrNull { st -> Stairs.well(st, s.levelHeightBelow).any { Polygon.contains(it, world) } }?.let { st ->
             val onWall = s.plan.rooms.any { r ->
                 r.points.any { it.distanceTo(world) * cam.scale <= cornerHitPx } ||
-                    (0 until r.wallCount).any { Polygon.distanceToSegment(world, r.wallStart(it), r.wallEnd(it)) * cam.scale <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
+                    (0 until r.wallCount).any { r.distanceToWall(it, world) * cam.scale <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
             }
             if (!onWall) return DragTarget.StairWell(st.id)
         }
@@ -215,7 +224,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                 .minByOrNull { it.second }?.first
             if (openingHit != null) return DragTarget.Opening(room.id, openingHit.id)
             val wallDistances = (0 until room.wallCount)
-                .map { it to Polygon.distanceToSegment(world, room.wallStart(it), room.wallEnd(it)) * cam.scale }
+                .map { it to room.distanceToWall(it, world) * cam.scale }
             // Tocco proprio sul muro: vince sull'etichetta, che in una stanza stretta copre i muri laterali.
             wallDistances.filter { it.second <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
                 .minByOrNull { it.second }?.let { return DragTarget.Wall(room.id, it.first) }
@@ -243,7 +252,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         val objects = mutableListOf<DragTarget>()
         val walls = mutableListOf<DragTarget>()
         s.plan.furniture.takeIf { s.building.layers.editable(Layer.Furniture) }.orEmpty().asReversed().filter { Furnishings.contains(it, world) }.forEach { objects += DragTarget.FurnitureBody(it.id) }
-        s.plan.freeWalls.takeIf { s.building.layers.editable(Layer.Structure) }.orEmpty().asReversed().filter { Polygon.distanceToSegment(world, it.start, it.end) <= it.thickness / 2 + wallStrictPx / cam.scale }
+        s.plan.freeWalls.takeIf { s.building.layers.editable(Layer.Structure) }.orEmpty().asReversed().filter { it.distanceTo(world) <= it.thickness / 2 + wallStrictPx / cam.scale }
             .forEach { w ->
                 freeWallOpeningAt(w, world)?.let { objects += DragTarget.Opening(FreeWall.hostId(w.id), it.id) }
                 objects += DragTarget.FreeWallBody(w.id)
@@ -267,7 +276,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                 if (d <= wallHitPx + Room.WALL_THICKNESS / 2 * cam.scale) objects += DragTarget.Opening(room.id, o.id)
             }
             for (i in 0 until room.wallCount) {
-                val d = Polygon.distanceToSegment(world, room.wallStart(i), room.wallEnd(i)) * cam.scale
+                val d = room.distanceToWall(i, world) * cam.scale
                 if (d <= wallHitPx + Room.WALL_THICKNESS / 2 * cam.scale) walls += DragTarget.Wall(room.id, i)
             }
         }
@@ -345,10 +354,10 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                     val rectSelect = selecting && !groupMove
                     val rectStart = startCam.toWorld(down.position.x, down.position.y)
                     val draggable = !selecting && !ctrl && (target is DragTarget.Corner || target is DragTarget.Wall || target is DragTarget.RoomLabel ||
-                        target is DragTarget.Opening || target is DragTarget.Fixture || target is DragTarget.CutStart ||
+                        target is DragTarget.Opening || target is DragTarget.Fixture || target is DragTarget.CutStart || target is DragTarget.WallBulge ||
                         target is DragTarget.RulerEnd || target is DragTarget.RulerBody || target is DragTarget.RulerRotate ||
                         target is DragTarget.Stair || target is DragTarget.Column || target is DragTarget.BeamBody || target is DragTarget.BeamEnd ||
-                        target is DragTarget.FreeWallBody || target is DragTarget.FreeWallEnd ||
+                        target is DragTarget.FreeWallBody || target is DragTarget.FreeWallEnd || target is DragTarget.FreeWallBulge ||
                         target is DragTarget.FurnitureBody || target is DragTarget.FurnitureRotate ||
                         target is DragTarget.DimensionLine || target is DragTarget.DimensionEnd ||
                         target is DragTarget.AnnotationBody || target is DragTarget.AnnotationArrow)
@@ -417,8 +426,8 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                                 // Non mentre si posiziona o si incolla qualcosa, né toccando maniglie e angoli.
                                 val s = currentState
                                 val placing = s.pendingOpening != null || s.pendingFixture != null || s.measure != null || s.pasting
-                                val handle = target is DragTarget.Corner || target is DragTarget.CutStart || target is DragTarget.BeamEnd ||
-                                    target is DragTarget.FreeWallEnd || target is DragTarget.FurnitureRotate || target is DragTarget.RulerEnd ||
+                                val handle = target is DragTarget.Corner || target is DragTarget.CutStart || target is DragTarget.WallBulge || target is DragTarget.BeamEnd ||
+                                    target is DragTarget.FreeWallEnd || target is DragTarget.FreeWallBulge || target is DragTarget.FurnitureRotate || target is DragTarget.RulerEnd ||
                                     target is DragTarget.RulerBody || target is DragTarget.RulerRotate || target is DragTarget.RulerDelete ||
                                     target is DragTarget.DimensionLine || target is DragTarget.DimensionEnd ||
                                     target is DragTarget.AnnotationBody || target is DragTarget.AnnotationArrow

@@ -101,7 +101,7 @@ internal fun DrawScope.drawRuler(g: RulerGeom, cam: Camera, rotating: Boolean, m
     for (p in listOf(g.start, g.end)) drawLine(RulerColor, p + g.n * endMark, p - g.n * (g.bandPx + endMark / 2), strokeWidth = 1.2.dp.toPx())
 
     // Lunghezza sotto il nastro.
-    val lenText = measurer.measure("${formatCm(r.length)} cm", TextStyle(fontSize = 12.sp, color = RulerColor, fontWeight = FontWeight.SemiBold))
+    val lenText = measurer.measure(com.sagoma.planimetria.model.PlanUnits.withUnit(r.length), TextStyle(fontSize = 12.sp, color = RulerColor, fontWeight = FontWeight.SemiBold))
     val lenPos = g.mid - g.n * (g.bandPx + 14.dp.toPx())
     drawText(lenText, topLeft = Offset(lenPos.x - lenText.size.width / 2f, lenPos.y - lenText.size.height / 2f))
 

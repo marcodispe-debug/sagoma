@@ -20,6 +20,7 @@ import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.model.RadiatorModel
 import com.sagoma.planimetria.model.RoomType
+import com.sagoma.planimetria.model.FramePosition
 import com.sagoma.planimetria.model.Shading
 import com.sagoma.planimetria.model.StairKind
 import com.sagoma.planimetria.model.StairMaterial
@@ -53,6 +54,12 @@ open class Nomi {
         WindowModel.Classic -> "Classica"
         WindowModel.Minimal -> "Minimal"
         WindowModel.English -> "All'inglese"
+    }
+
+    open fun framePosition(v: FramePosition): String = when (v) {
+        FramePosition.Center -> "A metà muro"
+        FramePosition.Outside -> "Verso l'esterno"
+        FramePosition.Inside -> "Verso l'interno"
     }
 
     open fun shading(v: Shading): String = when (v) {

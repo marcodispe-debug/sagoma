@@ -3,6 +3,7 @@ package com.sagoma.planimetria.geometry
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
+import com.sagoma.planimetria.model.FramePosition
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
@@ -23,12 +24,20 @@ object Openings {
 
     /** Estremi reali dell'apertura sul muro, da `a` (lato inizio muro) a `b`. */
     fun span(room: Room, o: Opening): Pair<Vec2, Vec2> {
+        // Muro curvo: gli estremi stanno sull'arco, distanti in linea retta quanto è larga l'apertura.
+        room.arcOf(o.wallIndex)?.let { arc ->
+            val c = clampPosition(arc.length, min(o.width, arc.length), o.position)
+            val (s1, s2) = arc.span(c, o.width)
+            return arc.at(s1) to arc.at(s2)
+        }
         val start = room.wallStart(o.wallIndex)
         val len = room.wallLength(o.wallIndex)
         val u = (room.wallEnd(o.wallIndex) - start).normalized()
         val w = min(o.width, len)
         val c = clampPosition(len, w, o.position)
-        return (start + u * (c - w / 2)) to (start + u * (c + w / 2))
+        // Tratto più spesso di un muro a scalini: la sua mezzeria sta più fuori della linea della stanza.
+        val shift = room.outwardOf(o.wallIndex) * room.wallShift(o.wallIndex)
+        return (start + u * (c - w / 2) + shift) to (start + u * (c + w / 2) + shift)
     }
 
     /** Distanza lungo il muro della proiezione di `p` (non limitata). */
@@ -37,6 +46,44 @@ object Openings {
         val u = (room.wallEnd(wallIndex) - start).normalized()
         return (p - start) dot u
     }
+
+    /** Profondità dell'infisso (cm): a filo esterno o interno resta così distante dalla faccia del muro. */
+    const val FRAME_DEPTH = 6.0
+
+    /**
+     * Spostamento dell'infisso dalla mezzeria del muro, verso l'interno della stanza (negativo = verso l'esterno).
+     * Solo finestre e balconi; le porte stanno sempre a metà muro.
+     */
+    fun frameOffset(room: Room, o: Opening): Double {
+        if (!o.kind.glazed) return 0.0
+        val reach = (room.thicknessOf(o.wallIndex) / 2 - FRAME_DEPTH).coerceAtLeast(0.0)
+        return when (o.frame) {
+            FramePosition.Center -> 0.0
+            FramePosition.Outside -> -reach
+            FramePosition.Inside -> reach
+        }
+    }
+
+    /** Sguincio effettivo (cm per lato): solo finestre e balconi, mai più dello spessore del muro. */
+    fun splayOf(room: Room, o: Opening): Double =
+        if (o.kind.glazed && o.wallIndex < room.wallCount) o.splay.coerceIn(0.0, room.thicknessOf(o.wallIndex)) else 0.0
+
+    /**
+     * Lato del vano con lo sguincio, dal punto `p` sulla mezzeria (bordo del varco) alla faccia del muro verso la stanza:
+     * `toward` = −1 dal lato dell'inizio del varco, +1 da quello della fine. Dritto (due punti) o arrotondato (una curva
+     * che parte lungo il muro e arriva sulla faccia).
+     */
+    fun splayProfile(p: Vec2, u: Vec2, inward: Vec2, half: Double, splay: Double, toward: Double, rounded: Boolean): List<Vec2> {
+        val end = p + u * (toward * splay) + inward * half
+        if (!rounded) return listOf(p, end)
+        val control = p + inward * half
+        return (0..SPLAY_STEPS).map { k ->
+            val t = k.toDouble() / SPLAY_STEPS
+            p * ((1 - t) * (1 - t)) + control * (2 * t * (1 - t)) + end * (t * t)
+        }
+    }
+
+    private const val SPLAY_STEPS = 6
 
     /** Normale verso l'interno della stanza (poligoni orari su schermo). */
     fun inwardNormal(room: Room, wallIndex: Int): Vec2 =

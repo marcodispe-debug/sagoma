@@ -38,7 +38,8 @@ object PlanReadingCli {
                 zip.closeEntry()
             }
             put("progetto.json", Json.encodeToString(ProjectInfo.serializer(), info).toByteArray())
-            put("file/planimetria.json", PlanJson.encode(Building.single(result.plan, autoLevel = true)).toByteArray())
+            val units = if (reading.units.trim().lowercase() == "m") com.sagoma.planimetria.model.LengthUnit.Meters else com.sagoma.planimetria.model.LengthUnit.Centimeters
+            put("file/planimetria.json", PlanJson.encode(Building.single(result.plan, autoLevel = true).copy(units = units)).toByteArray())
             put("file/$IMAGE", image.readBytes())
         }
         println(report(result))

@@ -140,7 +140,8 @@ object GroupOps {
             is GroupItem.FreeWallItem -> p.freeWall(item.id)?.let { w ->
                 // Specchiato: le ante delle sue porte si aprono dall'altra parte.
                 val openings = if (x.mirrored) w.openings.map { it.copy(hingeLeft = !it.hingeLeft) } else w.openings
-                p.replace(w.copy(start = x.point(w.start), end = x.point(w.end), openings = openings))
+                // Lo specchio inverte destra e sinistra: la curva resta dalla stessa parte solo cambiando il segno.
+                p.replace(w.copy(start = x.point(w.start), end = x.point(w.end), openings = openings, bulge = if (x.mirrored) -w.bulge else w.bulge))
             } ?: p
             is GroupItem.StairItem -> p.stair(item.id)?.let { s ->
                 p.replace(s.copy(center = x.point(s.center), rotation = x.rotate(s.rotation), turnLeft = if (x.mirrored) !s.turnLeft else s.turnLeft))
@@ -183,6 +184,8 @@ object GroupOps {
             wallThicknesses = remap(r.wallThicknesses),
             removedWalls = r.removedWalls.map(::wall).toSet(),
             wallPhases = remap(r.wallPhases),
+            wallBulges = remap(r.wallBulges),
+            wallOffsets = remap(r.wallOffsets),
             wallCuts = r.wallCuts.entries.associate { (k, v) -> wall(k) to v.copy(towardEnd = !v.towardEnd) },
             openings = r.openings.map { o -> o.copy(wallIndex = wall(o.wallIndex), position = r.wallLength(o.wallIndex) - o.position, hingeLeft = !o.hingeLeft) },
             fixtures = r.fixtures.map { f ->

@@ -9,6 +9,8 @@ object TestiEditorFr : TestiEditor() {
     override val computoListaArredi: String get() = "🧮 Métré et liste du mobilier"
     override val piantaSfondo: String get() = "🗺 Plan de fond…"
     override val temaChiaroScuro: String get() = "🌓 Thème clair ou sombre…"
+    override val misureInMetri: String get() = "📏 Mesures en mètres"
+    override val misureInCentimetri: String get() = "📏 Mesures en centimètres"
     override fun copiatoCtrlVIncollare(p1: Any?): String = "Copié : $p1 · Ctrl+V pour coller"
     override val selezionaPrimaQualcosaCopiare: String get() = "Sélectionnez d'abord quelque chose à copier"
     override val nienteIncollareCopiaPrima: String get() = "Rien à coller : copiez d'abord quelque chose avec Ctrl+C"

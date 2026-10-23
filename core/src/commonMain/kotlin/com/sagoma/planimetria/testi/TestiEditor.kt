@@ -8,6 +8,8 @@ open class TestiEditor {
     open val computoListaArredi: String get() = "🧮 Computo e lista arredi"
     open val piantaSfondo: String get() = "🗺 Pianta di sfondo…"
     open val temaChiaroScuro: String get() = "🌓 Tema chiaro o scuro…"
+    open val misureInMetri: String get() = "📏 Misure in metri"
+    open val misureInCentimetri: String get() = "📏 Misure in centimetri"
     open fun copiatoCtrlVIncollare(p1: Any?): String = "Copiato: $p1 · Ctrl+V per incollare"
     open val selezionaPrimaQualcosaCopiare: String get() = "Seleziona prima qualcosa da copiare"
     open val nienteIncollareCopiaPrima: String get() = "Niente da incollare: copia prima qualcosa con Ctrl+C"

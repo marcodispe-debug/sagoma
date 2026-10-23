@@ -150,6 +150,17 @@ data class Opening(
     /** Modello di finestre e balconi, e oscurante all'esterno. */
     val windowModel: WindowModel = WindowModel.Classic,
     val shading: Shading = Shading.None,
+    /** Finestre e balconi: infisso a metà muro, a filo esterno o a filo interno. */
+    val frame: FramePosition = FramePosition.Center,
+    /**
+     * Finestre e balconi: sguincio, cioè di quanti cm per lato il vano si allarga verso l'interno della stanza
+     * (lati inclinati, come nei muri spessi). 0 = lati dritti.
+     */
+    val splay: Double = 0.0,
+    /** Sguincio arrotondato (lati del vano curvi) invece che inclinato dritto. */
+    val splayRounded: Boolean = false,
+    /** Porte: è l'ingresso di casa (in pianta il triangolo con «INGRESSO» fuori dalla porta). */
+    val entrance: Boolean = false,
     /** Stato di fatto / progetto: [Phase.New] = apertura da realizzare, [Phase.Demolish] = da chiudere (tamponare). */
     val phase: Phase = Phase.Existing,
 ) {
@@ -314,6 +325,17 @@ data class Room(
     /** Stato di fatto / progetto dei muri (indici): da demolire o nuovi; assente = esistente. */
     val wallPhases: Map<Int, Phase> = emptyMap(),
     /**
+     * Muri curvi (indici): ad arco di cerchio tra i due angoli, che a metà si scosta di tanti cm dalla linea dritta
+     * (freccia; positiva verso l'esterno della stanza, negativa verso l'interno). Assente = muro dritto.
+     */
+    val wallBulges: Map<Int, Double> = emptyMap(),
+    /**
+     * Muri spostati di lato (indici): di quanti cm la mezzeria del muro sta fuori dalla linea della stanza (negativo = verso
+     * dentro). Nei muri a scalini il tratto ingrossato si sposta di metà della differenza, così il filo verso la stanza resta
+     * dritto. Assente = muro centrato sulla linea.
+     */
+    val wallOffsets: Map<Int, Double> = emptyMap(),
+    /**
      * Stanza creata come SCHIZZO (forma e misure approssimative) e non ancora misurata con la scansione guidata: offre
      * "Avvia scansione". Torna false quando la scansione aggiorna la stanza. Assente nei file vecchi = false; non viene scritta
      * quando è false (i file delle stanze normali restano identici a prima).
@@ -336,6 +358,16 @@ data class Room(
     /** Spessore del muro `i`. */
     fun thicknessOf(i: Int): Double = wallThicknesses[i] ?: wallThickness
 
+    /** Versore perpendicolare al muro `i`, verso l'esterno della stanza (qualunque sia il verso degli angoli). */
+    fun outwardOf(i: Int): Vec2 {
+        val a = wallStart(i)
+        val b = wallEnd(i)
+        val len = a.distanceTo(b)
+        if (len < 1e-9) return Vec2.Zero
+        val area2 = points.indices.sumOf { k -> val p = points[k]; val q = points[(k + 1) % points.size]; p.x * q.y - q.x * p.y }
+        return ((b - a) / len).perp() * (if (area2 >= 0) -1.0 else 1.0)
+    }
+
     /** Spessori di tutti i muri, nell'ordine dei muri. */
     val thicknesses: List<Double> get() = List(wallCount) { thicknessOf(it) }
 
@@ -346,8 +378,15 @@ data class Room(
     fun splitWall(i: Int): Room {
         val a = wallStart(i)
         val b = wallEnd(i)
-        val mid = (a + b) / 2.0
+        val bulge = wallBulges[i] ?: 0.0
+        // Muro curvo: l'angolo nuovo va sulla curva, e le due metà restano parti dello stesso arco.
+        val mid = (a + b) / 2.0 + outwardOf(i) * bulge
         val half = a.distanceTo(b) / 2
+        val halfBulge = if (bulge == 0.0) 0.0 else {
+            val r = (half * half + bulge * bulge) / (2 * bulge)
+            val c = a.distanceTo(mid) / 2
+            r - kotlin.math.sign(r) * kotlin.math.sqrt((r * r - c * c).coerceAtLeast(0.0))
+        }
         fun <T> shift(m: Map<Int, T>, dup: Boolean) = buildMap {
             for ((k, v) in m) when {
                 k < i -> put(k, v)
@@ -364,6 +403,8 @@ data class Room(
             wallThicknesses = shift(wallThicknesses, dup = true),
             removedWalls = shift(removedWalls.associateWith { }, dup = true).keys,
             wallPhases = shift(wallPhases, dup = true),
+            wallBulges = shift(wallBulges, dup = false).let { if (halfBulge == 0.0) it - i else it + (i to halfBulge) + (i + 1 to halfBulge) },
+            wallOffsets = shift(wallOffsets, dup = true),
             openings = openings.map { o ->
                 when {
                     o.wallIndex < i -> o
@@ -411,6 +452,10 @@ data class Room(
             removedWalls = remap(removedWalls.associateWith { }).keys.filter { k -> k != map(c) || (c in removedWalls && prev in removedWalls) }.toSet(),
             // Il muro unito tiene lo stato solo se i due pezzi lo avevano uguale.
             wallPhases = remap(wallPhases).filterKeys { k -> k != map(c) || wallPhases[c] == wallPhases[prev] },
+            // Il muro unito torna dritto.
+            wallBulges = remap(wallBulges).filterKeys { k -> k != map(c) },
+            // Il muro unito torna centrato sulla linea.
+            wallOffsets = remap(wallOffsets).filterKeys { k -> k != map(c) },
             openings = openings.map { o -> if (o.wallIndex == c) o.copy(wallIndex = map(c), position = o.position + offset) else o.copy(wallIndex = map(o.wallIndex)) },
             fixtures = fixtures.map { f ->
                 if (f.kind.mount != Mount.Wall) f
@@ -489,6 +534,26 @@ data class Ruler(val id: Long, val start: Vec2, val end: Vec2) {
  * a→b, spostata di `offset` cm di lato (positivo a sinistra guardando da a verso b); dagli estremi partono le
  * linee di richiamo. `text`: scritta al posto della misura (null = la misura in cm).
  */
+/** Unità delle misure scritte sulla pianta. I nomi finiscono nel file salvato. */
+enum class LengthUnit { Centimeters, Meters }
+
+/**
+ * Misure scritte sulla pianta nell'unità scelta per il progetto: in centimetri (503) o in metri con due
+ * decimali (5,03), come nelle piantine degli architetti. I campi da compilare restano in centimetri.
+ */
+object PlanUnits {
+    /** Unità del progetto aperto (la imposta il disegno della pianta). */
+    var unit: LengthUnit = LengthUnit.Centimeters
+
+    fun format(cm: Double): String = when (unit) {
+        LengthUnit.Centimeters -> Dimension.formatLength(cm)
+        LengthUnit.Meters -> com.sagoma.planimetria.geometry.formatDecimal(cm / 100, 2)
+    }
+
+    /** Con l'unità dopo: "503 cm" o "5,03 m". */
+    fun withUnit(cm: Double): String = format(cm) + if (unit == LengthUnit.Meters) " m" else " cm"
+}
+
 @Serializable
 data class Dimension(val id: Long, val a: Vec2, val b: Vec2, val offset: Double = 40.0, val text: String? = null) {
     val length: Double get() = a.distanceTo(b)
@@ -498,7 +563,7 @@ data class Dimension(val id: Long, val a: Vec2, val b: Vec2, val offset: Double 
     /** Estremi della linea di quota. */
     val lineA: Vec2 get() = a + normal * offset
     val lineB: Vec2 get() = b + normal * offset
-    val label: String get() = text?.takeIf { it.isNotBlank() } ?: formatLength(length)
+    val label: String get() = text?.takeIf { it.isNotBlank() } ?: PlanUnits.format(length)
 
     companion object {
         /** Misura in cm, con un decimale solo se serve (come le altre quote dell'app). */
@@ -684,6 +749,11 @@ data class FreeWall(
     val phase: Phase = Phase.Existing,
     /** Porte, finestre e passaggi nel muro: tutti sul muro 0, da `start` verso `end` (vedi [host]). */
     val openings: List<Opening> = emptyList(),
+    /**
+     * Muro curvo: di quanto si scosta a metà dalla linea dritta (cm), positiva verso `−(end − start).perp()` (il lato «fuori»
+     * del muro 0 della [host]). 0 = dritto.
+     */
+    val bulge: Double = 0.0,
 ) {
     val finishOrPaint: WallFinish get() = finish ?: WallFinish.of(paint)
     val length: Double get() = start.distanceTo(end)
@@ -698,6 +768,8 @@ data class FreeWall(
         id = hostId(id), name = com.sagoma.planimetria.testi.T.vari.muroSingolo, type = RoomType.Altro,
         points = listOf(start, end), wallThickness = thickness, openings = openings,
         wallPhases = if (phase == Phase.Existing) emptyMap() else mapOf(0 to phase, 1 to phase),
+        // Andata e ritorno sullo stesso arco: visto dal muro 1 la curva va dall'altra parte.
+        wallBulges = if (bulge == 0.0) emptyMap() else mapOf(0 to bulge, 1 to -bulge),
     )
 
     companion object {
@@ -848,6 +920,8 @@ data class Building(
     val current: Int = 0,
     /** Livelli nascosti o bloccati (valgono per tutti i piani). */
     val layers: LayerSettings = LayerSettings(),
+    /** Unità delle misure scritte sulla pianta (quote, righelli, tavola PDF). */
+    val units: LengthUnit = LengthUnit.Centimeters,
 ) {
     init {
         require(floors.isNotEmpty()) { "Serve almeno un piano" }

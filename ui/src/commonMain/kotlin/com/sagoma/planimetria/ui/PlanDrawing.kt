@@ -9,6 +9,10 @@ import androidx.compose.ui.text.font.FontWeight
 import com.sagoma.planimetria.geometry.Dimensions
 import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.exterior
+import com.sagoma.planimetria.geometry.exteriorOutline
+import com.sagoma.planimetria.geometry.interiorOutline
+import com.sagoma.planimetria.geometry.innerThicknesses
+import com.sagoma.planimetria.geometry.wallShift
 import com.sagoma.planimetria.geometry.interiorLengths
 import com.sagoma.planimetria.geometry.interiorArea
 import com.sagoma.planimetria.geometry.usableArea
@@ -39,6 +43,10 @@ import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.Selection
 import com.sagoma.planimetria.geometry.Openings
+import com.sagoma.planimetria.geometry.expandCurves
+import com.sagoma.planimetria.geometry.arcOf
+import com.sagoma.planimetria.geometry.wallMiddle
+import com.sagoma.planimetria.testi.T
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Parapet
@@ -93,7 +101,7 @@ private fun wallBand(a: Vec2, b: Vec2, half: Double, cam: Camera) = Path().apply
 /** Muri della stanza come area piena: contorno esterno meno contorno interno. */
 internal fun wallRing(room: Room, cam: Camera) = Path().apply {
     fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
-    for (contour in listOf(room.exterior(), room.interior())) {
+    for (contour in listOf(room.exteriorOutline(), room.interiorOutline())) {
         contour.forEachIndexed { i, p -> val o = cam.o(p); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) }
         close()
     }
@@ -105,7 +113,12 @@ internal fun wallRing(room: Room, cam: Camera) = Path().apply {
  */
 internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, background: Color = PlanBackgroundColor) {
     val cam = state.camera
-    val rooms = state.plan.rooms.sortedBy { it.id == state.focusedRoomId }
+    // Le misure scritte (qui, nelle quote e nei righelli) seguono l'unità del progetto.
+    com.sagoma.planimetria.model.PlanUnits.unit = state.building.units
+    // Muri curvi: si disegnano come tanti pezzi dritti lungo l'arco.
+    val expanded = state.plan.expandCurves()
+    val plan = expanded.plan
+    val rooms = plan.rooms.sortedBy { it.id == state.focusedRoomId }
     val paths = rooms.associate { it.id to roomPath(it, cam) }
     val wallPx = (Room.WALL_THICKNESS * cam.scale).toFloat().coerceAtLeast(2f)
     // Riempimento tinto dal tipo, più intenso se la stanza è attiva (§3).
@@ -119,7 +132,7 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     // Due passate (prima il tratto pieno di tutti, poi il riempimento): dove due parapetti si incontrano non
     // resta una tacca.
     val parapets = rooms.filter { it.outdoor }.map { r ->
-        r to com.sagoma.planimetria.geometry.Parapets.segments(state.plan, r).map { (a, b) ->
+        r to com.sagoma.planimetria.geometry.Parapets.segments(plan, r).map { (a, b) ->
             Offset(cam.toScreenX(a.x), cam.toScreenY(a.y)) to Offset(cam.toScreenX(b.x), cam.toScreenY(b.y))
         }
     }
@@ -143,7 +156,8 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     for (r in rooms) for ((i, ph) in r.wallPhases) {
         if (i >= r.wallCount || r.isRemoved(i) || ph == Phase.Existing) continue
         val px = (r.thicknessOf(i) * cam.scale).toFloat().coerceAtLeast(2f)
-        val a = cam.o(r.wallStart(i)); val b = cam.o(r.wallEnd(i))
+        val shift = r.outwardOf(i) * r.wallShift(i)
+        val a = cam.o(r.wallStart(i) + shift); val b = cam.o(r.wallEnd(i) + shift)
         drawLine(WallColor, a, b, strokeWidth = px, cap = StrokeCap.Butt)
         drawLine(if (ph == Phase.Demolish) PhaseDemolishColor else PhaseNewColor, a, b, strokeWidth = (px - 2f).coerceAtLeast(1f), cap = StrokeCap.Butt)
     }
@@ -156,12 +170,12 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
         }
     }
     // Muri eliminati: tutto il muro diventa un varco, tranne dove la stanza accanto ha ancora il suo muro.
-    val removed = Openings.removedStretches(state.plan).filter { g -> rooms.any { it.id == g.roomId } }
-    for (g in removed) clearGap(g.a, g.b, (state.plan.room(g.roomId)!!.thicknessOf(g.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f))
+    val removed = Openings.removedStretches(plan).filter { g -> rooms.any { it.id == g.roomId } }
+    for (g in removed) clearGap(g.a, g.b, (plan.room(g.roomId)!!.thicknessOf(g.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f))
     // Dove il varco passa sopra l'angolo del muro di un'altra stanza (per esempio il muro di testa che arriva
     // al lato tolto), quel muro torna intero: il muro eliminato non ci lascia una tacca.
     for (g in removed) {
-        val band = wallBand(g.a, g.b, state.plan.room(g.roomId)!!.thicknessOf(g.wallIndex) / 2 + 1 / cam.scale, cam)
+        val band = wallBand(g.a, g.b, plan.room(g.roomId)!!.thicknessOf(g.wallIndex) / 2 + 1 / cam.scale, cam)
         for (r in rooms) {
             if (r.outdoor || r.id == g.roomId) continue
             val own = r.removedWalls.filter { it < r.wallCount }
@@ -174,8 +188,25 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     }
     val gaps = rooms.flatMap { r -> r.openings.filter { it.wallIndex < r.wallCount }.map { Openings.span(r, it) to (r.thicknessOf(it.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f) } } +
         // Varco indotto sul muro della stanza accanto: largo quanto il suo muro (non di più, o intacca i muri vicini).
-        Openings.sharedGaps(state.plan).map { g -> (g.a to g.b) to (state.plan.room(g.roomId)!!.thicknessOf(g.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f) }
+        Openings.sharedGaps(plan).map { g -> (g.a to g.b) to (plan.room(g.roomId)!!.thicknessOf(g.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f) }
     for ((ab, px) in gaps) clearGap(ab.first, ab.second, px)
+    // Sguinci: sul lato verso la stanza il vano si allarga con i lati inclinati (trapezio dalla mezzeria alla faccia).
+    for (r in rooms) for (o in r.openings) {
+        val splay = Openings.splayOf(r, o)
+        if (splay <= 0 || o.wallIndex >= r.wallCount) continue
+        val (a, b) = Openings.span(r, o)
+        val u = (b - a).normalized()
+        val inward = Openings.inwardNormal(r, o.wallIndex)
+        val half = r.thicknessOf(o.wallIndex) / 2 + 1 / cam.scale
+        val left = Openings.splayProfile(a, u, inward, half, splay, -1.0, o.splayRounded)
+        val right = Openings.splayProfile(b, u, inward, half, splay, 1.0, o.splayRounded)
+        val trapezoid = Path().apply {
+            (left.reversed() + right).forEachIndexed { i, p -> val q = cam.o(p); if (i == 0) moveTo(q.x, q.y) else lineTo(q.x, q.y) }
+            close()
+        }
+        drawPath(trapezoid, background)
+        for (other in rooms) clipPath(paths.getValue(other.id)) { drawPath(trapezoid, fill(other)) }
+    }
 
     // Dove c'era il muro resta una linea tratteggiata sottile: il confine della stanza (si tocca per rimetterlo).
     val dash = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
@@ -186,8 +217,10 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     val selWall = state.selection as? Selection.Wall
     val selOpening = state.selection as? Selection.Opening
     for (r in rooms) {
-        if (selWall != null && selWall.roomId == r.id && selWall.index < r.wallCount) {
-            drawLine(SelectedColor, cam.o(r.wallStart(selWall.index)), cam.o(r.wallEnd(selWall.index)), strokeWidth = (r.thicknessOf(selWall.index) * cam.scale).toFloat().coerceAtLeast(2f) + 4.dp.toPx())
+        if (selWall != null && selWall.roomId == r.id) for (j in 0 until r.wallCount) {
+            if (expanded.originOf(r.id, j) != selWall.index) continue
+            val shift = r.outwardOf(j) * r.wallShift(j)
+            drawLine(SelectedColor, cam.o(r.wallStart(j) + shift), cam.o(r.wallEnd(j) + shift), strokeWidth = (r.thicknessOf(j) * cam.scale).toFloat().coerceAtLeast(2f) + 4.dp.toPx(), cap = StrokeCap.Round)
         }
         for (o in r.openings) {
             if (o.wallIndex >= r.wallCount) continue
@@ -205,6 +238,7 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
                 if (o.phase == Phase.Demolish) continue
             }
             drawOpening(r, o, cam)
+            if (o.entrance && !o.kind.glazed) drawEntrance(r, o, cam, measurer)
         }
         drawWallHeights(r, cam, measurer)
     }
@@ -313,15 +347,34 @@ internal fun DrawScope.drawWallDimensions(plan: FloorPlan, cam: Camera, measurer
     val offset = 12.dp.toPx() // distanza della linea di quota dal filo interno del muro
     val tick = 4.dp.toPx()
     val gap = 2.dp.toPx()
-    for (room in plan.rooms) {
-        if (room.wallCount < 3) continue
-        val inner = room.interior()
+    for (logical in plan.rooms) {
+        if (logical.wallCount < 3) continue
+        // Muri curvi: le quote dei muri dritti si prendono dalla stanza srotolata; sull'arco una sola misura (sotto).
+        val expanded = logical.expandCurves()
+        val room = expanded.room
+        val edges = Polygon.insetEdges(room.points, room.innerThicknesses.map { it / 2 })
         val lengths = room.interiorLengths()
         val sign = if (Polygon.signedArea(room.points) >= 0) 1.0 else -1.0
+        for (i in 0 until logical.wallCount) {
+            val arc = logical.arcOf(i) ?: continue
+            val half = logical.thicknessOf(i) / 2
+            val t = measurer.measure("⌒ " + com.sagoma.planimetria.model.PlanUnits.format(arc.arcLength(half)), style)
+            // A metà, o il più vicino possibile se lì c'è una porta o finestra.
+            val spans = logical.openings.filter { it.wallIndex == i }.map { arc.span(it.position, it.width) }
+            val at = listOf(0.0, 0.5, -0.5, 0.75, -0.75).firstOrNull { s -> spans.none { (a, b) -> s > a - 0.1 && s < b + 0.1 } } ?: 0.0
+            val p = arc.at(at)
+            val inward = (arc.at(0.0) - arc.outward * arc.radius - p).normalized() * (if (arc.radius > 0) 1.0 else -1.0)
+            val c = cam.o(p + inward * half) + Offset(inward.x.toFloat(), inward.y.toFloat()) * (offset + gap + t.size.height / 2f)
+            val along = Vec2(-inward.y, inward.x)
+            var deg = com.sagoma.planimetria.geometry.toDegrees(atan2(along.y, along.x)).toFloat()
+            if (deg > 90f) deg -= 180f
+            if (deg < -90f) deg += 180f
+            rotate(deg, pivot = c) { drawText(t, topLeft = Offset(c.x - t.size.width / 2f, c.y - t.size.height / 2f)) }
+        }
         for (i in 0 until room.wallCount) {
+            if (logical.arcOf(expanded.origin[i]) != null) continue
             val len = lengths[i]
-            val p = inner[i]
-            val q = inner[(i + 1) % inner.size]
+            val (p, q) = edges[i]
             val lenPx = (len * cam.scale).toFloat()
             if (len <= 0 || lenPx < 3 * offset) continue
             val u = (q - p).normalized()
@@ -339,7 +392,7 @@ internal fun DrawScope.drawWallDimensions(plan: FloorPlan, cam: Camera, measurer
             drawLine(DimensionColor, a - slash, a + slash, strokeWidth = stroke * 1.6f)
             drawLine(DimensionColor, b - slash, b + slash, strokeWidth = stroke * 1.6f)
 
-            val t = measurer.measure(formatCm(len), style)
+            val t = measurer.measure(com.sagoma.planimetria.model.PlanUnits.format(len), style)
             val textLenCm = ((t.size.width + 4 * gap) / cam.scale).toDouble()
             if (t.size.width + 4 * gap > lenPx) continue
             // Posizione lungo il muro: il centro se libero, altrimenti il tratto libero più lungo.
@@ -386,6 +439,24 @@ internal fun DrawScope.drawWallCuts(state: EditorUiState) {
         drawCircle(Color.White, 9.dp.toPx(), cam.o(p))
         drawCircle(CutColor, 7.dp.toPx(), cam.o(p))
     }
+    // Pallino della curva, appena fuori dal muro selezionato a metà: trascinandolo il muro si incurva.
+    bulgeHandle(state, BULGE_HANDLE_GAP.toPx())?.let { p ->
+        val c = cam.o(p)
+        drawCircle(Color.White, 9.dp.toPx(), c)
+        drawCircle(SelectedColor, 7.dp.toPx(), c)
+        drawArc(Color.White, 200f, 140f, false, topLeft = c - Offset(4.dp.toPx(), 2.dp.toPx()), size = androidx.compose.ui.geometry.Size(8.dp.toPx(), 8.dp.toPx()), style = Stroke(1.5.dp.toPx()))
+    }
+}
+
+/** Distanza del pallino della curva dal filo del muro. */
+internal val BULGE_HANDLE_GAP = 16.dp
+
+/** Pallino della curva del muro selezionato (non per balconi e terrazze né per i muri eliminati). */
+internal fun bulgeHandle(state: EditorUiState, gapPx: Float): Vec2? {
+    val sel = state.selection as? Selection.Wall ?: return null
+    val room = state.plan.room(sel.roomId)?.takeIf { !it.outdoor && sel.index < it.wallCount && sel.index !in it.removedWalls } ?: return null
+    if (room.wallLength(sel.index) < 1.0) return null
+    return room.wallMiddle(sel.index) + room.outwardOf(sel.index) * (room.thicknessOf(sel.index) / 2 + gapPx / state.camera.scale)
 }
 
 /**
@@ -602,6 +673,33 @@ private fun DrawScope.drawFixture(room: Room, f: Fixture, cam: Camera, selected:
 }
 
 /** Simboli architettonici standard delle aperture (§5). */
+/**
+ * Segno dell'ingresso fuori dalla porta: triangolo metà pieno e metà vuoto che punta verso la porta, con «INGRESSO»
+ * sotto (come nelle piantine degli architetti).
+ */
+internal fun DrawScope.drawEntrance(room: Room, o: Opening, cam: Camera, measurer: TextMeasurer) {
+    val (a, b) = Openings.span(room, o)
+    val n = Openings.inwardNormal(room, o.wallIndex)
+    val u = (b - a).normalized()
+    val half = room.thicknessOf(o.wallIndex) / 2
+    val size = 40.0
+    val tip = (a + b) / 2.0 - n * (half + 12)
+    val base = tip - n * (size * 0.8)
+    val left = base - u * (size / 2)
+    val right = base + u * (size / 2)
+    fun tri(vararg p: Vec2) = Path().apply {
+        p.forEachIndexed { i, v -> val q = cam.o(v); if (i == 0) moveTo(q.x, q.y) else lineTo(q.x, q.y) }
+        close()
+    }
+    drawPath(tri(tip, left, base), WallColor)
+    drawPath(tri(tip, left, right), WallColor, style = Stroke(width = 1.2.dp.toPx()))
+    val t = measurer.measure(T.pannelli.ingresso.uppercase(), TextStyle(fontSize = 10.sp, color = WallColor, fontWeight = FontWeight.Medium))
+    // La scritta oltre la base del triangolo, staccata quanto basta per qualsiasi verso del muro.
+    val reach = (abs(n.x) * t.size.width + abs(n.y) * t.size.height) / 2 / cam.scale + 6
+    val c = cam.o(base - n * reach)
+    drawText(t, topLeft = Offset(c.x - t.size.width / 2f, c.y - t.size.height / 2f))
+}
+
 internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
     val (a, b) = Openings.span(room, o)
     val n = Openings.inwardNormal(room, o.wallIndex)
@@ -613,8 +711,25 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
         o.kind == OpeningKind.Passage -> PassageColor
         else -> DoorColor
     }
-    // Stipiti: tacche sottili attraverso lo spessore del muro ai due bordi del varco.
-    for (p in listOf(a, b)) drawLine(color, cam.o(p - n * half), cam.o(p + n * half), strokeWidth = thin)
+    // Stipiti: tacche sottili attraverso lo spessore del muro ai due bordi del varco; con lo sguincio, dalla
+    // mezzeria alla faccia interna sono inclinate.
+    val splay = Openings.splayOf(room, o)
+    val u = (b - a).normalized()
+    for ((p, toward) in listOf(a to -1.0, b to 1.0)) {
+        if (splay > 0) {
+            drawLine(color, cam.o(p - n * half), cam.o(p), strokeWidth = thin)
+            val profile = Openings.splayProfile(p, u, n, half, splay, toward, o.splayRounded)
+            for (k in 0 until profile.size - 1) drawLine(color, cam.o(profile[k]), cam.o(profile[k + 1]), strokeWidth = thin)
+        } else drawLine(color, cam.o(p - n * half), cam.o(p + n * half), strokeWidth = thin)
+    }
+    // Infisso a filo esterno o interno: linea doppia dove sta, e le ante partono da lì.
+    val frame = Openings.frameOffset(room, o)
+    if (frame != 0.0) {
+        val f = n * frame
+        val g = n * minOf(1.5, half)
+        drawLine(color, cam.o(a + f - g), cam.o(b + f - g), strokeWidth = thin)
+        drawLine(color, cam.o(a + f + g), cam.o(b + f + g), strokeWidth = thin)
+    }
     // Infissi a terra (balconi): soglia lungo il muro, per distinguerli dalle finestre.
     if (o.kind.glazed && o.sillHeight == 0.0) drawLine(color.copy(alpha = 0.6f), cam.o(a), cam.o(b), strokeWidth = thin)
 
@@ -624,17 +739,19 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
     }
 
     val swing = if (o.opensInward) n else n * -1.0
+    // Le ante partono dalla faccia del muro verso cui si aprono, o dall'infisso se non sta a metà muro.
+    val base = if (frame != 0.0) n * frame else swing * half
     when (o.kind.leaves) {
         1 -> {
             val hinge = if (o.hingeLeft) a else b
             val free = if (o.hingeLeft) b else a
-            drawLeaf(hinge + swing * half, free + swing * half, swing, color, line, cam)
+            drawLeaf(hinge + base, free + base, swing, color, line, cam)
         }
         2 -> {
             // Due ante, ciascuna incernierata sul proprio lato esterno, che si aprono verso il centro.
             val mid = (a + b) / 2.0
-            drawLeaf(a + swing * half, mid + swing * half, swing, color, line, cam)
-            drawLeaf(b + swing * half, mid + swing * half, swing, color, line, cam)
+            drawLeaf(a + base, mid + base, swing, color, line, cam)
+            drawLeaf(b + base, mid + base, swing, color, line, cam)
         }
         else -> if (o.style == PassageStyle.Arched) {
             val mid = (a + b) / 2.0
