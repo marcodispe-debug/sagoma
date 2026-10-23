@@ -216,13 +216,18 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                 .filter { it.second <= fixtureHitPx }
                 .minByOrNull { it.second }?.first
             if (fixtureHit != null) return DragTarget.Fixture(room.id, fixtureHit.id)
-            // Aperture prima di etichetta e muro: si afferra la loro linea (§5).
-            val openingHit = room.openings
+        }
+        // Aperture prima di etichette e muri: si afferra la loro linea (§5). Di tutte le stanze: una porta su un
+        // muro in comune sta in una sola delle due, ma il muro c'è in entrambe e non deve vincere.
+        ordered.flatMap { room ->
+            room.openings
                 .filter { it.wallIndex < room.wallCount }
-                .map { o -> o to Openings.span(room, o).let { (a, b) -> Polygon.distanceToSegment(world, a, b) * cam.scale } }
-                .filter { it.second <= wallHitPx + Room.WALL_THICKNESS / 2 * cam.scale }
-                .minByOrNull { it.second }?.first
-            if (openingHit != null) return DragTarget.Opening(room.id, openingHit.id)
+                .map { o -> Triple(room, o, Openings.span(room, o).let { (a, b) -> Polygon.distanceToSegment(world, a, b) * cam.scale }) }
+        }
+            .filter { it.third <= wallHitPx + Room.WALL_THICKNESS / 2 * cam.scale }
+            .minByOrNull { it.third }
+            ?.let { (room, o) -> return DragTarget.Opening(room.id, o.id) }
+        for (room in ordered) {
             val wallDistances = (0 until room.wallCount)
                 .map { it to room.distanceToWall(it, world) * cam.scale }
             // Tocco proprio sul muro: vince sull'etichetta, che in una stanza stretta copre i muri laterali.
