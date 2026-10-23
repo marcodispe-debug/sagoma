@@ -53,6 +53,31 @@ fun Room.isStraightCorner(k: Int): Boolean {
 /** Di quanto la mezzeria vera del muro `i` sta fuori dalla linea della stanza (cm; vedi [Room.wallOffsets]). Solo muri dritti. */
 fun Room.wallShift(i: Int): Double = if (arcOf(i) != null) 0.0 else wallOffsets[i] ?: 0.0
 
+/**
+ * Di quanto si spostano gli estremi del muro `i` (cm lungo il muro, all'inizio e alla fine) perché lui o il muro accanto
+ * ha la mezzeria fuori dalla linea della stanza ([Room.wallOffsets]): il muro finisce dove si incontrano le mezzerie
+ * vere, non sull'angolo della stanza. Zero agli angoli quasi dritti (scalini e pezzi di curva si raccordano a parte).
+ */
+fun Room.shiftedEndDeltas(i: Int): Pair<Double, Double> {
+    val n = wallCount
+    if (n < 3 || i !in 0 until n) return 0.0 to 0.0
+    val dir = wallEnd(i) - wallStart(i)
+    if (dir.length < 1e-6) return 0.0 to 0.0
+    val u = dir.normalized()
+    val own = outwardOf(i) * wallShift(i)
+    fun delta(other: Int): Double {
+        val od = wallEnd(other) - wallStart(other)
+        if (od.length < 1e-6) return 0.0
+        val d = od.normalized()
+        val c = u.x * d.y - u.y * d.x
+        if (kotlin.math.abs(c) < 0.5) return 0.0
+        val w = outwardOf(other) * wallShift(other) - own
+        if (w.length < 1e-9) return 0.0
+        return (w.x * d.y - w.y * d.x) / c
+    }
+    return delta((i - 1 + n) % n) to delta((i + 1) % n)
+}
+
 /** Spessore di ogni muro misurato dalla linea della stanza verso dentro, ×2 (il filo interno sta a metà di questo). */
 val Room.innerThicknesses: List<Double> get() = List(wallCount) { thicknessOf(it) - 2 * wallShift(it) }
 
