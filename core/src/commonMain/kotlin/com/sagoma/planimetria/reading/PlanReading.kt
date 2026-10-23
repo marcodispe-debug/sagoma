@@ -18,6 +18,8 @@ data class PlanReading(
     val openings: List<ReadOpening> = emptyList(),
     /** Scale (per ora solo dritte). */
     val stairs: List<ReadStair> = emptyList(),
+    /** Muri singoli: muretti e tramezzi che non chiudono una stanza (penisola della cucina, fianchi degli armadi a muro). */
+    val walls: List<ReadWall> = emptyList(),
     /** Spessore dei muri esterni sulla piantina, in pixel (null = non stimato: si usa uno spessore tipico). */
     @SerialName("exterior_wall_px") val exteriorWallPx: Double? = null,
     /**
@@ -51,6 +53,7 @@ data class PlanReading(
      * Un'apertura: [kind] uno tra `door`, `double_door`, `window`, `double_window`, `balcony` (porta-finestra), `double_balcony`,
      * `passage`; [ends] i due estremi in pixel (gli stipiti), da qualunque parte dello spessore del muro. Le misure sono quelle
      * scritte accanto (larghezza, altezza, davanzale), in cm; se mancano la larghezza viene dai pixel e il resto è quello tipico.
+     * Il verso delle ante si legge dal disegno: [hinge], [opensToward] e [sliding].
      */
     /**
      * Scala dritta: [from] il centro del bordo del primo gradino in basso, [to] il centro dell'arrivo in alto (la freccia della
@@ -64,6 +67,18 @@ data class PlanReading(
         @SerialName("width_cm") val widthCm: Double? = null,
         @SerialName("width_px") val widthPx: Double? = null,
         val treads: Int? = null,
+    )
+
+    /**
+     * Muro singolo: [from] e [to] gli estremi della mezzeria, in pixel; [thicknessPx] lo spessore misurato; [openings] le porte
+     * e i passaggi in questo muro (per esempio le ante di un armadio a muro).
+     */
+    @Serializable
+    data class ReadWall(
+        val from: List<Double>,
+        val to: List<Double>,
+        @SerialName("thickness_px") val thicknessPx: Double? = null,
+        val openings: List<ReadOpening> = emptyList(),
     )
 
     @Serializable
@@ -81,6 +96,12 @@ data class PlanReading(
         val frame: String? = null,
         /** Porte: è l'ingresso di casa. */
         val entrance: Boolean = false,
+        /** Anta singola: lo stipite con i cardini (uno dei due [ends]); se scorrevole, quello verso cui l'anta scorre. */
+        val hinge: List<Double>? = null,
+        /** Un punto qualsiasi dalla parte verso cui si aprono le ante (per esempio dentro l'arco disegnato). */
+        @SerialName("opens_toward") val opensToward: List<Double>? = null,
+        /** Ante scorrevoli (sulla piantina: ante parallele al muro, senza arco). */
+        val sliding: Boolean = false,
     )
 
     companion object {
