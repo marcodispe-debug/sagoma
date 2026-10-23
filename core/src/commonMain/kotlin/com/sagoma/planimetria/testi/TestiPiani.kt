@@ -25,4 +25,10 @@ open class TestiPiani {
     open val terzoPiano: String get() = "Terzo piano"
     open val quartoPiano: String get() = "Quarto piano"
     open fun piano(index: Any?): String = "Piano $index"
+
+    /**
+     * Nomi di piano comuni oltre a quelli automatici ("Seminterrato", "Ammezzato"): cambiando lingua si traducono. Stesso ordine in
+     * tutte le lingue. "Mansarda" e "Sottotetto" sono anche nomi di stanza e si traducono da lì.
+     */
+    open val pianiComuni: List<String> get() = listOf("Piano rialzato", "Seminterrato", "Interrato", "Ammezzato", "Soppalco")
 }

@@ -277,6 +277,49 @@ open class Nomi {
         RoomType.Terrazza -> "Terrazza"
     }
 
+    /**
+     * Nomi di stanza comuni oltre a quelli automatici, come si scrivono sulle piantine o a mano ("Camera doppia", "Disimpegno"):
+     * cambiando lingua si traducono anche questi ([com.sagoma.planimetria.model.AutoNames]). Stesso ordine in tutte le lingue: il
+     * nome n di una lingua è la traduzione del nome n delle altre.
+     */
+    open val stanzeComuni: List<String>
+        get() = listOf(
+            "Disimpegno", "Ingresso", "Atrio", "Salotto", "Sala da pranzo", "Pranzo", "Angolo cottura", "Cucinotto",
+            "Dispensa", "Camera matrimoniale", "Camera doppia", "Camera singola", "Camera ospiti", "Cabina armadio",
+            "Guardaroba", "Antibagno", "WC", "Bagno di servizio", "Bagno padronale", "Doccia", "Lavanderia", "Stireria",
+            "Area fitness", "Palestra", "Sauna", "Sala giochi", "Taverna", "Biblioteca", "Open space", "Ripostiglio",
+            "Cantina", "Garage", "Soffitta", "Sottotetto", "Mansarda", "Locale tecnico", "Centrale termica", "Vano scala",
+            "Scala", "Pianerottolo", "Loggia", "Veranda", "Portico", "Giardino", "Cortile",
+        )
+
+    /**
+     * Altri modi di scrivere un nome di stanza in questa lingua (abbreviazioni delle catastali, sinonimi): si traducono come il
+     * nome a cui portano, che è un nome automatico o uno di [stanzeComuni]. Solo dell'italiano: le altre lingue non ne hanno.
+     */
+    open val sinonimiStanze: Map<String, String>
+        get() = mapOf(
+            "Camera" to "Camera da letto",
+            "Letto" to "Camera da letto",
+            "Matrimoniale" to "Camera matrimoniale",
+            "Salone" to "Soggiorno",
+            "Living" to "Soggiorno",
+            "Sala" to "Soggiorno",
+            "Poggiolo" to "Balcone",
+            "Terrazzo" to "Terrazza",
+            "Ufficio" to "Studio",
+            "Disimp." to "Disimpegno",
+            "Dis." to "Disimpegno",
+            "Ing." to "Ingresso",
+            "Rip." to "Ripostiglio",
+            "Lavatoio" to "Lavanderia",
+            "Vano tecnico" to "Locale tecnico",
+            "Locale caldaia" to "Centrale termica",
+            "Box" to "Garage",
+            "Autorimessa" to "Garage",
+            "Bagno ospiti" to "Bagno di servizio",
+            "Cameretta bambini" to "Cameretta",
+        )
+
     open fun furnitureKind(v: ParametricFurniture.Kind): String = when (v) {
         ParametricFurniture.Kind.WARDROBE -> "Armadio su misura"
         ParametricFurniture.Kind.SLIDING_WARDROBE -> "Armadio scorrevole su misura"
