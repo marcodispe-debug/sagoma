@@ -1,4 +1,5 @@
 import { SYSTEM_PROMPT, userText } from "./prompt.js";
+import { findIssues, reviewText } from "./review.js";
 import { parseJson, readingJsonSchema, readingSchema } from "./schema.js";
 
 /** Modello di Gemini, se MODELLO_GEMINI non dice altro: ha il piano gratuito e guarda le immagini. */
@@ -13,20 +14,40 @@ export const BACKUP_MODELS = "gemini-3.6-flash,gemini-3.5-flash-lite";
  * Chiede la lettura a Gemini di Google con la chiave GEMINI_API_KEY (segreto del Worker). Stessi risultati di readWithClaude,
  * più `{ kind: "quota" }` quando il piano gratuito ha finito le richieste del giorno e `{ kind: "busy" }` quando Google è
  * sovraccarico o ha finito quelle del minuto: in questi casi, e se il modello non c'è più, si passa ai modelli di riserva.
- * `fetchFn` solo per i test.
+ *
+ * Gemini ragiona a fondo (RAGIONAMENTO_GEMINI, `high` se non c'è). Se nella lettura ci sono stanze sovrapposte o metri quadri
+ * che non tornano, gliela si rimanda con i problemi trovati e si tiene la correzione se non è peggio (CONTROLLO_GEMINI = "no"
+ * per non farlo). `fetchFn` solo per i test.
  */
 export async function readWithGemini(env, input, fetchFn = fetch) {
+  const first = await ask(env, input, [], fetchFn);
+  if (first.kind !== "ok") return first;
+  let reading = first.reading;
+  const issues = env.CONTROLLO_GEMINI === "no" ? [] : findIssues(reading);
+  if (issues.length) {
+    const second = await ask(env, input, [reviewText(reading, issues)], fetchFn);
+    const left = second.kind === "ok" ? findIssues(second.reading) : null;
+    console.log("Secondo giro:", issues.length, "problemi, dopo", left?.length ?? second.kind);
+    if (left && left.length <= issues.length) reading = second.reading;
+  }
+  return { kind: "ok", reading: fromThousandths(reading, input.width, input.height) };
+}
+
+/** Una lettura (in millesimi) dal primo modello che risponde, tra il principale e le riserve. */
+async function ask(env, input, extra, fetchFn) {
   const backups = (env.MODELLO_GEMINI_RISERVA ?? BACKUP_MODELS).split(",").map((m) => m.trim()).filter(Boolean);
   let result;
   for (const model of [env.MODELLO_GEMINI || DEFAULT_MODEL, ...backups]) {
-    result = await readWith(model, env, input, fetchFn);
+    result = await readWith(model, env, input, extra, env.RAGIONAMENTO_GEMINI || "high", fetchFn);
+    // Un modello che non accetta quel livello di ragionamento: lo stesso modello con il suo livello predefinito.
+    if (result.kind === "no_thinking") result = await readWith(model, env, input, extra, null, fetchFn);
     // Le quote del piano gratuito sono per modello: anche a quota finita la riserva può rispondere.
     if (!["busy", "quota", "missing"].includes(result.kind)) return result;
   }
   return result.kind === "missing" ? { kind: "ai_error" } : result;
 }
 
-async function readWith(model, env, { image, mediaType, width, height }, fetchFn) {
+async function readWith(model, env, { image, mediaType, width, height }, extra, thinking, fetchFn) {
   let response;
   try {
     response = await fetchFn(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -37,10 +58,15 @@ async function readWith(model, env, { image, mediaType, width, height }, fetchFn
         contents: [
           {
             role: "user",
-            parts: [{ inline_data: { mime_type: mediaType, data: image } }, { text: geminiText(width, height) }],
+            parts: [{ inline_data: { mime_type: mediaType, data: image } }, { text: geminiText(width, height) }, ...extra.map((text) => ({ text }))],
           },
         ],
-        generationConfig: { responseMimeType: "application/json", responseJsonSchema: readingJsonSchema, maxOutputTokens: 32000 },
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseJsonSchema: readingJsonSchema,
+          maxOutputTokens: 32000,
+          ...(thinking ? { thinkingConfig: { thinkingLevel: thinking } } : {}),
+        },
       }),
     });
   } catch (e) {
@@ -54,6 +80,7 @@ async function readWith(model, env, { image, mediaType, width, height }, fetchFn
     if (response.status === 429) return { kind: /per ?day|daily|PerDay/i.test(text) ? "quota" : "busy" };
     if (response.status >= 500) return { kind: "busy" };
     if (response.status === 404) return { kind: "missing" };
+    if (response.status === 400 && thinking && /thinking/i.test(text)) return { kind: "no_thinking" };
     return { kind: "ai_error" };
   }
   const answer = await response.json();
@@ -68,7 +95,7 @@ async function readWith(model, env, { image, mediaType, width, height }, fetchFn
     return { kind: "unparsed" };
   }
   if (!parsed.data.is_floor_plan) return { kind: "not_a_plan" };
-  return { kind: "ok", reading: fromThousandths(parsed.data, width, height) };
+  return { kind: "ok", reading: parsed.data };
 }
 
 /**
