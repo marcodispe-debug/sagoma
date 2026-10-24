@@ -283,7 +283,8 @@ object NomiFr : Nomi() {
             "Sas sanitaire", "WC", "Salle d'eau", "Salle de bain parentale", "Douche", "Buanderie", "Repassage",
             "Espace fitness", "Salle de sport", "Sauna", "Salle de jeux", "Salle de détente", "Bibliothèque", "Espace ouvert",
             "Débarras", "Cave", "Garage", "Grenier", "Combles", "Mansarde", "Local technique", "Chaufferie", "Cage d'escalier",
-            "Escalier", "Palier", "Loggia", "Véranda", "Porche", "Jardin", "Cour",
+            "Escalier", "Palier", "Loggia", "Véranda", "Porche", "Jardin", "Cour", "Suite parentale",
+            "Séjour avec cuisine",
         )
 
     override val sinonimiStanze: Map<String, String> get() = emptyMap()

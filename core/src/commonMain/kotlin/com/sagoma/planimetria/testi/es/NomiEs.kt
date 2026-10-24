@@ -284,7 +284,7 @@ object NomiEs : Nomi() {
             "Lavadero", "Cuarto de plancha", "Zona fitness", "Gimnasio", "Sauna", "Sala de juegos", "Sala de ocio",
             "Biblioteca", "Espacio abierto", "Trastero", "Bodega", "Garaje", "Desván", "Bajo cubierta", "Mansarda",
             "Cuarto técnico", "Sala de calderas", "Hueco de escalera", "Escalera", "Rellano", "Logia", "Galería", "Porche",
-            "Jardín", "Patio",
+            "Jardín", "Patio", "Suite principal", "Salón con cocina",
         )
 
     override val sinonimiStanze: Map<String, String> get() = emptyMap()

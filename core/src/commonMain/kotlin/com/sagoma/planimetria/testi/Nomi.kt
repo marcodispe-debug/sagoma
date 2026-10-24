@@ -289,7 +289,8 @@ open class Nomi {
             "Guardaroba", "Antibagno", "WC", "Bagno di servizio", "Bagno padronale", "Doccia", "Lavanderia", "Stireria",
             "Area fitness", "Palestra", "Sauna", "Sala giochi", "Taverna", "Biblioteca", "Open space", "Ripostiglio",
             "Cantina", "Garage", "Soffitta", "Sottotetto", "Mansarda", "Locale tecnico", "Centrale termica", "Vano scala",
-            "Scala", "Pianerottolo", "Loggia", "Veranda", "Portico", "Giardino", "Cortile",
+            "Scala", "Pianerottolo", "Loggia", "Veranda", "Portico", "Giardino", "Cortile", "Camera padronale",
+            "Soggiorno con cucina",
         )
 
     /**

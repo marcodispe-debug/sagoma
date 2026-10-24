@@ -26,6 +26,7 @@ import com.sagoma.planimetria.persistence.FileProjectRepository
 import com.sagoma.planimetria.persistence.FileLanguageStore
 import com.sagoma.planimetria.persistence.FileThemeStore
 import com.sagoma.planimetria.persistence.FileTipStore
+import com.sagoma.planimetria.reading.HttpPlanReader
 import com.sagoma.planimetria.testi.T
 import com.sagoma.planimetria.ui.FurnitureAssets
 import com.sagoma.planimetria.ui.SagomaApp
@@ -87,6 +88,16 @@ private fun createRemoteAssets(): RemoteAssets? {
     return createJvmRemoteAssets(assetCacheDir(), manifestUrl, blobBaseUrl, REMOTE_CACHE_BYTES, protectedDirs = listOfNotNull(assets))
 }
 
+/**
+ * "Leggi la piantina da sola": solo se si indica il server (`-Dsagoma.lettura.url=`, con `-Dsagoma.lettura.chiave=` se il server
+ * la chiede). Il codice del dispositivo per il limite al giorno sta in [dir].
+ */
+private fun planReader(dir: File): HttpPlanReader? {
+    val url = System.getProperty("sagoma.lettura.url")?.trim().orEmpty()
+    if (url.isEmpty()) return null
+    return HttpPlanReader(url, HttpPlanReader.deviceId(dir), appKey = System.getProperty("sagoma.lettura.chiave")?.trim().orEmpty())
+}
+
 fun main() {
     Thread.setDefaultUncaughtExceptionHandler { t, e -> logError("thread ${t.name}", e) }
     // Una sola volta per processo, chiuso quando la finestra si chiude e il programma finisce (non a ogni ricomposizione).
@@ -105,7 +116,7 @@ fun main() {
 private fun app(remote: RemoteAssets?) = application(exitProcessOnExit = false) {
     val dir = dataDir()
     val assets = System.getProperty("sagoma.assets")?.let(::File)?.takeIf { it.isDirectory }
-    val platform = DesktopPlatform(account = accountFromSystem(), projects = FileProjectRepository(dir), tips = FileTipStore(dir), theme = FileThemeStore(dir), language = FileLanguageStore(dir), assets = assets, assetCacheDir = assetCacheDir(), remote = remote)
+    val platform = DesktopPlatform(account = accountFromSystem(), projects = FileProjectRepository(dir), tips = FileTipStore(dir), theme = FileThemeStore(dir), language = FileLanguageStore(dir), assets = assets, assetCacheDir = assetCacheDir(), remote = remote, planReader = planReader(dir))
     FurnitureAssets.init(platform)
     // Errore nella finestra: lo si scrive nel registro, lo si dice all'utente e si chiude tutto (invece di
     // lasciare il programma vivo senza finestra).

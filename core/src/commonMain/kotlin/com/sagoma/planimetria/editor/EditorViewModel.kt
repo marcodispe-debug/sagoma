@@ -2686,6 +2686,28 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         tutorialEvent(TutorialEvent.Calibrated)
     }
 
+    /**
+     * Piantina letta da sola ("Leggi la piantina da sola"): le stanze, le porte, le finestre, le scale e i muri singoli letti
+     * diventano la pianta, con lo sfondo già tarato. Solo su un piano ancora senza stanze, muri singoli e scale; si annulla in un
+     * colpo solo. False se il piano non è vuoto o la lettura non ha stanze.
+     */
+    fun applyPlanReading(read: FloorPlan, units: LengthUnit? = null): Boolean {
+        val s = _state.value
+        if (s.plan.rooms.isNotEmpty() || s.plan.freeWalls.isNotEmpty() || s.plan.stairs.isNotEmpty() || read.rooms.isEmpty()) return false
+        commit { p ->
+            p.copy(rooms = read.rooms, freeWalls = read.freeWalls, stairs = read.stairs, underlay = read.underlay?.copy(opacity = p.underlay?.opacity ?: 0.5))
+        }
+        units?.let(::setUnits)
+        _state.update { it.copy(underlayTool = null, tracing = null, creation = null, creationIntent = null) }
+        // La guida al ricalco non serve più: le stanze sono già disegnate.
+        if (tutorial.active && tutorial.course == TutorialCourse.Tracing) {
+            tutorial.stop()
+            publishTutorial()
+        }
+        fitToView()
+        return true
+    }
+
     /** "Rifai taratura": di nuovo i due punti della misura nota, anche a metà del ricalco di una stanza (che resta). */
     fun recalibrateUnderlay() {
         val u = _state.value.plan.underlay ?: return

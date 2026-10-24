@@ -1,0 +1,18 @@
+{
+  "name": "sagoma-lettura-piantine",
+  "private": true,
+  "type": "module",
+  "description": "Piccolo server (Cloudflare Worker) che legge una piantina con Claude e restituisce stanze, porte e finestre a Sagoma.",
+  "scripts": {
+    "test": "node --test",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.3.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "wrangler": "4.150.0"
+  }
+}

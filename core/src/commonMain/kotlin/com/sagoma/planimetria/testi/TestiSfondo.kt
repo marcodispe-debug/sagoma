@@ -34,4 +34,13 @@ open class TestiSfondo {
     open val piuMisuraLungaPiu: String get() = "Più la misura è lunga, più la taratura è precisa."
     open val tara2: String get() = "Tara"
     open val rifai: String get() = "Rifai"
+    open val leggiDaSola: String get() = "Leggi la piantina da sola"
+    open val leggiDaSolaSpiega: String get() = "Novità, gratis: carica la piantina e Sagoma disegna da sola stanze, porte e finestre. Poi controlli e correggi."
+    open val letturaInCorso: String get() = "Sto leggendo la piantina… può volerci un minuto."
+    open fun piantinaLetta(stanze: Int): String = "Piantina letta: $stanze stanze. Controlla le misure e correggi dove serve."
+    open val senzaMisureScritte: String get() = "Sulla piantina non ho trovato misure scritte: la scala è solo indicativa, controllala."
+    open val letturaNonRiuscita: String get() = "Non sono riuscito a leggere la piantina: ricalcala a mano."
+    open val letturaNonRaggiungibile: String get() = "Il servizio di lettura non risponde (serve internet): ricalca la piantina a mano."
+    open val troppeLetture: String get() = "Oggi hai già letto molte piantine: riprova domani o ricalcala a mano."
+    open val nonUnaPiantina: String get() = "L'immagine non sembra una piantina: ricalcala a mano o prova un'altra immagine."
 }
