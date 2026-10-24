@@ -84,7 +84,7 @@ test("coordinate in millesimi riportate nei pixel dell'immagine", () => {
   assert.equal(fromThousandths(pixels, 2000, 500), pixels);
 });
 
-test("ragionamento alto, e senza se il modello non lo accetta", async () => {
+test("ragionamento scelto con RAGIONAMENTO_GEMINI, e senza se il modello non lo accetta", async () => {
   const bodies = [];
   const fetch = async (_url, init) => {
     const body = JSON.parse(init.body);
@@ -92,12 +92,15 @@ test("ragionamento alto, e senza se il modello non lo accetta", async () => {
     if (body.generationConfig.thinkingConfig) return Response.json({ error: { message: "thinking level not supported" } }, { status: 400 });
     return reply(JSON.stringify(empty));
   };
-  assert.equal((await readWithGemini({}, input, fetch)).kind, "ok");
+  assert.equal((await readWithGemini({ RAGIONAMENTO_GEMINI: "high" }, input, fetch)).kind, "ok");
   assert.deepEqual(bodies[0].generationConfig.thinkingConfig, { thinkingLevel: "high" });
   assert.equal(bodies[1].generationConfig.thinkingConfig, undefined);
+  // Senza RAGIONAMENTO_GEMINI decide il modello.
+  await readWithGemini({}, input, fetch);
+  assert.equal(bodies[2].generationConfig.thinkingConfig, undefined);
 });
 
-test("secondo giro quando le stanze si sovrappongono", async () => {
+test("con CONTROLLO_GEMINI = «si», secondo giro quando le stanze si sovrappongono", async () => {
   const room = (name, corners) => ({ name, corners, sides_m: [], area_m2: null, excluded: [] });
   const overlapping = { ...empty, rooms: [room("Cucina", [[0, 0], [500, 0], [500, 500], [0, 500]]), room("Bagno", [[400, 0], [800, 0], [800, 500], [400, 500]])] };
   const separate = { ...empty, rooms: [room("Cucina", [[0, 0], [400, 0], [400, 500], [0, 500]]), room("Bagno", [[420, 0], [800, 0], [800, 500], [420, 500]])] };
@@ -106,15 +109,15 @@ test("secondo giro quando le stanze si sovrappongono", async () => {
     sent.push(JSON.parse(init.body));
     return reply(JSON.stringify(sent.length === 1 ? overlapping : separate));
   };
-  const r = await readWithGemini({}, { ...input, width: 1000, height: 1000 }, fetch);
+  const r = await readWithGemini({ CONTROLLO_GEMINI: "si" }, { ...input, width: 1000, height: 1000 }, fetch);
   assert.equal(sent.length, 2);
   assert.match(sent[1].contents[0].parts[2].text, /«Cucina» e «Bagno» si sovrappongono/);
   assert.deepEqual(r.reading.rooms[0].corners[1], [400, 0]);
-  // Una correzione peggiore della prima lettura non si tiene; con CONTROLLO_GEMINI = "no" il secondo giro non si fa.
+  // Una correzione peggiore della prima lettura non si tiene; senza CONTROLLO_GEMINI il secondo giro non si fa.
   let calls = 0;
   const worse = async () => reply(JSON.stringify(++calls === 1 ? overlapping : { ...overlapping, rooms: [...overlapping.rooms, room("Sala", [[300, 0], [600, 0], [600, 500], [300, 500]])] }));
-  assert.deepEqual((await readWithGemini({}, { ...input, width: 1000, height: 1000 }, worse)).reading.rooms.length, 2);
+  assert.deepEqual((await readWithGemini({ CONTROLLO_GEMINI: "si" }, { ...input, width: 1000, height: 1000 }, worse)).reading.rooms.length, 2);
   calls = 0;
-  await readWithGemini({ CONTROLLO_GEMINI: "no" }, input, async () => { calls++; return reply(JSON.stringify(overlapping)); });
+  await readWithGemini({}, input, async () => { calls++; return reply(JSON.stringify(overlapping)); });
   assert.equal(calls, 1);
 });
