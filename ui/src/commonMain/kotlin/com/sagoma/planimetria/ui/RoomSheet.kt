@@ -487,7 +487,7 @@ private fun SectionTitle(text: String) {
  * muri, dove applicare ogni cifra digitata deformerebbe la stanza mentre si scrive.
  */
 @Composable
-private fun CommitNumberField(label: String, value: Double, modifier: Modifier, onCommit: (Double) -> Unit) {
+internal fun CommitNumberField(label: String, value: Double, modifier: Modifier, onCommit: (Double) -> Unit) {
     val focusManager = LocalFocusManager.current
     var text by remember(value) { mutableStateOf(formatCm(value)) }
     var focused by remember { mutableStateOf(false) }

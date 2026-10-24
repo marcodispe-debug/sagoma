@@ -1238,7 +1238,13 @@ private class SceneBuilder(
             if (abs(c) < 1e-6) return 0.0
             val w = d.perp() * (sign * side * otherHalf) - inward * (side * half)
             val t = (w.x * d.y - w.y * d.x) / c
-            return if (abs(t) > 2 * max(half, otherHalf) + 1) 0.0 else t
+            // Solo allungata: accorciata lascerebbe uno spiraglio sul lato della mezzeria; dove le facce si incrociano, il
+            // pezzetto in più sta dentro il muro accanto e non si vede.
+            return when {
+                abs(t) > 2 * max(half, otherHalf) + 1 -> 0.0
+                atEnd -> max(t, 0.0)
+                else -> min(t, 0.0)
+            }
         }
         val others = plan.rooms.filter { it.id != room.id && !it.outdoor }
         /** Un'altra stanza tocca questo punto (con un suo muro): lì la casa continua, non è uno spigolo esterno. */
@@ -1304,8 +1310,10 @@ private class SceneBuilder(
         val bandStart = s + room.outwardOf(i) * room.wallShift(i)
         // Fascia interna: da angolo ad angolo, allungata solo negli angoli rientranti; tolti i tratti coperti da una
         // stanza ricavata dentro questa (lì si vede la parete di quella stanza).
-        val interiorStart = nearlyStraightJoin(atEnd = false, side = 1.0) ?: if (startConvex || startStraight) 0.0 else -prevHalf
-        val interiorEnd = nearlyStraightJoin(atEnd = true, side = 1.0)?.let { len + it } ?: if (endConvex || endStraight) len else len + nextHalf
+        // Angoli con un muro spostato (scalino): le fasce partono e finiscono dove si incontrano le mezzerie vere.
+        val (shiftStart, shiftEnd) = room.shiftedEndDeltas(i)
+        val interiorStart = nearlyStraightJoin(atEnd = false, side = 1.0) ?: (shiftStart + if (startConvex || startStraight) 0.0 else -prevHalf)
+        val interiorEnd = nearlyStraightJoin(atEnd = true, side = 1.0)?.let { len + it } ?: (len + shiftEnd + if (endConvex || endStraight) 0.0 else nextHalf)
         var interiorRanges = listOf(interiorStart..interiorEnd)
         for (h in hiddenInterior) interiorRanges = interiorRanges.flatMap { cut(it, h) }
         for (r in interiorRanges) if (r.endInclusive - r.start > 0.5) {
@@ -1315,11 +1323,13 @@ private class SceneBuilder(
         for (r in exterior) {
             val a = when {
                 r.start >= 0.5 -> r.start
-                else -> nearlyStraightJoin(atEnd = false, side = -1.0) ?: if (startConvex && !startStraight && !touched(s)) -prevHalf else r.start
+                else -> nearlyStraightJoin(atEnd = false, side = -1.0)
+                    ?: (shiftStart + if (startConvex && !startStraight && !touched(s + u * shiftStart)) -prevHalf else r.start)
             }
             val b = when {
                 r.endInclusive <= len - 0.5 -> r.endInclusive
-                else -> nearlyStraightJoin(atEnd = true, side = -1.0)?.let { len + it } ?: if (endConvex && !endStraight && !touched(e)) len + nextHalf else r.endInclusive
+                else -> nearlyStraightJoin(atEnd = true, side = -1.0)?.let { len + it }
+                    ?: (shiftEnd + if (endConvex && !endStraight && !touched(e + u * shiftEnd)) len + nextHalf else r.endInclusive)
             }
             band(bandStart, u, len, gaps, sloped, room, i, wallPick, a..b, inward * -1.0, facade, interior = false)
         }

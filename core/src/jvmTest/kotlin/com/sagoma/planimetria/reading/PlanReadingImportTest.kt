@@ -241,5 +241,54 @@ class PlanReadingImportTest {
             assertEquals(50.0, r.thicknessOf(bottom), 1e-9)
         }
     }
+    @Test
+    fun versoDelleAnteComeSulDisegno() {
+        // Porta tra cucina e letto (tramezzo a x = 303), cardini in basso e aperta verso il letto; poi la stessa con i cardini
+        // in alto e aperta verso la cucina; una porta-finestra scorrevole sul muro sotto la cucina.
+        fun door(hinge: Pair<Double, Double>, toward: Pair<Double, Double>) = PlanReading.ReadOpening(
+            "door", listOf(listOf(303.0, 150.0), listOf(303.0, 190.0)),
+            hinge = listOf(hinge.first, hinge.second), opensToward = listOf(toward.first, toward.second),
+        )
+        val sliding = PlanReading.ReadOpening("double_balcony", listOf(listOf(150.0, 257.0), listOf(250.0, 257.0)), sliding = true)
+        fun read(vararg o: PlanReading.ReadOpening) = PlanReadingImport.toPlan(twoRooms.copy(openings = o.toList()), "x.jpg").plan.rooms
+        fun drawn(rooms: List<com.sagoma.planimetria.model.Room>): Pair<com.sagoma.planimetria.model.Room, com.sagoma.planimetria.model.Opening> =
+            rooms.first { it.openings.isNotEmpty() }.let { it to it.openings.single() }
+        // Cardine e verso nel piano: l'estremo con i cardini e la parte dove sta l'anta aperta.
+        fun hingeAndSide(rooms: List<com.sagoma.planimetria.model.Room>): Pair<Double, Double> {
+            val (room, o) = drawn(rooms)
+            val (a, b) = com.sagoma.planimetria.geometry.Openings.span(room, o)
+            val hinge = if (o.hingeLeft) a else b
+            val n = com.sagoma.planimetria.geometry.Openings.inwardNormal(room, o.wallIndex) * (if (o.opensInward) 1.0 else -1.0)
+            return hinge.y to n.x
+        }
+        val (h1, side1) = hingeAndSide(read(door(303.0 to 190.0, 330.0 to 175.0)))
+        assertEquals(380.0, h1, 1e-6)
+        assertTrue(side1 > 0) // verso il letto, a destra
+        val (h2, side2) = hingeAndSide(read(door(303.0 to 150.0, 280.0 to 160.0)))
+        assertEquals(300.0, h2, 1e-6)
+        assertTrue(side2 < 0) // verso la cucina, a sinistra
+        val (_, s) = drawn(read(sliding))
+        assertTrue(s.sliding)
+        assertFalse(s.swings)
+    }
+    @Test
+    fun muriSingoliConLeAnte() {
+        // Fianco di un armadio a muro nel letto, da (400,100) a (400,180), spesso 6 px, con due ante scorrevoli in mezzo.
+        val front = PlanReading.ReadWall(
+            from = listOf(400.0, 100.0), to = listOf(400.0, 180.0), thicknessPx = 6.0,
+            openings = listOf(PlanReading.ReadOpening("double_door", listOf(listOf(400.0, 110.0), listOf(400.0, 170.0)), sliding = true)),
+        )
+        val plan = PlanReadingImport.toPlan(twoRooms.copy(walls = listOf(front)), "x.jpg").plan
+        val w = plan.freeWalls.single()
+        assertEquals(Vec2(800.0, 200.0), w.start)
+        assertEquals(Vec2(800.0, 360.0), w.end)
+        assertEquals(12.0, w.thickness, 1e-9)
+        val o = w.openings.single()
+        assertEquals(0, o.wallIndex)
+        assertEquals(80.0, o.position, 1e-9)
+        assertEquals(120.0, o.width, 1e-9)
+        assertTrue(o.sliding)
+        // Si salva e si rilegge uguale.
+        assertEquals(plan, PlanJson.decode(PlanJson.encode(plan)))
+    }
 }
-

@@ -9,6 +9,7 @@ import com.sagoma.planimetria.geometry.toDegrees
 import com.sagoma.planimetria.model.ExcludedZone
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.FramePosition
+import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
@@ -19,6 +20,7 @@ import com.sagoma.planimetria.model.Underlay
 import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -120,7 +122,8 @@ object PlanReadingImport {
             )
         }
         val underlay = Underlay(imageFile, reading.image.width, reading.image.height, origin = Vec2.Zero, cmPerPx = k, opacity = 0.5)
-        return Result(FloorPlan(rooms = rooms, stairs = stairs(reading.stairs, k), underlay = underlay), cmPerPx, checks)
+        val walls = freeWalls(reading.walls, k, firstOpeningId = (rooms.flatMap { it.openings }.maxOfOrNull { it.id } ?: 0L) + 1)
+        return Result(FloorPlan(rooms = rooms, stairs = stairs(reading.stairs, k), freeWalls = walls, underlay = underlay), cmPerPx, checks)
     }
 
     /**
@@ -168,9 +171,59 @@ object PlanReadingImport {
                     else -> FramePosition.Center
                 },
                 entrance = o.entrance && !kind.glazed,
+                sliding = o.sliding && kind.hasLeaves,
             ).let { it.copy(position = Openings.clampPosition(rooms[ri].wallLength(j), it.width, t)) }
+                .let { leavesAsDrawn(it, rooms[ri], o, k) }
         }
         return rooms.mapIndexed { i, r -> if (added[i].isEmpty()) r else r.copy(openings = r.openings + added[i]) }
+    }
+
+    /** Muri singoli con le loro aperture, che stanno sul muro 0 della [FreeWall.host] (da `start` verso `end`). */
+    internal fun freeWalls(read: List<PlanReading.ReadWall>, k: Double, firstOpeningId: Long): List<FreeWall> {
+        var openingId = firstOpeningId - 1
+        return read.mapIndexedNotNull { i, r ->
+            if (r.from.size < 2 || r.to.size < 2) return@mapIndexedNotNull null
+            val start = Vec2(r.from[0] * k, r.from[1] * k)
+            val end = Vec2(r.to[0] * k, r.to[1] * k)
+            val len = start.distanceTo(end)
+            if (len < 1.0) return@mapIndexedNotNull null
+            val wall = FreeWall(i + 1L, start, end, thickness = r.thicknessPx?.let { (it * k).coerceIn(3.0, MAX_WALL) } ?: 10.0)
+            val u = (end - start) / len
+            val openings = r.openings.mapNotNull { o ->
+                val kind = openingKind(o.kind) ?: return@mapNotNull null
+                if (o.ends.size < 2 || o.ends.any { it.size < 2 }) return@mapNotNull null
+                val a = Vec2(o.ends[0][0] * k, o.ends[0][1] * k)
+                val b = Vec2(o.ends[1][0] * k, o.ends[1][1] * k)
+                val width = min(o.widthCm ?: a.distanceTo(b), len)
+                val d = Opening.default(++openingId, kind, 0, 0.0)
+                val opening = d.copy(
+                    position = Openings.clampPosition(len, width, ((a + b) / 2.0 - start) dot u),
+                    width = width,
+                    height = o.heightCm ?: d.height,
+                    sillHeight = if (kind == OpeningKind.Window1 || kind == OpeningKind.Window2) o.sillCm ?: d.sillHeight else 0.0,
+                    sliding = o.sliding && kind.hasLeaves,
+                )
+                leavesAsDrawn(opening, wall.host, o, k)
+            }
+            wall.copy(openings = openings)
+        }
+    }
+
+    /**
+     * Verso delle ante come sulla piantina: i cardini (o il lato verso cui scorre) all'inizio o alla fine del muro, e l'apertura
+     * verso la stanza o verso l'altra parte. Quello che non è letto resta com'è.
+     */
+    private fun leavesAsDrawn(o: Opening, room: Room, read: PlanReading.ReadOpening, k: Double): Opening {
+        if (!o.kind.hasLeaves) return o
+        val start = room.wallStart(o.wallIndex)
+        val u = (room.wallEnd(o.wallIndex) - start).normalized()
+        val center = start + u * o.position
+        var r = o
+        read.hinge?.takeIf { it.size >= 2 }?.let { h -> r = r.copy(hingeLeft = ((Vec2(h[0] * k, h[1] * k) - start) dot u) < o.position) }
+        read.opensToward?.takeIf { it.size >= 2 }?.let { p ->
+            r = r.copy(opensInward = ((Vec2(p[0] * k, p[1] * k) - center) dot Openings.inwardNormal(room, o.wallIndex)) > 0)
+        }
+        return r
     }
 
     /**

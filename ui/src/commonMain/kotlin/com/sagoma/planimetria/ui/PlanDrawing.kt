@@ -12,6 +12,7 @@ import com.sagoma.planimetria.geometry.exterior
 import com.sagoma.planimetria.geometry.exteriorOutline
 import com.sagoma.planimetria.geometry.interiorOutline
 import com.sagoma.planimetria.geometry.innerThicknesses
+import com.sagoma.planimetria.geometry.shiftedEndDeltas
 import com.sagoma.planimetria.geometry.wallShift
 import com.sagoma.planimetria.geometry.interiorLengths
 import com.sagoma.planimetria.geometry.interiorArea
@@ -156,8 +157,7 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     for (r in rooms) for ((i, ph) in r.wallPhases) {
         if (i >= r.wallCount || r.isRemoved(i) || ph == Phase.Existing) continue
         val px = (r.thicknessOf(i) * cam.scale).toFloat().coerceAtLeast(2f)
-        val shift = r.outwardOf(i) * r.wallShift(i)
-        val a = cam.o(r.wallStart(i) + shift); val b = cam.o(r.wallEnd(i) + shift)
+        val (a, b) = shiftedWallLine(r, i).let { (p, q) -> cam.o(p) to cam.o(q) }
         drawLine(WallColor, a, b, strokeWidth = px, cap = StrokeCap.Butt)
         drawLine(if (ph == Phase.Demolish) PhaseDemolishColor else PhaseNewColor, a, b, strokeWidth = (px - 2f).coerceAtLeast(1f), cap = StrokeCap.Butt)
     }
@@ -219,8 +219,8 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     for (r in rooms) {
         if (selWall != null && selWall.roomId == r.id) for (j in 0 until r.wallCount) {
             if (expanded.originOf(r.id, j) != selWall.index) continue
-            val shift = r.outwardOf(j) * r.wallShift(j)
-            drawLine(SelectedColor, cam.o(r.wallStart(j) + shift), cam.o(r.wallEnd(j) + shift), strokeWidth = (r.thicknessOf(j) * cam.scale).toFloat().coerceAtLeast(2f) + 4.dp.toPx(), cap = StrokeCap.Round)
+            val (a, b) = shiftedWallLine(r, j)
+            drawLine(SelectedColor, cam.o(a), cam.o(b), strokeWidth = (r.thicknessOf(j) * cam.scale).toFloat().coerceAtLeast(2f) + 4.dp.toPx(), cap = StrokeCap.Round)
         }
         for (o in r.openings) {
             if (o.wallIndex >= r.wallCount) continue
@@ -446,6 +446,18 @@ internal fun DrawScope.drawWallCuts(state: EditorUiState) {
         drawCircle(SelectedColor, 7.dp.toPx(), c)
         drawArc(Color.White, 200f, 140f, false, topLeft = c - Offset(4.dp.toPx(), 2.dp.toPx()), size = androidx.compose.ui.geometry.Size(8.dp.toPx(), 8.dp.toPx()), style = Stroke(1.5.dp.toPx()))
     }
+}
+
+/** Mezzeria vera del muro `i`: spostata se il muro ha lo scalino, e accorciata o allungata dove il muro accanto è spostato. */
+internal fun shiftedWallLine(r: Room, i: Int): Pair<Vec2, Vec2> {
+    val s = r.wallStart(i)
+    val e = r.wallEnd(i)
+    val len = s.distanceTo(e)
+    if (len < 1e-6) return s to e
+    val u = (e - s) / len
+    val shift = r.outwardOf(i) * r.wallShift(i)
+    val (d0, d1) = r.shiftedEndDeltas(i)
+    return (s + shift + u * d0) to (e + shift + u * d1)
 }
 
 /** Distanza del pallino della curva dal filo del muro. */
