@@ -45,8 +45,13 @@ import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.UnderlayTool
 import com.sagoma.planimetria.editor.TutorialStep
 import com.sagoma.planimetria.geometry.Openings
+import com.sagoma.planimetria.model.LengthUnit
 import com.sagoma.planimetria.model.Underlay
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.reading.PlanReader
+import com.sagoma.planimetria.reading.PlanReaderResult
+import com.sagoma.planimetria.reading.PlanReadingImport
+import com.sagoma.planimetria.reading.scaledTo
 import com.sagoma.planimetria.testi.T
 import kotlinx.coroutines.launch
 import kotlin.math.max
@@ -118,19 +123,32 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
     val u = state.plan.underlay
     var loading by remember { mutableStateOf(false) }
 
-    fun import(file: PickedFile?, pdf: Boolean) {
+    // "Leggi la piantina da sola": solo dove c'è il server della lettura e la pianta è ancora vuota.
+    val reader = platform.planReader?.takeIf { state.plan.rooms.isEmpty() && state.plan.freeWalls.isEmpty() && state.plan.stairs.isEmpty() }
+    var reading by remember { mutableStateOf(false) }
+
+    /** Carica la piantina come sfondo; con `read` la fa anche leggere ([readPlan]), altrimenti si passa alla taratura. */
+    fun import(file: PickedFile?, pdf: Boolean, read: Boolean = false) {
         if (file == null) return
         loading = true
         scope.launch {
             val img = platform.importImage(file.bytes, pdf, MAX_SIDE)
             val name = "sfondo-${platform.now()}.jpg"
             val saved = img != null && runCatching { platform.projects.writeFile(projectId, name, img.jpeg) }.isSuccess
-            loading = false
             if (img == null || !saved) {
+                loading = false
                 // Letta ma non salvata: di solito manca spazio (nel browser c'è un limite di pochi MB).
                 platform.toast(if (img == null) T.sfondo.impossibileLeggereFile else T.sfondo.nonSpazioSalvareSfondo)
                 return@launch
             }
+            if (read && reader != null) {
+                reading = true
+                val done = readPlan(platform, reader, file, pdf, img, name, vm)
+                reading = false
+                loading = false
+                if (done) { onDismiss(); return@launch }
+            }
+            loading = false
             val w = img.width
             val h = img.height
             // Prima della taratura: l'immagine larga 12 m, centrata sulla pianta (o all'origine).
@@ -178,7 +196,16 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
                         OutlinedButton(enabled = !loading, onClick = { platform.openFile(listOf("application/pdf")) { import(it, pdf = true) } }) { Text(T.sfondo.pdf) }
                     }
                 }
-                if (loading) Text(T.sfondo.caricamento, style = MaterialTheme.typography.bodySmall)
+                if (reader != null) {
+                    Text(T.sfondo.leggiDaSolaSpiega, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // Si sceglie un'immagine o un PDF (dove si può): il tipo si capisce dal file.
+                    val types = if (platform.pdfAsBackground) listOf("image/*", "application/pdf") else listOf("image/*")
+                    Button(enabled = !loading, onClick = { platform.openFile(types) { f -> import(f, pdf = f?.isPdf() == true, read = true) } }) {
+                        Text("✨ " + T.sfondo.leggiDaSola)
+                    }
+                }
+                if (reading) Text(T.sfondo.letturaInCorso, style = MaterialTheme.typography.bodySmall)
+                else if (loading) Text(T.sfondo.caricamento, style = MaterialTheme.typography.bodySmall)
                 if (u != null) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(T.sfondo.visibile, Modifier.weight(1f))
@@ -204,6 +231,48 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
         },
         confirmButton = { TextButton(enabled = !loading, onClick = onDismiss) { Text(if (tracing && u == null) T.comuni.indietro else T.comuni.chiudi) } },
     )
+}
+
+/** Un PDF dal nome o dalle prime lettere del contenuto ("%PDF"). */
+private fun PickedFile.isPdf(): Boolean =
+    name.endsWith(".pdf", ignoreCase = true) || (bytes.size >= 4 && bytes[0] == '%'.code.toByte() && bytes[1] == 'P'.code.toByte() && bytes[2] == 'D'.code.toByte() && bytes[3] == 'F'.code.toByte())
+
+/**
+ * Fa leggere la piantina al server e mette nella pianta stanze, porte, finestre, scale e muri singoli, con lo sfondo [name]
+ * (l'immagine [img] già salvata) tarato. Al server va una copia più piccola della stessa piantina; la lettura torna ai pixel di
+ * [img]. False (con un messaggio) se non è andata: allora si continua come col ricalco a mano.
+ */
+internal suspend fun readPlan(platform: Platform, reader: PlanReader, file: PickedFile, pdf: Boolean, img: ImportedImage, name: String, vm: EditorViewModel): Boolean {
+    val small = platform.importImage(file.bytes, pdf, PlanReader.sideFor(img.width, img.height))
+    if (small == null) {
+        platform.toast(T.sfondo.letturaNonRiuscita)
+        return false
+    }
+    val reading = when (val r = reader.read(small.jpeg, "image/jpeg", small.width, small.height)) {
+        is PlanReaderResult.Ok -> r.reading
+        is PlanReaderResult.Refused -> {
+            platform.toast(
+                when (r.code) {
+                    "troppe_letture", "servizio_pieno" -> T.sfondo.troppeLetture
+                    "non_una_piantina" -> T.sfondo.nonUnaPiantina
+                    else -> T.sfondo.letturaNonRiuscita
+                },
+            )
+            return false
+        }
+        PlanReaderResult.Unreachable -> {
+            platform.toast(T.sfondo.letturaNonRaggiungibile)
+            return false
+        }
+    }
+    val result = PlanReadingImport.toPlan(reading.scaledTo(img.width, img.height), name)
+    val units = if (reading.units.trim().lowercase() == "m") LengthUnit.Meters else LengthUnit.Centimeters
+    if (!vm.applyPlanReading(result.plan, units)) {
+        platform.toast(T.sfondo.letturaNonRiuscita)
+        return false
+    }
+    platform.toast(T.sfondo.piantinaLetta(result.plan.rooms.size) + if (result.cmPerPx == null) "\n" + T.sfondo.senzaMisureScritte else "")
+    return true
 }
 
 /** Scheda in alto durante taratura o spostamento dello sfondo, con la richiesta della misura reale. */

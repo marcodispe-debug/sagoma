@@ -1,0 +1,17 @@
+# Lettura delle piantine per Sagoma: vedi LEGGIMI.md per metterlo online.
+name = "sagoma-lettura-piantine"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# Il modello di Claude. «claude-sonnet-5-5» costa circa la metà.
+MODELLO = "claude-opus-5-5"
+# Letture al giorno per dispositivo e in tutto (con il contatore LIMITI qui sotto).
+LIMITE_DISPOSITIVO = "10"
+LIMITE_GIORNO = "300"
+
+# Contatore delle letture del giorno. L'id si ottiene con:  npx wrangler kv namespace create LIMITI
+# Finché le righe qui sotto restano commentate, i limiti non si applicano.
+# [[kv_namespaces]]
+# binding = "LIMITI"
+# id = "<id del contatore>"

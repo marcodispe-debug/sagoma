@@ -38,6 +38,10 @@ compose.desktop {
         mainClass = "com.sagoma.planimetria.desktop.MainKt"
         // Durante lo sviluppo gli arredi e i materiali si leggono dalla cartella del catalogo.
         jvmArgs += "-Dsagoma.assets=${rootProject.file("catalogo/src/main/assets").absolutePath}"
+        // "Leggi la piantina da sola": indirizzo del server e chiave dell'app dalle proprietà Gradle (vuoto = niente pulsante).
+        for (key in listOf("sagoma.lettura.url", "sagoma.lettura.chiave")) {
+            providers.gradleProperty(key).orNull?.trim()?.takeIf { it.isNotEmpty() }?.let { jvmArgs += "-D$key=$it" }
+        }
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "Sagoma"

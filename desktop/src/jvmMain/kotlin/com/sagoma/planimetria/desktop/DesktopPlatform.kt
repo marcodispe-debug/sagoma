@@ -60,6 +60,8 @@ class DesktopPlatform(
     assetCacheDir: File? = null,
     /** Catalogo scaricato a richiesta (`-Dsagoma.remote.manifest` e `-Dsagoma.remote.blobs`); `null` = nessuna rete. */
     remote: RemoteAssets? = null,
+    /** Server della lettura delle piantine (`-Dsagoma.lettura.url`); `null` = non configurato. */
+    override val planReader: com.sagoma.planimetria.reading.PlanReader? = null,
 ) : Platform {
 
     override val systemLanguage: String get() = java.util.Locale.getDefault().language

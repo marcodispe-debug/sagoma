@@ -118,6 +118,9 @@ interface Platform {
     /** Ora attuale in millisecondi. */
     fun now(): Long
 
+    /** Chi legge la piantina al posto dell'utente ("Leggi la piantina da sola"); null dove non è configurato (nessun server). */
+    val planReader: com.sagoma.planimetria.reading.PlanReader? get() = null
+
     /** Scansione delle stanze con la fotocamera; null dove non esiste. */
     val roomScanner: RoomScanner? get() = null
 

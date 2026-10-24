@@ -16,6 +16,14 @@ val catalogoManifest = providers.gradleProperty("sagoma.catalogo.manifest").orNu
 val catalogoBlobs = providers.gradleProperty("sagoma.catalogo.blobs").orNull?.trim().orEmpty()
 val catalogoRemoto = catalogoManifest.isNotEmpty() && catalogoBlobs.isNotEmpty()
 
+/**
+ * Lettura delle piantine ("Leggi la piantina da sola"): indirizzo del server (server/lettura-piantine) e chiave dell'app, dalle
+ * proprietà Gradle `sagoma.lettura.url` e `sagoma.lettura.chiave`. Senza indirizzo il pulsante non c'è.
+ */
+val letturaUrl = providers.gradleProperty("sagoma.lettura.url").orNull?.trim().orEmpty()
+val letturaChiave = providers.gradleProperty("sagoma.lettura.chiave").orNull?.trim().orEmpty()
+if (letturaUrl.isNotEmpty()) require(letturaUrl.startsWith("https://")) { "sagoma.lettura.url deve iniziare con https://: $letturaUrl" }
+
 /** Versione del catalogo sul server (la stessa usata da `:catalogo:preparaCatalogoRemoto`): l'app porta con sé quel manifest. */
 val catalogoVersione = providers.gradleProperty("sagoma.catalogo.versione").orElse("1")
 
@@ -114,6 +122,9 @@ android {
         // Vuoti = catalogo remoto spento (vedi SagomaApplication).
         resValue("string", "remote_manifest_url", catalogoManifest)
         resValue("string", "remote_blob_base_url", catalogoBlobs)
+        // Vuoto = niente "Leggi la piantina da sola" (vedi MainActivity).
+        resValue("string", "lettura_url", letturaUrl)
+        resValue("string", "lettura_chiave", letturaChiave)
     }
 
     // Una sola app per privati e professionisti: cosa è sbloccato lo decidono i diritti dell'account

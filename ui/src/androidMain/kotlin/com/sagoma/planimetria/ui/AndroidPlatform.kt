@@ -68,6 +68,8 @@ class AndroidPlatform(
     remoteStore: AssetStore? = null,
     /** Richieste verso il sistema remoto del processo (anch'esso dell'`Application`); senza remoto non fanno niente. */
     override val assetRequests: AssetRequests = NoAssetRequests,
+    /** Server della lettura delle piantine; `null` = non configurato (vedi app/build.gradle.kts). */
+    override val planReader: com.sagoma.planimetria.reading.PlanReader? = null,
 ) : Platform {
 
     override val systemLanguage: String get() = java.util.Locale.getDefault().language

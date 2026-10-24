@@ -35,4 +35,13 @@ object TestiSfondoFr : TestiSfondo() {
     override val piuMisuraLungaPiu: String get() = "Plus la mesure est longue, plus l'étalonnage est précis."
     override val tara2: String get() = "Étalonner"
     override val rifai: String get() = "Refaire"
+    override val leggiDaSola: String get() = "Lire le plan pour moi"
+    override val leggiDaSolaSpiega: String get() = "Nouveau, gratuit : chargez le plan et Sagoma dessine pour vous les pièces, les portes et les fenêtres. Ensuite, vérifiez et corrigez."
+    override val letturaInCorso: String get() = "Lecture du plan… cela peut prendre une minute."
+    override fun piantinaLetta(stanze: Int): String = "Plan lu : $stanze pièces. Vérifiez les mesures et corrigez si besoin."
+    override val senzaMisureScritte: String get() = "Aucune cote écrite sur le plan : l'échelle est approximative, vérifiez-la."
+    override val letturaNonRiuscita: String get() = "Impossible de lire le plan : décalquez-le à la main."
+    override val letturaNonRaggiungibile: String get() = "Le service de lecture ne répond pas (internet nécessaire) : décalquez le plan à la main."
+    override val troppeLetture: String get() = "Vous avez déjà lu beaucoup de plans aujourd'hui : réessayez demain ou décalquez-le à la main."
+    override val nonUnaPiantina: String get() = "L'image ne ressemble pas à un plan : décalquez-le à la main ou essayez une autre image."
 }
