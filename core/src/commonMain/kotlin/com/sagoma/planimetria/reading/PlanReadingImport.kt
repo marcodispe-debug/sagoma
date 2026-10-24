@@ -29,7 +29,8 @@ import kotlin.math.sqrt
  * letta diventa una stanza vera, da controllare e correggere sopra lo sfondo.
  *
  * 1. Scala: dalle misure scritte confrontate con le stanze in pixel (lati dei rettangoli e metri quadri), la mediana.
- * 2. Angoli quasi retti raddrizzati; i rettangoli con le due misure scritte prendono esattamente quelle misure.
+ * 2. Angoli quasi retti raddrizzati; i rettangoli con le due misure scritte prendono esattamente quelle misure. Stanze che si
+ *    sovrappongono separate da un muro ([RoomOverlaps]).
  * 3. Spessore dei muri dallo spazio tra le stanze (muri esterni: dalla lettura o tipico); dal filo interno alla mezzeria, così
  *    due stanze vicine hanno lo stesso muro.
  * 4. Scale dritte dalla linea di salita; porte e finestre sul muro più vicino (meglio di una stanza interna che di un balcone); zone non calpestabili tolte dall'area.
@@ -91,7 +92,12 @@ object PlanReadingImport {
         val k = cmPerPx ?: (1200.0 / max(reading.image.width, reading.image.height))
         val exterior = reading.exteriorWallPx?.let { (it * k).coerceIn(MIN_WALL, MAX_WALL) } ?: EXTERIOR_WALL
         val types = read.map { (r, _) -> typeOf(r.name) }
-        val interiors = read.map { (r, px) -> fitted(px.map { it * k }, r.sidesM.map { it * 100 }) }
+        val interiors = RoomOverlaps.separated(
+            read.map { (r, px) -> fitted(px.map { it * k }, r.sidesM.map { it * 100 }) },
+            written = read.map { (r, _) -> r.areaM2 },
+            excluded = read.map { (r, _) -> zonesPx(r).sumOf { Polygon.area(it) } * k * k },
+            outdoor = types.map { it.outdoor },
+        )
         val outline = reading.exteriorOutline.filter { it.size >= 2 }.map { Vec2(it[0], it[1]) * k }
         val thicknesses = thicknesses(interiors) { i, a, b ->
             if (types[i].outdoor) Room.WALL_THICKNESS else outlineDistance(outline, a, b) ?: exterior

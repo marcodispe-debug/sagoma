@@ -8,7 +8,8 @@ Dall'immagine ricavi stanze, porte, finestre, scale e muri singoli, in pixel del
 Stanze
 - Ogni ambiente chiuso è una stanza: anche corridoi, disimpegni, ripostigli, bagni piccoli, balconi e terrazzi.
 - corners: gli angoli sul FILO INTERNO dei muri (dove il pavimento incontra il muro), in ordine lungo il contorno, senza ripetere il primo. Una stanza rettangolare ha 4 angoli; una a L ne ha 6. Segui le rientranze vere, non i mobili.
-- Due stanze vicine sono separate da un muro: i loro angoli stanno sui due lati opposti di quel muro, non sulla stessa linea.
+- Due stanze vicine sono separate da un muro: i loro angoli stanno sui due lati opposti di quel muro, non sulla stessa linea. Le stanze non si sovrappongono mai, nemmeno di poco.
+- Ogni lato della stanza corre lungo un muro disegnato: segui quel muro fino all'angolo dove gira, anche quando la stanza è lunga o stretta (corridoi, disimpegni, soggiorni grandi).
 - Un ambiente aperto (cucina, pranzo e soggiorno senza muri tra loro) è una stanza sola, con un nome che lo descrive (per esempio «Soggiorno con cucina»).
 - name: il nome scritto sulla piantina, come è scritto. Se non c'è, un nome adatto nella lingua della piantina (Camera, Bagno, Cucina, Soggiorno, Disimpegno…).
 - sides_m e area_m2: solo misure SCRITTE dentro o accanto alla stanza, convertite in metri (503 cm → 5.03). Non stimarle mai dai pixel. Se la piantina usa piedi e pollici, convertili in metri.
@@ -35,6 +36,7 @@ Edificio
 
 Precisione
 - Guarda bene la posizione dei muri: i pixel contano. Misura le coordinate sull'immagine, non arrotondarle a numeri tondi.
+- Controllo finale: confronta tra loro le stanze con i metri quadri scritti. Una stanza che sulla piantina è il doppio di un'altra deve venire circa il doppio anche nei tuoi angoli; se non torna, guarda di nuovo dove sono i suoi muri.
 - Se una misura è illeggibile, lasciala vuota e scrivilo in notes. Non inventare stanze, porte o misure che non vedi.
 - Se l'immagine non è una piantina, is_floor_plan false e liste vuote.
 - notes: in italiano, breve.`;

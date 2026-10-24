@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BACKUP_MODELS, DEFAULT_MODEL, fromThousandths, readWithGemini } from "../src/gemini.js";
+import { DEFAULT_MODEL, WAIT_SECONDS, fromThousandths, readWithGemini } from "../src/gemini.js";
 
 const empty = { is_floor_plan: true, rooms: [], openings: [], stairs: [], walls: [], exterior_wall_px: null, exterior_outline: [], units: "cm", notes: "" };
 const input = { image: "AAAA", mediaType: "image/png", width: 900, height: 700 };
@@ -30,14 +30,44 @@ test("non una piantina, tagliata, storta, limiti del piano gratuito", async () =
   assert.equal((await readWithGemini({}, input, with_(reply("{", "MAX_TOKENS")))).kind, "max_tokens");
   assert.equal((await readWithGemini({}, input, with_(reply("boh")))).kind, "unparsed");
   const day = Response.json({ error: { code: 429, message: "Quota exceeded for metric generate_content_free_tier_requests, limit: GenerateRequestsPerDayPerProjectPerModel-FreeTier" } }, { status: 429 });
-  assert.equal((await readWithGemini({ MODELLO_GEMINI_RISERVA: "" }, input, with_(day))).kind, "quota");
+  assert.equal((await readWithGemini({}, input, with_(day))).kind, "quota");
   const minute = Response.json({ error: { code: 429, message: "GenerateRequestsPerMinutePerProjectPerModel-FreeTier" } }, { status: 429 });
-  assert.equal((await readWithGemini({ MODELLO_GEMINI_RISERVA: "" }, input, with_(minute))).kind, "busy");
+  assert.equal((await readWithGemini({ ATTESA_GEMINI: "0" }, input, with_(minute))).kind, "busy");
   assert.equal((await readWithGemini({}, input, with_(Response.json({ error: {} }, { status: 400 })))).kind, "ai_error");
-  assert.equal((await readWithGemini({}, input, async () => { throw new TypeError("rete"); })).kind, "busy");
+  assert.equal((await readWithGemini({ ATTESA_GEMINI: "0" }, input, async () => { throw new TypeError("rete"); })).kind, "busy");
 });
 
-test("Google sovraccarico o modello sparito: si passa ai modelli di riserva", async () => {
+/** Un orologio finto: le attese passano subito e si contano. */
+function fakeClock() {
+  const clock = { t: 0, pauses: [], now: () => clock.t, sleep: async (ms) => { clock.pauses.push(ms / 1000); clock.t += ms; } };
+  return clock;
+}
+
+test("Google pieno: si aspetta il proprio turno e si riprova il modello principale, finché c'è tempo", async () => {
+  const full = (delay) => Response.json({ error: { code: 429, message: "GenerateRequestsPerMinutePerProjectPerModel-FreeTier", details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: delay }] } }, { status: 429 });
+  const urls = [];
+  const clock = fakeClock();
+  const fullTwiceThenOk = async (url) => {
+    urls.push(url);
+    clock.t += 5_000;
+    if (urls.length === 1) return full("37s");
+    if (urls.length === 2) return Response.json({ error: { code: 503, status: "UNAVAILABLE" } }, { status: 503 });
+    return reply(JSON.stringify(empty));
+  };
+  assert.equal((await readWithGemini({}, input, fullTwiceThenOk, clock)).kind, "ok");
+  // Solo il modello principale: aspetta quanto dice Google, poi sempre di più.
+  assert.deepEqual(urls.map((u) => u.split("/models/")[1].split(":")[0]), [DEFAULT_MODEL, DEFAULT_MODEL, DEFAULT_MODEL]);
+  assert.deepEqual(clock.pauses, [37, 20]);
+  // Sempre pieno: ci si arrende quando l'attesa supererebbe il tempo concesso.
+  const always = fakeClock();
+  let calls = 0;
+  const busy = async () => { calls++; always.t += 30_000; return Response.json({ error: {} }, { status: 503 }); };
+  assert.equal((await readWithGemini({}, input, busy, always)).kind, "busy");
+  assert.ok(always.t <= WAIT_SECONDS * 1000 + 30_000);
+  assert.ok(calls >= 3);
+});
+
+test("modello sparito o pieno oltre l'attesa: si passa ai modelli di riserva, se ci sono", async () => {
   const urls = [];
   const busyGoneThenOk = async (url) => {
     urls.push(url);
@@ -45,15 +75,12 @@ test("Google sovraccarico o modello sparito: si passa ai modelli di riserva", as
     if (urls.length === 2) return Response.json({ error: { code: 404, status: "NOT_FOUND" } }, { status: 404 });
     return reply(JSON.stringify(empty));
   };
-  assert.equal((await readWithGemini({}, input, busyGoneThenOk)).kind, "ok");
-  const backups = BACKUP_MODELS.split(",");
-  assert.deepEqual(urls.map((u) => u.split("/models/")[1].split(":")[0]), [DEFAULT_MODEL, ...backups]);
+  const env = { MODELLO_GEMINI_RISERVA: "riserva-1, riserva-2", ATTESA_GEMINI: "0" };
+  assert.equal((await readWithGemini(env, input, busyGoneThenOk)).kind, "ok");
+  assert.deepEqual(urls.map((u) => u.split("/models/")[1].split(":")[0]), [DEFAULT_MODEL, "riserva-1", "riserva-2"]);
   const gone = async () => Response.json({ error: {} }, { status: 404 });
   assert.equal((await readWithGemini({}, input, gone)).kind, "ai_error");
-  let calls = 0;
-  const busy = async () => { calls++; return Response.json({ error: {} }, { status: 503 }); };
-  assert.equal((await readWithGemini({ MODELLO_GEMINI_RISERVA: "" }, input, busy)).kind, "busy");
-  assert.equal(calls, 1);
+  assert.equal((await readWithGemini(env, input, gone)).kind, "ai_error");
 });
 
 test("coordinate in millesimi riportate nei pixel dell'immagine", () => {
@@ -82,4 +109,42 @@ test("coordinate in millesimi riportate nei pixel dell'immagine", () => {
   // Già in pixel (oltre 1000): resta com'è.
   const pixels = { ...reading, exterior_outline: [[0, 0], [1800, 450]] };
   assert.equal(fromThousandths(pixels, 2000, 500), pixels);
+});
+
+test("ragionamento scelto con RAGIONAMENTO_GEMINI, e senza se il modello non lo accetta", async () => {
+  const bodies = [];
+  const fetch = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    bodies.push(body);
+    if (body.generationConfig.thinkingConfig) return Response.json({ error: { message: "thinking level not supported" } }, { status: 400 });
+    return reply(JSON.stringify(empty));
+  };
+  assert.equal((await readWithGemini({ RAGIONAMENTO_GEMINI: "high" }, input, fetch)).kind, "ok");
+  assert.deepEqual(bodies[0].generationConfig.thinkingConfig, { thinkingLevel: "high" });
+  assert.equal(bodies[1].generationConfig.thinkingConfig, undefined);
+  // Senza RAGIONAMENTO_GEMINI decide il modello.
+  await readWithGemini({}, input, fetch);
+  assert.equal(bodies[2].generationConfig.thinkingConfig, undefined);
+});
+
+test("con CONTROLLO_GEMINI = «si», secondo giro quando le stanze si sovrappongono", async () => {
+  const room = (name, corners) => ({ name, corners, sides_m: [], area_m2: null, excluded: [] });
+  const overlapping = { ...empty, rooms: [room("Cucina", [[0, 0], [500, 0], [500, 500], [0, 500]]), room("Bagno", [[400, 0], [800, 0], [800, 500], [400, 500]])] };
+  const separate = { ...empty, rooms: [room("Cucina", [[0, 0], [400, 0], [400, 500], [0, 500]]), room("Bagno", [[420, 0], [800, 0], [800, 500], [420, 500]])] };
+  const sent = [];
+  const fetch = async (_url, init) => {
+    sent.push(JSON.parse(init.body));
+    return reply(JSON.stringify(sent.length === 1 ? overlapping : separate));
+  };
+  const r = await readWithGemini({ CONTROLLO_GEMINI: "si" }, { ...input, width: 1000, height: 1000 }, fetch);
+  assert.equal(sent.length, 2);
+  assert.match(sent[1].contents[0].parts[2].text, /«Cucina» e «Bagno» si sovrappongono/);
+  assert.deepEqual(r.reading.rooms[0].corners[1], [400, 0]);
+  // Una correzione peggiore della prima lettura non si tiene; senza CONTROLLO_GEMINI il secondo giro non si fa.
+  let calls = 0;
+  const worse = async () => reply(JSON.stringify(++calls === 1 ? overlapping : { ...overlapping, rooms: [...overlapping.rooms, room("Sala", [[300, 0], [600, 0], [600, 500], [300, 500]])] }));
+  assert.deepEqual((await readWithGemini({ CONTROLLO_GEMINI: "si" }, { ...input, width: 1000, height: 1000 }, worse)).reading.rooms.length, 2);
+  calls = 0;
+  await readWithGemini({}, input, async () => { calls++; return reply(JSON.stringify(overlapping)); });
+  assert.equal(calls, 1);
 });
