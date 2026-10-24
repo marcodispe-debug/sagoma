@@ -2,13 +2,16 @@
 
 Questo è il piccolo server dietro il pulsante «✨ Leggi la piantina da sola» di Sagoma.
 
-L'app gli manda la foto della piantina. Il server la fa leggere a Claude e restituisce stanze, porte, finestre, scale e muri singoli. L'app li mette nella pianta, sopra lo sfondo già in scala.
+L'app gli manda la foto della piantina. Il server la fa leggere a un'AI e restituisce stanze, porte, finestre, scale e muri singoli. L'app li mette nella pianta, sopra lo sfondo già in scala.
 
-La chiave Anthropic sta solo qui, tra i segreti di Cloudflare. Non va mai nell'app né nel codice.
+Chi legge si sceglie con `LETTORE` in `wrangler.toml`:
+- `cloudflare` (impostato): l'AI di Cloudflare, gratis entro la quota del giorno dell'account. Non serve nessuna chiave.
+- `claude`: Claude di Anthropic, più preciso ma a pagamento. Serve la chiave Anthropic, che sta solo tra i segreti di Cloudflare e non va mai nell'app né nel codice.
 
 ## Quanto costa
 
 - **Cloudflare Workers:** il piano gratuito basta (100.000 richieste al giorno).
+- **AI di Cloudflare:** 10.000 «neuroni» gratis al giorno per account, che si azzerano a mezzanotte (ora UTC). Bastano per poche letture al giorno; quando finiscono, l'app avvisa di riprovare domani. Il modello si cambia con `MODELLO_CLOUDFLARE`.
 - **Claude:** ogni lettura costa qualche centesimo, di più per le piantine grandi e piene di scritte.
   - Con `claude-sonnet-5-5` (impostazione `MODELLO` in `wrangler.toml`) costa circa la metà.
   - Per stare tranquilli, metti un tetto di spesa mensile nella console di Anthropic, alla voce **Limits**.
@@ -25,7 +28,7 @@ Serve Node.js 20 o più recente. I comandi si lanciano da questa cartella.
 2. `npx wrangler login`: si apre il browser, entri con l'account Cloudflare (lo stesso di R2) e accetti.
 3. `npx wrangler kv namespace create LIMITI`: copia l'`id` che stampa in `wrangler.toml`, nelle tre righe di `[[kv_namespaces]]`, e togli i `#` davanti.
 4. `npx wrangler deploy`: stampa l'indirizzo del server, per esempio `https://sagoma-lettura-piantine.<nome>.workers.dev`.
-5. **La chiave la inserisci tu.** Nella console di Anthropic crea una chiave (API Keys → Create Key). Poi, su Cloudflare:
+5. **Solo con `LETTORE = "claude"`, la chiave la inserisci tu.** Nella console di Anthropic crea una chiave (API Keys → Create Key). Poi, su Cloudflare:
    1. Workers & Pages → sagoma-lettura-piantine → Settings → Variables and Secrets → Add;
    2. tipo **Secret**, nome `ANTHROPIC_API_KEY`, valore la chiave;
    3. Save.

@@ -69,4 +69,7 @@ test("limite per dispositivo e per giorno", async () => {
 test("non una piantina e lettura fallita", async () => {
   assert.equal((await handle(request(ok), {}, deps({ kind: "not_a_plan" }))).status, 422);
   assert.equal((await handle(request(ok), {}, deps({ kind: "refusal" }))).status, 502);
+  const quota = await handle(request(ok), {}, deps({ kind: "quota" }));
+  assert.equal(quota.status, 503);
+  assert.equal((await quota.json()).error, "servizio_pieno");
 });

@@ -1,21 +1,24 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import { readWithCloudflare } from "./cloudflare.js";
 import { SYSTEM_PROMPT, userText } from "./prompt.js";
 import { readingSchema, withoutNulls } from "./schema.js";
 
 /**
  * Lettura delle piantine per Sagoma (Cloudflare Worker).
  *
- * L'app manda `POST /leggi` con l'immagine della piantina; qui si chiama Claude con la chiave Anthropic, che resta nei segreti
- * del Worker e non arriva mai all'app. La risposta è la lettura (PlanReading in core/.../reading/PlanReading.kt) in pixel
- * dell'immagine inviata.
+ * L'app manda `POST /leggi` con l'immagine della piantina; qui la legge l'AI di Cloudflare (gratis entro la quota del giorno)
+ * oppure Claude con la chiave Anthropic, che resta nei segreti del Worker e non arriva mai all'app. La risposta è la lettura
+ * (PlanReading in core/.../reading/PlanReading.kt) in pixel dell'immagine inviata.
  *
  * Richiesta (JSON): `image` (base64), `media_type` (image/jpeg, image/png, image/webp), `width`, `height` (pixel),
  * `device` (codice casuale del dispositivo, per il limite al giorno). Intestazione `X-Sagoma-App` se è impostata CHIAVE_APP.
  * Errori: JSON `{ error, message }` con `error` tra quelli di [ERRORI].
  *
  * Impostazioni (wrangler.toml o pannello di Cloudflare):
- * - ANTHROPIC_API_KEY (segreto, obbligatorio): la chiave Anthropic.
+ * - LETTORE: chi legge, `cloudflare` (predefinito, binding AI) o `claude`.
+ * - AI (binding Workers AI): serve con LETTORE = cloudflare. MODELLO_CLOUDFLARE e SFORZO_CLOUDFLARE facoltativi.
+ * - ANTHROPIC_API_KEY (segreto): la chiave Anthropic, solo con LETTORE = claude.
  * - CHIAVE_APP (segreto, facoltativo): la stessa scritta nell'app; senza, chiunque conosca l'indirizzo può usare il server.
  * - MODELLO (facoltativo): il modello di Claude, `claude-opus-5-5` se non c'è.
  * - LIMITE_DISPOSITIVO, LIMITE_GIORNO (facoltativi): letture al giorno per dispositivo e in tutto (10 e 300).
@@ -42,7 +45,8 @@ const MAX_SIDE = 2576;
 
 export default {
   async fetch(request, env) {
-    return handle(request, env, { read: (input) => readWithClaude(env, input), today: () => new Date().toISOString().slice(0, 10) });
+    const read = env.LETTORE === "claude" ? readWithClaude : readWithCloudflare;
+    return handle(request, env, { read: (input) => read(env, input), today: () => new Date().toISOString().slice(0, 10) });
   },
 };
 
@@ -79,6 +83,7 @@ export async function handle(request, env, deps) {
     throw e;
   }
   if (result.kind === "not_a_plan") return error("non_una_piantina");
+  if (result.kind === "quota") return error("servizio_pieno");
   if (result.kind !== "ok") {
     console.error("Lettura non riuscita", result.kind);
     return error("errore_lettura");

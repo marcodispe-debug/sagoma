@@ -4,11 +4,19 @@ main = "src/index.js"
 compatibility_date = "2026-10-01"
 
 [vars]
-# Il modello di Claude. «claude-sonnet-5-5» costa circa la metà.
+# Chi legge le piantine: «cloudflare» (AI di Cloudflare, gratis entro la quota del giorno dell'account) o «claude» (a pagamento,
+# serve il segreto ANTHROPIC_API_KEY).
+LETTORE = "cloudflare"
+MODELLO_CLOUDFLARE = "@cf/qwen/qwen3.8-27b"
+# Il modello di Claude, con LETTORE = «claude». «claude-sonnet-5-5» costa circa la metà.
 MODELLO = "claude-opus-5-5"
 # Letture al giorno per dispositivo e in tutto (con il contatore LIMITI qui sotto).
 LIMITE_DISPOSITIVO = "10"
 LIMITE_GIORNO = "300"
+
+# L'AI di Cloudflare (Workers AI).
+[ai]
+binding = "AI"
 
 # Contatore delle letture del giorno. L'id si ottiene con:  npx wrangler kv namespace create LIMITI
 # Finché le righe qui sotto restano commentate, i limiti non si applicano.
