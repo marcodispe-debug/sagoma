@@ -3,21 +3,27 @@ import { parseJson, readingJsonSchema, readingSchema } from "./schema.js";
 
 /** Modello di Gemini, se MODELLO_GEMINI non dice altro: ha il piano gratuito e guarda le immagini. */
 export const DEFAULT_MODEL = "gemini-3.8-flash";
-/** Modello di riserva quando quello principale è sovraccarico o senza quota (MODELLO_GEMINI_RISERVA; vuoto per non usarlo). */
-export const BACKUP_MODEL = "gemini-2.5-flash";
+/**
+ * Modelli di riserva, in ordine, quando quello principale è sovraccarico, senza quota o non più offerto (MODELLO_GEMINI_RISERVA,
+ * separati da virgole; vuoto per non usarli). Tutti con il piano gratuito.
+ */
+export const BACKUP_MODELS = "gemini-3.6-flash,gemini-3.5-flash-lite";
 
 /**
  * Chiede la lettura a Gemini di Google con la chiave GEMINI_API_KEY (segreto del Worker). Stessi risultati di readWithClaude,
  * più `{ kind: "quota" }` quando il piano gratuito ha finito le richieste del giorno e `{ kind: "busy" }` quando Google è
- * sovraccarico o ha finito quelle del minuto: in entrambi i casi si riprova una volta con il modello di riserva. `fetchFn` solo
- * per i test.
+ * sovraccarico o ha finito quelle del minuto: in questi casi, e se il modello non c'è più, si passa ai modelli di riserva.
+ * `fetchFn` solo per i test.
  */
 export async function readWithGemini(env, input, fetchFn = fetch) {
-  const backup = env.MODELLO_GEMINI_RISERVA ?? BACKUP_MODEL;
-  const first = await readWith(env.MODELLO_GEMINI || DEFAULT_MODEL, env, input, fetchFn);
-  // Le quote del piano gratuito sono per modello: anche a quota finita la riserva può rispondere.
-  if (!["busy", "quota"].includes(first.kind) || !backup) return first;
-  return readWith(backup, env, input, fetchFn);
+  const backups = (env.MODELLO_GEMINI_RISERVA ?? BACKUP_MODELS).split(",").map((m) => m.trim()).filter(Boolean);
+  let result;
+  for (const model of [env.MODELLO_GEMINI || DEFAULT_MODEL, ...backups]) {
+    result = await readWith(model, env, input, fetchFn);
+    // Le quote del piano gratuito sono per modello: anche a quota finita la riserva può rispondere.
+    if (!["busy", "quota", "missing"].includes(result.kind)) return result;
+  }
+  return result.kind === "missing" ? { kind: "ai_error" } : result;
 }
 
 async function readWith(model, env, { image, mediaType, width, height }, fetchFn) {
@@ -47,6 +53,7 @@ async function readWith(model, env, { image, mediaType, width, height }, fetchFn
     // 429: finite le richieste del piano gratuito (del giorno, o del minuto se si riprova subito).
     if (response.status === 429) return { kind: /per ?day|daily|PerDay/i.test(text) ? "quota" : "busy" };
     if (response.status >= 500) return { kind: "busy" };
+    if (response.status === 404) return { kind: "missing" };
     return { kind: "ai_error" };
   }
   const answer = await response.json();

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BACKUP_MODEL, DEFAULT_MODEL, fromThousandths, readWithGemini } from "../src/gemini.js";
+import { BACKUP_MODELS, DEFAULT_MODEL, fromThousandths, readWithGemini } from "../src/gemini.js";
 
 const empty = { is_floor_plan: true, rooms: [], openings: [], stairs: [], walls: [], exterior_wall_px: null, exterior_outline: [], units: "cm", notes: "" };
 const input = { image: "AAAA", mediaType: "image/png", width: 900, height: 700 };
@@ -37,14 +37,19 @@ test("non una piantina, tagliata, storta, limiti del piano gratuito", async () =
   assert.equal((await readWithGemini({}, input, async () => { throw new TypeError("rete"); })).kind, "busy");
 });
 
-test("Google sovraccarico: si riprova una volta con il modello di riserva", async () => {
+test("Google sovraccarico o modello sparito: si passa ai modelli di riserva", async () => {
   const urls = [];
-  const busyThenOk = async (url) => {
+  const busyGoneThenOk = async (url) => {
     urls.push(url);
-    return urls.length === 1 ? Response.json({ error: { code: 503, status: "UNAVAILABLE" } }, { status: 503 }) : reply(JSON.stringify(empty));
+    if (urls.length === 1) return Response.json({ error: { code: 503, status: "UNAVAILABLE" } }, { status: 503 });
+    if (urls.length === 2) return Response.json({ error: { code: 404, status: "NOT_FOUND" } }, { status: 404 });
+    return reply(JSON.stringify(empty));
   };
-  assert.equal((await readWithGemini({}, input, busyThenOk)).kind, "ok");
-  assert.deepEqual(urls.map((u) => u.split("/models/")[1]), [`${DEFAULT_MODEL}:generateContent`, `${BACKUP_MODEL}:generateContent`]);
+  assert.equal((await readWithGemini({}, input, busyGoneThenOk)).kind, "ok");
+  const backups = BACKUP_MODELS.split(",");
+  assert.deepEqual(urls.map((u) => u.split("/models/")[1].split(":")[0]), [DEFAULT_MODEL, ...backups]);
+  const gone = async () => Response.json({ error: {} }, { status: 404 });
+  assert.equal((await readWithGemini({}, input, gone)).kind, "ai_error");
   let calls = 0;
   const busy = async () => { calls++; return Response.json({ error: {} }, { status: 503 }); };
   assert.equal((await readWithGemini({ MODELLO_GEMINI_RISERVA: "" }, input, busy)).kind, "busy");
