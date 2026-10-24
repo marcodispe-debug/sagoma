@@ -29,8 +29,12 @@ export async function readWithCloudflare(env, { image, mediaType, width, height 
         },
       ],
       response_format: { type: "json_schema", json_schema: { name: "lettura", schema: jsonSchema, strict: true } },
-      max_completion_tokens: 16000,
-      reasoning_effort: env.SFORZO_CLOUDFLARE || "medium",
+      max_completion_tokens: 8000,
+      // Senza ragionamento: con il ragionamento la risposta supera i 120 secondi che Workers AI concede. Senza `stream: false`
+      // la richiesta scade lo stesso.
+      reasoning_effort: "low",
+      chat_template_kwargs: { enable_thinking: false },
+      stream: false,
     });
   } catch (e) {
     // 4006: finita la quota gratuita del giorno (si azzera a mezzanotte UTC).

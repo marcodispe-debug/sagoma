@@ -17,7 +17,7 @@ import { readingSchema, withoutNulls } from "./schema.js";
  *
  * Impostazioni (wrangler.toml o pannello di Cloudflare):
  * - LETTORE: chi legge, `cloudflare` (predefinito, binding AI) o `claude`.
- * - AI (binding Workers AI): serve con LETTORE = cloudflare. MODELLO_CLOUDFLARE e SFORZO_CLOUDFLARE facoltativi.
+ * - AI (binding Workers AI): serve con LETTORE = cloudflare. MODELLO_CLOUDFLARE facoltativo.
  * - ANTHROPIC_API_KEY (segreto): la chiave Anthropic, solo con LETTORE = claude.
  * - CHIAVE_APP (segreto, facoltativo): la stessa scritta nell'app; senza, chiunque conosca l'indirizzo può usare il server.
  * - MODELLO (facoltativo): il modello di Claude, `claude-opus-5-5` se non c'è.
