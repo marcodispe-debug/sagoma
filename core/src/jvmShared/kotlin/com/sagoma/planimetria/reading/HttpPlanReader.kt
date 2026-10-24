@@ -25,7 +25,7 @@ class HttpPlanReader(
     private val device: String,
     private val appKey: String = "",
     private val connectTimeoutMillis: Int = 15_000,
-    private val readTimeoutMillis: Int = 240_000,
+    private val readTimeoutMillis: Int = 420_000,
 ) : PlanReader {
     private val url = baseUrl.trimEnd('/') + "/leggi"
 
