@@ -5,12 +5,16 @@ Questo è il piccolo server dietro il pulsante «✨ Leggi la piantina da sola»
 L'app gli manda la foto della piantina. Il server la fa leggere a un'AI e restituisce stanze, porte, finestre, scale e muri singoli. L'app li mette nella pianta, sopra lo sfondo già in scala.
 
 Chi legge si sceglie con `LETTORE` in `wrangler.toml`:
-- `cloudflare` (impostato): l'AI di Cloudflare, gratis entro la quota del giorno dell'account. Non serve nessuna chiave.
-- `claude`: Claude di Anthropic, più preciso ma a pagamento. Serve la chiave Anthropic, che sta solo tra i segreti di Cloudflare e non va mai nell'app né nel codice.
+- `gemini` (impostato): Gemini di Google, con il piano gratuito. Serve la chiave gratuita di Google (`GEMINI_API_KEY`).
+- `cloudflare`: l'AI di Cloudflare, gratis entro la quota del giorno dell'account. Non serve nessuna chiave, ma legge peggio.
+- `claude`: Claude di Anthropic, il più preciso ma a pagamento. Serve la chiave Anthropic (`ANTHROPIC_API_KEY`).
+
+Le chiavi stanno solo tra i segreti di Cloudflare: non vanno mai nell'app né nel codice.
 
 ## Quanto costa
 
 - **Cloudflare Workers:** il piano gratuito basta (100.000 richieste al giorno).
+- **Gemini:** il piano gratuito ha un tetto di richieste al minuto e al giorno, deciso da Google. Quando finiscono, l'app avvisa di riprovare più tardi. Nel piano gratuito Google può usare le immagini inviate per migliorare i suoi modelli. Il modello si cambia con `MODELLO_GEMINI`.
 - **AI di Cloudflare:** 10.000 «neuroni» gratis al giorno per account, che si azzerano a mezzanotte (ora UTC). Bastano per poche letture al giorno; quando finiscono, l'app avvisa di riprovare domani. Il modello si cambia con `MODELLO_CLOUDFLARE`.
 - **Claude:** ogni lettura costa qualche centesimo, di più per le piantine grandi e piene di scritte.
   - Con `claude-sonnet-5-5` (impostazione `MODELLO` in `wrangler.toml`) costa circa la metà.
@@ -28,10 +32,10 @@ Serve Node.js 20 o più recente. I comandi si lanciano da questa cartella.
 2. `npx wrangler login`: si apre il browser, entri con l'account Cloudflare (lo stesso di R2) e accetti.
 3. `npx wrangler kv namespace create LIMITI`: copia l'`id` che stampa in `wrangler.toml`, nelle tre righe di `[[kv_namespaces]]`, e togli i `#` davanti.
 4. `npx wrangler deploy`: stampa l'indirizzo del server, per esempio `https://sagoma-lettura-piantine.<nome>.workers.dev`.
-5. **Solo con `LETTORE = "claude"`, la chiave la inserisci tu.** Nella console di Anthropic crea una chiave (API Keys → Create Key). Poi, su Cloudflare:
+5. **La chiave la inserisci tu.** Con Gemini: su aistudio.google.com premi Get API key → Create API key. Con Claude: nella console di Anthropic, API Keys → Create Key. Poi, su Cloudflare:
    1. Workers & Pages → sagoma-lettura-piantine → Settings → Variables and Secrets → Add;
-   2. tipo **Secret**, nome `ANTHROPIC_API_KEY`, valore la chiave;
-   3. Save.
+   2. nome `GEMINI_API_KEY` (o `ANTHROPIC_API_KEY`), valore la chiave, spunta **Secret**;
+   3. Add variable and deploy.
    Non incollarla in chat e non scriverla in nessun file.
 6. Nel file `gradle.properties` della tua cartella utente (lo stesso degli indirizzi del catalogo) aggiungi:
 

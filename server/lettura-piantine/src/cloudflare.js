@@ -1,14 +1,8 @@
-import * as z from "zod/v4";
 import { SYSTEM_PROMPT, userText } from "./prompt.js";
-import { readingSchema } from "./schema.js";
+import { parseJson, readingJsonSchema, readingSchema } from "./schema.js";
 
 /** Modello di Cloudflare Workers AI che guarda le immagini, se MODELLO_CLOUDFLARE non dice altro. */
 export const DEFAULT_MODEL = "@cf/qwen/qwen3.8-27b";
-
-const jsonSchema = (() => {
-  const { $schema: _, ...schema } = z.toJSONSchema(readingSchema);
-  return schema;
-})();
 
 /**
  * Chiede la lettura all'AI di Cloudflare (binding AI), gratis entro la quota del giorno dell'account. Stessi risultati di
@@ -28,7 +22,7 @@ export async function readWithCloudflare(env, { image, mediaType, width, height 
           ],
         },
       ],
-      response_format: { type: "json_schema", json_schema: { name: "lettura", schema: jsonSchema, strict: true } },
+      response_format: { type: "json_schema", json_schema: { name: "lettura", schema: readingJsonSchema, strict: true } },
       max_completion_tokens: 8000,
       // Senza ragionamento: con il ragionamento la risposta supera i 120 secondi che Workers AI concede. Senza `stream: false`
       // la richiesta scade lo stesso.
@@ -51,17 +45,4 @@ export async function readWithCloudflare(env, { image, mediaType, width, height 
   }
   if (!parsed.data.is_floor_plan) return { kind: "not_a_plan" };
   return { kind: "ok", reading: parsed.data };
-}
-
-/** Il JSON della risposta, anche se il modello lo chiude tra ``` o ci mette parole intorno; `null` se non c'è. */
-function parseJson(text) {
-  if (typeof text !== "string") return text ?? null;
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start < 0 || end <= start) return null;
-  try {
-    return JSON.parse(text.slice(start, end + 1));
-  } catch {
-    return null;
-  }
 }

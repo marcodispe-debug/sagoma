@@ -72,4 +72,5 @@ test("non una piantina e lettura fallita", async () => {
   const quota = await handle(request(ok), {}, deps({ kind: "quota" }));
   assert.equal(quota.status, 503);
   assert.equal((await quota.json()).error, "servizio_pieno");
+  assert.equal((await (await handle(request(ok), {}, deps({ kind: "busy" }))).json()).error, "occupato");
 });

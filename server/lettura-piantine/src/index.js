@@ -1,14 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { readWithCloudflare } from "./cloudflare.js";
+import { readWithGemini } from "./gemini.js";
 import { SYSTEM_PROMPT, userText } from "./prompt.js";
 import { readingSchema, withoutNulls } from "./schema.js";
 
 /**
  * Lettura delle piantine per Sagoma (Cloudflare Worker).
  *
- * L'app manda `POST /leggi` con l'immagine della piantina; qui la legge l'AI di Cloudflare (gratis entro la quota del giorno)
- * oppure Claude con la chiave Anthropic, che resta nei segreti del Worker e non arriva mai all'app. La risposta è la lettura
+ * L'app manda `POST /leggi` con l'immagine della piantina; qui la legge Gemini o l'AI di Cloudflare (gratis entro le quote
+ * del giorno) oppure Claude. Le chiavi restano nei segreti del Worker e non arrivano mai all'app. La risposta è la lettura
  * (PlanReading in core/.../reading/PlanReading.kt) in pixel dell'immagine inviata.
  *
  * Richiesta (JSON): `image` (base64), `media_type` (image/jpeg, image/png, image/webp), `width`, `height` (pixel),
@@ -16,7 +17,8 @@ import { readingSchema, withoutNulls } from "./schema.js";
  * Errori: JSON `{ error, message }` con `error` tra quelli di [ERRORI].
  *
  * Impostazioni (wrangler.toml o pannello di Cloudflare):
- * - LETTORE: chi legge, `cloudflare` (predefinito, binding AI) o `claude`.
+ * - LETTORE: chi legge, `gemini` (predefinito), `cloudflare` (binding AI) o `claude`.
+ * - GEMINI_API_KEY (segreto): la chiave di Google, con LETTORE = gemini. MODELLO_GEMINI facoltativo.
  * - AI (binding Workers AI): serve con LETTORE = cloudflare. MODELLO_CLOUDFLARE facoltativo.
  * - ANTHROPIC_API_KEY (segreto): la chiave Anthropic, solo con LETTORE = claude.
  * - CHIAVE_APP (segreto, facoltativo): la stessa scritta nell'app; senza, chiunque conosca l'indirizzo può usare il server.
@@ -45,7 +47,7 @@ const MAX_SIDE = 2576;
 
 export default {
   async fetch(request, env) {
-    const read = env.LETTORE === "claude" ? readWithClaude : readWithCloudflare;
+    const read = { claude: readWithClaude, cloudflare: readWithCloudflare }[env.LETTORE] ?? readWithGemini;
     return handle(request, env, { read: (input) => read(env, input), today: () => new Date().toISOString().slice(0, 10) });
   },
 };
@@ -84,6 +86,7 @@ export async function handle(request, env, deps) {
   }
   if (result.kind === "not_a_plan") return error("non_una_piantina");
   if (result.kind === "quota") return error("servizio_pieno");
+  if (result.kind === "busy") return error("occupato");
   if (result.kind !== "ok") {
     console.error("Lettura non riuscita", result.kind);
     return error("errore_lettura");

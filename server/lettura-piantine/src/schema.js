@@ -54,6 +54,25 @@ export const readingSchema = z.object({
   notes: z.string().describe("Cosa hai notato: misure dubbie, parti illeggibili. In italiano, breve"),
 });
 
+/** Lo stesso schema in JSON Schema, per le AI che non usano zod (Cloudflare, Gemini). */
+export const readingJsonSchema = (() => {
+  const { $schema: _, ...schema } = z.toJSONSchema(readingSchema);
+  return schema;
+})();
+
+/** Il JSON della risposta, anche se il modello lo chiude tra ``` o ci mette parole intorno; `null` se non c'è. */
+export function parseJson(text) {
+  if (typeof text !== "string") return text ?? null;
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+}
+
 /** Toglie i `null` (anche dentro le liste di oggetti), così l'app usa i suoi valori predefiniti. */
 export function withoutNulls(value) {
   if (Array.isArray(value)) return value.map(withoutNulls);
