@@ -283,7 +283,7 @@ object NomiEn : Nomi() {
             "Bathroom anteroom", "WC", "Guest bathroom", "En-suite bathroom", "Shower room", "Laundry", "Ironing room",
             "Fitness area", "Gym", "Sauna", "Playroom", "Rec room", "Library", "Open space", "Storage room", "Cellar",
             "Garage", "Attic", "Loft", "Attic room", "Utility room", "Boiler room", "Stairwell", "Stairs", "Landing", "Loggia",
-            "Veranda", "Porch", "Garden", "Courtyard",
+            "Veranda", "Porch", "Garden", "Courtyard", "Primary bedroom", "Living room with kitchen",
         )
 
     override val sinonimiStanze: Map<String, String> get() = emptyMap()

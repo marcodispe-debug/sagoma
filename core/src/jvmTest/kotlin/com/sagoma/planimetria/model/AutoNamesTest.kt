@@ -75,6 +75,18 @@ class AutoNamesTest {
         }
     }
 
+    /** Nomi della piantina «Appartamento tre camere»: prima restavano in italiano con l'app in spagnolo. */
+    @Test
+    fun cameraPadronaleESoggiornoConCucina() {
+        assertEquals("Suite principal", AutoNames.room("Camera padronale", Spagnolo))
+        assertEquals("Salón con cocina", AutoNames.room("Soggiorno con cucina", Spagnolo))
+        assertEquals("Living room with kitchen", AutoNames.room("Soggiorno con cucina", Inglese))
+        assertEquals("Suite parentale", AutoNames.room("Camera padronale", Francese))
+        for (l in listOf(Inglese, Francese, Spagnolo)) for (n in listOf("Camera padronale", "Soggiorno con cucina")) {
+            assertEquals(n, AutoNames.room(AutoNames.room(n, l), Italiano), "\"$n\" andata e ritorno da ${l.codice}")
+        }
+    }
+
     @Test
     fun casaIntera() {
         val plan = FloorPlan(rooms = listOf(Room(id = 1, name = "Cucina", type = RoomType.Cucina, points = listOf(Vec2(0.0, 0.0), Vec2(300.0, 0.0), Vec2(300.0, 300.0), Vec2(0.0, 300.0)))))
