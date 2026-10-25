@@ -21,15 +21,16 @@ import kotlin.math.atan2
 import kotlin.math.hypot
 
 /**
- * Piantina inventata per il tutorial (nessuna casa vera): solo stanze con i muri, senza porte né finestre. Ogni stanza
- * si disegna con un modo diverso di sagoma e ha scritte le misure che servono per quel modo. Un pixel dell'immagine è un centimetro; le coordinate sono sul filo
- * interno dei muri (interni 10 cm, esterni 30 cm).
+ * Piantina inventata per il tutorial (nessuna casa vera): stanze con i muri, una terrazza e un balcone, senza porte né
+ * finestre. Ogni stanza si disegna con un modo diverso di sagoma e ha scritte le misure che servono per quel modo. Un pixel
+ * dell'immagine è un centimetro; le coordinate sono sul filo interno dei muri (interni 10 cm, esterni 30 cm).
  *
  * - Camera, quadrata 350 × 350: «Quadrato».
  * - Soggiorno, rettangolare 520 × 410: «Rettangolo».
  * - Cucina a L, 450 × 300 con 200 × 180 che sporge in alto a destra: «A L».
  * - Bagno storto, lati AB 240, BC 229, CD 281, DA 205 e diagonale AC 359: «Da rilievo».
  * - Studio a sei muri: «Muro per muro».
+ * - Terrazza 200 × 170 nel vuoto in alto tra soggiorno e cucina, balcone 300 × 140 sotto il soggiorno (parapetti di 10 cm).
  */
 object PiantinaDiProva {
     const val WIDTH = 1960
@@ -46,6 +47,13 @@ object PiantinaDiProva {
     val bagno = Stanza("Bagno", listOf(1350f to 0f, 1590f to 0f, 1630f to 225f, 1350f to 205f))
     val studio = Stanza("Studio", listOf(0f to 360f, 350f to 360f, 350f to 510f, 250f to 510f, 250f to 610f, 0f to 610f))
     val stanze = listOf(camera, soggiorno, cucina, bagno, studio)
+
+    /** Spazio all'aperto: `punti` è la parte calpestabile, `parapetti` i lati (da `punti[i]` a `punti[i + 1]`) senza muro della casa. */
+    class Esterno(val nome: String, val punti: List<Pair<Float, Float>>, val parapetti: Set<Int>)
+
+    val terrazza = Esterno("Terrazza", rett(910f, -20f, 1110f, 150f), parapetti = setOf(0))
+    val balcone = Esterno("Balcone", rett(470f, 440f, 770f, 580f), parapetti = setOf(1, 2, 3))
+    val esterni = listOf(terrazza, balcone)
 
     /** Misure del bagno storto come si prendono col metro (arrotondate al centimetro). */
     val latiBagno: List<Int> get() = bagno.punti.indices.map { i -> lato(bagno, i).toInt() }
@@ -74,16 +82,23 @@ object PiantinaDiProva {
             st.punti.forEachIndexed { i, (x, y) -> if (i == 0) moveTo(px(x), py(y)) else lineTo(px(x), py(y)) }
             closePath()
         }.detach()
+        fun path(pts: List<Pair<Float, Float>>) = path(Stanza("", pts))
+        // Parapetti di terrazza e balcone: 10 cm tutto intorno; contro la casa li copre il muro, disegnato dopo.
+        val parapet = Paint().apply { color = 0xFF8A8A8A.toInt(); mode = PaintMode.STROKE; strokeWidth = 20f; strokeJoin = PaintStrokeJoin.MITER; isAntiAlias = true }
+        for (e in esterni) c.drawPath(path(e.punti), parapet)
         // I muri: ogni stanza contornata da 30 cm verso fuori; dove due stanze sono a 10 cm, il muro resta di 10.
         val wall = Paint().apply { color = inkColor; mode = PaintMode.STROKE; strokeWidth = 60f; strokeJoin = PaintStrokeJoin.MITER; strokeMiter = 10f; isAntiAlias = true }
         for (st in stanze) c.drawPath(path(st), wall)
         val white = Paint().apply { color = 0xFFFFFFFF.toInt(); isAntiAlias = true }
         for (st in stanze) c.drawPath(path(st), white)
+        // Il pavimento all'aperto un po' grigio, per distinguerlo dalle stanze.
+        val outdoorFloor = Paint().apply { color = 0xFFF1F1F1.toInt(); isAntiAlias = true }
+        for (e in esterni) c.drawPath(path(e.punti), outdoorFloor)
         val gray = Paint().apply { color = 0xFF5A5A5A.toInt(); isAntiAlias = true }
         fun center(text: String, x: Float, y: Float, font: Font, p: Paint) = c.drawString(text, x - font.measureTextWidth(text) / 2, y, font, p)
         // Nome, superficie e misura di ogni lato (scritta dentro la stanza, vicino al muro).
         val small = Font(reg, 19f)
-        for (st in stanze) {
+        for (st in stanze + esterni.map { Stanza(it.nome, it.punti) }) {
             val n = st.punti.size
             val cx = st.punti.sumOf { it.first.toDouble() }.toFloat() / n
             val cy = st.punti.sumOf { it.second.toDouble() }.toFloat() / n
@@ -93,7 +108,9 @@ object PiantinaDiProva {
                 bagno -> 1432f to 148f
                 else -> cx to cy
             }
-            center(st.nome.uppercase(), px(lx), py(ly) - 6f, Font(bold, 24f), ink)
+            // Terrazza e balcone sono piccoli: nome più piccolo, che non tocchi le misure dei lati.
+            val nameSize = if (esterni.any { it.nome == st.nome }) 20f else 24f
+            center(st.nome.uppercase(), px(lx), py(ly) - 6f, Font(bold, nameSize), ink)
             center("${fmt(area(st))} m²", px(lx), py(ly) + 22f, Font(reg, 19f), gray)
             for (i in 0 until n) {
                 val (ax, ay) = st.punti[i]
@@ -150,7 +167,7 @@ object PiantinaDiProva {
     fun lettura(width: Int, height: Int): PlanReading {
         val k = width.toDouble() / WIDTH
         fun p(x: Float, y: Float) = listOf(px(x) * k, py(y) * k)
-        val rooms = stanze.map { st ->
+        val rooms = (stanze + esterni.map { Stanza(it.nome, it.punti) }).map { st ->
             PlanReading.ReadRoom(
                 name = st.nome,
                 corners = st.punti.map { (x, y) -> p(x, y) },
