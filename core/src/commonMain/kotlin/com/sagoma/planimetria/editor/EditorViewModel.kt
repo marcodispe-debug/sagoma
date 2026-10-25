@@ -3,6 +3,8 @@ package com.sagoma.planimetria.editor
 import androidx.lifecycle.ViewModel
 import com.sagoma.planimetria.geometry.Dimensions
 import com.sagoma.planimetria.geometry.Furnishings
+import com.sagoma.planimetria.geometry.exterior
+import com.sagoma.planimetria.geometry.inLineCorners
 import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.interiorLengths
 import com.sagoma.planimetria.model.withAutoNames
@@ -1281,7 +1283,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             // Zona non calpestabile: agganci al filo interno dei muri (dove cominciano i m²) e ai pilastri.
             wd.zoneRoomId != null -> SnapEngine.Targets(plan.rooms.flatMap { it.interior() }, emptyList(), plan.columns.map { it.center })
             drawingOnPlan(wd) -> SnapEngine.Targets(emptyList(), emptyList(), emptyList())
-            else -> SnapEngine.targetsWithBelow(plan, _state.value.planBelow)
+            else -> roomDrawTargets(plan, _state.value.planBelow)
         }
         if (!_state.value.snapOn) {
             // Senza agganci il punto resta dove si clicca; il primo angolo chiude comunque la stanza.
@@ -1291,6 +1293,23 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             else SnapResult(p, emptyList())
         }
         return SnapEngine.snapDrawing(p, wd.points.lastOrNull(), wd.points.firstOrNull(), targets, wd.points, snapTolerance())
+    }
+
+    /**
+     * Agganci del muro per muro senza piantina. Gli angoli che si mettono sono il filo interno della stanza nuova: si agganciano
+     * al filo esterno delle stanze già fatte (la stanza accanto comincia dove finisce il loro muro), ai punti dove una stanza
+     * accanto ha un muro in linea con il loro ([inLineCorners]) e al filo interno di quelle del piano di sotto (la stanza di
+     * sopra ha le stesse misure di quella sotto).
+     */
+    private fun roomDrawTargets(plan: FloorPlan, below: FloorPlan?): SnapEngine.Targets {
+        val contours = plan.rooms.map { it.exterior() } + below?.rooms?.map { it.interior() }.orEmpty()
+        fun mids(pts: List<Vec2>) = pts.indices.map { i -> (pts[i] + pts[(i + 1) % pts.size]) / 2.0 }
+        return SnapEngine.Targets(
+            contours.flatten() + plan.rooms.flatMap { it.inLineCorners() } +
+                plan.freeWalls.flatMap { listOf(it.start, it.end) } + plan.beams.flatMap { listOf(it.start, it.end) },
+            contours.flatMap(::mids) + plan.freeWalls.map { it.mid },
+            plan.columns.map { it.center },
+        )
     }
 
     /** Il puntatore si muove (mouse sul computer): anteprima del prossimo muro, già agganciata. */
@@ -1336,7 +1355,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     /**
-     * Muro di lunghezza esatta (cm, in mezzeria) dall'ultimo angolo. Con la freccia: verso la freccia, oppure, con l'angolo
+     * Muro di lunghezza esatta (cm, sul filo interno) dall'ultimo angolo. Con la freccia: verso la freccia, oppure, con l'angolo
      * TRA I DUE MURI, girando da quella parte rispetto al muro precedente ([WallDirection]). Senza freccia: verso il
      * puntatore, bloccata a 0°/45°/90° se vicina. Restituisce false (e non aggiunge niente) se freccia e angolo non danno un muro.
      */
@@ -1379,9 +1398,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun drawWallsResume() = _state.update { s -> s.wallDraw?.let { s.copy(wallDraw = it.copy(closing = false)) } ?: s }
 
     /**
-     * Stanza con gli angoli disegnati, in ordine orario sullo schermo come tutte le stanze. Gli angoli sono la mezzeria dei muri;
-     * sopra la piantina sono il filo interno, e la mezzeria sta mezzo muro più in fuori: così le misure della stanza sono
-     * quelle cliccate (e quelle scritte sulla piantina), qualunque sia lo spessore.
+     * Stanza con gli angoli disegnati, in ordine orario sullo schermo come tutte le stanze. Gli angoli sono il filo interno dei
+     * muri (come in Quadrato, Rettangolo e gli altri modi, e sopra la piantina come le sue quote), e la mezzeria sta mezzo muro
+     * più in fuori: così le misure della stanza sono quelle cliccate o scritte, qualunque sia lo spessore.
      */
     fun finishDrawWalls(type: RoomType, ceilingHeight: Double, wallThickness: Double) {
         val wd = _state.value.wallDraw ?: return
@@ -1389,7 +1408,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         var pts = wd.points
         val signed = pts.indices.sumOf { i -> val a = pts[i]; val b = pts[(i + 1) % pts.size]; a.x * b.y - b.x * a.y }
         if (signed < 0) pts = pts.reversed()
-        if (wd.onPlan) pts = Polygon.inset(pts, -wallThickness / 2)
+        pts = Polygon.inset(pts, -wallThickness / 2)
         val plan = _state.value.plan
         // Percorso B disegnato muro per muro: anche questo è uno schizzo da misurare (la scansione si avvia con un tasto).
         val intent = _state.value.creationIntent

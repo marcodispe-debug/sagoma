@@ -73,12 +73,50 @@ class TracingMeasuresTest {
     }
 
     @Test
-    fun `senza piantina gli angoli restano la mezzeria`() {
+    fun `senza piantina le misure sono interne come negli altri modi`() {
         val vm = emptyProject()
         vm.startDrawWalls()
         for (p in listOf(Vec2(0.0, 0.0), Vec2(400.0, 0.0), Vec2(400.0, 300.0), Vec2(0.0, 300.0), Vec2(0.0, 0.0))) vm.drawWallsTap(p)
         vm.finishDrawWalls(RoomType.entries.first(), 270.0, 15.0)
-        assertEquals(listOf(385.0, 285.0, 385.0, 285.0), vm.state.value.plan.rooms.single().interiorLengths().map { kotlin.math.round(it * 1e6) / 1e6 })
+        assertEquals(listOf(400.0, 300.0, 400.0, 300.0), vm.state.value.plan.rooms.single().interiorLengths().map { kotlin.math.round(it * 1e6) / 1e6 })
+    }
+
+    @Test
+    fun `senza piantina la stanza accanto parte dal filo esterno e ha il muro in comune`() {
+        val vm = emptyProject()
+        vm.startDrawWalls()
+        for (p in listOf(Vec2(0.0, 0.0), Vec2(400.0, 0.0), Vec2(400.0, 300.0), Vec2(0.0, 300.0), Vec2(0.0, 0.0))) vm.drawWallsTap(p)
+        vm.finishDrawWalls(RoomType.entries.first(), 270.0, 15.0)
+        vm.startDrawWalls()
+        vm.drawWallsTap(Vec2(413.0, -13.0)) // vicino al filo esterno (415, -15) dell'angolo in alto a destra
+        assertEquals(Vec2(415.0, -15.0), vm.state.value.wallDraw!!.points.single())
+        vm.drawWallsTyped(300.0, com.sagoma.planimetria.editor.WallArrow.RIGHT)
+        vm.drawWallsTyped(330.0, com.sagoma.planimetria.editor.WallArrow.DOWN)
+        vm.drawWallsTyped(300.0, com.sagoma.planimetria.editor.WallArrow.LEFT)
+        vm.drawWallsClose()
+        vm.finishDrawWalls(RoomType.entries.first(), 270.0, 15.0)
+        val (a, b) = vm.state.value.plan.rooms
+        assertEquals(a.points.maxOf { it.x }, b.points.minOf { it.x }, 1e-6)
+        assertEquals(listOf(300.0, 330.0, 300.0, 330.0), b.interiorLengths().map { kotlin.math.round(it * 1e6) / 1e6 })
+    }
+
+    @Test
+    fun `senza piantina la stanza sotto si aggancia in linea con il muro di quella sopra`() {
+        val vm = emptyProject()
+        vm.startDrawWalls()
+        for (p in listOf(Vec2(0.0, 0.0), Vec2(400.0, 0.0), Vec2(400.0, 300.0), Vec2(0.0, 300.0), Vec2(0.0, 0.0))) vm.drawWallsTap(p)
+        vm.finishDrawWalls(RoomType.entries.first(), 270.0, 15.0)
+        vm.startDrawWalls()
+        vm.drawWallsTap(Vec2(1.5, 313.0)) // filo interno del muro a sinistra, filo esterno di quello in basso: (0, 315)
+        assertEquals(Vec2(0.0, 315.0), vm.state.value.wallDraw!!.points.single())
+        vm.drawWallsTyped(400.0, com.sagoma.planimetria.editor.WallArrow.RIGHT)
+        vm.drawWallsTyped(200.0, com.sagoma.planimetria.editor.WallArrow.DOWN)
+        vm.drawWallsTyped(400.0, com.sagoma.planimetria.editor.WallArrow.LEFT)
+        vm.drawWallsClose()
+        vm.finishDrawWalls(RoomType.entries.first(), 270.0, 15.0)
+        val (a, b) = vm.state.value.plan.rooms
+        assertEquals(a.points.minOf { it.x }, b.points.minOf { it.x }, 1e-6)
+        assertEquals(a.points.maxOf { it.y }, b.points.minOf { it.y }, 1e-6)
     }
 
     @Test

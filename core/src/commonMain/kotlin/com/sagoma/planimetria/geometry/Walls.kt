@@ -15,6 +15,22 @@ fun Room.interior(): List<Vec2> = Polygon.inset(points, innerThicknesses.map { i
 /** Contorno sul filo esterno dei muri. */
 fun Room.exterior(): List<Vec2> = Polygon.inset(points, outerThicknesses.map { -it / 2 })
 
+/**
+ * Per ogni angolo i due punti dove il filo interno di un muro incontra il filo esterno dell'altro: lì comincia, sul filo
+ * interno, una stanza accanto con il muro in linea con questo (la stanza sotto la camera, con i muri a sinistra dritti).
+ */
+fun Room.inLineCorners(): List<Vec2> {
+    val inner = innerThicknesses.map { it / 2 }
+    val outer = outerThicknesses.map { -it / 2 }
+    return points.indices.flatMap { i ->
+        val prev = (i - 1 + wallCount) % wallCount
+        listOf(
+            Polygon.inset(points, outer.mapIndexed { k, o -> if (k == prev) inner[k] else o })[i],
+            Polygon.inset(points, inner.mapIndexed { k, v -> if (k == prev) outer[k] else v })[i],
+        )
+    }
+}
+
 /** Filo interno con gli scalini dove un muro cambia spessore a metà (per disegnare e misurare, non un punto per angolo). */
 fun Room.interiorOutline(): List<Vec2> = expandCurves().room.let { r -> Polygon.insetSteps(r.points, r.innerThicknesses.map { it / 2 }) }
 

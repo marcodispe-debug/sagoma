@@ -177,12 +177,12 @@ sealed interface UnderlayTool {
 }
 
 /**
- * Strumento "Disegna muri": angoli già messi (in mezzeria dei muri), punto sotto il puntatore (anteprima del
- * prossimo muro) e, a forma chiusa, la richiesta del tipo di stanza.
+ * Strumento "Disegna muri": angoli già messi (sul filo interno dei muri: alla chiusura il muro si aggiunge verso l'esterno),
+ * punto sotto il puntatore (anteprima del prossimo muro) e, a forma chiusa, la richiesta del tipo di stanza.
  */
 /**
- * `onPlan`: il primo angolo è stato cliccato sopra la piantina di sfondo. Lì si cliccano gli angoli che si vedono, cioè il filo
- * interno dei muri (come le quote delle piantine): alla chiusura il muro si aggiunge verso l'esterno.
+ * `onPlan`: il primo angolo è stato cliccato sopra la piantina di sfondo. Lì si cliccano gli angoli che si vedono (come le
+ * quote delle piantine) e niente si aggancia alle altre stanze.
  */
 /**
  * Disegno muro per muro in corso. `zoneRoomId`: invece di una stanza si disegna una zona non calpestabile di quella stanza

@@ -268,8 +268,8 @@ private fun WallDrawCloseDialog(vm: EditorViewModel, onPlan: Boolean) {
                     SelectAllTextField(value = ceiling, onValueChange = { ceiling = it }, label = T.muroPerMuro.soffittoCm, modifier = Modifier.weight(1f))
                     SelectAllTextField(value = thickness, onValueChange = { thickness = it }, label = T.muroPerMuro.spessoreMuriCm, modifier = Modifier.weight(1f))
                 }
-                if (onPlan) Text(
-                    T.muroPerMuro.angoliHaiCliccatoSono,
+                Text(
+                    if (onPlan) T.muroPerMuro.angoliHaiCliccatoSono else T.muroPerMuro.misureSonoInterne,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

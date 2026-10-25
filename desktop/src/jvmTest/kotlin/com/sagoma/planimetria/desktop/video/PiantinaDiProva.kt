@@ -14,7 +14,6 @@ import org.jetbrains.skia.PaintStrokeJoin
 import org.jetbrains.skia.PathBuilder
 import org.jetbrains.skia.PathEffect
 import org.jetbrains.skia.PathFillMode
-import org.jetbrains.skia.Rect
 import org.jetbrains.skia.Surface
 import java.util.Locale
 import kotlin.math.abs
@@ -22,8 +21,8 @@ import kotlin.math.atan2
 import kotlin.math.hypot
 
 /**
- * Piantina inventata per il tutorial (nessuna casa vera): ogni stanza si disegna con un modo diverso di sagoma e ha
- * scritte le misure che servono per quel modo. Un pixel dell'immagine è un centimetro; le coordinate sono sul filo
+ * Piantina inventata per il tutorial (nessuna casa vera): solo stanze con i muri, senza porte né finestre. Ogni stanza
+ * si disegna con un modo diverso di sagoma e ha scritte le misure che servono per quel modo. Un pixel dell'immagine è un centimetro; le coordinate sono sul filo
  * interno dei muri (interni 10 cm, esterni 30 cm).
  *
  * - Camera, quadrata 350 × 350: «Quadrato».
@@ -59,28 +58,6 @@ object PiantinaDiProva {
         return Math.round(hypot(bx - ax, by - ay)).toFloat()
     }
 
-    /** Vani nei muri: (x0, y0, x1, y1) del vano, tipo come nella lettura. */
-    private class Vano(val tipo: String, val x0: Float, val y0: Float, val x1: Float, val y1: Float)
-
-    private val vani = listOf(
-        Vano("door", 350f, 140f, 360f, 220f),
-        Vano("door", 140f, 350f, 220f, 360f),
-        Vano("door", 880f, 260f, 890f, 340f),
-        Vano("door", 1340f, 60f, 1350f, 130f),
-        Vano("window", 880f, 40f, 910f, 140f),
-        Vano("door", 560f, 410f, 650f, 440f),
-        Vano("window", 115f, -30f, 235f, 0f),
-        Vano("window", 560f, -30f, 700f, 0f),
-        Vano("window", 1340f, 320f, 1370f, 440f),
-        Vano("window", 1000f, 480f, 1120f, 510f),
-        Vano("window", -30f, 430f, 0f, 550f),
-        Vano("window", 1420f, -30f, 1500f, 0f),
-    )
-
-    /** Estremi (pixel dell'immagine) della quota scritta sopra il soggiorno: 520 cm sui fili interni. */
-    val quotaA = px(360f) to py(-80f)
-    val quotaB = px(880f) to py(-80f)
-
     fun px(x: Float) = OX + x
     fun py(y: Float) = OY + y
 
@@ -102,30 +79,6 @@ object PiantinaDiProva {
         for (st in stanze) c.drawPath(path(st), wall)
         val white = Paint().apply { color = 0xFFFFFFFF.toInt(); isAntiAlias = true }
         for (st in stanze) c.drawPath(path(st), white)
-        val thin = Paint().apply { color = inkColor; mode = PaintMode.STROKE; strokeWidth = 2f; isAntiAlias = true }
-        for (v in vani) {
-            c.drawRect(Rect(px(v.x0), py(v.y0), px(v.x1), py(v.y1)), white)
-            val vertical = v.y1 - v.y0 > v.x1 - v.x0
-            if (v.tipo == "window") {
-                for (k in 0..2) {
-                    if (vertical) { val x = px(v.x0) + (v.x1 - v.x0) * k / 2f; c.drawLine(x, py(v.y0), x, py(v.y1), thin) }
-                    else { val y = py(v.y0) + (v.y1 - v.y0) * k / 2f; c.drawLine(px(v.x0), y, px(v.x1), y, thin) }
-                }
-            } else {
-                // Anta aperta a 90° con l'arco (porta-finestra: due righe nel vano e l'anta).
-                if (vertical) {
-                    val w = v.y1 - v.y0
-                    val x = px(v.x0)
-                    c.drawLine(x, py(v.y0), x - w, py(v.y0), thin)
-                    c.drawArc(x - w, py(v.y0) - w, x + w, py(v.y0) + w, 90f, 90f, false, thin)
-                } else {
-                    val w = v.x1 - v.x0
-                    val y = py(v.y0)
-                    c.drawLine(px(v.x0), y, px(v.x0), y - w, thin)
-                    c.drawArc(px(v.x0) - w, y - w, px(v.x0) + w, y + w, 270f, 90f, false, thin)
-                }
-            }
-        }
         val gray = Paint().apply { color = 0xFF5A5A5A.toInt(); isAntiAlias = true }
         fun center(text: String, x: Float, y: Float, font: Font, p: Paint) = c.drawString(text, x - font.measureTextWidth(text) / 2, y, font, p)
         // Nome, superficie e misura di ogni lato (scritta dentro la stanza, vicino al muro).
@@ -176,18 +129,7 @@ object PiantinaDiProva {
         c.restore()
         val letters = listOf(10f to 22f, -14f to 22f, -18f to -10f, 10f to -10f)
         bagno.punti.forEachIndexed { i, (x, y) -> center("ABCD"[i].toString(), px(x + letters[i].first), py(y + letters[i].second), Font(bold, 20f), ink) }
-        // Quota sopra il soggiorno, per la taratura.
-        val (qax, qay) = quotaA
-        val (qbx, _) = quotaB
-        c.drawLine(qax, qay, qbx, qay, thin)
-        for (x in listOf(qax, qbx)) {
-            c.drawLine(x, qay - 14f, x, qay + 14f, thin)
-            c.drawLine(x, qay + 14f, x, py(-34f), Paint().apply { color = 0xFFAAAAAA.toInt(); strokeWidth = 1f })
-        }
-        center("520", (qax + qbx) / 2, qay - 10f, Font(reg, 22f), ink)
-        // Titolo e scala.
-        c.drawString("APPARTAMENTO DI PROVA · sagoma", 40f, HEIGHT - 40f, Font(bold, 22f), gray)
-        c.drawString("misure in cm, sul filo interno dei muri", 40f, HEIGHT - 14f, Font(reg, 18f), gray)
+        c.drawString("misure in cm, sul filo interno dei muri", 40f, HEIGHT - 20f, Font(reg, 18f), gray)
         return s.makeImageSnapshot().encodeToData(EncodedImageFormat.PNG)!!.bytes
     }
 
@@ -216,12 +158,7 @@ object PiantinaDiProva {
                 areaM2 = area(st),
             )
         }
-        val openings = vani.map { v ->
-            val vertical = v.y1 - v.y0 > v.x1 - v.x0
-            val ends = if (vertical) listOf(p((v.x0 + v.x1) / 2, v.y0), p((v.x0 + v.x1) / 2, v.y1)) else listOf(p(v.x0, (v.y0 + v.y1) / 2), p(v.x1, (v.y0 + v.y1) / 2))
-            PlanReading.ReadOpening(kind = v.tipo, ends = ends, widthCm = (if (vertical) v.y1 - v.y0 else v.x1 - v.x0).toDouble())
-        }
-        return PlanReading(image = PlanReading.ImageSize(width, height), rooms = rooms, openings = openings, exteriorWallPx = 30.0 * k)
+        return PlanReading(image = PlanReading.ImageSize(width, height), rooms = rooms, openings = emptyList(), exteriorWallPx = 30.0 * k)
     }
 
     /** Il servizio di lettura finto: risponde dopo qualche secondo con [lettura]. */

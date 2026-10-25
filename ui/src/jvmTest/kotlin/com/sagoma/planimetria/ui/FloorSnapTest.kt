@@ -33,19 +33,21 @@ class FloorSnapTest {
     }
 
     @Test
-    fun `al piano 1 il disegno dei muri scatta sull'angolo del piano 0`() {
+    fun `al piano 1 il disegno dei muri scatta sull'angolo interno del piano 0`() {
         val vm = vm(1, upper = emptyList())
         vm.startDrawWalls()
-        vm.drawWallsTap(Vec2(502.0, 48.0)) // a 2,8 cm dall'angolo (500, 50) del piano 0
-        assertEquals(Vec2(500.0, 50.0), vm.state.value.wallDraw!!.points.single())
+        // Il muro per muro mette il filo interno: l'angolo (500, 50) del piano 0, con muri di 15, ha il filo interno a (492,5, 57,5).
+        vm.drawWallsTap(Vec2(494.0, 56.0))
+        assertEquals(Vec2(492.5, 57.5), vm.state.value.wallDraw!!.points.single())
     }
 
     @Test
     fun `al piano 0 il disegno dei muri continua a scattare sui propri angoli e non su quelli di sopra`() {
         val vm = vm(0)
         vm.startDrawWalls()
-        vm.drawWallsTap(Vec2(102.0, 52.0))
-        assertEquals(Vec2(100.0, 50.0), vm.state.value.wallDraw!!.points.single())
+        // La stanza accanto comincia dove finisce il muro: filo esterno dell'angolo (100, 50), a (92,5, 42,5).
+        vm.drawWallsTap(Vec2(94.5, 44.5))
+        assertEquals(Vec2(92.5, 42.5), vm.state.value.wallDraw!!.points.single())
         vm.drawWallsUndo()
         vm.drawWallsTap(Vec2(514.0, 360.0)) // a 1,4 cm dall'angolo (513, 359) della stanza di SOPRA, che al piano 0 non conta
         assertNotEquals(Vec2(513.0, 359.0), vm.state.value.wallDraw!!.points.single())

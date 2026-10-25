@@ -81,6 +81,10 @@ class Regista(private val scene: ImageComposeScene, private val width: Int, priv
     var stepLabel: String = ""
     /** Titolo in alto a sinistra per tutto il capitolo (es. "Modo 1 · Quadrato"). */
     var chapter: String = ""
+    /** Piantina in piccolo a destra nella fascia (null = nessuna). */
+    var plan: Image? = null
+    /** La stanza su cui si sta lavorando, in pixel della [plan], colorata nella piantina piccola. */
+    var planRoom: List<Pair<Float, Float>>? = null
     private var clickAge = 99f
     private var clickAt = Offset.Zero
     private var highlightAge = 0f
@@ -195,6 +199,32 @@ class Regista(private val scene: ImageComposeScene, private val width: Int, priv
 
     // ---------- Cartelli ----------
 
+    /** Cartello con un'immagine grande (la piantina) sotto il titolo, e una spiegazione nella fascia. */
+    fun imageCard(title: String, image: Image, explain: String, seconds: Double) {
+        val n = (seconds * fps).toInt()
+        for (i in 0 until n) {
+            val c = surface.canvas
+            c.clear(BRAND_DARK)
+            val fade = min(1f, min(i, n - i).toFloat() / (fps * 0.4f))
+            centerText(title, 70f, Font(bold, 40f), Paint().apply { color = withAlpha(WHITE, fade) })
+            val maxW = width - 120f
+            val maxH = appHeight - 130f
+            val k = min(maxW / image.width, maxH / image.height)
+            val w = image.width * k
+            val h = image.height * k
+            val x = (width - w) / 2
+            val y = 105f
+            c.drawRRect(RRect.makeXYWH(x - 10f, y - 10f, w + 20f, h + 20f, 14f), Paint().apply { color = withAlpha(WHITE, fade); isAntiAlias = true })
+            c.drawImageRect(image, Rect(x, y, x + w, y + h), Paint().apply { alpha = (255 * fade).toInt() })
+            val saved = Triple(caption, plan, highlight)
+            caption = explain; plan = null; highlight = null
+            drawBand()
+            caption = saved.first; plan = saved.second; highlight = saved.third
+            emit()
+            Thread.sleep(4)
+        }
+    }
+
     /** Cartello a tutto schermo (titolo grande, sottotitolo) per `seconds`. */
     fun titleCard(title: String, subtitle: String, seconds: Double = 3.5) {
         val n = (seconds * fps).toInt()
@@ -251,9 +281,28 @@ class Regista(private val scene: ImageComposeScene, private val width: Int, priv
             x += head.measureTextWidth(chapter) + 18f
         }
         if (stepLabel.isNotEmpty()) c.drawString(stepLabel, x, top, Font(typeface, 21f), Paint().apply { color = 0xFFB8C4D0.toInt(); isAntiAlias = true })
+        var textW = width - 80f
+        plan?.let { p ->
+            val h = BAND - 34f
+            val w = p.width * h / p.height
+            val x = width - w - 28f
+            val y = appHeight + 17f
+            c.drawRRect(RRect.makeXYWH(x - 6f, y - 6f, w + 12f, h + 12f, 10f), Paint().apply { color = WHITE; isAntiAlias = true })
+            c.drawImageRect(p, Rect(x, y, x + w, y + h))
+            planRoom?.let { pts ->
+                val k = w / p.width
+                val path = PathBuilder(PathFillMode.WINDING).apply {
+                    pts.forEachIndexed { i, (px, py) -> if (i == 0) moveTo(x + px * k, y + py * k) else lineTo(x + px * k, y + py * k) }
+                    closePath()
+                }.detach()
+                c.drawPath(path, Paint().apply { color = withAlpha(ORANGE, 0.45f); isAntiAlias = true })
+                c.drawPath(path, Paint().apply { color = ORANGE; mode = PaintMode.STROKE; strokeWidth = 3f; isAntiAlias = true })
+            }
+            textW -= w + 40f
+        }
         val font = Font(typeface, 27f)
         var y = top + 44f
-        for (line in wrap(caption, font, width - 80f).take(3)) {
+        for (line in wrap(caption, font, textW).take(3)) {
             c.drawString(line, 40f, y, font, Paint().apply { color = WHITE; isAntiAlias = true })
             y += 36f
         }

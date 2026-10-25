@@ -12,6 +12,10 @@ import com.sagoma.planimetria.desktop.DesktopPlatform
 import com.sagoma.planimetria.desktop.freshViewModels
 import androidx.lifecycle.ViewModelStore
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.geometry.exterior
+import com.sagoma.planimetria.geometry.interior
+import com.sagoma.planimetria.model.RoomType
+import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.editor.Tip
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.persistence.FileLanguageStore
@@ -82,15 +86,19 @@ class VideoStanzeTest {
                 r.start(File(out, "5-muro-per-muro.mp4"))
                 muroPerMuro(r)
                 r.stop()
-                r.start(File(out, "6-muro-singolo.mp4"))
-                muroSingolo(r)
-                r.stop()
-                r.start(File(out, "7-ricalca.mp4"))
-                ricalca(r)
-                r.stop()
-                r.start(File(out, "8-leggi-la-piantina.mp4"))
-                leggi(r)
-                r.stop()
+                shot("5")
+                // Ricalco e lettura della piantina: si rifanno quando Marco dice come spiegarli. Il muro singolo va nei mini tutorial.
+                if (System.getenv("VIDEO_RICALCO") != null) {
+                    r.start(File(out, "6-muro-singolo.mp4"))
+                    muroSingolo(r)
+                    r.stop()
+                    r.start(File(out, "7-ricalca.mp4"))
+                    ricalca(r)
+                    r.stop()
+                    r.start(File(out, "8-leggi-la-piantina.mp4"))
+                    leggi(r)
+                    r.stop()
+                }
             }
         } finally {
             dir.deleteRecursively()
@@ -104,7 +112,7 @@ class VideoStanzeTest {
         val tot = 6
         r.stepLabel = "Passo 1 di $tot"
         r.highlight = r.rect("Scegli la forma della stanza").let { t -> Rect(t.left, t.top, r.rect("Ricalca una piantina").right, r.rect("Ricalca una piantina").bottom) }
-        r.caption = "Quando apri un progetto nuovo, sagoma ti chiede subito che forma ha la prima stanza. Ci sono più modi: in questo video li vediamo tutti, uno alla volta."
+        r.caption = "Quando apri un progetto nuovo, sagoma ti chiede subito che forma ha la prima stanza. Ci sono più modi: in questi video li vediamo uno alla volta."
         r.wait(6.0)
         r.stepLabel = "Passo 2 di $tot"
         r.clickOn(r.rect("Quadrato", exact = true), "Clicca su «Quadrato»: è la forma giusta per una stanza con i quattro lati uguali.", readSeconds = 3.5)
@@ -244,7 +252,7 @@ class VideoStanzeTest {
         r.caption = "Chiama A un angolo della stanza, poi B, C e D girando in senso orario. Misura i lati col metro sul muro, da angolo ad angolo, all'interno."
         r.moveTo(r.highlight!!.let { Offset(it.right - 40f, it.bottom - 10f) })
         r.wait(7.0)
-        val lati = listOf("Lato AB" to "240", "Lato BC" to "210", "Lato CD" to "236", "Lato DA" to "205")
+        val lati = PiantinaDiProva.latiBagno.mapIndexed { i, l -> "Lato ${"ABCD"[i]}${"ABCD"[(i + 1) % 4]}" to l.toString() }
         for ((i, l) in lati.withIndex()) {
             val f = r.field(l.first)
             val spiega = if (i == 0) "Clicca in «Lato AB» e scrivi la misura da A a B, in centimetri." else "Ora «${l.first}»."
@@ -255,7 +263,7 @@ class VideoStanzeTest {
         r.stepLabel = "Passo 7 di $tot"
         val diag = r.field("Diagonale AC")
         r.clickOn(r.rectOf(diag), "In «Diagonale AC» scrivi la distanza in diagonale da A all'angolo opposto C. È questa misura che dice a sagoma se gli angoli sono storti.", readSeconds = 5.5)
-        r.type(diag, "322")
+        r.type(diag, PiantinaDiProva.diagonaleBagno.toString())
         r.wait(1.0)
         r.stepLabel = "Passo 8 di $tot"
         r.highlight = null
@@ -282,7 +290,7 @@ class VideoStanzeTest {
         r.chapter = "Modo 5 · Muro per muro"
         val tot = 9
         r.highlight = null
-        r.caption = "Con «Muro per muro» disegni la stanza come in un programma da architetto: un muro alla volta, scrivendo le misure."
+        r.caption = "Con «Muro per muro» disegni la stanza come in un programma da architetto: un muro alla volta, scrivendo le misure interne, come negli altri modi."
         r.wait(4.5)
         nuovaStanza(r, tot)
         r.stepLabel = "Passo 3 di $tot"
@@ -298,22 +306,30 @@ class VideoStanzeTest {
         r.click()
         r.wait(1.2)
         r.stepLabel = "Passo 6 di $tot"
-        val start = Offset(270f, 660f)
-        r.highlight = Rect(start.x - 26f, start.y - 26f, start.x + 26f, start.y + 26f)
-        r.caption = "Clicca sulla pianta dove inizia il primo muro: è il primo angolo della stanza. Qui lo mettiamo sotto la camera, in linea con il suo muro."
-        r.moveTo(start, 1.4)
+        // Primo angolo sotto la camera, sul filo interno del suo muro a sinistra: lo studio ha il muro in linea con quello della camera.
+        val start = {
+            val camera = vm().state.value.plan.rooms.first { it.type == RoomType.Camera }
+            pianta(Vec2(camera.interior().minOf { it.x }, camera.exterior().maxOf { it.y }))
+        }
+        fun box(p: Offset) = Rect(p.x - 26f, p.y - 26f, p.x + 26f, p.y + 26f)
+        r.highlight = box(start())
+        r.caption = "Clicca sulla pianta dove inizia il primo muro: è il primo angolo della stanza, all'interno. Qui lo mettiamo sotto la camera: l'angolo si aggancia da solo in linea con il suo muro."
+        r.follow(start, 1.4)
+        r.highlight = box(start())
         r.wait(4.0)
+        r.follow(start, 0.2)
         r.click()
+        r.highlight = null
         r.wait(1.0)
         r.stepLabel = "Passo 7 di $tot"
         r.highlight = r.rect("Verso:").let { t -> Rect(t.left, r.rect("→ destra").top, r.rect("↑ su").right, r.rect("Aggiungi", exact = true).bottom) }
-        r.caption = "Per ogni muro scegli il verso con le frecce (destra, giù, sinistra, su), scrivi la lunghezza in centimetri e clicca «Aggiungi»."
+        r.caption = "Per ogni muro scegli il verso con le frecce (destra, giù, sinistra, su), scrivi la lunghezza interna in centimetri e clicca «Aggiungi»."
         r.moveTo(r.highlight!!.let { Offset(it.right - 40f, it.bottom + 30f) })
         r.wait(6.0)
         val muri = listOf(
-            Triple("→ destra", "400", "Primo muro: clicca «→ destra», scrivi 400 in «Lunghezza cm» e clicca «Aggiungi»."),
+            Triple("→ destra", "350", "Primo muro: clicca «→ destra», scrivi 350 in «Lunghezza cm» e clicca «Aggiungi»."),
             Triple("↓ giù", "150", "Secondo muro: «↓ giù», 150 cm, «Aggiungi»."),
-            Triple("← sinistra", "150", "Il muro rientra: «← sinistra», 150 cm, «Aggiungi»."),
+            Triple("← sinistra", "100", "Il muro rientra: «← sinistra», 100 cm, «Aggiungi»."),
             Triple("↓ giù", "100", "Ancora «↓ giù», 100 cm."),
             Triple("← sinistra", "250", "E «← sinistra», 250 cm: siamo tornati sotto il primo angolo."),
         )
@@ -329,13 +345,12 @@ class VideoStanzeTest {
         r.stepLabel = "Passo 8 di $tot"
         r.clickOn(r.rect("Chiudi stanza", exact = true), "Manca solo l'ultimo muro, che torna al primo angolo: clicca «Chiudi stanza» e sagoma lo disegna da solo.", readSeconds = 4.5)
         r.wait(1.0)
-        File("build/video/dump-m9.txt").writeText(r.dump()); r.snapshot(File("build/video/shot-m9.png"))
         r.stepLabel = "Passo 9 di $tot"
         r.clickOn(r.rect("Studio", exact = true), "Nella finestra «Nuova stanza» scegli il tipo, per esempio «Studio». Soffitto e spessore dei muri sono già scritti.", readSeconds = 5.0)
         r.wait(0.6)
         r.clickOn(r.rect("Crea stanza", exact = true), "Clicca «Crea stanza».", readSeconds = 2.0)
         r.highlight = null
-        r.caption = "Ecco lo studio, con la forma che hai disegnato muro per muro."
+        r.caption = "Ecco lo studio, con la forma che hai disegnato muro per muro e le misure interne che hai scritto."
         r.moveTo(Offset(1100f, 560f))
         r.wait(5.0)
     }
@@ -518,6 +533,12 @@ class VideoStanzeTest {
         r.moveTo(Offset(900f, 480f))
         r.wait(6.0)
         File("build/video/dump-l2.txt").writeText(r.dump()); r.snapshot(File("build/video/shot-l2.png"))
+    }
+
+    /** Dove si vede ora sullo schermo il punto `p` della pianta (cm). */
+    private fun pianta(p: Vec2): Offset {
+        val c = vm().state.value.camera
+        return Offset(c.toScreenX(p.x) + CANVAS_X, c.toScreenY(p.y) + CANVAS_Y)
     }
 
     /** Dove si vede ora sullo schermo il pixel (`x`, `y`) della piantina di sfondo. */
