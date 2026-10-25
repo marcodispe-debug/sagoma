@@ -85,6 +85,8 @@ class Regista(private val scene: ImageComposeScene, private val width: Int, priv
     var plan: Image? = null
     /** La stanza su cui si sta lavorando, in pixel della [plan], colorata nella piantina piccola. */
     var planRoom: List<Pair<Float, Float>>? = null
+    /** Tasto sinistro tenuto premuto (trascinamento): sotto il puntatore c'è un cerchio arancione. */
+    private var pressed = false
     private var clickAge = 99f
     private var clickAt = Offset.Zero
     private var highlightAge = 0f
@@ -170,6 +172,31 @@ class Regista(private val scene: ImageComposeScene, private val width: Int, priv
         click()
         // Dopo il clic lo schermo cambia: il riquadro non deve restare su qualcos'altro.
         highlight = null
+    }
+
+    /**
+     * Tiene premuto il tasto sinistro dove sta il puntatore, trascina fino a `to` (riletto a ogni fotogramma) e lascia.
+     * `during` si chiama a ogni fotogramma del trascinamento (per esempio per spostare il riquadro insieme all'oggetto).
+     */
+    fun drag(to: () -> Offset, seconds: Double = 1.8, during: () -> Unit = {}) {
+        scene.sendPointerEvent(PointerEventType.Press, cursor)
+        pressed = true
+        wait(0.4)
+        val from = cursor
+        val n = (seconds * fps).toInt().coerceAtLeast(1)
+        for (i in 1..n) {
+            val x = i.toFloat() / n
+            val e = x * x * (3 - 2 * x)
+            val end = to()
+            cursor = Offset(from.x + (end.x - from.x) * e, from.y + (end.y - from.y) * e)
+            scene.sendPointerEvent(PointerEventType.Move, cursor)
+            during()
+            frame()
+        }
+        wait(0.4)
+        scene.sendPointerEvent(PointerEventType.Release, cursor)
+        pressed = false
+        wait(0.5)
     }
 
     /** Rotellina del mouse dove sta il puntatore (`dy` > 0 = scorre in giù), a piccoli scatti. */
@@ -314,6 +341,10 @@ class Regista(private val scene: ImageComposeScene, private val width: Int, priv
             val k = clickAge / 0.6f
             c.drawCircle(clickAt.x, clickAt.y, 10f + 34f * k, Paint().apply { color = withAlpha(ORANGE, 0.9f * (1 - k)); mode = PaintMode.STROKE; strokeWidth = 5f; isAntiAlias = true })
             c.drawCircle(clickAt.x, clickAt.y, 12f, Paint().apply { color = withAlpha(ORANGE, 0.5f * (1 - k)); isAntiAlias = true })
+        }
+        if (pressed) {
+            c.drawCircle(cursor.x, cursor.y, 16f, Paint().apply { color = withAlpha(ORANGE, 0.45f); isAntiAlias = true })
+            c.drawCircle(cursor.x, cursor.y, 16f, Paint().apply { color = ORANGE; mode = PaintMode.STROKE; strokeWidth = 3f; isAntiAlias = true })
         }
         // Freccia del mouse (come quella di Windows), un po' più grande del normale per vederla bene nel video.
         val s = 1.5f

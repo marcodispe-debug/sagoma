@@ -14,6 +14,7 @@ import androidx.lifecycle.ViewModelStore
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.geometry.exterior
 import com.sagoma.planimetria.geometry.interior
+import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.editor.Tip
@@ -66,28 +67,36 @@ class VideoStanzeTest {
                 val r = Regista(scene, W, H)
                 fun shot(name: String) { File(out, "dump-$name.txt").writeText(r.dump()); r.snapshot(File(out, "shot-$name.png")) }
                 r.wait(0.5)
-                r.start(File(out, "1-quadrato.mp4"))
-                r.titleCard("Come creare una stanza", "Video tutorial di sagoma per computer")
-                quadrato(r)
+                // VIDEO_SOLO=6: solo il capitolo sopra la planimetria (per provarlo senza rifare tutti gli altri).
+                val solo = System.getenv("VIDEO_SOLO")
+                if (solo == null) {
+                    r.start(File(out, "1-quadrato.mp4"))
+                    r.titleCard("Come creare una stanza", "Video tutorial di sagoma per computer")
+                    quadrato(r)
+                    r.stop()
+                    shot("1")
+                    r.start(File(out, "2-rettangolo.mp4"))
+                    rettangolo(r)
+                    r.stop()
+                    shot("2")
+                    r.start(File(out, "3-forma-a-l.mp4"))
+                    formaL(r)
+                    r.stop()
+                    shot("3")
+                    r.start(File(out, "4-da-rilievo.mp4"))
+                    rilievo(r)
+                    r.stop()
+                    shot("4")
+                    r.start(File(out, "5-muro-per-muro.mp4"))
+                    muroPerMuro(r)
+                    r.stop()
+                    shot("5")
+                }
+                r.start(File(out, "6-sopra-la-planimetria.mp4"))
+                sopraLaPlanimetria(r)
                 r.stop()
-                shot("1")
-                r.start(File(out, "2-rettangolo.mp4"))
-                rettangolo(r)
-                r.stop()
-                shot("2")
-                r.start(File(out, "3-forma-a-l.mp4"))
-                formaL(r)
-                r.stop()
-                shot("3")
-                r.start(File(out, "4-da-rilievo.mp4"))
-                rilievo(r)
-                r.stop()
-                shot("4")
-                r.start(File(out, "5-muro-per-muro.mp4"))
-                muroPerMuro(r)
-                r.stop()
-                shot("5")
-                // Ricalco e lettura della piantina: si rifanno quando Marco dice come spiegarli. Il muro singolo va nei mini tutorial.
+                shot("6")
+                // Capitoli vecchi fuori dalla serie: muro singolo (andrà nei mini tutorial), ricalco angolo per angolo, lettura automatica.
                 if (System.getenv("VIDEO_RICALCO") != null) {
                     r.start(File(out, "6-muro-singolo.mp4"))
                     muroSingolo(r)
@@ -407,6 +416,241 @@ class VideoStanzeTest {
         r.wait(0.5)
         r.clickOn(r.rect("Salva", exact = true), "…e clicca «Salva». Il progetto nuovo si apre con la scelta della prima stanza.", readSeconds = 2.5)
         r.wait(1.0)
+    }
+
+    /** Modo 6: carichi la tua planimetria, la metti in scala e costruisci le stanze sopra, spostando muri e angoli. */
+    private fun sopraLaPlanimetria(r: Regista) {
+        r.titleCard("Modo 6 · Sopra la tua planimetria", "Carichi la piantina che hai e costruisci le stanze sopra")
+        r.chapter = "Modo 6 · Sopra la tua planimetria"
+        r.highlight = null
+        r.caption = "Hai già una planimetria, del catasto, del progetto o anche solo una foto? Caricala in sagoma e costruisci le stanze sopra, facendole combaciare con quelle disegnate."
+        r.wait(6.5)
+        // «Ricalca una piantina» c'è solo nella scelta della prima stanza di un progetto: serve un progetto nuovo.
+        val nuovo = r.nodes().none { n -> r.texts(n).any { it.contains("Ricalca una piantina") } }
+        val base = if (nuovo) 2 else 0
+        val tot = base + 14
+        fun passo(k: Int) { r.stepLabel = "Passo ${base + k} di $tot" }
+        if (nuovo) nuovoProgetto(r, "Casa mia", tot)
+        passo(1)
+        r.clickOn(r.rect("Ricalca una piantina"), "Nella scelta della prima stanza clicca «Ricalca una piantina».", readSeconds = 3.0)
+        r.wait(1.0)
+        passo(2)
+        r.clickOn(r.rect("Foto / immagine"), "Clicca «Foto / immagine» e scegli sul computer il file della planimetria: una foto, una scansione o un'immagine. Per un PDF c'è il pulsante «PDF».", readSeconds = 5.0)
+        r.wait(1.5)
+        passo(3)
+        r.highlight = r.rect("Taratura: tocca")
+        r.caption = "La planimetria ora è sotto il disegno, ma sagoma non sa ancora quanto è grande: va messa in scala con una misura scritta sopra. Usiamo il muro in alto del soggiorno: 520 cm."
+        r.moveTo(Offset(700f, 420f))
+        r.wait(7.0)
+        passo(4)
+        val a = { sfondo(PiantinaDiProva.px(360f), PiantinaDiProva.py(0f)) }
+        val b = { sfondo(PiantinaDiProva.px(880f), PiantinaDiProva.py(0f)) }
+        fun box(p: Offset, k: Float = 22f) = Rect(p.x - k, p.y - k, p.x + k, p.y + k)
+        r.highlight = box(a())
+        r.caption = "Clicca dove comincia la misura: l'angolo interno in alto a sinistra del soggiorno."
+        r.follow(a, 1.4)
+        r.wait(3.0)
+        r.click()
+        r.wait(0.6)
+        r.highlight = box(b())
+        r.caption = "Poi clicca dove finisce: l'angolo interno in alto a destra del soggiorno."
+        r.follow(b, 1.6)
+        r.wait(2.5)
+        r.click()
+        r.highlight = null
+        r.wait(1.0)
+        passo(5)
+        val cm = r.field("cm")
+        r.clickOn(r.rectOf(cm), "Nella finestra «Misura reale» scrivi la misura vera tra i due punti, quella scritta sulla piantina: 520.", readSeconds = 4.5)
+        r.type(cm, "520")
+        r.wait(0.6)
+        r.clickOn(r.rect("Tara", exact = true), "Clicca «Tara»: adesso la planimetria è in scala, ogni centimetro è giusto.", readSeconds = 3.0)
+        r.wait(1.5)
+        passo(6)
+        r.highlight = r.rect("Piantina ·").let { t -> Rect(t.left - 8f, t.top - 16f, r.rect("◐ Chiudi", exact = true).right, r.rect("Disegno ·").bottom + 40f) }
+        r.caption = "A destra c'è il pannello «Piantina e disegno»: qui rendi la piantina più chiara o più scura, oppure la nascondi. Per ora chiudilo con «◐ Chiudi»."
+        r.moveTo(Offset(1150f, 520f))
+        r.wait(6.0)
+        r.clickOn(r.rect("◐ Chiudi", exact = true), readSeconds = 1.5)
+        r.wait(0.8)
+        passo(7)
+        r.highlight = r.rect("Esci", exact = true)
+        r.caption = "Parte «Muro per muro» sopra la piantina: potresti cliccare gli angoli delle stanze uno a uno. Qui invece usiamo le forme che conosci già e le aggiustiamo sulla piantina. Clicca «Esci»."
+        r.moveTo(r.highlight!!.let { Offset(it.left + it.width / 2, it.top + it.height / 2) })
+        r.wait(6.5)
+        r.click()
+        r.highlight = null
+        r.wait(1.0)
+        passo(8)
+        r.clickOn(r.rect("Quadrato", exact = true), "Torna la scelta della forma. Cominciamo dalla camera, che è quadrata: clicca «Quadrato».", readSeconds = 3.5)
+        r.wait(0.6)
+        r.clickOn(r.rect("Camera da letto", exact = true), "Scegli «Camera da letto»…", readSeconds = 2.0)
+        val lato = r.field("Lato")
+        r.clickOn(r.rectOf(lato), "…e scrivi il lato, letto sulla piantina: 350.", readSeconds = 2.5)
+        r.type(lato, "350")
+        r.wait(0.5)
+        r.clickOn(r.rect("Crea stanza", exact = true), "Clicca «Crea stanza».", readSeconds = 2.0)
+        r.wait(1.5)
+        passo(9)
+        r.highlight = null
+        r.caption = "La camera c'è, ma non ancora al suo posto sulla piantina. Per vedere anche la piantina rimpicciolisci: gira la rotellina del mouse verso di te."
+        r.moveTo(pianta(Polygon.labelPoint(stanza(RoomType.Camera).points)) + Offset(0f, 90f))
+        r.wait(3.5)
+        r.scroll(5f, steps = 5)
+        r.wait(1.0)
+        prova(r, "q1")
+        // La camera va spostata finché il suo filo interno coincide con quello della camera disegnata sulla piantina.
+        val dove = riquadro(suPiantina(0f, 0f), suPiantina(350f, 350f))
+        r.highlight = dove
+        r.caption = "Ecco dove va: sopra la camera disegnata sulla piantina."
+        r.moveTo(Offset(dove.left + dove.width / 2, dove.top + dove.height / 2))
+        r.wait(3.5)
+        val camera = stanza(RoomType.Camera)
+        val etichetta = Polygon.labelPoint(camera.points)
+        val sposta = suPiantina(0f, 0f) - Vec2(camera.interior().minOf { it.x }, camera.interior().minOf { it.y })
+        val arrivo = pianta(etichetta + sposta)
+        r.highlight = riquadro(stanzaInterno(camera).first, stanzaInterno(camera).second)
+        r.caption = "Per spostare una stanza premi sul suo nome, tieni premuto il tasto del mouse e trascinala."
+        r.moveTo(pianta(etichetta))
+        r.wait(3.5)
+        r.highlight = dove
+        r.caption = "Lasciala quando i suoi muri sono sopra i muri della piantina."
+        r.drag({ arrivo }, seconds = 2.4)
+        r.highlight = null
+        r.wait(1.5)
+        prova(r, "q2")
+        passo(10)
+        r.clickOn(r.rect("Elementi architettonici"), "Ora il soggiorno, che è un rettangolo. Partiamo da un quadrato, per vedere come si allunga: clicca «Elementi architettonici»…", readSeconds = 4.5)
+        r.wait(0.6)
+        r.clickOn(r.rect("▭ Stanza"), "…poi «Stanza».", readSeconds = 1.5)
+        r.wait(0.8)
+        r.clickOn(r.rect("Quadrato", exact = true), "Clicca «Quadrato»…", readSeconds = 1.5)
+        r.wait(0.6)
+        r.clickOn(r.rect("Soggiorno", exact = true), "…scegli «Soggiorno»…", readSeconds = 1.5)
+        val lato2 = r.field("Lato")
+        r.clickOn(r.rectOf(lato2), "…e scrivi il lato corto del soggiorno, 410.", readSeconds = 2.5)
+        r.type(lato2, "410")
+        r.wait(0.5)
+        r.clickOn(r.rect("Crea stanza", exact = true), "Clicca «Crea stanza»: il quadrato nasce accanto alla camera, con il muro in comune.", readSeconds = 3.0)
+        r.wait(1.5)
+        prova(r, "q3")
+        passo(11)
+        val soggiorno = stanza(RoomType.Soggiorno)
+        // Muro 1 (a destra): si prende un po' sopra la metà, lontano dalla misura scritta sul muro.
+        val presa = soggiorno.points[1] + (soggiorno.points[2] - soggiorno.points[1]) * 0.3
+        val allunga = soggiorno.interior().minOf { it.x } + 520.0 - soggiorno.interior().maxOf { it.x }
+        val muroDestro = pianta(presa)
+        r.highlight = Rect(muroDestro.x - 14f, pianta(soggiorno.points[1]).y, muroDestro.x + 14f, pianta(soggiorno.points[2]).y)
+        r.caption = "Il soggiorno sulla piantina è più lungo: 520. Basta spostare il muro di destra. Porta il puntatore sul muro…"
+        r.moveTo(muroDestro)
+        r.wait(4.0)
+        r.highlight = riquadro(suPiantina(360f, 0f), suPiantina(880f, 410f))
+        r.caption = "…tieni premuto e trascinalo verso destra fino al muro della piantina. Mentre lo sposti la misura cambia: lasciala a 520."
+        r.drag({ pianta(presa + Vec2(allunga, 0.0)) }, seconds = 3.0)
+        r.highlight = null
+        r.caption = "Fatto: il quadrato è diventato un rettangolo di 5,20 × 4,10 m, proprio come il soggiorno della piantina."
+        r.moveTo(Offset(900f, 600f))
+        r.wait(4.5)
+        prova(r, "q4")
+        if (System.getenv("PROVA_FINO") == "q4") return
+        passo(12)
+        r.clickOn(r.rect("Elementi architettonici"), "Adesso il bagno, che è storto: anche qui partiamo da un quadrato. «Elementi architettonici»…", readSeconds = 3.5)
+        r.wait(0.6)
+        r.clickOn(r.rect("▭ Stanza"), "…«Stanza»…", readSeconds = 1.2)
+        r.wait(0.8)
+        r.clickOn(r.rect("Quadrato", exact = true), "…«Quadrato»…", readSeconds = 1.2)
+        r.wait(0.6)
+        r.clickOn(r.rect("Bagno", exact = true), "…«Bagno»…", readSeconds = 1.2)
+        val lato3 = r.field("Lato")
+        r.clickOn(r.rectOf(lato3), "…lato 240, il muro in alto…", readSeconds = 2.0)
+        r.type(lato3, "240")
+        r.wait(0.5)
+        r.clickOn(r.rect("Crea stanza", exact = true), "…e «Crea stanza».", readSeconds = 1.5)
+        r.wait(1.5)
+        prova(r, "q5")
+        r.caption = "Il bagno della piantina è più a destra: rimpicciolisci ancora con la rotellina per vederlo."
+        r.moveTo(Offset(150f, 400f))
+        r.wait(3.0)
+        r.scroll(5f, steps = 5)
+        r.wait(1.0)
+        val bagno = stanza(RoomType.Bagno)
+        val etichettaB = Polygon.labelPoint(bagno.points)
+        val spostaB = suPiantina(1350f, 0f) - Vec2(bagno.interior().minOf { it.x }, bagno.interior().minOf { it.y })
+        val arrivoB = pianta(etichettaB + spostaB)
+        r.highlight = riquadro(suPiantina(1350f, 0f), suPiantina(1630f, 225f))
+        r.caption = "Trascina il bagno dal suo nome sopra il bagno della piantina, con l'angolo in alto a sinistra al suo posto."
+        r.moveTo(pianta(etichettaB))
+        r.wait(3.5)
+        r.drag({ arrivoB }, seconds = 2.4)
+        r.highlight = null
+        r.wait(1.0)
+        prova(r, "q6")
+        passo(13)
+        // Vista sul bagno: si trascina un punto vuoto della pianta (sposta la vista) e si ingrandisce con la rotellina.
+        val vuoto = pianta(suPiantina(700f, 560f))
+        val centroBagno = { pianta(Polygon.labelPoint(stanza(RoomType.Bagno).points)) }
+        r.caption = "Gli angoli del bagno non sono a 90°: avviciniamoci. Per spostare la vista premi in un punto vuoto della pianta e trascina."
+        r.moveTo(vuoto)
+        r.wait(3.0)
+        val sposta2 = Offset(700f, 430f) - centroBagno()
+        r.drag({ vuoto + sposta2 }, seconds = 1.6)
+        r.caption = "Poi ingrandisci: porta il puntatore sul bagno e gira la rotellina in avanti."
+        r.moveTo(centroBagno() + Offset(0f, 70f))
+        r.wait(2.5)
+        r.scroll(-4f, steps = 4)
+        r.wait(1.0)
+        prova(r, "q7")
+        passo(14)
+        // Angoli D e C sopra quelli della piantina: si trascina il pallino (mezzeria) dove il filo interno combacia.
+        val giusto = Polygon.inset(PiantinaDiProva.bagno.punti.map { (x, y) -> suPiantina(x, y) }, -stanza(RoomType.Bagno).wallThickness / 2)
+        val spiega = mapOf(
+            3 to "Ora sposta gli angoli. Premi sul pallino blu dell'angolo in basso a sinistra e trascinalo finché l'angolo combacia con quello della piantina.",
+            2 to "Poi l'angolo in basso a destra: trascinalo sull'angolo della piantina. Le misure dei muri si aggiornano mentre lo sposti.",
+        )
+        for ((i, testo) in spiega) {
+            val da = pianta(stanza(RoomType.Bagno).points[i])
+            val a2 = giusto[i]
+            r.highlight = box(da, 18f)
+            r.caption = testo
+            r.moveTo(da)
+            r.wait(3.5)
+            r.highlight = box(pianta(a2), 18f)
+            r.drag({ pianta(a2) }, seconds = 2.0)
+            r.highlight = null
+            r.wait(1.2)
+        }
+        prova(r, "q8")
+        r.caption = "Ecco il bagno storto, uguale a quello della piantina."
+        r.moveTo(Offset(700f, 600f))
+        r.wait(3.5)
+        r.clickOn(r.rect("Adatta", exact = true), "Per rivedere tutto il disegno clicca «Adatta».", readSeconds = 2.5)
+        r.wait(1.0)
+        r.caption = "Fai lo stesso con le altre stanze: una forma per partire, poi muri e angoli al loro posto, sopra la tua planimetria."
+        r.moveTo(Offset(900f, 640f))
+        r.wait(6.0)
+    }
+
+    private fun stanza(type: RoomType) = vm().state.value.plan.rooms.last { it.type == type }
+
+    /** Angoli in alto a sinistra e in basso a destra del filo interno di una stanza (cm). */
+    private fun stanzaInterno(room: com.sagoma.planimetria.model.Room): Pair<Vec2, Vec2> =
+        room.interior().let { p -> Vec2(p.minOf { it.x }, p.minOf { it.y }) to Vec2(p.maxOf { it.x }, p.maxOf { it.y }) }
+
+    /** Riquadro sullo schermo tra due punti della pianta (cm). */
+    private fun riquadro(a: Vec2, b: Vec2): Rect = pianta(a).let { p -> pianta(b).let { q -> Rect(p.x, p.y, q.x, q.y) } }
+
+    /** Il punto (`x`, `y`) della piantina di prova (cm sul filo interno, come in [PiantinaDiProva]) nella pianta di sagoma. */
+    private fun suPiantina(x: Float, y: Float): Vec2 {
+        val u = vm().state.value.plan.underlay ?: error("manca la piantina di sfondo")
+        return Vec2(u.origin.x + PiantinaDiProva.px(x) * u.cmPerPx, u.origin.y + PiantinaDiProva.py(y) * u.cmPerPx)
+    }
+
+    /** Fotografia e testi dello schermo per controllare un punto del capitolo (solo con PROVA). */
+    private fun prova(r: Regista, nome: String) {
+        if (System.getenv("PROVA") == null) return
+        val s = vm().state.value
+        File("build/video/dump-$nome.txt").writeText(r.dump() + "\ncamera ${s.camera}\nunderlay ${s.plan.underlay}\nrooms ${s.plan.rooms.map { it.name to it.points }}\nwallDraw ${s.wallDraw}\ncreation ${s.creation}")
+        r.snapshot(File("build/video/shot-$nome.png"))
     }
 
     /** Modo 7: Ricalca una piantina. */
