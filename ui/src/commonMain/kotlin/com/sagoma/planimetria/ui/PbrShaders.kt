@@ -75,6 +75,7 @@ object PbrShaders {
         uniform vec4 uLamp[$MAX_LAMPS];
         uniform vec3 uLampColor[$MAX_LAMPS];
         uniform vec4 uLampBox[$MAX_LAMPS];
+        uniform vec4 uLampAxis[$MAX_LAMPS];
         uniform int uWinCount;
         uniform vec4 uWin[$MAX_WINDOWS];
         uniform vec4 uWinDir[$MAX_WINDOWS];
@@ -128,6 +129,8 @@ object PbrShaders {
             return k / 4.0;
         }
 
+        // Forma della luce di ogni tipo di lampada (generata da LightProfile).
+        ${com.sagoma.planimetria.geometry.LightProfile.glslFunction()}
         /** Luce riflessa da una sorgente in direzione L con intensità `radiance` (modello di Filament/UE4). */
         vec3 shade(vec3 N, vec3 V, vec3 L, vec3 radiance, vec3 albedo, float rough, float metal) {
             float ndl = max(dot(N, L), 0.0);
@@ -215,7 +218,9 @@ object PbrShaders {
                 float dist2 = max(dot(d, d), 400.0);
                 // Intensità che cala col quadrato della distanza, con un raggio di influenza di ~6 m.
                 float fall = clamp(1.0 - dist2 / 360000.0, 0.0, 1.0);
-                vec3 rad = uLampColor[i] * uLamp[i].w * 40000.0 / dist2 * fall * fall;
+                // Forma della luce della lampada (faretto, plafoniera, paralume…), come nei profili IES.
+                float beam = lightBeam(uLampAxis[i].w, dot(-normalize(d), uLampAxis[i].xyz));
+                vec3 rad = uLampColor[i] * uLamp[i].w * 40000.0 / dist2 * fall * fall * beam;
                 color += shade(N, V, normalize(d), rad, albedo, rough, metal) * mix(1.0, ao, 0.6);
                 // Luce rimbalzata su pareti e soffitto: schiarisce un poco tutta la stanza, anche dove la lampada non arriva diretta.
                 color += albedo * (1.0 - metal) * uLampColor[i] * uLamp[i].w * 0.045 / (1.0 + dist2 / 250000.0) * ao;

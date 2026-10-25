@@ -79,14 +79,17 @@ C'è una sola app (`com.sagoma.planimetria`, "Sagoma") per privati e professioni
   restano anche camminando, perché i soffitti (facce rivolte in basso, materiale `lit_down` a due facce) le proiettano e il
   sole entra solo dalle finestre. Ogni finestra aggiunge una luce morbida verso la stanza (proporzionale alla sua area e
   alla luce del giorno) e dentro casa la luce ambiente diffusa si riduce. Plafoniere, faretti, lampadari, neon, strisce
-  LED e le lampade del catalogo sono luci vere (`Scene3D.lights`), accese quando fa buio, sempre o mai.
+  LED e le lampade del catalogo sono luci vere (`Scene3D.lights`), accese quando fa buio, sempre o mai. Ogni tipo ha la
+  sua forma di luce come nei profili IES (`LightProfile`: fascio stretto del faretto, plafoniera solo verso il basso,
+  paralume che illumina sopra e sotto, applique verso la stanza…): sul computer nello shader, su Android con i coni di
+  Filament.
 - Cielo e riflessi: foto a 360° di Poly Haven
   (CC0: *kloofendal_48d_partly_cloudy_puresky*, *lilienstein*, *lebombo*) in `catalogo/src/main/assets/env/*.ibl`, preparate
   con `tools/furniture/PackEnv.java` (armoniche sferiche per la luce diffusa + cubo per riflessi e cielo; i livelli
   ruvidi dei riflessi li calcola Filament all'avvio con `generatePrefilterMipmap`).
 - Materiali fotografici (pavimenti della stanza e rivestimento "Materiale fotografico" di pareti, facciata e muri
-  singoli, prato attorno alla casa): 188 materiali di ambientCG e Poly Haven (CC0) in `catalogo/src/main/assets/materials/`
-  (1024 px, 118 MB; i tessuti e le moquette diventano anche tappeti rettangolari e tondi), preparati con `tools/furniture/PackMaterials.java` da `tools/furniture/materials.tsv` (nome, categoria,
+  singoli, prato attorno alla casa): 380 materiali di ambientCG e Poly Haven (CC0) in `catalogo/src/main/assets/materials/`
+  (1024 px, 233 MB; i tessuti e le moquette diventano anche tappeti rettangolari e tondi), preparati con `tools/furniture/PackMaterials.java` da `tools/furniture/materials.tsv` (nome, categoria,
   lato reale della foto). Nel 3D sono superfici a parte (`Scene3D.textured`, uv in ripetizioni della foto) disegnate
   da `TexturedSurfaces` con colore, rilievo e ruvidità; il renderer semplice usa il colore medio.
 

@@ -203,6 +203,8 @@ object LitShaders {
         val lampColors = FloatArray(MAX_LAMPS * 3)
         /** Stanza di ogni lampada in pianta (minX, minZ, maxX, maxZ): la luce non passa i muri. */
         val lampBoxes = FloatArray(MAX_LAMPS * 4)
+        /** Asse di ogni lampada (x, y, z) e forma della sua luce ([com.sagoma.planimetria.geometry.LightProfile.ordinal]). */
+        val lampAxes = FloatArray(MAX_LAMPS * 4)
         var lampCount = 0
         val windows = FloatArray(MAX_WINDOWS * 4)
         val windowDirs = FloatArray(MAX_WINDOWS * 4)
@@ -219,6 +221,9 @@ object LitShaders {
                     lamps[i * 4] = p.x.toFloat(); lamps[i * 4 + 1] = p.y.toFloat(); lamps[i * 4 + 2] = p.z.toFloat(); lamps[i * 4 + 3] = s
                     val c = if (l.warm) floatArrayOf(1f, 0.80f, 0.58f) else floatArrayOf(0.95f, 0.97f, 1f)
                     lampColors[i * 3] = c[0]; lampColors[i * 3 + 1] = c[1]; lampColors[i * 3 + 2] = c[2]
+                    val ax = l.beamAxis.normalized()
+                    lampAxes[i * 4] = ax.x.toFloat(); lampAxes[i * 4 + 1] = ax.y.toFloat(); lampAxes[i * 4 + 2] = ax.z.toFloat()
+                    lampAxes[i * 4 + 3] = l.profile.ordinal.toFloat()
                     // Gli angoli della stanza sono in mezzeria dei muri: poco oltre ci sono le facce interne (illuminate),
                     // mentre le facce esterne restano fuori (buie).
                     val b = l.room

@@ -31,6 +31,7 @@ import com.google.android.filament.gltfio.Gltfio
 import com.google.android.filament.gltfio.ResourceLoader
 import com.google.android.filament.gltfio.UbershaderProvider
 import com.sagoma.planimetria.geometry.Glb
+import com.sagoma.planimetria.geometry.LightProfile
 import com.sagoma.planimetria.geometry.Rgba
 import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.SunAngles
@@ -325,7 +326,7 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         if (!lampsOnNow) return true // lampade spente: niente da aggiornare, le luci nuove valgono alla prossima accensione
         val lm = engine.lightManager
         val sameShape = lampEntities.size == lights.size && old.size == lights.size &&
-            lights.indices.all { (old[it].direction == null) == (lights[it].direction == null) }
+            lights.indices.all { (old[it].direction == null) == (lights[it].direction == null) && old[it].profile == lights[it].profile }
         if (sameShape) {
             for ((i, l) in lights.withIndex()) {
                 val inst = lm.getInstance(lampEntities[i])
@@ -348,10 +349,18 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
             val (r, g, b) = if (l.warm) Triple(1f, 0.82f, 0.62f) else Triple(0.95f, 0.97f, 1f)
             val p = l.position
             val dir = l.direction
-            val builder = if (dir != null) LightManager.Builder(LightManager.Type.FOCUSED_SPOT)
-                .direction(dir.x.toFloat(), dir.y.toFloat(), dir.z.toFloat())
-                .spotLightCone(0.35f, 0.8f)
-            else LightManager.Builder(LightManager.Type.POINT)
+            val axis = l.beamAxis
+            // Forma della luce (LightProfile): Filament non legge i profili IES, si avvicinano con i coni dei faretti.
+            // Plafoniere e applique sono coni larghi (niente luce verso il soffitto o dietro il muro); il resto puntiforme.
+            val builder = when {
+                dir != null -> LightManager.Builder(LightManager.Type.FOCUSED_SPOT)
+                    .direction(dir.x.toFloat(), dir.y.toFloat(), dir.z.toFloat())
+                    .spotLightCone(0.35f, 0.8f)
+                l.profile == LightProfile.Downlight || l.profile == LightProfile.Wall -> LightManager.Builder(LightManager.Type.SPOT)
+                    .direction(axis.x.toFloat(), axis.y.toFloat(), axis.z.toFloat())
+                    .spotLightCone(0.9f, 1.5f)
+                else -> LightManager.Builder(LightManager.Type.POINT)
+            }
             builder.color(r, g, b)
                 .intensity((l.lumens * LUMEN_SCALE).toFloat())
                 .position((p.x * 0.01).toFloat(), (p.y * 0.01).toFloat(), (p.z * 0.01).toFloat())

@@ -411,6 +411,7 @@ class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { n
         glUniform4fv(u("uLamp"), lights.lamps)
         glUniform3fv(u("uLampColor"), lights.lampColors)
         glUniform4fv(u("uLampBox"), lights.lampBoxes)
+        glUniform4fv(u("uLampAxis"), lights.lampAxes)
         glUniform1i(u("uWinCount"), lights.windowCount)
         glUniform4fv(u("uWin"), lights.windows)
         glUniform4fv(u("uWinDir"), lights.windowDirs)

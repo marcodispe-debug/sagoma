@@ -145,7 +145,14 @@ class Scene3D(
         val room: Bounds? = null,
         /** Impianto da cui viene la luce (per aggiornarne solo la direzione mentre si orienta), se c'è. */
         val fixtureId: Long? = null,
-    )
+        /** Forma della luce attorno all'asse ([beamAxis]), come nei profili IES dei produttori. */
+        val profile: LightProfile = LightProfile.Uniform,
+        /** Asse della lampada senza [direction]: in basso, o verso la stanza per quelle a parete. */
+        val axis: Vec3 = Vec3(0.0, -1.0, 0.0),
+    ) {
+        /** Asse attorno a cui si misura [profile]: dove punta il faretto, altrimenti [axis]. */
+        val beamAxis: Vec3 get() = direction ?: axis
+    }
 
     /** Stessa scena con altre luci: serve ad aggiornare solo le luci, senza ricostruire la geometria. */
     fun withLights(newLights: List<SceneLight>) = Scene3D(opaque, transparent, picks, obstacles, bounds, furniture, textured, newLights, windows, roofs)
@@ -520,7 +527,8 @@ private class SceneBuilder(
                 if (current && item?.symbolKind == com.sagoma.planimetria.model.FurnitureSymbol.Lamp) {
                     val y = if (item.ceiling) f.elevation + f.height * 0.3 else f.elevation + f.height * 0.85
                     val lampRoom = plan.rooms.lastOrNull { Polygon.contains(it.points, f.center) }?.let { Polygon.bounds(it.points) }
-                    lights += Scene3D.SceneLight(f.center.at(y), null, if (item.ceiling) 2000.0 else 600.0, warm = true, room = lampRoom)
+                    lights += Scene3D.SceneLight(f.center.at(y), null, if (item.ceiling) 2000.0 else 600.0, warm = true, room = lampRoom,
+                        profile = if (item.ceiling) LightProfile.Pendant else LightProfile.Shade)
                 }
                 if (!current) continue
                 val outline = Furnishings.outline(f)
@@ -1958,7 +1966,8 @@ private class SceneBuilder(
         val front = p + n * (Scene3D.WALL_LED_DEPTH + 4.0)
         for (k in 0 until count) {
             val t = f.length * ((k + 0.5) / count) - f.length / 2
-            lights += Scene3D.SceneLight((front + along * t).at(f.elevation), null, Scene3D.WALL_LED_LUMENS / count, warm = false, room = Polygon.bounds(room.points))
+            lights += Scene3D.SceneLight((front + along * t).at(f.elevation), null, Scene3D.WALL_LED_LUMENS / count, warm = false, room = Polygon.bounds(room.points),
+                profile = LightProfile.Strip, axis = Vec3(n.x, 0.0, n.y))
         }
     }
 
@@ -1967,7 +1976,8 @@ private class SceneBuilder(
         // La plafoniera è una luce diffusa davanti alla parete (senza direzione: il renderer la fa puntiforme, come la plafoniera a
         // soffitto). Il faretto è un fascio orientato secondo `aimYaw` e `aimTilt` rispetto alla normale della parete (SpotAim).
         val direction = if (f.kind == FixtureKind.WallSpot) SpotAim.direction(n, f.aimYaw, f.aimTilt) else null
-        if (current) lights += Scene3D.SceneLight((p + n * (depth + 1.0)).at(f.elevation), direction, lumens, warm = true, room = Polygon.bounds(room.points), fixtureId = f.id)
+        if (current) lights += Scene3D.SceneLight((p + n * (depth + 1.0)).at(f.elevation), direction, lumens, warm = true, room = Polygon.bounds(room.points), fixtureId = f.id,
+            profile = if (direction != null) LightProfile.Spot else LightProfile.Wall, axis = Vec3(n.x, 0.0, n.y))
     }
 
     private fun fixture(room: Room, f: Fixture) {
@@ -2000,15 +2010,15 @@ private class SceneBuilder(
         // La luce vera, per chi la sa disegnare (un po' sotto la lampada, così non resta chiusa nel soffitto).
         val roomBox = Polygon.bounds(room.points)
         if (current) when (f.kind) {
-            FixtureKind.Spotlight -> lights += Scene3D.SceneLight(c.at(h - 4), Vec3(0.0, -1.0, 0.0), 400.0, warm = true, room = roomBox)
-            FixtureKind.CeilingLight -> lights += Scene3D.SceneLight(c.at(h - 12), null, 1500.0, warm = true, room = roomBox)
-            FixtureKind.Chandelier -> lights += Scene3D.SceneLight(c.at(h - 60), null, 2000.0, warm = true, room = roomBox)
+            FixtureKind.Spotlight -> lights += Scene3D.SceneLight(c.at(h - 4), Vec3(0.0, -1.0, 0.0), 400.0, warm = true, room = roomBox, profile = LightProfile.Spot)
+            FixtureKind.CeilingLight -> lights += Scene3D.SceneLight(c.at(h - 12), null, 1500.0, warm = true, room = roomBox, profile = LightProfile.Downlight)
+            FixtureKind.Chandelier -> lights += Scene3D.SceneLight(c.at(h - 60), null, 2000.0, warm = true, room = roomBox, profile = LightProfile.Pendant)
             FixtureKind.Neon, FixtureKind.LedStrip -> {
                 // Luce lunga: qualche punto luce lungo la sua lunghezza.
                 val (a, b) = Fixtures.linearEnds(f)
                 val n = maxOf(1, (a.distanceTo(b) / 80).toInt())
                 val total = if (f.kind == FixtureKind.Neon) 2500.0 else 1000.0
-                for (k in 0 until n) lights += Scene3D.SceneLight((a + (b - a) * ((k + 0.5) / n)).at(h - 10), null, total / n, warm = false, room = roomBox)
+                for (k in 0 until n) lights += Scene3D.SceneLight((a + (b - a) * ((k + 0.5) / n)).at(h - 10), null, total / n, warm = false, room = roomBox, profile = LightProfile.Strip)
             }
             else -> Unit
         }
