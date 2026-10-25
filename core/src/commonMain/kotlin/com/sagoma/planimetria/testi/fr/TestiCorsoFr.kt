@@ -2,7 +2,6 @@ package com.sagoma.planimetria.testi.fr
 
 import com.sagoma.planimetria.editor.CourseStep
 import com.sagoma.planimetria.editor.Lesson
-import com.sagoma.planimetria.editor.Tip
 import com.sagoma.planimetria.editor.WallArrow
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.RoomType
@@ -12,7 +11,6 @@ import com.sagoma.planimetria.testi.TestiCorso
 
 object TestiCorsoFr : TestiCorso() {
     private val infoTab get() = T.schedaStanza.info
-    private val ok get() = e.hoCapito
 
     override fun lezione(l: Lesson): String = when (l) {
         Lesson.LShape -> "Forme en L"
@@ -28,28 +26,39 @@ object TestiCorsoFr : TestiCorso() {
         CourseStep.Welcome -> "Bienvenue dans Sagoma !"
         CourseStep.ElementsDone -> "Chaque élément, depuis « $infoTab »"
         CourseStep.Finished -> "Vous avez fini le guide !"
-        CourseStep.Snap -> "L'aimant 🧲"
+        CourseStep.Snap -> "Déplacer les pièces et l'aimant 🧲"
         else -> "C'est fait !"
     }
 
     override fun testoScheda(s: CourseStep): String = when (s) {
         CourseStep.Welcome ->
-            "Je vous guide pas à pas pour dessiner un petit appartement d'essai, en 7 courtes leçons. C'est vous qui faites les actions : à chaque " +
-                "étape un cadre orange vous montre où cliquer. C'est un projet juste pour s'entraîner : vos projets ne sont pas touchés."
-        CourseStep.SquareDone -> "Le bureau carré de 3,30 × 3,30 m est sur le plan, avec les mesures écrites sur les murs. Dans la prochaine leçon vous ajoutez une pièce rectangulaire."
-        CourseStep.RectDone -> "Voici la chambre de 4,00 × 3,30 m, à côté du bureau. Dans la prochaine leçon : un séjour en forme de L."
-        CourseStep.LDone -> "Voici le séjour en L : 6,40 × 2,70 m, avec la partie de 3,00 × 1,90 m qui dépasse. Dans la prochaine leçon : une pièce hors d'équerre, d'après des mesures prises au mètre."
-        CourseStep.SurveyDone -> "Voici la salle de bains avec sa vraie forme, un peu hors d'équerre comme en réalité. Dans la prochaine leçon vous dessinez une pièce mur par mur."
-        CourseStep.WallsDone -> "Voici l'entrée, avec la forme que vous avez dessinée mur par mur. Vous avez vu les façons de créer une pièce. Dans la prochaine leçon : portes, fenêtres, balcon, équipements et escaliers."
+            "Je vous guide pas à pas pour dessiner le logement de ce plan inventé, en 7 courtes leçons : une pièce à la fois, chacune " +
+                "à sa place comme sur le dessin. C'est vous qui faites les actions : à chaque étape un cadre orange vous montre où " +
+                "cliquer. C'est un projet juste pour s'entraîner : vos projets ne sont pas touchés."
+        CourseStep.SquareDone ->
+            "Le bureau est prêt : 3,30 × 3,30 m. Vous avez vu toutes les façons de changer la forme d'une pièce : les mesures à la " +
+                "création, les murs et les angles déplacés à la main, les mesures exactes dans « $infoTab » et « ${e.annulla} » pour " +
+                "revenir en arrière. Dans la prochaine leçon : le séjour en L, au-dessus du bureau."
+        CourseStep.Snap ->
+            "Le séjour est né à l'écart de la maison. Une pièce se déplace en la faisant glisser par son nom. L'aimant " +
+                "« ${T.schedaStanza.si} », ici en bas, est activé : quand vous approchez la pièce d'une autre, elle s'accroche toute " +
+                "seule, angle sur angle, et le mur entre les deux n'en fait plus qu'un. Désactivé (« ${T.schedaStanza.no} »), la pièce " +
+                "reste exactement où vous la lâchez. Laissez-le activé."
+        CourseStep.LDone ->
+            "Le séjour est accolé au-dessus du bureau, comme sur le plan : le mur entre les deux pièces est maintenant un seul mur " +
+                "commun. Dans la prochaine leçon : la chambre, un rectangle à droite du séjour."
+        CourseStep.RectDone ->
+            "La chambre est accolée à droite du séjour. Dans la prochaine leçon : la salle de bains, sous la chambre, un peu hors d'équerre."
+        CourseStep.SurveyDone ->
+            "La salle de bains est sous la chambre, avec sa vraie forme : un peu hors d'équerre, comme en réalité. Dans la prochaine " +
+                "leçon : l'entrée, dessinée mur par mur dans l'espace qui reste entre les pièces."
+        CourseStep.WallsDone ->
+            "L'entrée ferme le logement : maintenant toutes les pièces sont reliées, comme sur le plan. Vous avez vu toutes les " +
+                "façons de créer une pièce. Dans la prochaine leçon : portes, fenêtres, balcon, équipements et escaliers."
         CourseStep.ElementsDone ->
             "Dans « $infoTab » vous changez les mesures, le type et tout le reste de l'élément sélectionné ; il se ferme avec « ▼ ». Pour chaque élément : " +
                 "vous le choisissez dans « ${e.elementiArchitettonici} », vous le placez sur le plan, et le reste depuis « $infoTab ». Dernière leçon : " +
                 "construire les pièces sur votre plan. Il faut un nouveau projet : je le prépare."
-        CourseStep.Snap ->
-            "Le bouton « ${T.schedaStanza.si} », ici en bas, active et désactive l'aimant. Activé, une pièce que vous faites glisser près " +
-                "d'une autre s'accroche toute seule, angle sur angle ou mur sur mur, et le mur devient commun. Les murs et les angles que vous " +
-                "faites glisser s'accrochent aussi aux murs proches et aux directions droites. Désactivé (« ${T.schedaStanza.no} »), tout reste " +
-                "exactement où vous le lâchez. Laissez-le activé : il sert maintenant à accoler le séjour à la chambre."
         CourseStep.Finished ->
             "Voici la chambre, la salle de bains et le séjour sur le plan, avec les bonnes mesures. Faites de même avec les autres pièces : une " +
                 "forme pour commencer, accolée aux pièces voisines, puis murs et angles à leur place et les mesures exactes dans « $infoTab ». " +
@@ -76,18 +85,52 @@ object TestiCorsoFr : TestiCorso() {
     override val poiStanza: String get() = "Cliquez sur « ${e.stanza} » : la fenêtre des formes revient."
     override fun tipo(nome: String): String = "Choisissez le type : « $nome »."
     override val creaStanza: String get() = "Cliquez sur « ${cr.creaStanza} »."
+    override fun selezionaStanza(nome: String): String = "Cliquez sur le nom de la pièce, « $nome », pour la sélectionner."
+    override val accendiAgganci: String get() = "L'aimant est désactivé : cliquez sur « ${T.schedaStanza.no} », ici en bas, pour l'activer."
+    override val schedaMisure: String get() = "Ouvrez l'onglet « ${T.schedaStanza.misure} »."
+    override fun latoMuro(a: WallArrow): String = when (a) {
+        WallArrow.UP -> "du haut"
+        WallArrow.RIGHT -> "de droite"
+        WallArrow.DOWN -> "du bas"
+        WallArrow.LEFT -> "de gauche"
+    }
 
     override val scegliQuadrato: String get() =
-        "Quand vous ouvrez un nouveau projet, Sagoma vous demande tout de suite la forme de la première pièce. Cliquez sur « ${cr.quadrato} » : c'est la forme d'une pièce aux quatre côtés égaux."
+        "Quand vous ouvrez un nouveau projet, Sagoma vous demande tout de suite la forme de la première pièce. Commençons par le " +
+            "bureau, la pièce carrée en bas à gauche du plan : cliquez sur « ${cr.quadrato} »."
     override val tipoStudio: String get() = "Dans « ${cr.tipoStanza} » cliquez sur « ${RoomType.Studio.label} » : Sagoma donne à la pièce le bon nom et la bonne couleur."
-    override fun scriviLato(v: Int): String = "Dans le champ « ${cr.lato2} » écrivez $v. C'est la mesure intérieure, d'un mur à l'autre : celle que vous prenez au mètre."
+    override fun scriviLato(v: Int): String =
+        "Dans le champ « ${cr.lato2} » écrivez $v : c'est la première façon de donner sa forme à une pièce, avec les mesures à la " +
+            "création. C'est la mesure intérieure, d'un mur à l'autre : celle que vous prenez au mètre."
     override val soffittoECrea: String get() = "La hauteur sous plafond est déjà écrite (270 cm) : changez-la seulement si votre pièce est différente. Cliquez maintenant sur « ${cr.creaStanza} »."
+    override val trascinaMuroStudio: String get() =
+        "Deuxième façon : déplacer les murs. Appuyez sur le mur de droite du bureau, maintenez et faites-le glisser jusqu'au " +
+            "repère : la pièce s'élargit et la mesure écrite sur le mur change pendant que vous le déplacez."
+    override fun misureEsatte(v: Int): String =
+        "À la main, la mesure n'est jamais précise. Troisième façon, la plus précise : écrire les mesures. Remettons le bureau à " +
+            "$v cm : cliquez sur « $infoTab »."
+    override fun muroStudio(numero: Int, lato: WallArrow, v: Int): String =
+        "Sous « ${T.schedaStanza.muri} » il y a la longueur intérieure de chaque mur. Dans « ${T.schedaStanza.muro(numero)} », le " +
+            "mur ${latoMuro(lato)}, écrivez $v et appuyez sur Entrée : le mur suivant se déplace et le bureau redevient carré."
+    override val trascinaAngoloStudio: String get() =
+        "Quatrième façon, pour les pièces aux angles de travers : déplacer un angle. Appuyez sur le point bleu de l'angle en bas à " +
+            "droite et faites-le glisser jusqu'au repère."
+    override val annullaAngolo: String get() =
+        "Mais le bureau a des angles droits. Quand vous vous trompez, « ${e.annulla} », ici en haut, enlève la dernière modification : cliquez dessus."
 
-    override val scegliRettangolo: String get() = "Cliquez sur « ${cr.rettangolo} » : deux côtés longs et deux courts."
+    override val scegliRettangolo: String get() =
+        "Cliquez sur « ${cr.rettangolo} » : c'est la chambre, à droite du séjour, avec deux côtés longs et deux courts."
+    override val spostaCameraAccanto: String get() =
+        "La chambre aussi naît à l'écart : faites-la glisser par son nom jusqu'au contour en pointillés, à droite du séjour. Avec " +
+            "l'aimant activé, elle s'accroche toute seule."
     override fun scriviLarghezza(v: Int): String = "« ${T.comuni.larghezza} » est le côté horizontal de la pièce, de gauche à droite sur le plan : écrivez $v."
     override fun scriviProfondita(v: Int): String = "« ${T.comuni.profondita} » est l'autre côté, de haut en bas : écrivez $v."
 
-    override val scegliL: String get() = "Cliquez sur « ${T.comuni.formaL} » : beaucoup de séjours et de cuisines sont ainsi, avec un angle rentrant."
+    override val scegliL: String get() =
+        "Cliquez sur « ${T.comuni.formaL} » : c'est le séjour, qui sur le plan est au-dessus du bureau. Beaucoup de séjours et de " +
+            "cuisines sont ainsi, avec un angle rentrant."
+    override val spostaSoggiorno: String get() =
+        "Faites glisser le séjour par son nom jusqu'au contour en pointillés, au-dessus du bureau : quand il arrive près, il s'accroche tout seul."
     override fun sporgeInBassoADestra(lato: String): String =
         "Sagoma demande de quel côté dépasse la partie en plus du L. Regardez la pièce d'en haut, comme sur un plan : ici c'est « $lato »."
     override fun larghezzaPrincipale(v: Int): String = "Le L est fait de deux parties. La partie principale est le plus grand rectangle : dans « ${cr.larghezzaPrincipale} » écrivez $v."
@@ -95,7 +138,11 @@ object TestiCorsoFr : TestiCorso() {
     override fun larghezzaProtuberanza(v: Int): String = "L'autre partie est celle qui dépasse. Dans « ${cr.larghezzaProtuberanza} » écrivez $v : elle doit être inférieure à la largeur principale."
     override fun profonditaProtuberanza(v: Int): String = "Dans « ${cr.profonditaProtuberanza} » écrivez de combien elle dépasse : $v."
 
-    override val scegliRilievo: String get() = "Cliquez sur « ${cr.rilievo} » : c'est pour les angles qui ne sont pas tout à fait à 90°, ou les pièces de 5 côtés ou plus."
+    override val scegliRilievo: String get() =
+        "Cliquez sur « ${cr.rilievo} » : la salle de bains, sous la chambre, a des angles qui ne sont pas tout à fait à 90°. C'est " +
+            "aussi pour les pièces de 5 côtés ou plus."
+    override val spostaBagnoSotto: String get() =
+        "Faites glisser la salle de bains par son nom jusqu'au contour en pointillés, sous la chambre : elle s'accroche toute seule."
     override val tipoBagnoQuattroLati: String get() = "Choisissez le type « ${RoomType.Bagno.label} ». « ${cr.numeroLati} » indique déjà 4, comme les côtés de notre salle de bains."
     override fun primoLatoRilievo(v: Int): String =
         "Appelez A un angle de la pièce, puis B, C et D dans le sens des aiguilles d'une montre. Mesurez les côtés sur le mur, à l'intérieur. Dans « ${cr.lato('A', 'B')} » écrivez $v."
@@ -105,8 +152,12 @@ object TestiCorsoFr : TestiCorso() {
             "C'est cette mesure qui dit à Sagoma à quel point les angles sont de travers."
     override val anteprimaECrea: String get() = "Plus bas il y a l'aperçu de la vraie forme. Cliquez sur « ${cr.creaStanza} »."
 
-    override val scegliMuroPerMuro: String get() = "Cliquez sur « ${cr.muroMuro} » : vous dessinez la pièce un mur à la fois, avec les mesures intérieures, comme dans un logiciel d'architecte."
-    override val primoAngolo: String get() = "Cliquez sur le plan là où commence le premier mur, par exemple ici : c'est le premier angle de la pièce, à l'intérieur."
+    override val scegliMuroPerMuro: String get() =
+        "Cliquez sur « ${cr.muroMuro} » : l'entrée remplit l'espace qui reste entre les pièces, et vous la dessinez un mur à la " +
+            "fois, avec les mesures intérieures, comme dans un logiciel d'architecte."
+    override val primoAngolo: String get() =
+        "Cliquez ici, sous la chambre et à côté du séjour : c'est le premier angle de l'entrée, à l'intérieur. Sagoma l'accroche " +
+            "au bon angle entre les murs."
     override fun verso(n: Int, a: WallArrow): String = "Mur $n : choisissez la direction, « ${freccia(a)} »."
     override fun lunghezzaMuro(v: Int): String = "Dans « ${T.muroPerMuro.lunghezzaCm} » écrivez $v."
     override val aggiungi: String get() = "Cliquez sur « ${T.muroPerMuro.aggiungi} »."
@@ -128,7 +179,8 @@ object TestiCorsoFr : TestiCorso() {
     override val balconeRettangolo: String get() = "La forme se choisit comme pour les pièces : le balcon est un « ${cr.rettangolo} »."
     override fun balconeLarghezza(v: Int): String = "Largeur $v…"
     override fun balconeProfondita(v: Int): String = "…et profondeur $v."
-    override val balconeCrea: String get() = "Cliquez sur « ${cr.crea} » : le balcon se pose déjà contre la maison (vous pourrez le déplacer en le faisant glisser par son nom)."
+    override val balconeCrea: String get() =
+        "Cliquez sur « ${cr.crea} » : le balcon naît à sa place, au-dessus de la chambre, déjà contre la maison (vous pourrez le déplacer en le faisant glisser par son nom)."
     override val portaFinestraElementi: String get() = "Pour sortir sur le balcon il faut une porte-fenêtre : « ${e.elementiArchitettonici} »…"
     override val porteFinestre: String get() = "…« ${e.porteFinestre} »…"
     override val balconeDueAnte: String get() = "…« ${e.balcone2Ante} »."
@@ -148,13 +200,6 @@ object TestiCorsoFr : TestiCorso() {
     override val info: String get() =
         "L'escalier est sélectionné. Pour toutes les autres modifications cliquez sur « $infoTab » : c'est pareil pour chaque élément, portes, fenêtres, balcons, équipements et escaliers."
 
-    override fun miniGuida(t: Tip): String = when (t) {
-        Tip.Opening -> "La première fois que vous posez une porte, son mini guide s'ouvre : comment la faire glisser le long du mur, et mesures et sens depuis « $infoTab ». Lisez-le et cliquez sur « $ok »."
-        Tip.Outdoor -> "Le balcon aussi a son mini guide : à la place des murs il y a le garde-corps, et dans « $infoTab » vous choisissez rambarde, muret ou verre. Cliquez sur « $ok »."
-        Tip.Fixture -> "Mini guide des équipements : ceux au mur glissent le long du mur, et dans « $infoTab » vous réglez hauteur et dimensions. Cliquez sur « $ok »."
-        Tip.Stair -> "Quand vous posez un escalier, son mini guide s'ouvre et explique tout : comment le déplacer et le coller à un mur, et ce que vous changez dans « $infoTab ». Lisez-le et cliquez sur « $ok »."
-        else -> "Un mini guide s'est ouvert : lisez-le et cliquez sur « $ok »."
-    }
 
     override val ricalca: String get() =
         "Vous avez déjà un plan, du cadastre, du projet ou même une simple photo ? Au choix de la première pièce d'un projet cliquez sur « ${cr.ricalcaPiantina} »."
@@ -193,15 +238,13 @@ object TestiCorsoFr : TestiCorso() {
         "Choisissez le type « ${RoomType.Soggiorno.label} ». Laissez les mesures telles quelles : vous mettrez le séjour à la bonne taille après, sur le plan."
     override val attaccaSoggiorno: String get() =
         "Sur le plan, le séjour est accolé à la chambre, à sa droite. Faites glisser le séjour par son nom jusqu'au contour en pointillés : " +
-            "quand son angle en haut à droite arrive près de celui de la chambre, il s'accroche tout seul."
+            "avec l'aimant « ${T.schedaStanza.si} » activé, quand son angle en haut à droite arrive près de celui de la chambre, il s'accroche tout seul."
     override fun muroSullaPiantina(muro: Int): String =
         "Amenez maintenant les murs sur le plan. Appuyez sur le mur ${nomeMuroSoggiorno(muro)} du séjour et faites-le glisser jusqu'au repère, " +
             "sur le mur dessiné. À peu près suffit : la mesure exacte, vous l'écrirez après."
-    override val selezionaSoggiorno: String get() = "Cliquez sur le nom du séjour pour le sélectionner."
     override val misureInInfo: String get() =
         "En déplaçant les murs à la main, les mesures ne sont jamais tout à fait celles du plan : regardez celles écrites sur les murs du " +
             "séjour. Les bonnes s'écrivent dans « ${T.schedaStanza.info} » : cliquez dessus."
-    override val schedaMisure: String get() = "Ouvrez l'onglet « ${T.schedaStanza.misure} »."
     override fun muroInfo(numero: Int, muro: Int, v: Int, first: Boolean): String =
         (if (first) "Sous « ${T.schedaStanza.muri} » il y a la longueur intérieure de chaque mur. " else "") +
             "Dans « ${T.schedaStanza.muro(numero)} », le mur ${nomeMuroSoggiorno(muro)}, écrivez $v et appuyez sur Entrée."

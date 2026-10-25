@@ -232,21 +232,26 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     /**
-     * Guida interattiva dalla lezione `lesson`, sul progetto di prova aperto (lo sceglie l'app, mai un progetto dell'utente). La
-     * prima lezione e quella sopra la planimetria ripartono da un progetto vuoto; la lezione sugli elementi rimette come mai viste
-     * le loro mini guide, che la guida fa leggere.
+     * Guida interattiva dalla lezione `lesson`, sul progetto di prova aperto (lo sceglie l'app, mai un progetto dell'utente). Si
+     * riparte sempre dalla casa com'è all'inizio della lezione: vuota per la prima e per quella sopra la planimetria, altrimenti
+     * con le stanze della piantina delle lezioni prima, al loro posto (vedi [Course.house]).
      */
     fun startCourse(lesson: Lesson) {
         if (tutorial.active) {
             tutorial.stop()
             publishTutorial()
         }
-        if (lesson == Lesson.Square || lesson == Lesson.OverPlan) {
-            history.clear()
-            val empty = Building.single(FloorPlan(), autoLevel = true)
-            _state.update { EditorUiState(plan = empty.floor.plan, building = empty, creation = CreationStep.PickShape(cancellable = false), camera = it.camera) }
+        history.clear()
+        val house = Building.single(if (lesson == Lesson.OverPlan) FloorPlan() else Course.house(lesson), autoLevel = true)
+        _state.update {
+            EditorUiState(
+                plan = house.floor.plan,
+                building = house,
+                creation = if (house.floor.plan.rooms.isEmpty()) CreationStep.PickShape(cancellable = false) else null,
+                camera = it.camera,
+            )
         }
-        if (lesson == Lesson.Elements) tips.unsee(Course.ELEMENT_TIPS)
+        if (house.floor.plan.rooms.isNotEmpty()) fitToView()
         course.start(lesson)
         _state.update { it.copy(tip = null) }
         prepareCourseStep()
@@ -291,6 +296,11 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             CourseStep.Info -> if (s.selection == null && s.focusedRoomId == null) {
                 s.plan.rooms.firstOrNull()?.let { r -> _state.update { it.copy(focusedRoomId = r.id) } }
             }
+            // Lo studio selezionato per le misure in Info; per l'angolo la tendina si chiude, così si vede tutta la stanza.
+            CourseStep.SquareInfo, CourseStep.SquareCorner -> s.plan.rooms.firstOrNull { it.type == RoomType.Studio }?.let { r ->
+                if (s.focusedRoomId != r.id || s.selection != null) _state.update { it.copy(focusedRoomId = r.id, selection = null) }
+                if (step == CourseStep.SquareCorner && s.infoExpanded) _state.update { it.copy(infoExpanded = false) }
+            }
             CourseStep.CalibA -> if (s.plan.underlay != null && s.underlayTool !is UnderlayTool.Calibrate) recalibrateUnderlay()
             // Il soggiorno selezionato: la striscia in basso (con 🧲 e Info) è la sua.
             CourseStep.Snap, CourseStep.LivingInfo -> s.plan.rooms.lastOrNull { it.type == RoomType.Soggiorno }?.let { r ->
@@ -312,9 +322,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     // ---------- Suggerimenti al primo utilizzo ----------
 
     private fun showTip(tip: Tip) {
-        if (tutorial.active) return // durante il tutorial parla solo lui
-        // Durante la guida interattiva parla lei, tranne le mini guide degli elementi che fa leggere nella sua lezione.
-        if (course.active && !(course.step?.lesson == Lesson.Elements && tip in Course.ELEMENT_TIPS)) return
+        // Durante il tutorial parla solo lui, durante la guida interattiva solo lei: niente mini guide.
+        if (tutorial.active || course.active) return
         tips.request(tip)
         _state.update { it.copy(tip = tips.current) }
     }
@@ -996,7 +1005,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val below = _state.value.planBelow?.let { Openings.planBounds(it) }
         // Piano di sopra: la stanza si posa sulla prima stanza di sotto ancora scoperta, con gli angoli coincidenti.
         val above = if (type.outdoor) null else RoomFactory.placeAbove(plan, _state.value.planBelow, shape)
-        val points = if (above != null) above
+        // Durante la guida interattiva la stanza nasce staccata, vicino al suo posto: la guida insegna a portarla lì.
+        val guided = if (course.active) Course.place(course.step, _state.value, interior, shape, type.outdoor) else null
+        val points = if (guided != null) guided
+        else if (above != null) above
         else if (plan.rooms.isEmpty() && below != null) {
             val sb = Polygon.bounds(shape)
             shape.map { it - Vec2(sb.minX, sb.minY) + Vec2(below.minX, below.minY) }
@@ -3019,6 +3031,6 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val TRACING_GUIDE_TIPS = listOf(Tip.Tracing, Tip.Underlay, Tip.Calibrate, Tip.WallDraw, Tip.RoomInfo)
 
         /** Funzioni che la guida interattiva fa usare: finita la guida, i loro suggerimenti non servono più. */
-        val COURSE_TIPS = TUTORIAL_TIPS + TRACING_GUIDE_TIPS + Course.ELEMENT_TIPS + Tip.Outdoor
+        val COURSE_TIPS = TUTORIAL_TIPS + TRACING_GUIDE_TIPS + listOf(Tip.Opening, Tip.Outdoor, Tip.Fixture, Tip.Stair)
     }
 }

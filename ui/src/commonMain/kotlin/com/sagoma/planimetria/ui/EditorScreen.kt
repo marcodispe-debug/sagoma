@@ -592,7 +592,7 @@ private fun MeasureCard(m: MeasureState, state: EditorUiState, vm: EditorViewMod
 @Composable
 private fun TipCard(tip: Tip, onDismiss: () -> Unit, onSkipAll: () -> Unit) {
     Surface(
-        Modifier.fillMaxWidth().guide(GuideTarget.Tip),
+        Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.inverseSurface,
         shadowElevation = 6.dp,
@@ -1068,10 +1068,10 @@ private fun Toolbar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (compact) {
-            IconButton(onClick = vm::undo, enabled = canUndo) { Text("↶", style = MaterialTheme.typography.titleLarge) }
+            IconButton(onClick = vm::undo, enabled = canUndo, modifier = Modifier.guide(GuideTarget.Undo)) { Text("↶", style = MaterialTheme.typography.titleLarge) }
             IconButton(onClick = vm::redo, enabled = canRedo) { Text("↷", style = MaterialTheme.typography.titleLarge) }
         } else {
-            TextButton(onClick = vm::undo, enabled = canUndo, contentPadding = pad) { Text(T.editor.annulla, maxLines = 1) }
+            TextButton(onClick = vm::undo, enabled = canUndo, contentPadding = pad, modifier = Modifier.guide(GuideTarget.Undo)) { Text(T.editor.annulla, maxLines = 1) }
             TextButton(onClick = vm::redo, enabled = canRedo, contentPadding = pad) { Text(T.editor.ripeti, maxLines = 1) }
             if (fill) Box(Modifier.weight(1f))
         }

@@ -33,20 +33,26 @@ import kotlin.math.roundToInt
  * «Sopra la tua planimetria»: muri neri, nomi, superfici e misure dei lati come su una piantina, nella lingua scelta. Un pixel è
  * un centimetro. Null se la piattaforma non sa scrivere il PNG.
  */
-internal fun guidePlanPng(platform: Platform, measurer: TextMeasurer): ByteArray? {
+internal fun guidePlanPng(platform: Platform, measurer: TextMeasurer): ByteArray? = platform.encodePng(guidePlanBitmap(measurer))
+
+/**
+ * La piantina della guida come immagine. `overview`: per vederla in piccolo nell'app (il benvenuto della guida, la casa da
+ * disegnare), solo muri e nomi grandi, senza misure.
+ */
+internal fun guidePlanBitmap(measurer: TextMeasurer, overview: Boolean = false): ImageBitmap {
     val w = GuidePlan.width
     val h = GuidePlan.height
     val image = ImageBitmap(w, h)
     CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, Canvas(image), Size(w.toFloat(), h.toFloat())) {
-        drawGuidePlan(measurer)
+        drawGuidePlan(measurer, overview)
     }
-    return platform.encodePng(image)
+    return image
 }
 
 private val Ink = Color(0xFF1E1E1E)
 private val Gray = Color(0xFF5A5A5A)
 
-private fun DrawScope.drawGuidePlan(measurer: TextMeasurer) {
+private fun DrawScope.drawGuidePlan(measurer: TextMeasurer, overview: Boolean) {
     drawRect(Color.White)
     fun px(p: Vec2) = GuidePlan.pixel(p).let { Offset(it.x.toFloat(), it.y.toFloat()) }
     fun path(r: GuidePlan.Room) = Path().apply {
@@ -66,6 +72,19 @@ private fun DrawScope.drawGuidePlan(measurer: TextMeasurer) {
         rotate(degrees, at) { drawText(layout, topLeft = at - Offset(layout.size.width / 2f, layout.size.height / 2f)) }
     }
     val letters = "ABCDEFGHIJKL"
+    if (overview) {
+        for (r in GuidePlan.rooms + GuidePlan.outdoor) {
+            val n = r.points.size
+            val name = r.name().uppercase()
+            // Grande, ma dentro la stanza (i nomi lunghi, come «Camera da letto», un po' più piccoli).
+            val room = r.points.maxOf { it.x } - r.points.minOf { it.x }
+            val big = if (r.smallName) 54 else 66
+            val wide = measurer.measure(name, TextStyle(fontSize = big.sp, fontWeight = FontWeight.Bold)).size.width
+            val size = if (wide > room * 0.9) (big * room * 0.9 / wide).toInt() else big
+            text(name, px(r.label ?: Vec2(r.points.sumOf { it.x } / n, r.points.sumOf { it.y } / n)), size, Ink, bold = true)
+        }
+        return
+    }
     // Nome, superficie e misura di ogni lato (scritta dentro la stanza, vicino al muro).
     for (r in GuidePlan.rooms + GuidePlan.outdoor) {
         val n = r.points.size

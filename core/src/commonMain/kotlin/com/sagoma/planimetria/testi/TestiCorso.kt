@@ -2,7 +2,6 @@ package com.sagoma.planimetria.testi
 
 import com.sagoma.planimetria.editor.CourseStep
 import com.sagoma.planimetria.editor.Lesson
-import com.sagoma.planimetria.editor.Tip
 import com.sagoma.planimetria.editor.WallArrow
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.StairKind
@@ -35,33 +34,38 @@ open class TestiCorso {
         CourseStep.Welcome -> "Benvenuto in Sagoma!"
         CourseStep.ElementsDone -> "Ogni elemento, da «${T.schedaStanza.info}»"
         CourseStep.Finished -> "Hai finito la guida!"
-        CourseStep.Snap -> "Gli agganci 🧲"
+        CourseStep.Snap -> "Spostare le stanze e il gancio 🧲"
         else -> "Fatto!"
     }
 
     open fun testoScheda(s: CourseStep): String = when (s) {
         CourseStep.Welcome ->
-            "Ti guido passo passo a disegnare un piccolo appartamento di prova, in 7 lezioni brevi. Le azioni le fai tu: a ogni " +
-                "passo ti indico con un riquadro arancione cosa cliccare. È un progetto solo per fare pratica: i tuoi progetti non si toccano."
+            "Ti guido passo passo a disegnare la casa di questa piantina inventata, in 7 lezioni brevi: una stanza alla volta, " +
+                "ognuna al suo posto come nel disegno. Le azioni le fai tu: a ogni passo ti indico con un riquadro arancione cosa " +
+                "cliccare. È un progetto solo per fare pratica: i tuoi progetti non si toccano."
         CourseStep.SquareDone ->
-            "Lo studio quadrato di 3,30 × 3,30 m è sulla pianta, con le misure scritte sui muri. Nella prossima lezione aggiungi una stanza rettangolare."
-        CourseStep.RectDone ->
-            "Ecco la camera di 4,00 × 3,30 m, accanto allo studio. Nella prossima lezione: un soggiorno a forma di L."
+            "Lo studio è pronto: 3,30 × 3,30 m. Hai visto tutti i modi per cambiare forma a una stanza: le misure quando la crei, i " +
+                "muri e gli angoli trascinati, le misure esatte in «${T.schedaStanza.info}» e «${e.annulla}» per tornare indietro. " +
+                "Nella prossima lezione: il soggiorno a L, sopra lo studio."
+        CourseStep.Snap ->
+            "Il soggiorno è nato staccato dalla casa. Una stanza si sposta trascinandola dal suo nome. Il gancio «${T.schedaStanza.si}», " +
+                "qui in basso, è acceso: quando porti la stanza vicino a un'altra, scatta e si attacca da sola, angolo su angolo, e il " +
+                "muro tra le due diventa uno solo. Spento («${T.schedaStanza.no}»), la stanza resta esattamente dove la lasci. Lascialo acceso."
         CourseStep.LDone ->
-            "Ecco il soggiorno a L: 6,40 × 2,70 m, con il pezzo di 3,00 × 1,90 m che sporge. Nella prossima lezione: una stanza fuori squadra, dalle misure prese col metro."
+            "Il soggiorno è attaccato sopra lo studio, come sulla piantina: il muro tra le due stanze ora è uno solo, in comune. " +
+                "Nella prossima lezione: la camera, un rettangolo a destra del soggiorno."
+        CourseStep.RectDone ->
+            "La camera è attaccata a destra del soggiorno. Nella prossima lezione: il bagno, sotto la camera, che è un po' fuori squadra."
         CourseStep.SurveyDone ->
-            "Ecco il bagno con la sua forma vera, un po' fuori squadra come nella realtà. Nella prossima lezione disegni una stanza muro per muro."
+            "Il bagno è sotto la camera, con la sua forma vera: un po' fuori squadra, come nella realtà. Nella prossima lezione: " +
+                "l'ingresso, disegnato muro per muro nello spazio che resta tra le stanze."
         CourseStep.WallsDone ->
-            "Ecco l'ingresso, con la forma che hai disegnato muro per muro. Hai visto i modi per creare una stanza. Nella prossima lezione: porte, finestre, balcone, impianti e scale."
+            "L'ingresso chiude la casa: ora tutte le stanze sono collegate, come sulla piantina. Hai visto tutti i modi per creare " +
+                "una stanza. Nella prossima lezione: porte, finestre, balcone, impianti e scale."
         CourseStep.ElementsDone ->
             "Nella scheda «${T.schedaStanza.info}» cambi misure, tipo e tutto il resto dell'elemento selezionato; si chiude con «▼». " +
                 "Per ogni elemento: lo scegli da «${e.elementiArchitettonici}», lo metti sulla pianta e il resto da «${T.schedaStanza.info}». " +
                 "Ultima lezione: costruire le stanze sopra la tua planimetria. Serve un progetto nuovo: lo preparo io."
-        CourseStep.Snap ->
-            "Il pulsante «${T.schedaStanza.si}», qui in basso, accende e spegne gli agganci. Accesi, quando trascini una stanza vicino a " +
-                "un'altra si attacca da sola, angolo su angolo o muro su muro, e il muro diventa in comune. Anche i muri e gli angoli che " +
-                "trascini scattano sui muri vicini e sulle direzioni dritte. Spenti («${T.schedaStanza.no}»), tutto resta esattamente dove " +
-                "lo lasci. Lasciali accesi: ora servono per attaccare il soggiorno alla camera."
         CourseStep.Finished ->
             "Ecco camera, bagno e soggiorno sopra la piantina, con le misure giuste. Con le altre stanze fai lo stesso: una forma per " +
                 "partire, attaccata alle stanze accanto, poi muri e angoli al loro posto e le misure esatte in «${T.schedaStanza.info}». " +
@@ -102,24 +106,59 @@ open class TestiCorso {
     open val poiStanza: String get() = "Clicca «${e.stanza}»: torna la finestra con le forme."
     open fun tipo(nome: String): String = "Scegli il tipo: «$nome»."
     open val creaStanza: String get() = "Clicca «${cr.creaStanza}»."
+    open fun selezionaStanza(nome: String): String = "Clicca sul nome della stanza, «$nome», per selezionarla."
+    open val accendiAgganci: String get() = "Il gancio è spento: clicca «${T.schedaStanza.no}», qui in basso, per accenderlo."
+    open val schedaMisure: String get() = "Apri la scheda «${T.schedaStanza.misure}»."
+
+    /** Da che parte è un muro: in alto, a destra, in basso, a sinistra (verso dove guarda, fuori dalla stanza). */
+    open fun latoMuro(a: WallArrow): String = when (a) {
+        WallArrow.UP -> "in alto"
+        WallArrow.RIGHT -> "di destra"
+        WallArrow.DOWN -> "in basso"
+        WallArrow.LEFT -> "di sinistra"
+    }
 
     // ---------- Quadrato ----------
 
     open val scegliQuadrato: String get() =
-        "Quando apri un progetto nuovo, Sagoma ti chiede subito che forma ha la prima stanza. Clicca «${cr.quadrato}»: è la forma per una stanza con i quattro lati uguali."
+        "Quando apri un progetto nuovo, Sagoma ti chiede subito che forma ha la prima stanza. Cominciamo dallo studio, la stanza " +
+            "quadrata in basso a sinistra nella piantina: clicca «${cr.quadrato}»."
     open val tipoStudio: String get() = "In «${cr.tipoStanza}» clicca «${com.sagoma.planimetria.model.RoomType.Studio.label}»: Sagoma dà alla stanza il nome e il colore giusti."
-    open fun scriviLato(v: Int): String = "Nel campo «${cr.lato2}» scrivi $v. È la misura interna, da muro a muro: quella che prendi col metro."
+    open fun scriviLato(v: Int): String =
+        "Nel campo «${cr.lato2}» scrivi $v: è il primo modo di dare la forma a una stanza, con le misure quando la crei. È la misura " +
+            "interna, da muro a muro: quella che prendi col metro."
     open val soffittoECrea: String get() = "L'altezza del soffitto è già scritta (270 cm): cambiala solo se la tua stanza è diversa. Ora clicca «${cr.creaStanza}»."
+    open val trascinaMuroStudio: String get() =
+        "Secondo modo: trascinare i muri. Premi sul muro di destra dello studio, tieni premuto e trascinalo fino al segno: la stanza " +
+            "si allarga e la misura scritta sul muro cambia mentre lo sposti."
+    open fun misureEsatte(v: Int): String =
+        "Trascinando a mano la misura non viene mai precisa. Terzo modo, il più preciso: scrivere le misure. Riportiamo lo studio a " +
+            "$v cm: clicca «${T.schedaStanza.info}»."
+    open fun muroStudio(numero: Int, lato: WallArrow, v: Int): String =
+        "Sotto «${T.schedaStanza.muri}» c'è la lunghezza interna di ogni muro. In «${T.schedaStanza.muro(numero)}», il muro " +
+            "${latoMuro(lato)}, scrivi $v e premi Invio: il muro dopo si sposta e lo studio torna quadrato."
+    open val trascinaAngoloStudio: String get() =
+        "Quarto modo, per le stanze con gli angoli storti: trascinare un angolo. Premi sul pallino blu dell'angolo in basso a destra e " +
+            "trascinalo fino al segno."
+    open val annullaAngolo: String get() =
+        "Lo studio però ha gli angoli dritti. Quando sbagli, «${e.annulla}», qui in alto, toglie l'ultima modifica: cliccalo."
 
     // ---------- Rettangolo ----------
 
-    open val scegliRettangolo: String get() = "Clicca «${cr.rettangolo}»: due lati lunghi e due corti."
+    open val scegliRettangolo: String get() = "Clicca «${cr.rettangolo}»: è la camera, a destra del soggiorno, con due lati lunghi e due corti."
+    open val spostaCameraAccanto: String get() =
+        "Anche la camera nasce staccata: trascinala dal nome fino al contorno tratteggiato, a destra del soggiorno. Con il gancio " +
+            "acceso si attacca da sola."
     open fun scriviLarghezza(v: Int): String = "«${T.comuni.larghezza}» è il lato orizzontale della stanza, da sinistra a destra sulla pianta: scrivi $v."
     open fun scriviProfondita(v: Int): String = "«${T.comuni.profondita}» è l'altro lato, dall'alto in basso: scrivi $v."
 
     // ---------- Forma a L ----------
 
-    open val scegliL: String get() = "Clicca «${T.comuni.formaL}»: molti soggiorni e molte cucine sono fatti così, con un angolo che rientra."
+    open val scegliL: String get() =
+        "Clicca «${T.comuni.formaL}»: è il soggiorno, che nella piantina sta sopra lo studio. Molti soggiorni e cucine sono fatti " +
+            "così, con un angolo che rientra."
+    open val spostaSoggiorno: String get() =
+        "Trascina il soggiorno dal suo nome fino al contorno tratteggiato, sopra lo studio: quando ci arriva vicino scatta e si attacca da solo."
     open fun sporgeInBassoADestra(lato: String): String =
         "Sagoma chiede da che parte sporge il pezzo in più della L. Guarda la stanza dall'alto, come su una piantina: qui sporge «$lato»."
     open fun larghezzaPrincipale(v: Int): String = "La L è fatta di due pezzi. Il pezzo principale è il rettangolo più grande: in «${cr.larghezzaPrincipale}» scrivi $v."
@@ -130,7 +169,9 @@ open class TestiCorso {
 
     // ---------- Da rilievo ----------
 
-    open val scegliRilievo: String get() = "Clicca «${cr.rilievo}»: serve quando gli angoli non sono proprio a 90° o la stanza ha 5 lati o più."
+    open val scegliRilievo: String get() =
+        "Clicca «${cr.rilievo}»: il bagno, sotto la camera, ha gli angoli non proprio a 90°. Serve anche per le stanze con 5 lati o più."
+    open val spostaBagnoSotto: String get() = "Trascina il bagno dal nome fino al contorno tratteggiato, sotto la camera: si attacca da solo."
     open val tipoBagnoQuattroLati: String get() =
         "Scegli il tipo «${com.sagoma.planimetria.model.RoomType.Bagno.label}». In «${cr.numeroLati}» c'è già 4, come i lati del nostro bagno."
     open fun primoLatoRilievo(v: Int): String =
@@ -144,8 +185,11 @@ open class TestiCorso {
     // ---------- Muro per muro ----------
 
     open val scegliMuroPerMuro: String get() =
-        "Clicca «${cr.muroMuro}»: disegni la stanza un muro alla volta, con le misure interne, come in un programma da architetto."
-    open val primoAngolo: String get() = "Clicca sulla pianta dove comincia il primo muro, per esempio qui: è il primo angolo della stanza, all'interno."
+        "Clicca «${cr.muroMuro}»: l'ingresso riempie lo spazio che resta tra le stanze, e lo disegni un muro alla volta, con le " +
+            "misure interne, come in un programma da architetto."
+    open val primoAngolo: String get() =
+        "Clicca qui, sotto la camera e accanto al soggiorno: è il primo angolo dell'ingresso, all'interno. Sagoma lo aggancia " +
+            "all'angolo giusto tra i muri."
     open fun verso(n: Int, a: WallArrow): String = "Muro $n: scegli il verso, «${freccia(a)}»."
     open fun lunghezzaMuro(v: Int): String = "In «${T.muroPerMuro.lunghezzaCm}» scrivi $v."
     open val aggiungi: String get() = "Clicca «${T.muroPerMuro.aggiungi}»."
@@ -177,7 +221,8 @@ open class TestiCorso {
     open val balconeRettangolo: String get() = "La forma si sceglie come per le stanze: il balcone è un «${cr.rettangolo}»."
     open fun balconeLarghezza(v: Int): String = "Larghezza $v…"
     open fun balconeProfondita(v: Int): String = "…e profondità $v."
-    open val balconeCrea: String get() = "Clicca «${cr.crea}»: il balcone nasce già appoggiato alla casa (poi lo puoi spostare trascinandolo dal nome)."
+    open val balconeCrea: String get() =
+        "Clicca «${cr.crea}»: il balcone nasce al suo posto, sopra la camera, già appoggiato alla casa (poi lo puoi spostare trascinandolo dal nome)."
     open val portaFinestraElementi: String get() = "Per uscire sul balcone serve una porta-finestra: «${e.elementiArchitettonici}»…"
     open val porteFinestre: String get() = "…«${e.porteFinestre}»…"
     open val balconeDueAnte: String get() = "…«${e.balcone2Ante}»."
@@ -196,15 +241,6 @@ open class TestiCorso {
     open val chiocciola: String get() = "…e scegli la forma, per esempio «${StairKind.Spiral.label}»."
     open val info: String get() =
         "La scala è selezionata. Per tutte le altre modifiche clicca «${T.schedaStanza.info}»: vale per ogni elemento, porte, finestre, balconi, impianti e scale."
-
-    /** La mini guida che si apre la prima volta che si mette un elemento. */
-    open fun miniGuida(t: Tip): String = when (t) {
-        Tip.Opening -> "La prima volta che metti una porta si apre la sua mini guida: come spostarla lungo il muro, e misure e verso da «${T.schedaStanza.info}». Leggila e clicca «${e.hoCapito}»."
-        Tip.Outdoor -> "Anche il balcone ha la sua mini guida: al posto dei muri c'è il parapetto, e da «${T.schedaStanza.info}» scegli ringhiera, muretto o vetro. Clicca «${e.hoCapito}»."
-        Tip.Fixture -> "Mini guida degli impianti: quelli a muro scorrono lungo il muro, e da «${T.schedaStanza.info}» scegli altezza da terra e misure. Clicca «${e.hoCapito}»."
-        Tip.Stair -> "Quando metti una scala si apre la sua mini guida, che spiega tutto: come spostarla e accostarla a un muro, e cosa cambi da «${T.schedaStanza.info}». Leggila e clicca «${e.hoCapito}»."
-        else -> "Si è aperta una mini guida: leggila e clicca «${e.hoCapito}»."
-    }
 
     // ---------- Sopra la tua planimetria ----------
 
@@ -248,15 +284,13 @@ open class TestiCorso {
         "Scegli il tipo «${com.sagoma.planimetria.model.RoomType.Soggiorno.label}». Le misure lasciale come sono: il soggiorno lo metti a misura dopo, sopra la piantina."
     open val attaccaSoggiorno: String get() =
         "Sulla piantina il soggiorno è attaccato alla camera, alla sua destra. Trascina il soggiorno dal nome fino al contorno tratteggiato: " +
-            "quando il suo angolo in alto a destra arriva vicino a quello della camera, scatta e si attacca da solo."
+            "con il gancio «${T.schedaStanza.si}» acceso, quando il suo angolo in alto a destra arriva vicino a quello della camera, scatta e si attacca da solo."
     open fun muroSullaPiantina(muro: Int): String =
         "Ora porta i muri sopra la piantina. Premi sul muro ${nomeMuroSoggiorno(muro)} del soggiorno e trascinalo fino al segno, sul muro " +
             "disegnato. Basta più o meno: la misura esatta la scrivi dopo."
-    open val selezionaSoggiorno: String get() = "Clicca sul nome del soggiorno per selezionarlo."
     open val misureInInfo: String get() =
         "Spostando i muri a mano le misure non vengono mai proprio uguali a quelle della piantina: guarda quelle scritte sui muri del " +
             "soggiorno. Quelle giuste si scrivono in «${T.schedaStanza.info}»: cliccalo."
-    open val schedaMisure: String get() = "Apri la scheda «${T.schedaStanza.misure}»."
     open fun muroInfo(numero: Int, muro: Int, v: Int, first: Boolean): String =
         (if (first) "Sotto «${T.schedaStanza.muri}» c'è la lunghezza interna di ogni muro. " else "") +
             "In «${T.schedaStanza.muro(numero)}», il muro ${nomeMuroSoggiorno(muro)}, scrivi $v e premi Invio."

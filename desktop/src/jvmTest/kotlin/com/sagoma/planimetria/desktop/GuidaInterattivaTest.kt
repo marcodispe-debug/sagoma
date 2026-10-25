@@ -18,6 +18,7 @@ import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.GuideField
 import com.sagoma.planimetria.editor.GuidePlan
 import com.sagoma.planimetria.editor.GuideTarget
+import com.sagoma.planimetria.editor.Lesson
 import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.interiorLengths
@@ -179,7 +180,6 @@ class GuidaInterattivaTest {
                         val hint = hints.first { it.target.toString() == target }
                         when {
                             hint.expect != null -> type(active, hint.expect!!, enter = (hint.target as? GuideTarget.Field)?.field == GuideField.WallInfo)
-                            hint.target == GuideTarget.Tip -> click(center(button(T.editor.hoCapito)))
                             else -> click(center(active))
                         }
                         continue
@@ -197,10 +197,14 @@ class GuidaInterattivaTest {
                     val goal = hint.marks.firstOrNull { it.goal }?.points
                     when {
                         goal == null -> click(screen(start))
-                        // Una stanza da portare sulla piantina o accanto a un'altra: il primo angolo interno sul primo del contorno.
+                        // Una stanza da portare al suo posto: l'angolo in alto a sinistra sul contorno tratteggiato, più o meno
+                        // (qualche centimetro di scarto, come a mano: gli agganci la attaccano al centimetro).
                         goal.size >= 3 -> {
                             val room = vm.state.value.plan.rooms.minBy { Polygon.labelPoint(it.points).distanceTo(start) }
-                            drag(screen(start), screen(start + (goal[0] - room.interior()[0])))
+                            val g = Polygon.bounds(goal)
+                            val r = Polygon.bounds(room.interior())
+                            val near = if (step.lesson == Lesson.OverPlan) Vec2.Zero else Vec2(6.0, -5.0)
+                            drag(screen(start), screen(start + Vec2(g.minX - r.minX, g.minY - r.minY) + near))
                         }
                         // Un muro portato a mano sulla piantina: mai esatto, qualche centimetro in più (le misure giuste poi in Info).
                         step == CourseStep.LivingWalls -> drag(screen(start), screen(goal[0] + (goal[0] - start).normalized() * 4.0))
@@ -209,15 +213,20 @@ class GuidaInterattivaTest {
                 }
                 assertTrue(done, "la guida non è arrivata alla fine; passi visti: $steps")
             }
-            // Tutti i passi, nessuno saltato, e la casa di prova come la piantina della guida.
+            // Tutti i passi, nessuno saltato, e la casa di prova come la piantina della guida: ogni stanza al suo posto.
             assertEquals(CourseStep.entries.toList(), steps.distinct())
             assertTrue(TipStore.COURSE_DONE in tips.seen(), "finita, la guida non riparte al prossimo avvio")
             assertEquals(2, repo.list().count { it.name.startsWith(T.corso.progettoProva) }, "due progetti di prova, nessun progetto dell'utente toccato")
             val first = repo.planStore(repo.list().first { it.name == T.corso.progettoProva }.id).load()!!.floor.plan
             assertEquals(
-                listOf(RoomType.Studio, RoomType.Camera, RoomType.Soggiorno, RoomType.Bagno, RoomType.Corridoio, RoomType.Balcone),
+                listOf(RoomType.Studio, RoomType.Soggiorno, RoomType.Camera, RoomType.Bagno, RoomType.Corridoio, RoomType.Balcone),
                 first.rooms.map { it.type },
             )
+            val offset = first.rooms.first().interior().minBy { it.x + it.y } - GuidePlan.studio.points[0]
+            for (r in GuidePlan.rooms) {
+                val inner = first.rooms.single { it.type == r.type }.interior()
+                assertTrue(r.points.all { p -> inner.any { it.distanceTo(p + offset) < 3.0 } }, "${r.type} non è dove sta sulla piantina")
+            }
             // Sopra la piantina: camera, bagno e soggiorno a L con le misure esatte scritte in Info.
             val second = repo.planStore(repo.list().first { it.name == T.corso.progettoProvaPlanimetria }.id).load()!!.floor.plan
             assertEquals(listOf(RoomType.Camera, RoomType.Bagno, RoomType.Soggiorno), second.rooms.map { it.type })

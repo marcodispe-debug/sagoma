@@ -2,23 +2,34 @@ package com.sagoma.planimetria.ui
 
 import com.sagoma.planimetria.editor.Course
 import com.sagoma.planimetria.editor.CourseStep
+import com.sagoma.planimetria.editor.DragTarget
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.GuidePlan
+import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.editor.Lesson
 import com.sagoma.planimetria.editor.TipStore
+import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.ShapeDimensions
+import com.sagoma.planimetria.geometry.interior
+import com.sagoma.planimetria.geometry.interiorLengths
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.LOrientation
+import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomShape
 import com.sagoma.planimetria.model.RoomType
+import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.persistence.PlanStore
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** Guida interattiva nell'editor: ogni azione fa avanzare il passo giusto, e la guida non lascia parlare il tutorial di una volta. */
+/**
+ * Guida interattiva nell'editor: ogni azione fa avanzare il passo giusto, le stanze nascono staccate e, portate al loro posto con
+ * gli agganci, fanno la casa della piantina; la guida non lascia parlare né il tutorial di una volta né le mini guide.
+ */
 class CourseTest {
     private class MemoryTips(var seen: Set<String> = emptySet()) : TipStore {
         override fun seen() = seen
@@ -31,15 +42,46 @@ class CourseTest {
     }, tips).also { it.setViewport(1400f, 750f, 24f) }
 
     private val EditorViewModel.step get() = state.value.course?.step
+    private fun EditorViewModel.room(type: RoomType): Room = state.value.plan.rooms.last { it.type == type }
 
-    private fun EditorViewModel.square(type: RoomType, side: Int) {
-        startAddRoom()
-        pickShape(RoomShape.Square)
-        createRoom(type, ShapeDimensions(side.toDouble(), side.toDouble()), 270.0)
+    /** Di quanto la casa di prova è spostata rispetto alla piantina (lo studio fa da riferimento). */
+    private fun EditorViewModel.offset(): Vec2 = room(RoomType.Studio).interior().minBy { it.x + it.y } - GuidePlan.studio.points[0]
+
+    /** La stanza `target` della piantina è al suo posto nella casa di prova, al centimetro (il bagno entro 3 cm). */
+    private fun EditorViewModel.inPlace(target: GuidePlan.Room): Boolean {
+        val inner = room(target.type).interior()
+        val o = offset()
+        return inner.size == target.points.size && target.points.all { p -> inner.any { it.distanceTo(p + o) < 3.0 } }
+    }
+
+    /** Trascina la stanza dal nome di `delta`, come col mouse. */
+    private fun EditorViewModel.moveRoom(type: RoomType, delta: Vec2) {
+        val r = room(type)
+        val at = Polygon.labelPoint(r.points)
+        beginDrag(DragTarget.RoomLabel(r.id), at)
+        dragBy(DragTarget.RoomLabel(r.id), delta)
+        endDrag()
+    }
+
+    /** La stanza `type` portata (più o meno: entro 10 cm) dove va: gli agganci la attaccano al centimetro. */
+    private fun EditorViewModel.bringToPlace(type: RoomType, target: GuidePlan.Room) {
+        val goal = Polygon.bounds(target.points.map { it + offset() })
+        val now = Polygon.bounds(room(type).interior())
+        moveRoom(type, Vec2(goal.minX - now.minX + 8.0, goal.minY - now.minY - 6.0))
+    }
+
+    /** Distanza minima tra la stanza `type` e le altre (in mezzeria). */
+    private fun EditorViewModel.gap(type: RoomType): Double {
+        val r = room(type)
+        val b = Polygon.bounds(r.points)
+        return state.value.plan.rooms.filter { it.id != r.id }.minOf { o ->
+            val ob = Polygon.bounds(o.points)
+            maxOf(ob.minX - b.maxX, b.minX - ob.maxX, ob.minY - b.maxY, b.minY - ob.maxY)
+        }
     }
 
     @Test
-    fun `le prime lezioni avanzano con le azioni e il tutorial di una volta non parte`() {
+    fun `lo studio insegna i modi per cambiare forma e le stanze nuove si portano al loro posto`() {
         val tips = MemoryTips()
         val vm = emptyProject(tips)
         vm.startCourse(Lesson.Square)
@@ -52,42 +94,101 @@ class CourseTest {
         vm.pickShape(RoomShape.Square)
         assertEquals(CourseStep.SquareMeasures, vm.step)
         vm.createRoom(RoomType.Studio, ShapeDimensions(330.0, 330.0), 270.0)
-        assertEquals(CourseStep.SquareDone, vm.step)
+        assertEquals(CourseStep.SquareWall, vm.step)
         assertNull(vm.state.value.tutorial, "la prima stanza non fa partire il tutorial di una volta")
-        assertNull(vm.state.value.tip, "durante la guida niente suggerimenti")
+        assertNull(vm.state.value.tip, "durante la guida niente mini guide")
 
+        // Il muro di destra trascinato: lo studio si allarga, e la guida chiede la misura esatta in Info.
+        val studio = vm.room(RoomType.Studio)
+        val right = studio.points.indices.maxBy { (studio.points[it] + studio.points[(it + 1) % 4]).x }
+        vm.beginDrag(DragTarget.Wall(studio.id, right), (studio.points[right] + studio.points[(right + 1) % 4]) / 2.0)
+        vm.dragBy(DragTarget.Wall(studio.id, right), Vec2(68.0, 0.0))
+        vm.endDrag()
+        assertEquals(CourseStep.SquareInfo, vm.step)
+        assertEquals(GuideTarget.Info, Course.hints(CourseStep.SquareInfo, vm.state.value).first().target, "lo studio è già selezionato: si parte da Info")
+        vm.setWallLength(studio.id, 0, 330.0)
+        assertEquals(CourseStep.SquareCorner, vm.step)
+        assertFalse(vm.state.value.infoExpanded)
+
+        // L'angolo storto, poi Annulla: lo studio torna dritto. Annullare un'altra modifica non basta.
+        val corner = vm.room(RoomType.Studio).points.indices.maxBy { vm.room(RoomType.Studio).points[it].let { p -> p.x + p.y } }
+        vm.beginDrag(DragTarget.Corner(studio.id, corner), vm.room(RoomType.Studio).points[corner])
+        vm.dragBy(DragTarget.Corner(studio.id, corner), Vec2(60.0, 36.0))
+        vm.endDrag()
+        assertEquals(CourseStep.SquareUndo, vm.step)
+        vm.undo()
+        assertEquals(CourseStep.SquareDone, vm.step)
+        assertTrue(vm.room(RoomType.Studio).interiorLengths().all { kotlin.math.abs(it - 330.0) < 0.5 })
+
+        // Il soggiorno nasce staccato, sopra il suo posto; trascinato vicino, gli agganci lo attaccano sopra lo studio.
+        vm.nextCourseStep()
+        assertEquals(CourseStep.LPick, vm.step)
+        vm.startAddRoom()
+        vm.pickShape(RoomShape.L)
+        vm.pickLOrientation(LOrientation.BottomRight)
+        val sg = GuidePlan.soggiorno
+        vm.createRoom(RoomType.Soggiorno, ShapeDimensions(640.0, 270.0, GuidePlan.side(sg, 2).toDouble(), GuidePlan.side(sg, 3).toDouble()), 270.0)
+        assertEquals(CourseStep.Snap, vm.step)
+        assertTrue(vm.gap(RoomType.Soggiorno) > 90.0, "il soggiorno non nasce attaccato: ${vm.gap(RoomType.Soggiorno)}")
+        assertFalse(vm.inPlace(sg))
+        vm.nextCourseStep()
+        assertEquals(CourseStep.LMove, vm.step)
+        vm.moveRoom(RoomType.Soggiorno, Vec2(400.0, 0.0))
+        assertEquals(CourseStep.LMove, vm.step, "spostato altrove non basta")
+        vm.bringToPlace(RoomType.Soggiorno, sg)
+        assertTrue(vm.inPlace(sg))
+        assertEquals(CourseStep.LDone, vm.step)
+
+        // La camera a destra del soggiorno, il bagno sotto la camera.
         vm.nextCourseStep()
         vm.startAddRoom()
         vm.pickShape(RoomShape.Rectangle)
         vm.createRoom(RoomType.Camera, ShapeDimensions(400.0, 330.0), 270.0)
+        assertEquals(CourseStep.RectMove, vm.step)
+        assertTrue(vm.gap(RoomType.Camera) > 90.0)
+        vm.bringToPlace(RoomType.Camera, GuidePlan.camera)
         assertEquals(CourseStep.RectDone, vm.step)
-        vm.nextCourseStep()
-        vm.startAddRoom()
-        vm.pickShape(RoomShape.L)
-        assertEquals(CourseStep.LSide, vm.step)
-        vm.pickLOrientation(LOrientation.BottomRight)
-        vm.createRoom(RoomType.Soggiorno, ShapeDimensions(640.0, 270.0, 300.0, 190.0), 270.0)
-        assertEquals(CourseStep.LDone, vm.step)
         vm.nextCourseStep()
         vm.startAddRoom()
         vm.pickSurvey()
         assertEquals(CourseStep.SurveyMeasures, vm.step)
-        vm.square(RoomType.Bagno, 260) // anche una stanza fatta in un altro modo chiude il passo delle misure
+        vm.createRoomFromSurvey(RoomType.Bagno, com.sagoma.planimetria.geometry.Survey.solve(GuidePlan.bathSides.map { it.toDouble() }, listOf(GuidePlan.bathDiagonal.toDouble()))!!, 270.0, Room.WALL_THICKNESS)
+        assertEquals(CourseStep.SurveyMove, vm.step)
+        assertTrue(vm.gap(RoomType.Bagno) > 90.0)
+        vm.bringToPlace(RoomType.Bagno, GuidePlan.bagno)
         assertEquals(CourseStep.SurveyDone, vm.step)
+
+        // L'ingresso comincia nell'angolo tra soggiorno, camera e bagno, e coi muri della piantina chiude la casa.
         vm.nextCourseStep()
         vm.startAddRoom()
         vm.startDrawWalls()
         assertEquals(CourseStep.WallsFirst, vm.step)
-
-        // L'inquadratura del primo muro lascia vedere tutto l'ingresso da disegnare, sotto le stanze già fatte.
-        val hint = Course.hints(CourseStep.WallsFirst, vm.state.value).single()
-        val start = hint.marks.single().points.single()
-        val cam = vm.state.value.camera
-        val bottom = cam.toScreenY(start.y + GuidePlan.side(GuidePlan.ingresso, 1))
-        assertTrue(bottom < 750f, "fondo dell'ingresso a $bottom px, fuori dalla vista")
+        val start = Course.hints(CourseStep.WallsFirst, vm.state.value).single().marks.single().points.single()
+        assertTrue(start.distanceTo(GuidePlan.ingresso.points[0] + vm.offset()) < 0.01)
+        vm.drawWallsTap(start + Vec2(2.0, -3.0))
+        assertEquals(CourseStep.WallsTyped, vm.step)
+        for ((arrow, length) in GuidePlan.entranceWalls) vm.drawWallsTyped(length.toDouble(), arrow)
+        assertEquals(CourseStep.WallsClose, vm.step)
+        vm.drawWallsClose()
+        vm.finishDrawWalls(RoomType.Corridoio, 270.0, Room.WALL_THICKNESS)
+        assertEquals(CourseStep.WallsDone, vm.step)
+        for (r in listOf(GuidePlan.studio, GuidePlan.soggiorno, GuidePlan.camera, GuidePlan.bagno, GuidePlan.ingresso)) {
+            assertTrue(vm.inPlace(r), "${r.type} non è al suo posto")
+        }
+        assertNull(vm.state.value.tip, "durante la guida niente mini guide")
 
         vm.finishCourse(completed = false)
         assertNull(vm.step)
         assertTrue(TipStore.COURSE_DONE in tips.seen && TipStore.TUTORIAL_DONE in tips.seen)
+    }
+
+    @Test
+    fun `una lezione scelta dal benvenuto riparte dalle stanze delle lezioni prima, al loro posto`() {
+        val vm = emptyProject()
+        vm.startCourse(Lesson.Survey)
+        assertEquals(CourseStep.SurveyPick, vm.step)
+        assertEquals(listOf(RoomType.Studio, RoomType.Soggiorno, RoomType.Camera), vm.state.value.plan.rooms.map { it.type })
+        for (r in listOf(GuidePlan.studio, GuidePlan.soggiorno, GuidePlan.camera)) assertTrue(vm.inPlace(r))
+        assertNull(vm.state.value.creation)
     }
 }

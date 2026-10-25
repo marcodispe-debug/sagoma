@@ -7,6 +7,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -58,6 +61,7 @@ import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -249,8 +253,9 @@ internal fun CourseGuide(
         entry != null && inPopup -> union(g.entries.values.filter { it.root === entry.root && !it.bounds.isEmpty }.map { it.bounds })?.inflate(dialogPad)
         // Sulla finestra principale: il comando e quelli segnati lì vicino (per esempio tutta la scheda dei muri).
         entry != null -> nearby(entry.bounds, g.entries.values.filter { !g.inPopup(it) && !it.bounds.isEmpty }.map { it.bounds }, near)
+        // I segni con il loro cerchio intorno (circa 24 dp).
         canvas != null && marks.isNotEmpty() -> (marks.flatMap { it.points } + hint?.keepVisible.orEmpty()).map(::screen).let { pts ->
-            Rect(pts.minOf { it.x }, pts.minOf { it.y }, pts.maxOf { it.x }, pts.maxOf { it.y })
+            Rect(pts.minOf { it.x }, pts.minOf { it.y }, pts.maxOf { it.x }, pts.maxOf { it.y }).inflate(dialogPad)
         }
         // Una scheda senza comando con una finestra aperta (il benvenuto sopra la scelta della forma): non coprire la finestra.
         popupOpen -> union(g.entries.values.filter { g.inPopup(it) && !it.bounds.isEmpty }.map { it.bounds })?.inflate(dialogPad)
@@ -351,7 +356,8 @@ private fun CourseBubble(course: CourseUi, hint: GuideHint?, vm: EditorViewModel
     val step = course.step
     val onColor = MaterialTheme.colorScheme.onSurface
     Surface(
-        Modifier.widthIn(max = 360.dp),
+        // Il benvenuto è più largo, per la piantina della casa da disegnare.
+        Modifier.widthIn(max = if (step == CourseStep.Welcome) 420.dp else 360.dp),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(2.dp, GuideOrange),
@@ -377,8 +383,16 @@ private fun CourseBubble(course: CourseUi, hint: GuideHint?, vm: EditorViewModel
             course.detail?.let {
                 Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
             }
-            // Al benvenuto si può andare dritti a una lezione (la 7 si fa nel suo progetto).
+            // Al benvenuto la piantina della casa da disegnare, e si può andare dritti a una lezione (la 7 si fa nel suo progetto).
             if (step == CourseStep.Welcome) {
+                val measurer = rememberTextMeasurer()
+                val plan = remember(measurer) { guidePlanBitmap(measurer, overview = true) }
+                Image(
+                    plan,
+                    contentDescription = null,
+                    modifier = Modifier.padding(top = 8.dp, end = 6.dp).fillMaxWidth().height(240.dp)
+                        .border(1.dp, onColor.copy(alpha = 0.2f), RoundedCornerShape(8.dp)).padding(4.dp),
+                )
                 Text(c.vaiAllaLezione, style = MaterialTheme.typography.labelMedium, color = onColor.copy(alpha = 0.7f), modifier = Modifier.padding(top = 8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     for (l in Lesson.entries.drop(1)) OutlinedButton(

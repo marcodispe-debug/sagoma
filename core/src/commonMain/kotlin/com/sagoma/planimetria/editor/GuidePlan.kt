@@ -9,8 +9,8 @@ import kotlin.math.roundToInt
 /**
  * Piantina inventata della guida interattiva (nessuna casa vera): «Bilocale con soggiorno a L», con le stanze che le lezioni
  * fanno disegnare e le loro misure. L'immagine la disegna l'app (vedi `GuidePlanImage` nell'interfaccia), così è nella lingua
- * scelta. Un pixel dell'immagine è un centimetro; le coordinate sono sul filo interno dei muri (interni 10 cm, esterni 30 cm;
- * tra camera e bagno 15 cm, come quello che sagoma mette da sola).
+ * scelta. Un pixel dell'immagine è un centimetro; le coordinate sono sul filo interno dei muri (interni 15 cm, come quelli che
+ * Sagoma mette da sola, così le stanze attaccate con gli agganci vengono proprio come nel disegno; esterni 30 cm).
  */
 object GuidePlan {
     /**
@@ -19,6 +19,7 @@ object GuidePlan {
      */
     class Room(
         val name: () -> String,
+        val type: RoomType,
         val points: List<Vec2>,
         val label: Vec2? = null,
         val smallName: Boolean = false,
@@ -28,31 +29,32 @@ object GuidePlan {
     private fun p(x: Int, y: Int) = Vec2(x.toDouble(), y.toDouble())
     private fun rect(x0: Int, y0: Int, x1: Int, y1: Int) = listOf(p(x0, y0), p(x1, y0), p(x1, y1), p(x0, y1))
 
-    /** Soggiorno a L (640 × 270 con 300 × 190 che sporge in basso a destra): «A L». */
-    val soggiorno = Room({ RoomType.Soggiorno.label }, listOf(p(0, 0), p(640, 0), p(640, 460), p(340, 460), p(340, 270), p(0, 270)), label = p(330, 150))
+    /** Soggiorno a L (640 × 270 con 295 × 190 che sporge in basso a destra): «A L», attaccato sopra lo studio. */
+    val soggiorno = Room({ RoomType.Soggiorno.label }, RoomType.Soggiorno, listOf(p(0, 0), p(640, 0), p(640, 460), p(345, 460), p(345, 270), p(0, 270)), label = p(330, 150))
 
-    /** Studio 330 × 330: «Quadrato». */
-    val studio = Room({ RoomType.Studio.label }, rect(0, 280, 330, 610))
+    /** Studio 330 × 330: «Quadrato», la prima stanza. */
+    val studio = Room({ RoomType.Studio.label }, RoomType.Studio, rect(0, 285, 330, 615))
 
-    /** Camera 400 × 330: «Rettangolo», e nella lezione sulla planimetria un quadrato da allungare. */
-    val camera = Room({ RoomType.Camera.label }, rect(650, 0, 1050, 330))
+    /** Camera 400 × 330: «Rettangolo», a destra del soggiorno; nella lezione sulla planimetria un quadrato da allungare. */
+    val camera = Room({ RoomType.Camera.label }, RoomType.Camera, rect(655, 0, 1055, 330))
 
-    /** Ingresso a sei muri: «Muro per muro». */
+    /** Ingresso a sei muri, nello spazio che resta tra le altre stanze: «Muro per muro». */
     val ingresso = Room(
         { com.sagoma.planimetria.testi.T.corso.ingresso },
-        listOf(p(650, 340), p(780, 340), p(780, 610), p(340, 610), p(340, 470), p(650, 470)),
-        label = p(465, 545),
+        RoomType.Corridoio,
+        listOf(p(655, 345), p(780, 345), p(780, 615), p(345, 615), p(345, 475), p(655, 475)),
+        label = p(560, 545),
         smallName = true,
     )
 
-    /** Bagno fuori squadra, con i lati AB, BC, CD, DA e la diagonale AC: «Da rilievo». */
-    val bagno = Room({ RoomType.Bagno.label }, listOf(p(790, 345), p(1050, 345), p(1050, 565), p(790, 615)), label = p(900, 475), letters = true)
+    /** Bagno fuori squadra sotto la camera, con i lati AB, BC, CD, DA e la diagonale AC: «Da rilievo». */
+    val bagno = Room({ RoomType.Bagno.label }, RoomType.Bagno, listOf(p(795, 345), p(1055, 345), p(1055, 565), p(795, 615)), label = p(905, 475), letters = true)
 
     val rooms = listOf(soggiorno, studio, camera, ingresso, bagno)
 
     /** Spazi all'aperto: `points` è la parte calpestabile; i parapetti (10 cm) girano tutto intorno. */
-    val terrazza = Room({ RoomType.Terrazza.label }, rect(-20, 640, 620, 880), smallName = true)
-    val balcone = Room({ RoomType.Balcone.label }, rect(700, -170, 1000, -30), smallName = true)
+    val terrazza = Room({ RoomType.Terrazza.label }, RoomType.Terrazza, rect(-20, 645, 620, 885), smallName = true)
+    val balcone = Room({ RoomType.Balcone.label }, RoomType.Balcone, rect(705, -170, 1005, -30), smallName = true)
     val outdoor = listOf(terrazza, balcone)
 
     /** Lunghezza del lato `i` (da angolo ad angolo, al centimetro). */

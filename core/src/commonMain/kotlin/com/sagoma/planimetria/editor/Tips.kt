@@ -122,9 +122,6 @@ class TipQueue(private val store: TipStore) {
         if (current in tips) current = waiting.removeFirstOrNull()
     }
 
-    /** I suggerimenti indicati tornano come mai visti (la guida interattiva li fa leggere). */
-    fun unsee(tips: Collection<Tip>) = write { removeAll(tips.map { it.name }.toSet()) }
-
     /** "Salta tutti": nessun suggerimento comparirà più (finché non si chiede di rivederli). */
     fun skipAll() {
         write { addAll(Tip.entries.map { it.name }) }
