@@ -196,7 +196,9 @@ internal fun CourseGuide(
     fun available(h: GuideHint): Boolean {
         val t = h.target ?: return true
         val e = g.entries[t] ?: return false
-        if (e.bounds.isEmpty || (popupOpen && !g.inPopup(e))) return false
+        // Un campo fuori dalla parte visibile di una lista che scorre ha il riquadro vuoto: va bene lo stesso, quando è il suo
+        // turno la lista scorre fino a lui.
+        if ((e.bounds.isEmpty && t !is GuideTarget.Field) || (popupOpen && !g.inPopup(e))) return false
         return !(e.done || h.expect?.let { sameNumber(e.value, it) } == true)
     }
     val hint = hints.firstOrNull(::available)
@@ -247,7 +249,7 @@ internal fun CourseGuide(
         entry != null && inPopup -> union(g.entries.values.filter { it.root === entry.root && !it.bounds.isEmpty }.map { it.bounds })?.inflate(dialogPad)
         // Sulla finestra principale: il comando e quelli segnati lì vicino (per esempio tutta la scheda dei muri).
         entry != null -> nearby(entry.bounds, g.entries.values.filter { !g.inPopup(it) && !it.bounds.isEmpty }.map { it.bounds }, near)
-        canvas != null && marks.isNotEmpty() -> marks.flatMap { it.points }.map(::screen).let { pts ->
+        canvas != null && marks.isNotEmpty() -> (marks.flatMap { it.points } + hint?.keepVisible.orEmpty()).map(::screen).let { pts ->
             Rect(pts.minOf { it.x }, pts.minOf { it.y }, pts.maxOf { it.x }, pts.maxOf { it.y })
         }
         // Una scheda senza comando con una finestra aperta (il benvenuto sopra la scelta della forma): non coprire la finestra.

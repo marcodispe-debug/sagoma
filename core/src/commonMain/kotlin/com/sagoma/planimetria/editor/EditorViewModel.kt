@@ -292,6 +292,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 s.plan.rooms.firstOrNull()?.let { r -> _state.update { it.copy(focusedRoomId = r.id) } }
             }
             CourseStep.CalibA -> if (s.plan.underlay != null && s.underlayTool !is UnderlayTool.Calibrate) recalibrateUnderlay()
+            // Il soggiorno selezionato: la striscia in basso (con 🧲 e Info) è la sua.
+            CourseStep.Snap, CourseStep.LivingInfo -> s.plan.rooms.lastOrNull { it.type == RoomType.Soggiorno }?.let { r ->
+                if (s.focusedRoomId != r.id || s.selection != null) _state.update { it.copy(focusedRoomId = r.id, selection = null) }
+            }
+            // Ultima scheda: la tendina Info delle misure si chiude, così si vede la casa finita.
+            CourseStep.Finished -> if (s.infoExpanded) _state.update { it.copy(infoExpanded = false) }
             else -> Unit
         }
         courseFocus = Course.focus(step, _state.value)?.also { b ->

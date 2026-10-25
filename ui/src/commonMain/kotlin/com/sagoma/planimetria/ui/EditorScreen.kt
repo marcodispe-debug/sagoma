@@ -437,8 +437,8 @@ fun EditorScreen(
                     expanded = expanded,
                     onToggle = vm::toggleInfo,
                     onExpandedChange = vm::setInfoExpanded,
-                    modifier = panelModifier,
-                    actions = { SnapToggle(state.snapOn, vm::setSnapOn, compact = true) },
+                    modifier = panelModifier.guide(GuideTarget.InfoPanel),
+                    actions = { SnapToggle(state.snapOn, vm::setSnapOn, compact = true, guide = GuideTarget.Snap) },
                 ) { contentModifier ->
                     if (sel != null) SelectionPanel(sel, state.plan, vm, contentModifier, state.levelHeight, state.planBelow, state.levelHeightBelow)
                     else if (focusedRoom != null) RoomInfo(focusedRoom, state.plan, vm, contentModifier)

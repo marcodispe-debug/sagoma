@@ -2,6 +2,8 @@ package com.sagoma.planimetria.editor
 
 import com.sagoma.planimetria.geometry.Bounds
 import com.sagoma.planimetria.geometry.Polygon
+import com.sagoma.planimetria.geometry.interior
+import com.sagoma.planimetria.geometry.interiorLengths
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.LOrientation
 import com.sagoma.planimetria.model.Room
@@ -68,6 +70,13 @@ enum class CourseStep(val lesson: Lesson, val action: Boolean = true) {
     MoveBath(Lesson.OverPlan),
     CornerC(Lesson.OverPlan),
     CornerD(Lesson.OverPlan),
+    LivingPick(Lesson.OverPlan),
+    LivingSide(Lesson.OverPlan),
+    LivingMeasures(Lesson.OverPlan),
+    Snap(Lesson.OverPlan, action = false),
+    Attach(Lesson.OverPlan),
+    LivingWalls(Lesson.OverPlan),
+    LivingInfo(Lesson.OverPlan),
     Finished(Lesson.OverPlan, action = false),
     ;
 
@@ -80,7 +89,7 @@ enum class CourseStep(val lesson: Lesson, val action: Boolean = true) {
 enum class ShapeChoice { Square, Rectangle, L, Survey, Walls, Trace }
 
 /** Campi in cui la guida fa scrivere una misura. `index` in [GuideTarget.Field] dice quale lato o diagonale. */
-enum class GuideField { Side, Width, Depth, MainWidth, MainDepth, ProtrusionWidth, ProtrusionDepth, SurveySide, Diagonal, WallLength, Calibration }
+enum class GuideField { Side, Width, Depth, MainWidth, MainDepth, ProtrusionWidth, ProtrusionDepth, SurveySide, Diagonal, WallLength, Calibration, WallInfo }
 
 /** Voci del menu «Elementi architettonici» che la guida indica. */
 enum class GuideMenu { Room, Doors, Door, Windows, Window, FrenchWindows, FrenchWindow, Systems, Radiator, Lights, Chandelier, Stairs, Spiral, Outdoor, Balcony }
@@ -110,6 +119,12 @@ sealed interface GuideTarget {
     data object PlanPanel : GuideTarget
     /** «Info» sulla striscia in basso: fatto quando la tendina è aperta. */
     data object Info : GuideTarget
+    /** La scheda «Misure» nella tendina Info di una stanza: fatto quando è aperta. */
+    data object MeasuresTab : GuideTarget
+    /** «🧲 Sì / No» sulla striscia in basso: agganci accesi o spenti. */
+    data object Snap : GuideTarget
+    /** Tutta la tendina Info: mai da cliccare, serve solo a tenere il fumetto fuori dalla tendina aperta. */
+    data object InfoPanel : GuideTarget
     /** La scheda di una mini guida (suggerimento) aperta. */
     data object Tip : GuideTarget
 }
@@ -122,13 +137,15 @@ data class PlanMark(val points: List<Vec2>, val goal: Boolean = false)
 
 /**
  * Un'indicazione della guida: cosa dire e cosa evidenziare, un comando ([target]) o dei segni sulla pianta ([marks]). Per un
- * campo, `expect` è la misura da scrivere: finché il campo non la contiene l'indicazione resta sul campo.
+ * campo, `expect` è la misura da scrivere: finché il campo non la contiene l'indicazione resta sul campo. [keepVisible]: punti
+ * della pianta (in cm) che il fumetto non deve coprire, oltre ai segni.
  */
 data class GuideHint(
     val text: String,
     val target: GuideTarget? = null,
     val expect: String? = null,
     val marks: List<PlanMark> = emptyList(),
+    val keepVisible: List<Vec2> = emptyList(),
 )
 
 /** Cosa mostra il fumetto della guida: lezione, passo dentro la lezione e avanzamento dentro il passo. */
@@ -166,13 +183,15 @@ class Course {
     fun on(e: TutorialEvent, s: EditorUiState): Boolean {
         val done = when (step) {
             CourseStep.SquarePick, CourseStep.PlanShape -> e == TutorialEvent.ShapePicked(ShapeChoice.Square)
+            CourseStep.LivingPick -> e == TutorialEvent.ShapePicked(ShapeChoice.L)
+            CourseStep.LivingSide -> e == TutorialEvent.LSidePicked
             CourseStep.RectPick -> e == TutorialEvent.ShapePicked(ShapeChoice.Rectangle)
             CourseStep.LPick -> e == TutorialEvent.ShapePicked(ShapeChoice.L)
             CourseStep.LSide -> e == TutorialEvent.LSidePicked
             CourseStep.SurveyPick -> e == TutorialEvent.ShapePicked(ShapeChoice.Survey)
             CourseStep.WallsPick -> e == TutorialEvent.ShapePicked(ShapeChoice.Walls)
             CourseStep.SquareMeasures, CourseStep.RectMeasures, CourseStep.LMeasures, CourseStep.SurveyMeasures,
-            CourseStep.WallsClose, CourseStep.PlanMeasures, CourseStep.Bath -> e == TutorialEvent.RoomAdded
+            CourseStep.WallsClose, CourseStep.PlanMeasures, CourseStep.Bath, CourseStep.LivingMeasures -> e == TutorialEvent.RoomAdded
             CourseStep.Balcony -> e == TutorialEvent.RoomAdded && s.plan.rooms.lastOrNull()?.type?.outdoor == true
             CourseStep.WallsFirst -> e is TutorialEvent.CornersPlaced && e.count >= 1
             CourseStep.WallsTyped -> e is TutorialEvent.CornersPlaced && e.count >= GuidePlan.entranceWalls.size + 1
@@ -192,6 +211,10 @@ class Course {
             CourseStep.MoveRoom, CourseStep.MoveBath -> e == TutorialEvent.RoomMoved
             CourseStep.Stretch -> e == TutorialEvent.WallDragged
             CourseStep.CornerC, CourseStep.CornerD -> e == TutorialEvent.CornerDragged
+            // Soggiorno: attaccato alla camera, muri più o meno sulla piantina, poi le misure esatte scritte in Info.
+            CourseStep.Attach -> e == TutorialEvent.RoomMoved && CourseHints(s).attached()
+            CourseStep.LivingWalls -> (e == TutorialEvent.WallDragged || e == TutorialEvent.CornerDragged) && CourseHints(s).livingWalls()?.isEmpty() == true
+            CourseStep.LivingInfo -> CourseHints(s).livingExact()
             else -> false
         }
         if (done) next()
@@ -376,6 +399,20 @@ private class CourseHints(private val s: EditorUiState) {
         CourseStep.MoveBath -> moveOnto(room(RoomType.Bagno) ?: plan.rooms.lastOrNull(), GuidePlan.bagno, c.spostaBagno)
         CourseStep.CornerC -> cornerHints(2, c.angoloC)
         CourseStep.CornerD -> cornerHints(3, c.angoloD)
+
+        CourseStep.LivingPick -> pick(ShapeChoice.L, c.soggiornoL, c.soggiornoElementi)
+        CourseStep.LivingSide -> listOf(hint(GuideTarget.LSide(LOrientation.BottomRight), c.sporgeInBassoADestra(LOrientation.BottomRight.label)))
+        CourseStep.LivingMeasures -> measures(ShapeChoice.L, c.soggiornoL) {
+            listOf(hint(GuideTarget.Type(RoomType.Soggiorno), c.soggiornoMisureDopo), hint(GuideTarget.Create, c.creaStanza))
+        }
+        CourseStep.Snap -> listOf(hint(GuideTarget.Snap, c.testoScheda(CourseStep.Snap)))
+        CourseStep.Attach -> attachHints()
+        // Il fumetto non copre il soggiorno né quello disegnato: si vede dove arrivano i muri.
+        CourseStep.LivingWalls -> livingWalls().orEmpty().take(1).map { (j, from, to) ->
+            mark(c.muroSullaPiantina(j), PlanMark(listOf(from)), PlanMark(listOf(to), goal = true))
+                .copy(keepVisible = living()?.points.orEmpty() + GuidePlan.soggiorno.points.mapNotNull(::onPlan))
+        }
+        CourseStep.LivingInfo -> livingInfoHints()
     }
 
     /**
@@ -513,6 +550,85 @@ private class CourseHints(private val s: EditorUiState) {
         return listOf(mark(text, PlanMark(listOf(r.points[i])), PlanMark(listOf(goal), goal = true)))
     }
 
+    // ---------- Il soggiorno a L sopra la piantina ----------
+
+    private fun living(): Room? = room(RoomType.Soggiorno)
+
+    /**
+     * Di quanti angoli è spostata la numerazione del soggiorno rispetto a quello disegnato: il muro `j` disegnato è il muro
+     * `(j + k) % n` della stanza. Null se la stanza ha un'altra forma (per esempio la L sporge da un'altra parte).
+     */
+    private fun turn(r: Room): Int? {
+        val drawn = GuidePlan.soggiorno.points
+        val n = drawn.size
+        if (r.points.size != n) return null
+        fun dir(p: List<Vec2>, i: Int) = (p[(i + 1) % n] - p[i]).normalized()
+        return (0 until n).firstOrNull { k -> (0 until n).all { j -> (dir(r.points, (j + k) % n) dot dir(drawn, j)) > 0.98 } }
+    }
+
+    /** Angolo in alto a sinistra della camera e in alto a destra del soggiorno (in mezzeria): attaccati, coincidono. */
+    private fun cameraCorner(): Vec2? = indoor(RoomType.Camera, 0)?.points?.minByOrNull { it.x + it.y }
+    private fun topRight(r: Room): Vec2 = r.points.maxBy { it.x - it.y }
+
+    fun attached(): Boolean {
+        val r = living() ?: return false
+        val corner = cameraCorner() ?: return false
+        return topRight(r).distanceTo(corner) < 1.0
+    }
+
+    /** Il soggiorno dal nome fino a dove si attacca alla camera (contorno interno, tratteggiato). */
+    private fun attachHints(): List<GuideHint> {
+        val r = living() ?: return emptyList()
+        val corner = cameraCorner() ?: return emptyList()
+        val d = corner - topRight(r)
+        return listOf(mark(c.attaccaSoggiorno, PlanMark(listOf(Polygon.labelPoint(r.points))), PlanMark(r.interior().map { it + d }, goal = true)))
+    }
+
+    /**
+     * Muri del soggiorno ancora lontani dalla piantina, nell'ordine in cui farli trascinare: muro disegnato, punto da cui
+     * trascinare e dove arriva. La piantina si misura dall'angolo in alto a destra, quello attaccato alla camera, così i muri
+     * in comune restano dove sono. Null se il soggiorno non c'è o ha un'altra forma.
+     */
+    fun livingWalls(): List<Triple<Int, Vec2, Vec2>>? {
+        val r = living() ?: return null
+        val k = turn(r) ?: return null
+        val drawn = GuidePlan.soggiorno.points.map { onPlan(it) ?: return null }
+        val n = drawn.size
+        val inner = r.interior()
+        val shift = inner[(1 + k) % n] - drawn[1]
+        return LIVING_WALL_ORDER.mapNotNull { j ->
+            val i = (j + k) % n
+            val out = r.outwardOf(i)
+            val off = ((inner[i] + inner[(i + 1) % n]) / 2.0 - (drawn[j] + shift)) dot out
+            if (kotlin.math.abs(off) <= LIVING_FIT_CM) null
+            else along(r, i, 0.3).let { from -> Triple(j, from, from - out * off) }
+        }
+    }
+
+    /**
+     * Lunghezze da scrivere in Info, nell'ordine giusto (ognuna sposta solo il muro dopo, mai quelli attaccati alla camera):
+     * muro della stanza, muro disegnato e misura. Gli altri due lati vengono giusti da soli.
+     */
+    private fun livingLengths(): List<Triple<Int, Int, Int>>? {
+        val r = living() ?: return null
+        val k = turn(r) ?: return null
+        return (1..4).map { j -> Triple((j + k) % r.points.size, j, GuidePlan.side(GuidePlan.soggiorno, j)) }
+    }
+
+    fun livingExact(): Boolean {
+        val r = living() ?: return false
+        val lengths = r.interiorLengths()
+        return livingLengths()?.all { (i, _, v) -> kotlin.math.abs(lengths[i] - v) < 0.5 } == true
+    }
+
+    private fun livingInfoHints(): List<GuideHint> {
+        val r = living() ?: return emptyList()
+        if (s.focusedRoomId != r.id || s.selection != null) return listOf(mark(c.selezionaSoggiorno, PlanMark(listOf(Polygon.labelPoint(r.points)))))
+        val lengths = livingLengths() ?: return emptyList()
+        return listOf(hint(GuideTarget.Info, c.misureInInfo), hint(GuideTarget.MeasuresTab, c.schedaMisure)) +
+            lengths.mapIndexed { n, (i, j, v) -> field(GuideField.WallInfo, v, c.muroInfo(i + 1, j, v, first = n == 0), index = i) }
+    }
+
     // ---------- Cosa inquadrare ----------
 
     fun focus(step: CourseStep): Bounds? = when (step) {
@@ -525,6 +641,9 @@ private class CourseHints(private val s: EditorUiState) {
         CourseStep.MoveRoom, CourseStep.Stretch -> withGoal(indoor(RoomType.Camera, 0), GuidePlan.camera, 60.0)
         CourseStep.MoveBath -> withGoal(room(RoomType.Bagno), GuidePlan.bagno, 60.0)
         CourseStep.CornerC -> withGoal(room(RoomType.Bagno), GuidePlan.bagno, 40.0)
+        CourseStep.Snap, CourseStep.Attach -> listOfNotNull(living(), indoor(RoomType.Camera, 0)).flatMap { it.points }
+            .plus(GuidePlan.soggiorno.points.mapNotNull(::onPlan)).takeIf { it.isNotEmpty() }?.let { pad(Polygon.bounds(it), 60.0) }
+        CourseStep.LivingWalls -> withGoal(living(), GuidePlan.soggiorno, 60.0)
         else -> null
     }
 
@@ -532,10 +651,17 @@ private class CourseHints(private val s: EditorUiState) {
         val goal = target.points.mapNotNull(::onPlan)
         val pts = goal + r?.points.orEmpty()
         if (pts.isEmpty()) return null
-        val b = Polygon.bounds(pts)
-        return Bounds(b.minX - margin, b.minY - margin, b.maxX + margin, b.maxY + margin)
+        return pad(Polygon.bounds(pts), margin)
     }
+
+    private fun pad(b: Bounds, margin: Double) = Bounds(b.minX - margin, b.minY - margin, b.maxX + margin, b.maxY + margin)
 }
+
+/** Muri del soggiorno da trascinare, nell'ordine (numerazione di quello disegnato): sinistra, in basso, poi il resto. */
+private val LIVING_WALL_ORDER = listOf(5, 4, 2, 3, 1, 0)
+
+/** Quanto un muro può restare lontano da quello disegnato quando lo si trascina a mano: la misura esatta si scrive dopo. */
+private const val LIVING_FIT_CM = 10.0
 
 private fun projectOnSegment(p: Vec2, a: Vec2, b: Vec2): Vec2 {
     val ab = b - a
