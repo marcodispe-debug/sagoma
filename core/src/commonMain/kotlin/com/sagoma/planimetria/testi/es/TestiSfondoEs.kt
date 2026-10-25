@@ -12,7 +12,7 @@ object TestiSfondoEs : TestiSfondo() {
     override val caricaPiantinaHaiImmagine: String get() = "Carga el plano que tengas como imagen (foto, escaneo, JPG o PNG). Si es un PDF, guarda su página como imagen."
     override val tocchiDueEstremiMisura: String get() =
         "Luego toca los dos extremos de una medida que conozcas y escribe cuánto mide: el plano queda a escala. " +
-            "Por último calca las paredes con «Pared a pared», esquina tras esquina."
+            "Por último elige cómo dibujar las habitaciones sobre el plano: con una forma o con «Pared a pared», esquina tras esquina."
     override val mettiSottoDisegnoPianta: String get() =
         "Pon un plano existente debajo del dibujo (foto, escaneo o PDF del catastro o del proyecto), " +
             "calíbralo con una medida que conozcas y calca las habitaciones encima."

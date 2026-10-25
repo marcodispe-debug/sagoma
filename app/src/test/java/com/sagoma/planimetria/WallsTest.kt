@@ -78,4 +78,31 @@ class WallsTest {
         assertEquals(2, Survey.diagonalsNeeded(5))
         assertTrue(Survey.solve(listOf(300.0, 200.0, 150.0, 200.0, 300.0), listOf(360.0, 330.0)) != null)
     }
+
+    @Test
+    fun `rilievo - con la diagonale BD la stanza esce uguale e dritta`() {
+        val vera = listOf(Vec2(0.0, 0.0), Vec2(240.0, 0.0), Vec2(280.0, 225.0), Vec2(0.0, 205.0))
+        val lati = vera.indices.map { vera[it].distanceTo(vera[(it + 1) % 4]) }
+        val conAC = Survey.solve(lati, listOf(vera[0].distanceTo(vera[2])))!!
+        val conBD = Survey.solve(lati, listOf(vera[1].distanceTo(vera[3])), from = 1)!!
+        for (i in 0 until 4) {
+            assertEquals(vera[i].x, conAC[i].x, 1e-6)
+            assertEquals(vera[i].y, conAC[i].y, 1e-6)
+            assertEquals(vera[i].x, conBD[i].x, 1e-6)
+            assertEquals(vera[i].y, conBD[i].y, 1e-6)
+        }
+    }
+
+    @Test
+    fun `rilievo - pentagono con le diagonali dall'angolo C`() {
+        val vera = listOf(Vec2(0.0, 0.0), Vec2(300.0, 0.0), Vec2(300.0, 200.0), Vec2(150.0, 280.0), Vec2(0.0, 200.0))
+        val lati = vera.indices.map { vera[it].distanceTo(vera[(it + 1) % 5]) }
+        // Da C: prima CE, poi CA (come i campi della finestra).
+        val pts = Survey.solve(lati, listOf(vera[2].distanceTo(vera[4]), vera[2].distanceTo(vera[0])), from = 2)!!
+        for (i in 0 until 5) {
+            assertEquals(vera[i].x, pts[i].x, 1e-6)
+            assertEquals(vera[i].y, pts[i].y, 1e-6)
+        }
+        assertNull(Survey.solve(lati, listOf(100.0, 100.0), from = 5))
+    }
 }

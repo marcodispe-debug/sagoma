@@ -16,7 +16,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
-/** "Ricalca una piantina" al posto della prima stanza: sfondo, taratura, poi muro per muro; senza sfondo si torna alla scelta. */
+/** "Ricalca una piantina" al posto della prima stanza: sfondo, taratura, poi di nuovo la scelta della stanza, sopra la piantina. */
 class TracingStartTest {
     private fun emptyProject() = EditorViewModel(object : PlanStore {
         override fun load() = Building.single(FloorPlan(), autoLevel = true)
@@ -30,7 +30,7 @@ class TracingStartTest {
     }
 
     @Test
-    fun `progetto nuovo, ricalco, taratura e poi muro per muro`() {
+    fun `progetto nuovo, ricalco, taratura e poi si sceglie come disegnare la stanza`() {
         val vm = emptyProject()
         assertEquals(CreationStep.PickShape(cancellable = false), vm.state.value.creation)
         vm.startTracing()
@@ -45,8 +45,8 @@ class TracingStartTest {
         val s = vm.state.value
         assertNull(s.tracing)
         assertNull(s.underlayTool)
-        assertNull(s.creation)
-        assertNotNull(s.wallDraw, "dopo la taratura si ripassano i muri")
+        assertEquals(CreationStep.PickShape(cancellable = false), s.creation, "dopo la taratura si sceglie il metodo")
+        assertNull(s.wallDraw, "«Muro per muro» non parte da solo")
         assertEquals(1.8, s.plan.underlay!!.cmPerPx, 1e-9)
     }
 
@@ -62,14 +62,15 @@ class TracingStartTest {
     }
 
     @Test
-    fun `Fine senza tarare passa comunque al disegno dei muri`() {
+    fun `Fine senza tarare torna alla scelta della stanza, con la piantina`() {
         val vm = emptyProject()
         vm.startTracing()
         vm.loadPlan()
         vm.setUnderlayTool(null)
         val s = vm.state.value
         assertNull(s.tracing)
-        assertNotNull(s.wallDraw)
+        assertEquals(CreationStep.PickShape(cancellable = false), s.creation)
+        assertNull(s.wallDraw)
         assertNotNull(s.plan.underlay)
     }
 
@@ -103,7 +104,8 @@ class TracingStartTest {
         val vm = emptyProject()
         vm.startTracing()
         vm.setUnderlay(Underlay("sfondo.jpg", 1000, 600, cmPerPx = 1.2))
-        vm.setUnderlayTool(null) // "Fine": si passa a muro per muro
+        vm.setUnderlayTool(null) // "Fine": si torna alla scelta, e si sceglie «Muro per muro»
+        vm.startDrawWalls()
         vm.drawWallsTap(Vec2(0.0, 0.0))
         vm.drawWallsTap(Vec2(300.0, 0.0))
         val before = vm.state.value.wallDraw!!.points.size

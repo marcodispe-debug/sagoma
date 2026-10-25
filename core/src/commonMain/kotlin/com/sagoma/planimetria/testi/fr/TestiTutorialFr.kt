@@ -22,6 +22,7 @@ object TestiTutorialFr : TestiTutorial() {
         TutorialStep.TraceCalibA -> "Étalonnage : le premier point"
         TutorialStep.TraceCalibB -> "Étalonnage : le second point"
         TutorialStep.TraceCalibValue -> "Étalonnage : la longueur réelle"
+        TutorialStep.TracePick -> "Choisir comment dessiner"
         TutorialStep.TraceFirstCorner -> "Le premier angle"
         TutorialStep.TraceCorners -> "Les autres angles"
         TutorialStep.TraceClose -> "Fermer la pièce"
@@ -61,6 +62,10 @@ object TestiTutorialFr : TestiTutorial() {
         TutorialStep.TraceCalibValue ->
             "Dans la case en haut, tapez la longueur réelle de la mesure entre A et B (en cm, comme sur le plan) et confirmez : " +
                 "le plan est maintenant à l'échelle."
+        TutorialStep.TracePick ->
+            "L'étalonnage est enregistré : le plan est à l'échelle. Choisissez maintenant comment dessiner les pièces : avec une " +
+                "forme (Carré, Rectangle…) vous la créez avec ses mesures et la faites glisser par son nom sur le plan ; avec « Mur " +
+                "par mur » vous cliquez ses angles sur le plan, l'un après l'autre."
         TutorialStep.TraceFirstCorner ->
             "Vous êtes maintenant dans « Mur par mur ». Choisissez une pièce et cliquez sur l'un de ses angles, du côté intérieur du mur : " +
                 "l'épaisseur du mur s'ajoute toute seule vers l'extérieur."
@@ -74,7 +79,7 @@ object TestiTutorialFr : TestiTutorial() {
         TutorialStep.TraceFade ->
             "Fermez le panneau et appuyez sur « ◐ Plan et dessin » en bas à droite : éclaircissez le plan ou masquez-le " +
                 "pour bien voir le dessin."
-        TutorialStep.TraceNext -> "Appuyez sur « 🧱 Éléments de construction » → Pièce, choisissez « Mur par mur » et décalquez la pièce suivante, angle par angle comme avant."
+        TutorialStep.TraceNext -> "Appuyez sur « 🧱 Éléments de construction » → Pièce et décalquez la pièce suivante, avec une forme ou avec « Mur par mur », comme avant."
         TutorialStep.TraceDone ->
             "Continuez ainsi avec les autres pièces. Si l'aimantation déplace vos points, désactivez-la avec 🧲. " +
                 "Avec « Terminé », si vous ne l'avez pas encore fait, le tutoriel des autres fonctions commence (portes, équipements, mesures)."

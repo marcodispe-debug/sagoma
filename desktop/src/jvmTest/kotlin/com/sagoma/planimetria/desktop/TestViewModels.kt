@@ -23,12 +23,12 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
  * `LifecycleRegistry.calculateTargetState`) e la prova fallisce per caso, ora l'una ora l'altra.
  */
 @Composable
-internal fun freshViewModels(content: @Composable () -> Unit) {
+internal fun freshViewModels(onStore: (ViewModelStore) -> Unit = {}, content: @Composable () -> Unit) {
     val owner = remember {
         object : ViewModelStoreOwner, LifecycleOwner {
             override val viewModelStore = ViewModelStore()
             override val lifecycle: Lifecycle = ResumedLifecycle(this)
-        }
+        }.also { onStore(it.viewModelStore) }
     }
     CompositionLocalProvider(LocalViewModelStoreOwner provides owner, LocalLifecycleOwner provides owner) { content() }
 }

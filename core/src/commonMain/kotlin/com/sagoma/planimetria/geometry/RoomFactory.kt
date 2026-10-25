@@ -106,22 +106,28 @@ object RoomFactory {
     }
 
     /**
-     * Balcone o terrazza: appoggiato al muro verticale più lungo sul lato destro della casa, con il lato lungo
-     * lungo il muro (così nasce già con il muro in comune). Se non c'è un muro adatto, accanto alla casa.
+     * Balcone o terrazza: nasce girato come sono scritte le misure (larghezza = lato orizzontale, come per le stanze) e con
+     * il lato lungo contro la casa, così ha già il muro in comune. Più largo che profondo: sotto la casa, contro il muro
+     * orizzontale più lungo in basso; altrimenti contro il muro verticale più lungo sul lato destro. Se non c'è un muro
+     * adatto, accanto alla casa.
      */
     fun placeAgainstHouse(plan: FloorPlan, shape: List<Vec2>): List<Vec2> {
         if (plan.rooms.isEmpty()) return placeBeside(plan, shape)
+        val walls = plan.rooms.flatMap { r -> (0 until r.wallCount).map { r.wallStart(it) to r.wallEnd(it) } }
+        val sb = Polygon.bounds(shape)
+        if (sb.width > sb.height) {
+            // In basso: anche quando l'angolo più basso è di un muro storto, conta il muro orizzontale lì vicino.
+            val maxY = plan.rooms.maxOf { r -> r.points.maxOf { it.y } }
+            val wall = walls.filter { (a, b) -> kotlin.math.abs(a.y - b.y) < 0.5 && a.y > maxY - 60.0 }
+                .maxByOrNull { (a, b) -> kotlin.math.abs(a.x - b.x) }
+                ?: return placeBeside(plan, shape)
+            return shape.map { it - Vec2(sb.minX, sb.minY) + Vec2(minOf(wall.first.x, wall.second.x), wall.first.y) }
+        }
         val maxX = plan.rooms.maxOf { r -> r.points.maxOf { it.x } }
-        val wall = plan.rooms.flatMap { r -> (0 until r.wallCount).map { r.wallStart(it) to r.wallEnd(it) } }
-            .filter { (a, b) -> kotlin.math.abs(a.x - b.x) < 0.5 && kotlin.math.abs(a.x - maxX) < 1.0 }
+        val wall = walls.filter { (a, b) -> kotlin.math.abs(a.x - b.x) < 0.5 && kotlin.math.abs(a.x - maxX) < 1.0 }
             .maxByOrNull { (a, b) -> kotlin.math.abs(a.y - b.y) }
             ?: return placeBeside(plan, shape)
-        // Lato lungo in verticale, lungo il muro.
-        val sb0 = Polygon.bounds(shape)
-        val turned = if (sb0.width > sb0.height) normalizeWinding(shape.map { Vec2(it.y, it.x) }) else shape
-        val sb = Polygon.bounds(turned)
-        val top = minOf(wall.first.y, wall.second.y)
-        return turned.map { it - Vec2(sb.minX, sb.minY) + Vec2(maxX, top) }
+        return shape.map { it - Vec2(sb.minX, sb.minY) + Vec2(maxX, minOf(wall.first.y, wall.second.y)) }
     }
 
     /** Nome automatico per tipo: "Cucina", poi "Cucina 2", "Cucina 3"... (§3). */

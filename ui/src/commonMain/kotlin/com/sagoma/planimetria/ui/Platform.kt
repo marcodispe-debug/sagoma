@@ -58,6 +58,9 @@ interface Platform {
     /** Barra di stato nascosta (schermo basso, in orizzontale); non fa nulla dove non c'è. */
     fun setStatusBarHidden(hidden: Boolean) {}
 
+    /** Guida interattiva (le lezioni sul progetto di prova): pensata per mouse e schermo largo, c'è solo sul computer. */
+    val interactiveGuide: Boolean get() = false
+
     /** Messaggio breve in basso. */
     fun toast(message: String)
 

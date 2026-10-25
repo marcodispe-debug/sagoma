@@ -1,5 +1,8 @@
 package com.sagoma.planimetria.ui
 
+import androidx.compose.ui.text.rememberTextMeasurer
+import com.sagoma.planimetria.editor.GuideField
+import com.sagoma.planimetria.editor.GuideTarget
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.Lesson
 import com.sagoma.planimetria.editor.UnderlayTool
 import com.sagoma.planimetria.editor.TutorialStep
 import com.sagoma.planimetria.geometry.Openings
@@ -196,6 +200,15 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
                         OutlinedButton(enabled = !loading, onClick = { platform.openFile(listOf("application/pdf")) { import(it, pdf = true) } }) { Text(T.sfondo.pdf) }
                     }
                 }
+                // Guida interattiva, lezione sulla planimetria: la piantina inventata della guida al posto di un file.
+                if (state.course?.step?.lesson == Lesson.OverPlan && u == null) {
+                    val measurer = rememberTextMeasurer()
+                    Button(
+                        enabled = !loading,
+                        onClick = { guidePlanPng(platform, measurer)?.let { import(PickedFile("piantina-guida.png", it), pdf = false) } },
+                        modifier = Modifier.guide(GuideTarget.GuidePlanImage),
+                    ) { Text(T.corso.usaPiantina) }
+                }
                 if (reader != null) {
                     Text(T.sfondo.leggiDaSolaSpiega, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     // Si sceglie un'immagine o un PDF (dove si può): il tipo si capisce dal file.
@@ -302,11 +315,18 @@ fun UnderlayToolCard(state: EditorUiState, vm: EditorViewModel) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(T.sfondo.quantoLungaDavveroDistanza)
-                    SelectAllTextField(value = text, onValueChange = { text = it }, label = "cm", modifier = Modifier.fillMaxWidth())
+                    SelectAllTextField(
+                        value = text, onValueChange = { text = it }, label = "cm",
+                        modifier = Modifier.fillMaxWidth().guide(GuideTarget.Field(GuideField.Calibration), value = text),
+                    )
                     Text(T.sfondo.piuMisuraLungaPiu, style = MaterialTheme.typography.bodySmall)
                 }
             },
-            confirmButton = { TextButton(enabled = cm != null && cm > 0, onClick = { vm.calibrateUnderlay(cm!!) }) { Text(T.sfondo.tara2) } },
+            confirmButton = {
+                TextButton(enabled = cm != null && cm > 0, onClick = { vm.calibrateUnderlay(cm!!) }, modifier = Modifier.guide(GuideTarget.Calibrate)) {
+                    Text(T.sfondo.tara2)
+                }
+            },
             dismissButton = { TextButton(onClick = { vm.setUnderlayTool(UnderlayTool.Calibrate()) }) { Text(T.sfondo.rifai) } },
         )
     }

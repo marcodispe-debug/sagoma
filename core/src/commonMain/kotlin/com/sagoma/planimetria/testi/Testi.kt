@@ -45,6 +45,7 @@ open class Lingua(val codice: String) {
     open val editor: TestiEditor = TestiEditor()
     open val pannelli: TestiPannelli = TestiPannelli()
     open val foto: TestiFoto = TestiFoto()
+    open val corso: TestiCorso = TestiCorso()
 }
 
 object Italiano : Lingua("it")
@@ -96,6 +97,7 @@ object T {
     val editor: TestiEditor get() = lingua.editor
     val pannelli: TestiPannelli get() = lingua.pannelli
     val foto: TestiFoto get() = lingua.foto
+    val corso: TestiCorso get() = lingua.corso
 }
 
 /** Titolo e testo di un passo di una guida. */

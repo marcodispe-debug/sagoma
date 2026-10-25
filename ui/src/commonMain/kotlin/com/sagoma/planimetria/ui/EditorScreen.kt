@@ -1,5 +1,7 @@
 package com.sagoma.planimetria.ui
 
+import com.sagoma.planimetria.editor.GuideMenu
+import com.sagoma.planimetria.editor.GuideTarget
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.foundation.background
@@ -34,6 +36,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
+import com.sagoma.planimetria.editor.Lesson
 import com.sagoma.planimetria.model.LengthUnit
 import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
@@ -93,8 +96,18 @@ import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.persistence.RoomPhotoFiles
 import com.sagoma.planimetria.geometry.Distances
 
+/**
+ * L'editor del progetto `projectId`. `courseLesson`: guida interattiva da far partire appena aperto (poi `onCourseStarted`);
+ * `onCourse`: la guida chiede la sua lezione, sul suo progetto di prova (lo sceglie l'app).
+ */
 @Composable
-fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
+fun EditorScreen(
+    projectId: Long,
+    onOpenProjects: () -> Unit,
+    courseLesson: Lesson? = null,
+    onCourseStarted: () -> Unit = {},
+    onCourse: (Lesson) -> Unit = {},
+) {
     val platform = LocalPlatform.current
     val projects = platform.projects
     // Un ViewModel per progetto: passando a un altro progetto si riparte dalla sua casa.
@@ -105,6 +118,12 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         }
     }
     val state by vm.state.collectAsStateWithLifecycle()
+    LaunchedEffect(vm, courseLesson) {
+        courseLesson?.let {
+            vm.startCourse(it)
+            onCourseStarted()
+        }
+    }
     // Nomi automatici di stanze e piani ("Piano terra", "Cucina 2") nella lingua scelta, anche aprendo un progetto fatto in un'altra.
     LaunchedEffect(vm, T.lingua.codice) { vm.translateAutoNames() }
     // Quando l'app va in background si salva subito, senza aspettare il ritardo del salvataggio automatico.
@@ -204,8 +223,10 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         var openGuide by remember { mutableStateOf<Guide?>(null) }
         openGuide?.let { GuideDialog(it, onDismiss = { openGuide = null }, onOpen3d = { vm.setView3d(true) }) }
         // Guide passo passo che si fanno sulla pianta: avanzano da sole a ogni azione.
-        val guidedTours = listOf(
-            MenuEntry(T.editor.tutorialPassoPasso, vm::restartTutorial),
+        val guidedTours = listOfNotNull(
+            // Sul computer, la guida interattiva al posto del vecchio tutorial (che resta sugli altri dispositivi).
+            if (platform.interactiveGuide) MenuEntry(T.corso.voceMenu, { onCourse(Lesson.Square) })
+            else MenuEntry(T.editor.tutorialPassoPasso, vm::restartTutorial),
             MenuEntry(T.editor.ricalcoPassoPasso, {
                 if (state.plan.underlay == null) showBackground = true
                 vm.startTracingGuide()
@@ -266,7 +287,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             val wide = maxWidth >= 600.dp
             if (state.view3d) Plan3DView(state, vm, view3dState, Modifier.fillMaxSize())
             else androidx.compose.runtime.CompositionLocalProvider(LocalProjectId provides projectId) {
-                PlanCanvas(state, vm, Modifier.fillMaxSize(), onPointerDown = { keyFocus.requestFocusSafely() })
+                PlanCanvas(state, vm, Modifier.fillMaxSize().guideCanvas(), onPointerDown = { keyFocus.requestFocusSafely() })
             }
             // Marchio del piano gratuito sopra pianta e 3D (non sui pulsanti), così resta anche in uno screenshot.
             WatermarkOverlay(Modifier.fillMaxSize())
@@ -416,8 +437,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                     expanded = expanded,
                     onToggle = vm::toggleInfo,
                     onExpandedChange = vm::setInfoExpanded,
-                    modifier = panelModifier,
-                    actions = { SnapToggle(state.snapOn, vm::setSnapOn, compact = true) },
+                    modifier = panelModifier.guide(GuideTarget.InfoPanel),
+                    actions = { SnapToggle(state.snapOn, vm::setSnapOn, compact = true, guide = GuideTarget.Snap) },
                 ) { contentModifier ->
                     if (sel != null) SelectionPanel(sel, state.plan, vm, contentModifier, state.levelHeight, state.planBelow, state.levelHeightBelow)
                     else if (focusedRoom != null) RoomInfo(focusedRoom, state.plan, vm, contentModifier)
@@ -426,11 +447,12 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
             // Legenda dei simboli: in basso a destra, sopra la striscia Info e a sinistra del pannello laterale.
             var showLegend by remember { mutableStateOf(false) }
             var showVisibility by remember { mutableStateOf(false) }
-            // Piantina appena caricata (o cambiata): i comandi per vederla e regolarla si aprono da soli. Riaprendo il progetto no.
+            // Piantina appena caricata (o cambiata): i comandi per vederla e regolarla si aprono da soli. Riaprendo il progetto no,
+            // e nemmeno durante la guida, che li spiega alla fine della lezione.
             var underlayFile by remember { mutableStateOf(state.plan.underlay?.file) }
             LaunchedEffect(state.plan.underlay?.file) {
                 val file = state.plan.underlay?.file
-                if (file != null && file != underlayFile) showVisibility = true
+                if (file != null && file != underlayFile && state.course == null) showVisibility = true
                 underlayFile = file
             }
             val cornerModifier = Modifier
@@ -452,7 +474,10 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                 else {
                     // Mostra/nascondi e trasparenza di piantina e disegno, regolate dal vivo.
                     if (showVisibility) VisibilityPanel(state, vm, onLoadPlan = { showBackground = true })
-                    LegendButton(if (showVisibility) T.editor.chiudi else T.editor.piantinaDisegno, onClick = { showVisibility = !showVisibility })
+                    LegendButton(
+                        if (showVisibility) T.editor.chiudi else T.editor.piantinaDisegno, onClick = { showVisibility = !showVisibility },
+                        modifier = Modifier.guide(GuideTarget.PlanPanel, done = showVisibility),
+                    )
                     PhaseLegend(state)
                     LegendButton(T.editor.legenda, onClick = { showLegend = true })
                 }
@@ -512,6 +537,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
 
     state.plan.room(state.confirmDeleteRoomId)?.let { DeleteRoomDialog(it, vm) }
     state.confirmMergeWall?.let { MergeWallDialog(it, state.plan, vm) }
+    // Guida interattiva: sopra a tutto, comprese le finestre appena aperte.
+    state.course?.let { CourseGuide(it, state, vm, onLesson = onCourse, onOpenProjects = { vm.saveNow(); onOpenProjects() }) }
 }
 
 /** Scheda dello strumento "Distanza": primo oggetto, secondo oggetto, distanza; "Nuova misura" e "Chiudi". */
@@ -708,12 +735,13 @@ private fun ArchitectureButton(
         if (compact) T.editor.elementi else T.editor.elementiArchitettonici,
         true,
         listOf(
-            MenuEntry(T.editor.stanza, vm::startAddRoom),
+            MenuEntry(T.editor.stanza, vm::startAddRoom, guide = GuideTarget.Menu(GuideMenu.Room)),
             MenuEntry(
                 T.editor.porte,
                 enabled = hasRooms,
+                guide = GuideTarget.Menu(GuideMenu.Doors),
                 children = listOf(
-                    MenuEntry(T.editor.portaAd1Anta, opening(OpeningKind.Door)),
+                    MenuEntry(T.editor.portaAd1Anta, opening(OpeningKind.Door), guide = GuideTarget.Menu(GuideMenu.Door)),
                     MenuEntry(T.editor.porta2Ante, opening(OpeningKind.Door2)),
                     MenuEntry(T.editor.portaScorrevole, opening(OpeningKind.Door, sliding = true)),
                     MenuEntry(
@@ -725,36 +753,44 @@ private fun ArchitectureButton(
             MenuEntry(
                 T.editor.finestre,
                 enabled = hasRooms,
+                guide = GuideTarget.Menu(GuideMenu.Windows),
                 children = listOf(
                     MenuEntry(T.editor.finestraAd1Anta, opening(OpeningKind.Window1)),
-                    MenuEntry(T.editor.finestra2Ante, opening(OpeningKind.Window2)),
+                    MenuEntry(T.editor.finestra2Ante, opening(OpeningKind.Window2), guide = GuideTarget.Menu(GuideMenu.Window)),
                     MenuEntry(T.editor.finestraScorrevole, opening(OpeningKind.Window2, sliding = true)),
                 ),
             ),
             MenuEntry(
                 T.editor.porteFinestre,
                 enabled = hasRooms,
+                guide = GuideTarget.Menu(GuideMenu.FrenchWindows),
                 children = listOf(
                     MenuEntry(T.editor.balconeAd1Anta, opening(OpeningKind.Balcony1)),
-                    MenuEntry(T.editor.balcone2Ante, opening(OpeningKind.Balcony2)),
+                    MenuEntry(T.editor.balcone2Ante, opening(OpeningKind.Balcony2), guide = GuideTarget.Menu(GuideMenu.FrenchWindow)),
                     MenuEntry(T.editor.balconeScorrevole, opening(OpeningKind.Balcony2, sliding = true)),
                 ),
             ),
             MenuEntry(
                 T.editor.impianti,
                 enabled = hasRooms,
+                guide = GuideTarget.Menu(GuideMenu.Systems),
                 children = listOf(
-                    MenuEntry(T.editor.calorifero, fixture(FixtureKind.Radiator)),
+                    MenuEntry(T.editor.calorifero, fixture(FixtureKind.Radiator), guide = GuideTarget.Menu(GuideMenu.Radiator)),
                     MenuEntry(T.editor.presaCorrente, fixture(FixtureKind.Outlet)),
                     MenuEntry(T.editor.interruttore, fixture(FixtureKind.Switch)),
                     MenuEntry(T.editor.puntoAcqua, fixture(FixtureKind.WaterPoint)),
-                    MenuEntry(T.editor.luci, children = lights.map { MenuEntry(it.label, fixture(it)) }),
+                    MenuEntry(
+                        T.editor.luci,
+                        guide = GuideTarget.Menu(GuideMenu.Lights),
+                        children = lights.map { MenuEntry(it.label, fixture(it), guide = if (it == FixtureKind.Chandelier) GuideTarget.Menu(GuideMenu.Chandelier) else null) },
+                    ),
                 ),
             ),
             MenuEntry(
                 T.editor.scale,
+                guide = GuideTarget.Menu(GuideMenu.Stairs),
                 children = listOf(StairKind.Straight, StairKind.StraightLanding, StairKind.LTurn, StairKind.LWinder, StairKind.UTurn, StairKind.Spiral)
-                    .map { k -> MenuEntry(k.label, { vm.addStair(k) }) },
+                    .map { k -> MenuEntry(k.label, { vm.addStair(k) }, guide = if (k == StairKind.Spiral) GuideTarget.Menu(GuideMenu.Spiral) else null) },
             ),
             MenuEntry(
                 T.editor.colonneTravi,
@@ -766,12 +802,16 @@ private fun ArchitectureButton(
             ),
             MenuEntry(
                 T.editor.balconiTerrazze,
-                children = listOf(RoomType.Balcone, RoomType.Terrazza).map { t -> MenuEntry(t.label, { vm.startAddOutdoor(t) }) },
+                guide = GuideTarget.Menu(GuideMenu.Outdoor),
+                children = listOf(RoomType.Balcone, RoomType.Terrazza).map { t ->
+                    MenuEntry(t.label, { vm.startAddOutdoor(t) }, guide = if (t == RoomType.Balcone) GuideTarget.Menu(GuideMenu.Balcony) else null)
+                },
             ),
         ),
         buttonModifier,
         contentPadding,
         arrow = !compact,
+        guide = GuideTarget.Elements,
     )
 }
 
@@ -935,6 +975,8 @@ private class MenuEntry(
     val children: List<MenuEntry> = emptyList(),
     val enabled: Boolean = true,
     val hint: String? = null,
+    /** Come la indica la guida interattiva. */
+    val guide: GuideTarget? = null,
 )
 
 /**
@@ -952,12 +994,14 @@ private fun MenuButton(
     filled: Boolean = false,
     /** "▾" dopo il nome (senza, dove lo spazio è poco). */
     arrow: Boolean = true,
+    /** Come la guida interattiva indica il pulsante (fatto quando il menu è aperto). */
+    guide: GuideTarget? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     // Percorso dei sottomenu aperti (vuoto = menu principale).
     var path by remember { mutableStateOf(emptyList<MenuEntry>()) }
     fun close() { open = false; path = emptyList() }
-    Box(modifier) {
+    Box(modifier.guide(guide, done = open)) {
         if (filled) Button(enabled = enabled, onClick = { open = true }, modifier = Modifier.fillMaxWidth(), contentPadding = contentPadding) {
             Text(if (arrow) "$label ▾" else label, maxLines = 1)
         }
@@ -989,6 +1033,7 @@ private fun MenuButton(
                         if (entry.children.isNotEmpty()) path = path + entry
                         else { close(); entry.action?.invoke() }
                     },
+                    modifier = Modifier.guide(entry.guide),
                 )
             }
         }
@@ -1024,10 +1069,10 @@ private fun Toolbar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (compact) {
-            IconButton(onClick = vm::undo, enabled = canUndo) { Text("↶", style = MaterialTheme.typography.titleLarge) }
+            IconButton(onClick = vm::undo, enabled = canUndo, modifier = Modifier.guide(GuideTarget.Undo)) { Text("↶", style = MaterialTheme.typography.titleLarge) }
             IconButton(onClick = vm::redo, enabled = canRedo) { Text("↷", style = MaterialTheme.typography.titleLarge) }
         } else {
-            TextButton(onClick = vm::undo, enabled = canUndo, contentPadding = pad) { Text(T.editor.annulla, maxLines = 1) }
+            TextButton(onClick = vm::undo, enabled = canUndo, contentPadding = pad, modifier = Modifier.guide(GuideTarget.Undo)) { Text(T.editor.annulla, maxLines = 1) }
             TextButton(onClick = vm::redo, enabled = canRedo, contentPadding = pad) { Text(T.editor.ripeti, maxLines = 1) }
             if (fill) Box(Modifier.weight(1f))
         }

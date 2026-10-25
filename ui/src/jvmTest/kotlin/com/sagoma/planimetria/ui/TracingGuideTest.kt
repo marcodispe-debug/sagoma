@@ -6,8 +6,10 @@ import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.editor.TutorialCourse
 import com.sagoma.planimetria.editor.TutorialStep
 import com.sagoma.planimetria.editor.UnderlayTool
+import com.sagoma.planimetria.geometry.ShapeDimensions
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.RoomShape
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Underlay
 import com.sagoma.planimetria.model.Vec2
@@ -64,8 +66,11 @@ class TracingGuideTest {
         assertEquals(TutorialStep.TraceCalibB, vm.step)
         vm.underlayTap(Vec2(310.0, 0.0))
         vm.calibrateUnderlay(450.0)
+        assertEquals(TutorialStep.TracePick, vm.step, "dopo la taratura si sceglie come disegnare")
+        assertNull(vm.state.value.wallDraw)
+        assertNotNull(vm.state.value.creation)
+        vm.startDrawWalls()
         assertEquals(TutorialStep.TraceFirstCorner, vm.step)
-        assertNotNull(vm.state.value.wallDraw)
 
         vm.drawWallsTap(Vec2(0.0, 0.0))
         assertEquals(TutorialStep.TraceCorners, vm.step)
@@ -106,9 +111,28 @@ class TracingGuideTest {
         vm.nextTutorialStep() // salta A
         vm.nextTutorialStep() // salta B
         vm.nextTutorialStep() // salta la misura
-        assertEquals(TutorialStep.TraceFirstCorner, vm.step)
+        assertEquals(TutorialStep.TracePick, vm.step)
         assertNull(vm.state.value.underlayTool)
+        assertNotNull(vm.state.value.creation)
+        assertNull(vm.state.value.wallDraw)
+        vm.nextTutorialStep() // salta la scelta: si prosegue con «Muro per muro»
+        assertEquals(TutorialStep.TraceFirstCorner, vm.step)
         assertNotNull(vm.state.value.wallDraw)
+    }
+
+    @Test
+    fun `con una forma al posto di muro per muro si passa al controllo delle misure`() {
+        val vm = emptyProject()
+        vm.startTracing()
+        vm.loadPlan()
+        vm.underlayTap(Vec2(0.0, 0.0))
+        vm.underlayTap(Vec2(300.0, 0.0))
+        vm.calibrateUnderlay(450.0)
+        assertEquals(TutorialStep.TracePick, vm.step)
+        vm.pickShape(RoomShape.Rectangle)
+        vm.createRoom(RoomType.Camera, ShapeDimensions(400.0, 300.0), 270.0)
+        assertEquals(TutorialStep.TraceCheck, vm.step)
+        assertEquals(TutorialCourse.Tracing, vm.state.value.tutorial!!.course, "la prima stanza non fa partire il tutorial generale")
     }
 
     @Test
@@ -125,14 +149,15 @@ class TracingGuideTest {
     }
 
     @Test
-    fun `Esci dal disegno sulla pianta vuota chiude la guida`() {
+    fun `Esci dal disegno sulla piantina vuota riporta alla scelta, e la guida con lei`() {
         val vm = emptyProject()
         vm.startTracing()
         vm.loadPlan()
         vm.setUnderlayTool(null)
+        vm.startDrawWalls()
         vm.cancelDrawWalls()
         assertNotNull(vm.state.value.creation)
-        assertNull(vm.state.value.tutorial)
+        assertEquals(TutorialStep.TracePick, vm.step)
     }
 
     @Test
@@ -149,6 +174,7 @@ class TracingGuideTest {
         vm.startTracing()
         vm.loadPlan()
         vm.setUnderlayTool(null)
+        vm.startDrawWalls()
         vm.square(0.0, 0.0)
         vm.drawWallsClose()
         vm.finishDrawWalls(RoomType.Soggiorno, 270.0, 30.0)

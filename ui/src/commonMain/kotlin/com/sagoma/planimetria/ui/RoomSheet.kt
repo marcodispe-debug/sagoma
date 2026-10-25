@@ -48,6 +48,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import com.sagoma.planimetria.editor.GuideField
+import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.Ceilings
 import androidx.compose.ui.unit.dp
@@ -151,7 +153,7 @@ fun InfoSheet(
                     modifier = Modifier.weight(1f),
                 )
                 actions()
-                TextButton(onClick = onToggle) { Text(T.schedaStanza.info) }
+                TextButton(onClick = onToggle, modifier = Modifier.guide(GuideTarget.Info, done = expanded)) { Text(T.schedaStanza.info) }
                 IconButton(onClick = onToggle) {
                     Text(if (expanded) "▼" else "▲", style = MaterialTheme.typography.titleMedium)
                 }
@@ -235,7 +237,11 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
             // Schede a larghezza fissa: tutte visibili anche sul telefono ("Porte e impianti" va su due righe).
             androidx.compose.material3.SecondaryTabRow(selectedTabIndex = tabs.indexOf(tab), containerColor = Color.Transparent) {
                 // Margini stretti: con quelli standard le parole si spezzano a metà nella tendina.
-                for (t in tabs) androidx.compose.material3.Tab(selected = t == tab, onClick = { lastRoomTab = t }) {
+                for (t in tabs) androidx.compose.material3.Tab(
+                    selected = t == tab,
+                    onClick = { lastRoomTab = t },
+                    modifier = Modifier.guide(GuideTarget.MeasuresTab.takeIf { t == RoomTab.Measures }, done = tab == RoomTab.Measures),
+                ) {
                     Text(
                         if (t == RoomTab.Photos && room.photos.isNotEmpty()) "${t.label} (${room.photos.size})" else t.label,
                         style = MaterialTheme.typography.labelLarge,
@@ -362,7 +368,8 @@ private fun MeasuresTab(room: Room, vm: EditorViewModel) {
             CommitNumberField(
                 label = T.comuni.lunghezza,
                 value = lengths[i],
-                modifier = Modifier.weight(1f),
+                // Per la guida conta la misura già applicata (dopo Invio), non quella che si sta scrivendo.
+                modifier = Modifier.weight(1f).guide(GuideTarget.Field(GuideField.WallInfo, i), value = formatCm(lengths[i])),
             ) { vm.setWallLength(room.id, i, it) }
             if (!room.outdoor) CommitNumberField(
                 label = if (room.wallHeights.containsKey(i)) T.schedaStanza.altezzaPers else T.comuni.altezza,
@@ -516,8 +523,8 @@ internal fun CommitNumberField(label: String, value: Double, modifier: Modifier,
  * muri vicini; spenta, vanno esattamente dove li si porta.
  */
 @Composable
-internal fun SnapToggle(on: Boolean, onChange: (Boolean) -> Unit, compact: Boolean = false) {
+internal fun SnapToggle(on: Boolean, onChange: (Boolean) -> Unit, compact: Boolean = false, guide: GuideTarget? = null) {
     // Sulla striscia Info la versione corta, per lasciare spazio al nome di ciò che è selezionato.
     val label = if (compact) (if (on) T.schedaStanza.si else T.schedaStanza.no) else (if (on) T.schedaStanza.agganci else T.schedaStanza.agganciNo)
-    androidx.compose.material3.FilterChip(selected = on, onClick = { onChange(!on) }, label = { Text(label, maxLines = 1) })
+    androidx.compose.material3.FilterChip(selected = on, onClick = { onChange(!on) }, label = { Text(label, maxLines = 1) }, modifier = Modifier.guide(guide))
 }

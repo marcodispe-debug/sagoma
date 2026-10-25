@@ -3,6 +3,8 @@ package com.sagoma.planimetria.editor
 import androidx.lifecycle.ViewModel
 import com.sagoma.planimetria.geometry.Dimensions
 import com.sagoma.planimetria.geometry.Furnishings
+import com.sagoma.planimetria.geometry.exterior
+import com.sagoma.planimetria.geometry.inLineCorners
 import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.interiorLengths
 import com.sagoma.planimetria.model.withAutoNames
@@ -44,6 +46,7 @@ import com.sagoma.planimetria.model.Beam
 import com.sagoma.planimetria.model.Column
 import com.sagoma.planimetria.model.ColumnShape
 import com.sagoma.planimetria.model.FreeWall
+import com.sagoma.planimetria.geometry.Bounds
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
@@ -91,6 +94,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     private val tips = TipQueue(tipStore)
     // Prima del blocco init, che può avviare il tutorial.
     private val tutorial = Tutorial()
+    private val course = Course()
 
     // Il file è piccolo (pochi KB): lo si legge subito, così la prima schermata è già quella giusta.
     private val loaded = store.load() ?: Building.single(FloorPlan(), autoLevel = true)
@@ -123,6 +127,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     /** Primo contatto: il tutorial guidato se non è mai stato fatto, altrimenti il suggerimento di benvenuto. */
     private fun welcome() {
+        if (course.active) return // la guida interattiva ha già accolto l'utente
         if (!tips.tutorialDone) restartTutorial() else showTip(Tip.Welcome)
     }
 
@@ -170,13 +175,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     /**
      * Guida al ricalco: la pianta pronta per il passo corrente anche quando ci si arriva con "Salta passo"
-     * (taratura aperta, "Muro per muro" avviato, stanza selezionata per Info).
+     * (taratura aperta, scelta della stanza, "Muro per muro" avviato, stanza selezionata per Info).
      */
     private fun prepareTracingStep() {
         if (tutorial.course != TutorialCourse.Tracing) return
         val s = _state.value
         when (tutorial.step) {
             TutorialStep.TraceCalibA -> if (s.plan.underlay != null && s.underlayTool !is UnderlayTool.Calibrate) recalibrateUnderlay()
+            TutorialStep.TracePick -> if (s.underlayTool != null) setUnderlayTool(null)
+            // Saltata la scelta: la guida prosegue con «Muro per muro».
             TutorialStep.TraceFirstCorner -> {
                 if (s.underlayTool != null) setUnderlayTool(null)
                 if (_state.value.wallDraw == null) startDrawWalls()
@@ -209,16 +216,118 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     private fun tutorialEvent(e: TutorialEvent) {
+        if (course.active) {
+            if (course.on(e, _state.value)) prepareCourseStep()
+            return publishCourse()
+        }
         if (tutorial.on(e)) {
             prepareTracingStep()
             publishTutorial()
         } else if (e is TutorialEvent.WallLength || e is TutorialEvent.CornersPlaced) publishTutorial()
     }
 
+    // ---------- Guida interattiva ----------
+
+    private fun publishCourse() {
+        if (!course.active) courseFocus = null
+        _state.update { it.copy(course = course.ui(it)) }
+    }
+
+    /**
+     * Guida interattiva dalla lezione `lesson`, sul progetto di prova aperto (lo sceglie l'app, mai un progetto dell'utente). Si
+     * riparte sempre dalla casa com'è all'inizio della lezione: vuota per la prima e per quella sopra la planimetria, altrimenti
+     * con le stanze della piantina delle lezioni prima, al loro posto (vedi [Course.house]).
+     */
+    fun startCourse(lesson: Lesson) {
+        if (tutorial.active) {
+            tutorial.stop()
+            publishTutorial()
+        }
+        history.clear()
+        val house = Building.single(if (lesson == Lesson.OverPlan) FloorPlan() else Course.house(lesson), autoLevel = true)
+        _state.update {
+            EditorUiState(
+                plan = house.floor.plan,
+                building = house,
+                creation = if (house.floor.plan.rooms.isEmpty()) CreationStep.PickShape(cancellable = false) else null,
+                camera = it.camera,
+            )
+        }
+        if (house.floor.plan.rooms.isNotEmpty()) fitToView()
+        course.start(lesson)
+        _state.update { it.copy(tip = null) }
+        prepareCourseStep()
+        publishCourse()
+    }
+
+    /** "Avanti" o "Salta passo": passo successivo; dopo l'ultimo la guida finisce. */
+    fun nextCourseStep() {
+        course.next()
+        if (!course.active) return finishCourse()
+        prepareCourseStep()
+        publishCourse()
+    }
+
+    /**
+     * Guida finita ("Basta così", ultima scheda) o chiusa con "Esci": al primo avvio non riparte e il tutorial di una volta non
+     * serve più. Finita, non ricompaiono nemmeno le mini guide delle funzioni che ha fatto usare.
+     */
+    fun finishCourse(completed: Boolean = true) {
+        course.stop()
+        tips.courseDone = true
+        tips.tutorialDone = true
+        if (completed) {
+            tips.tracingGuideDone = true
+            tips.markSeen(COURSE_TIPS)
+        }
+        _state.update { it.copy(tip = tips.current) }
+        publishCourse()
+    }
+
+    /** La guida continua in un altro progetto di prova: qui si ferma senza segnarla finita. */
+    fun leaveCourse() {
+        course.stop()
+        publishCourse()
+    }
+
+    /** La pianta pronta per il passo: inquadratura sul punto in cui si lavora, stanza selezionata per Info, taratura aperta. */
+    private fun prepareCourseStep() {
+        val step = course.step ?: return
+        val s = _state.value
+        when (step) {
+            CourseStep.Info -> if (s.selection == null && s.focusedRoomId == null) {
+                s.plan.rooms.firstOrNull()?.let { r -> _state.update { it.copy(focusedRoomId = r.id) } }
+            }
+            // Lo studio selezionato per le misure in Info; per l'angolo la tendina si chiude, così si vede tutta la stanza.
+            CourseStep.SquareInfo, CourseStep.SquareCorner -> s.plan.rooms.firstOrNull { it.type == RoomType.Studio }?.let { r ->
+                if (s.focusedRoomId != r.id || s.selection != null) _state.update { it.copy(focusedRoomId = r.id, selection = null) }
+                if (step == CourseStep.SquareCorner && s.infoExpanded) _state.update { it.copy(infoExpanded = false) }
+            }
+            CourseStep.CalibA -> if (s.plan.underlay != null && s.underlayTool !is UnderlayTool.Calibrate) recalibrateUnderlay()
+            // Taratura saltata: si chiude, e si torna alla scelta della stanza.
+            CourseStep.PlanShape -> if (s.underlayTool != null) setUnderlayTool(null)
+            // Il soggiorno selezionato: la striscia in basso (con 🧲 e Info) è la sua.
+            CourseStep.Snap, CourseStep.LivingInfo -> s.plan.rooms.lastOrNull { it.type == RoomType.Soggiorno }?.let { r ->
+                if (s.focusedRoomId != r.id || s.selection != null) _state.update { it.copy(focusedRoomId = r.id, selection = null) }
+            }
+            // Trasparenza e ultima scheda: la tendina Info delle misure si chiude, così si vede la casa finita.
+            CourseStep.PlanFade, CourseStep.Finished -> if (s.infoExpanded) _state.update { it.copy(infoExpanded = false) }
+            else -> Unit
+        }
+        courseFocus = Course.focus(step, _state.value)?.also { b ->
+            fitTo(b)
+            userAdjustedView = true
+        }
+    }
+
+    /** Cosa inquadra il passo della guida interattiva: quando compaiono schede o striscia Info la vista si ricentra su questo. */
+    private var courseFocus: Bounds? = null
+
     // ---------- Suggerimenti al primo utilizzo ----------
 
     private fun showTip(tip: Tip) {
-        if (tutorial.active) return // durante il tutorial parla solo lui
+        // Durante il tutorial parla solo lui, durante la guida interattiva solo lei: niente mini guide.
+        if (tutorial.active || course.active) return
         tips.request(tip)
         _state.update { it.copy(tip = tips.current) }
     }
@@ -469,6 +578,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val stair = Stairs.snapped(s.plan, Stair(s.plan.nextStairId, kind, center), s.levelHeight)
         commit { it.copy(stairs = it.stairs + stair) }
         _state.update { it.copy(focusedRoomId = null, selection = Selection.Stair(stair.id), pendingOpening = null, pendingFixture = null, infoExpanded = false) }
+        tutorialEvent(TutorialEvent.StairAdded)
         showTip(Tip.Stair)
     }
 
@@ -751,22 +861,22 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun startTracing() {
         val back = _state.value.creation as? CreationStep.PickShape ?: return
         _state.update { it.copy(creation = null, creationIntent = null, tracing = back) }
-        if (!tips.tracingGuideDone && !tutorial.active) startTracingGuide() else showTip(Tip.Tracing)
+        tutorialEvent(TutorialEvent.TracingStarted)
+        if (!tips.tracingGuideDone && !tutorial.active && !course.active) startTracingGuide() else showTip(Tip.Tracing)
     }
 
     /**
-     * Fine della preparazione del ricalco (taratura fatta, "Fine" o finestra chiusa). Con lo sfondo caricato si passa subito a
-     * "Muro per muro" per ricalcare le stanze; senza sfondo si torna alla scelta della stanza.
+     * Fine della preparazione del ricalco (taratura fatta, "Fine" o finestra chiusa): si torna alla scelta della stanza. Con lo
+     * sfondo caricato la taratura resta e si sceglie come disegnare la prima stanza sopra la piantina (una forma o "Muro per
+     * muro"); senza sfondo la guida al ricalco non ha niente da ricalcare.
      */
     fun endTracing() {
         val s = _state.value
         val back = s.tracing ?: return
         _state.update { it.copy(tracing = null) }
         if (s.plan.rooms.isNotEmpty()) return
-        if (s.plan.underlay == null) {
-            _state.update { it.copy(creation = back) }
-            abandonTracingGuide()
-        } else startDrawWalls()
+        _state.update { it.copy(creation = back) }
+        if (s.plan.underlay == null) abandonTracingGuide()
     }
 
     // ---------- Percorso B: schizzo e scansione guidata (la UI li offre solo dove la funzione è disponibile) ----------
@@ -813,17 +923,25 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         return true
     }
 
-    fun pickShape(shape: RoomShape) = _state.update { s ->
-        val c = s.creation ?: return@update s
-        s.copy(
-            creation = if (shape == RoomShape.L) CreationStep.PickLOrientation(c.cancellable)
-            else CreationStep.Measures(shape, null, c.cancellable),
-        )
+    fun pickShape(shape: RoomShape) {
+        val c = _state.value.creation ?: return
+        _state.update { s ->
+            s.copy(
+                creation = if (shape == RoomShape.L) CreationStep.PickLOrientation(c.cancellable)
+                else CreationStep.Measures(shape, null, c.cancellable),
+            )
+        }
+        tutorialEvent(TutorialEvent.ShapePicked(when (shape) {
+            RoomShape.Square -> ShapeChoice.Square
+            RoomShape.Rectangle -> ShapeChoice.Rectangle
+            RoomShape.L -> ShapeChoice.L
+        }))
     }
 
-    fun pickLOrientation(o: LOrientation) = _state.update { s ->
-        val c = s.creation ?: return@update s
-        s.copy(creation = CreationStep.Measures(RoomShape.L, o, c.cancellable))
+    fun pickLOrientation(o: LOrientation) {
+        val c = _state.value.creation ?: return
+        _state.update { it.copy(creation = CreationStep.Measures(RoomShape.L, o, c.cancellable)) }
+        tutorialEvent(TutorialEvent.LSidePicked)
     }
 
     fun backToShapePicker() = _state.update { s ->
@@ -845,9 +963,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     /** "Da rilievo": si apre la finestra dei lati e delle diagonali misurati. */
-    fun pickSurvey() = _state.update { s ->
-        val c = s.creation ?: return@update s
-        s.copy(creation = CreationStep.Survey(c.cancellable))
+    fun pickSurvey() {
+        val c = _state.value.creation ?: return
+        _state.update { it.copy(creation = CreationStep.Survey(c.cancellable)) }
+        tutorialEvent(TutorialEvent.ShapePicked(ShapeChoice.Survey))
     }
 
     /** "Scansiona con il telefono": si apre la schermata della fotocamera. */
@@ -889,7 +1008,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val below = _state.value.planBelow?.let { Openings.planBounds(it) }
         // Piano di sopra: la stanza si posa sulla prima stanza di sotto ancora scoperta, con gli angoli coincidenti.
         val above = if (type.outdoor) null else RoomFactory.placeAbove(plan, _state.value.planBelow, shape)
-        val points = if (above != null) above
+        // Durante la guida interattiva la stanza nasce staccata, vicino al suo posto: la guida insegna a portarla lì.
+        val guided = if (course.active) Course.place(course.step, _state.value, interior, shape, type.outdoor) else null
+        val points = if (guided != null) guided
+        else if (above != null) above
         else if (plan.rooms.isEmpty() && below != null) {
             val sb = Polygon.bounds(shape)
             shape.map { it - Vec2(sb.minX, sb.minY) + Vec2(below.minX, below.minY) }
@@ -920,7 +1042,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             )
         }
         fitToView()
-        if (firstEver) welcome() else {
+        // Durante la guida al ricalco la prima stanza fa avanzare la guida (il tutorial generale arriva dopo).
+        if (firstEver && !tutorial.active && !course.active) welcome() else {
             tutorialEvent(TutorialEvent.RoomAdded)
             showTip(if (type.outdoor) Tip.Outdoor else Tip.NewRoom)
         }
@@ -1243,9 +1366,11 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     /** "Muro per muro": si chiude la scelta della forma e si disegnano gli angoli sulla pianta. */
     fun startDrawWalls() {
+        val fromPicker = _state.value.creation != null
         _state.update {
             it.copy(creation = null, wallDraw = WallDraw(), selection = null, focusedRoomId = null, pendingOpening = null, pendingFixture = null, measure = null, view3d = false, infoExpanded = false)
         }
+        if (fromPicker) tutorialEvent(TutorialEvent.ShapePicked(ShapeChoice.Walls))
         showTip(Tip.WallDraw)
     }
 
@@ -1257,9 +1382,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 it.copy(creation = CreationStep.PickShape(cancellable = false), creationType = null)
             else it
         }
-        // Tornati alla scelta iniziale a metà della guida al ricalco: la guida si chiude (ripartirà con "Ricalca una piantina").
+        // Tornati alla scelta iniziale a metà della guida al ricalco: con la piantina tarata si sceglie di nuovo come disegnare la
+        // stanza; senza, la guida si chiude (ripartirà con "Ricalca una piantina").
         if (_state.value.creation != null && tutorial.course == TutorialCourse.Tracing && tutorial.active) {
-            tutorial.stop()
+            if (_state.value.plan.underlay != null) tutorial.start(TutorialCourse.Tracing, TutorialStep.TracePick) else tutorial.stop()
             publishTutorial()
         }
     }
@@ -1281,7 +1407,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             // Zona non calpestabile: agganci al filo interno dei muri (dove cominciano i m²) e ai pilastri.
             wd.zoneRoomId != null -> SnapEngine.Targets(plan.rooms.flatMap { it.interior() }, emptyList(), plan.columns.map { it.center })
             drawingOnPlan(wd) -> SnapEngine.Targets(emptyList(), emptyList(), emptyList())
-            else -> SnapEngine.targetsWithBelow(plan, _state.value.planBelow)
+            else -> roomDrawTargets(plan, _state.value.planBelow)
         }
         if (!_state.value.snapOn) {
             // Senza agganci il punto resta dove si clicca; il primo angolo chiude comunque la stanza.
@@ -1291,6 +1417,23 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             else SnapResult(p, emptyList())
         }
         return SnapEngine.snapDrawing(p, wd.points.lastOrNull(), wd.points.firstOrNull(), targets, wd.points, snapTolerance())
+    }
+
+    /**
+     * Agganci del muro per muro senza piantina. Gli angoli che si mettono sono il filo interno della stanza nuova: si agganciano
+     * al filo esterno delle stanze già fatte (la stanza accanto comincia dove finisce il loro muro), ai punti dove una stanza
+     * accanto ha un muro in linea con il loro ([inLineCorners]) e al filo interno di quelle del piano di sotto (la stanza di
+     * sopra ha le stesse misure di quella sotto).
+     */
+    private fun roomDrawTargets(plan: FloorPlan, below: FloorPlan?): SnapEngine.Targets {
+        val contours = plan.rooms.map { it.exterior() } + below?.rooms?.map { it.interior() }.orEmpty()
+        fun mids(pts: List<Vec2>) = pts.indices.map { i -> (pts[i] + pts[(i + 1) % pts.size]) / 2.0 }
+        return SnapEngine.Targets(
+            contours.flatten() + plan.rooms.flatMap { it.inLineCorners() } +
+                plan.freeWalls.flatMap { listOf(it.start, it.end) } + plan.beams.flatMap { listOf(it.start, it.end) },
+            contours.flatMap(::mids) + plan.freeWalls.map { it.mid },
+            plan.columns.map { it.center },
+        )
     }
 
     /** Il puntatore si muove (mouse sul computer): anteprima del prossimo muro, già agganciata. */
@@ -1336,7 +1479,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     /**
-     * Muro di lunghezza esatta (cm, in mezzeria) dall'ultimo angolo. Con la freccia: verso la freccia, oppure, con l'angolo
+     * Muro di lunghezza esatta (cm, sul filo interno) dall'ultimo angolo. Con la freccia: verso la freccia, oppure, con l'angolo
      * TRA I DUE MURI, girando da quella parte rispetto al muro precedente ([WallDirection]). Senza freccia: verso il
      * puntatore, bloccata a 0°/45°/90° se vicina. Restituisce false (e non aggiunge niente) se freccia e angolo non danno un muro.
      */
@@ -1379,9 +1522,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun drawWallsResume() = _state.update { s -> s.wallDraw?.let { s.copy(wallDraw = it.copy(closing = false)) } ?: s }
 
     /**
-     * Stanza con gli angoli disegnati, in ordine orario sullo schermo come tutte le stanze. Gli angoli sono la mezzeria dei muri;
-     * sopra la piantina sono il filo interno, e la mezzeria sta mezzo muro più in fuori: così le misure della stanza sono
-     * quelle cliccate (e quelle scritte sulla piantina), qualunque sia lo spessore.
+     * Stanza con gli angoli disegnati, in ordine orario sullo schermo come tutte le stanze. Gli angoli sono il filo interno dei
+     * muri (come in Quadrato, Rettangolo e gli altri modi, e sopra la piantina come le sue quote), e la mezzeria sta mezzo muro
+     * più in fuori: così le misure della stanza sono quelle cliccate o scritte, qualunque sia lo spessore.
      */
     fun finishDrawWalls(type: RoomType, ceilingHeight: Double, wallThickness: Double) {
         val wd = _state.value.wallDraw ?: return
@@ -1389,7 +1532,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         var pts = wd.points
         val signed = pts.indices.sumOf { i -> val a = pts[i]; val b = pts[(i + 1) % pts.size]; a.x * b.y - b.x * a.y }
         if (signed < 0) pts = pts.reversed()
-        if (wd.onPlan) pts = Polygon.inset(pts, -wallThickness / 2)
+        pts = Polygon.inset(pts, -wallThickness / 2)
         val plan = _state.value.plan
         // Percorso B disegnato muro per muro: anche questo è uno schizzo da misurare (la scansione si avvia con un tasto).
         val intent = _state.value.creationIntent
@@ -1414,7 +1557,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         }
         // Prima stanza del progetto disegnata muro per muro (anche dal ricalco della piantina): tutorial o benvenuto come con le forme.
         // Durante la guida al ricalco la stanza fa avanzare la guida (il tutorial generale arriva dopo).
-        if (firstEver && !tutorial.active) welcome() else tutorialEvent(TutorialEvent.RoomAdded)
+        if (firstEver && !tutorial.active && !course.active) welcome() else tutorialEvent(TutorialEvent.RoomAdded)
     }
 
     // ---------- Zone non calpestabili ----------
@@ -1527,7 +1670,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             val k = s.camera.scale
             return s.camera.copy(offsetX = (visibleRightPx / 2 - p.x * k).toFloat(), offsetY = (midY - p.y * k).toFloat())
         }
-        val b = viewBounds(s) ?: return null
+        val b = courseFocus ?: viewBounds(s) ?: return null
         val cam = s.camera
         val k = cam.scale
         /**
@@ -2831,7 +2974,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun fitToView() {
         if (viewportW <= 0f || viewportH <= 0f) return
         userAdjustedView = false
-        val b = viewBounds(_state.value) ?: return
+        fitTo(viewBounds(_state.value) ?: return)
+    }
+
+    /** Vista che inquadra `b` nello spazio libero della pianta. */
+    private fun fitTo(b: Bounds) {
+        if (viewportW <= 0f || viewportH <= 0f) return
         // Spazio libero: tolte le schede in alto e la striscia in basso (se lasciano abbastanza posto).
         val top = coveredTop.takeIf { viewportH - it - coveredBottom > viewportH / 3 } ?: 0f
         val bottom = coveredBottom.takeIf { viewportH - top - it > viewportH / 3 } ?: 0f
@@ -2885,5 +3033,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
         /** Funzioni già spiegate dalla guida al ricalco. */
         val TRACING_GUIDE_TIPS = listOf(Tip.Tracing, Tip.Underlay, Tip.Calibrate, Tip.WallDraw, Tip.RoomInfo)
+
+        /** Funzioni che la guida interattiva fa usare: finita la guida, i loro suggerimenti non servono più. */
+        val COURSE_TIPS = TUTORIAL_TIPS + TRACING_GUIDE_TIPS + listOf(Tip.Opening, Tip.Outdoor, Tip.Fixture, Tip.Stair)
     }
 }

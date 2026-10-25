@@ -11,7 +11,7 @@ open class TestiSfondo {
     open val caricaPiantinaHaiImmagine: String get() = "Carica la piantina che hai come immagine (foto, scansione, JPG o PNG). Per un PDF salvane la pagina come immagine."
     open val tocchiDueEstremiMisura: String get() =
         "Poi tocchi i due estremi di una misura che conosci e scrivi quanto è lunga: la piantina va in scala. " +
-            "Infine ripassi i muri con \"Muro per muro\", angolo dopo angolo."
+            "Infine scegli come disegnare le stanze sopra la piantina: con una forma o con \"Muro per muro\", angolo dopo angolo."
     open val mettiSottoDisegnoPianta: String get() =
         "Metti sotto al disegno una pianta esistente (foto, scansione o PDF del catasto o del progetto), " +
             "tarala su una misura che conosci e ricalca le stanze sopra."

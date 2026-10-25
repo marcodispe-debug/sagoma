@@ -22,6 +22,7 @@ object TestiTutorialEn : TestiTutorial() {
         TutorialStep.TraceCalibA -> "Calibration: the first point"
         TutorialStep.TraceCalibB -> "Calibration: the second point"
         TutorialStep.TraceCalibValue -> "Calibration: the real length"
+        TutorialStep.TracePick -> "Choose how to draw"
         TutorialStep.TraceFirstCorner -> "The first corner"
         TutorialStep.TraceCorners -> "The other corners"
         TutorialStep.TraceClose -> "Close the room"
@@ -61,6 +62,10 @@ object TestiTutorialEn : TestiTutorial() {
         TutorialStep.TraceCalibValue ->
             "In the box at the top type how long the measurement between A and B really is (in cm, as on the plan) and confirm: " +
                 "the plan is now to scale."
+        TutorialStep.TracePick ->
+            "The calibration is saved: the plan is to scale. Now choose how to draw the rooms: with a shape (Square, Rectangle, " +
+                "L-shaped…) you create it with its measurements and drag it by its name onto the plan; with «Wall by wall» you click " +
+                "its corners on the plan, one after the other."
         TutorialStep.TraceFirstCorner ->
             "Now you are in «Wall by wall». Choose a room and click one of its corners, on the inner side of the wall: " +
                 "the wall thickness is added outwards by itself."
@@ -74,7 +79,7 @@ object TestiTutorialEn : TestiTutorial() {
         TutorialStep.TraceFade ->
             "Close the panel and press «◐ Floor plan and drawing» bottom right: make the plan lighter or hide it " +
                 "to see the drawing clearly."
-        TutorialStep.TraceNext -> "Press «🧱 Building elements» → Room, choose «Wall by wall» and trace the next room, corner by corner as before."
+        TutorialStep.TraceNext -> "Press «🧱 Building elements» → Room and trace the next room, with a shape or with «Wall by wall», as before."
         TutorialStep.TraceDone ->
             "Carry on like this with the other rooms. If snapping moves your points, turn it off with 🧲. " +
                 "With «Done», if you haven't done it yet, the tutorial for the other features starts (doors, fixtures, measurements)."

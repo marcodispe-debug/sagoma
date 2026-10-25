@@ -23,6 +23,7 @@ open class TestiTutorial {
         TutorialStep.TraceCalibA -> "Taratura: il primo punto"
         TutorialStep.TraceCalibB -> "Taratura: il secondo punto"
         TutorialStep.TraceCalibValue -> "Taratura: la misura vera"
+        TutorialStep.TracePick -> "Scegli come disegnare"
         TutorialStep.TraceFirstCorner -> "Il primo angolo"
         TutorialStep.TraceCorners -> "Gli altri angoli"
         TutorialStep.TraceClose -> "Chiudi la stanza"
@@ -63,6 +64,10 @@ open class TestiTutorial {
         TutorialStep.TraceCalibValue ->
             "Nella scheda in alto scrivi quanto è lunga davvero la misura tra A e B (in cm, come sulla piantina) e conferma: " +
                 "la piantina va in scala."
+        TutorialStep.TracePick ->
+            "La taratura è registrata: la piantina è in scala. Ora scegli come disegnare le stanze: con una forma (Quadrato, " +
+                "Rettangolo, A L…) la crei con le sue misure e la trascini dal nome sopra la piantina; con «Muro per muro» clicchi i " +
+                "suoi angoli sulla piantina, uno dopo l'altro."
         TutorialStep.TraceFirstCorner ->
             "Ora sei in «Muro per muro». Scegli una stanza e clicca un suo angolo, sul lato interno del muro: " +
                 "lo spessore dei muri si aggiunge da solo verso l'esterno."
@@ -76,7 +81,7 @@ open class TestiTutorial {
         TutorialStep.TraceFade ->
             "Chiudi la tendina e premi «◐ Piantina e disegno» in basso a destra: rendi la piantina più chiara o nascondila " +
                 "per vedere bene il disegno."
-        TutorialStep.TraceNext -> "Premi «🧱 Elementi architettonici» → Stanza, scegli «Muro per muro» e ricalca la stanza accanto, angolo dopo angolo come prima."
+        TutorialStep.TraceNext -> "Premi «🧱 Elementi architettonici» → Stanza e ricalca la stanza accanto, con una forma o con «Muro per muro», come prima."
         TutorialStep.TraceDone ->
             "Continua così con le altre stanze. Se gli agganci ti spostano i punti, spegnili con 🧲. " +
                 "Con «Fine», se non l'hai ancora fatto, parte il tutorial delle altre funzioni (porte, impianti, misure)."

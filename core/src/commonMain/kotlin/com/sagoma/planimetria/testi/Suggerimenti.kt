@@ -76,8 +76,8 @@ open class Suggerimenti {
             "Con il pulsante del piano, in alto a sinistra, passi da un piano all'altro e ne aggiungi di nuovi. Il piano di sotto si vede " +
                 "in grigio per allineare i muri, e le sue scale compaiono come vuoto nel pavimento. In 3D vedi il piano scelto sopra quelli di sotto."
         Tip.Tracing ->
-            "Carica la foto o il PDF della piantina, poi tarala su una misura che conosci: dopo clicchi gli angoli delle stanze " +
-                "e le misure vengono da sole, come quelle scritte sulla piantina."
+            "Carica la foto o il PDF della piantina, poi tarala su una misura che conosci: dopo scegli come disegnare le stanze, " +
+                "con una forma o cliccando gli angoli con «Muro per muro», e le misure vengono da sole, come quelle scritte sulla piantina."
         Tip.Calibrate ->
             "Tocca i due estremi di una misura scritta sulla piantina (meglio la più lunga, per esempio una parete intera) e scrivi " +
                 "quanti cm sono. Se poi le misure non tornano, \"📏 Rifai taratura\" la corregge anche a metà stanza."

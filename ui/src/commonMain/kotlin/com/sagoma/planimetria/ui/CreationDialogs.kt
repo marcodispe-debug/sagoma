@@ -1,5 +1,7 @@
 package com.sagoma.planimetria.ui
 
+import com.sagoma.planimetria.editor.GuideField
+import com.sagoma.planimetria.editor.GuideTarget
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -41,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.sagoma.planimetria.editor.CreationStep
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.ShapeChoice
 import com.sagoma.planimetria.geometry.RoomFactory
 import com.sagoma.planimetria.geometry.ShapeDimensions
 import com.sagoma.planimetria.model.LOrientation
@@ -69,13 +72,17 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (sketchMode) Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.approximateMeasuresHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ShapeOption(T.creazione.quadrato, RoomFactory.rectangle(10.0, 10.0), Modifier.weight(1f)) { vm.pickShape(RoomShape.Square) }
-                        ShapeOption(T.creazione.rettangolo, RoomFactory.rectangle(14.0, 9.0), Modifier.weight(1f)) { vm.pickShape(RoomShape.Rectangle) }
-                        ShapeOption(T.comuni.formaL, lIcon(LOrientation.TopRight), Modifier.weight(1f)) { vm.pickShape(RoomShape.L) }
+                        ShapeOption(T.creazione.quadrato, RoomFactory.rectangle(10.0, 10.0), Modifier.weight(1f).guide(GuideTarget.Shape(ShapeChoice.Square))) {
+                            vm.pickShape(RoomShape.Square)
+                        }
+                        ShapeOption(T.creazione.rettangolo, RoomFactory.rectangle(14.0, 9.0), Modifier.weight(1f).guide(GuideTarget.Shape(ShapeChoice.Rectangle))) {
+                            vm.pickShape(RoomShape.Rectangle)
+                        }
+                        ShapeOption(T.comuni.formaL, lIcon(LOrientation.TopRight), Modifier.weight(1f).guide(GuideTarget.Shape(ShapeChoice.L))) { vm.pickShape(RoomShape.L) }
                     }
                     // Rilievo: lati e diagonali misurati sul posto, anche per stanze fuori squadra o con più lati.
                     // (Non nello schizzo: richiede misure esatte.)
-                    if (!sketchMode) OutlinedCard(onClick = vm::pickSurvey, modifier = Modifier.fillMaxWidth()) {
+                    if (!sketchMode) OutlinedCard(onClick = vm::pickSurvey, modifier = Modifier.fillMaxWidth().guide(GuideTarget.Shape(ShapeChoice.Survey))) {
                         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             ShapeIcon(listOf(Vec2(0.0, 0.0), Vec2(14.0, 1.5), Vec2(12.0, 10.0), Vec2(1.0, 9.0)), Modifier.size(48.dp))
                             Spacer(Modifier.size(12.dp))
@@ -92,7 +99,7 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
                     // La vecchia "Scansiona con il telefono (prova)" (angoli toccati sul pavimento) non è più nei menu: la sostituisce la
                     // scansione guidata dallo schizzo ("Non conosco le misure"). Il suo codice resta (CreationStep.Scan).
                     // Disegno libero, come nei CAD: angolo dopo angolo sulla pianta, con agganci e misure scritte.
-                    OutlinedCard(onClick = vm::startDrawWalls, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedCard(onClick = vm::startDrawWalls, modifier = Modifier.fillMaxWidth().guide(GuideTarget.Shape(ShapeChoice.Walls))) {
                         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             ShapeIcon(listOf(Vec2(0.0, 0.0), Vec2(9.0, 0.0), Vec2(9.0, 4.0), Vec2(14.0, 4.0), Vec2(14.0, 10.0), Vec2(0.0, 10.0)), Modifier.size(48.dp))
                             Spacer(Modifier.size(12.dp))
@@ -108,7 +115,7 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
                     }
                     // Prima stanza: chi ha già una piantina (catasto, progetto, foto) la mette sotto in scala e la ricalca.
                     if (!sketchMode && vm.state.value.plan.rooms.isEmpty() && vm.state.value.creationType?.outdoor != true) {
-                        OutlinedCard(onClick = vm::startTracing, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedCard(onClick = vm::startTracing, modifier = Modifier.fillMaxWidth().guide(GuideTarget.Shape(ShapeChoice.Trace))) {
                             Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text("🗺", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center, modifier = Modifier.size(48.dp))
                                 Spacer(Modifier.size(12.dp))
@@ -163,13 +170,13 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LOrientation.entries.chunked(2).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            row.forEach { o -> ShapeOption(o.label, lIcon(o), Modifier.weight(1f)) { vm.pickLOrientation(o) } }
+                            row.forEach { o -> ShapeOption(o.label, lIcon(o), Modifier.weight(1f).guide(GuideTarget.LSide(o))) { vm.pickLOrientation(o) } }
                         }
                     }
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = vm::backToShapePicker) { Text(T.comuni.indietro) } },
+            dismissButton = { TextButton(onClick = vm::backToShapePicker, modifier = Modifier.guide(GuideTarget.Back)) { Text(T.comuni.indietro) } },
         )
 
         is CreationStep.Measures -> MeasuresDialog(step, vm, props)
@@ -179,9 +186,10 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
 }
 
 /**
- * Rilievo: numero di lati, i lati in ordine a partire dall'angolo A (filo interno) e le diagonali da A;
- * l'anteprima mostra subito la forma calcolata.
+ * Rilievo: numero di lati, i lati in ordine a partire dall'angolo A (filo interno) e le diagonali da un angolo
+ * scelto (A se non si sceglie altro); l'anteprima mostra subito la forma calcolata.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SurveyDialog(vm: EditorViewModel, props: DialogProperties) {
     val preset = remember { vm.state.value.creationType }
@@ -192,10 +200,15 @@ private fun SurveyDialog(vm: EditorViewModel, props: DialogProperties) {
     var ceiling by remember { mutableStateOf(formatCm(Room.DEFAULT_CEILING_HEIGHT)) }
     var thickness by remember { mutableStateOf(formatCm(Room.WALL_THICKNESS)) }
     val letters = "ABCDEFGHIJKL"
+    var diagonalsFrom by remember { mutableStateOf(0) }
+    val needed = com.sagoma.planimetria.geometry.Survey.diagonalsNeeded(count)
+    // Con 4 lati le diagonali sono solo AC e BD; con più lati si sceglie l'angolo da cui partono tutte.
+    val fromChoices = if (count == 4) listOf(0, 1) else (0 until count).toList()
+    val from = diagonalsFrom.takeIf { it in fromChoices } ?: 0
     val sideValues = sides.take(count).map(::parsePositive)
-    val diagValues = diagonals.take(com.sagoma.planimetria.geometry.Survey.diagonalsNeeded(count)).map(::parsePositive)
+    val diagValues = diagonals.take(needed).map(::parsePositive)
     val solved = if (sideValues.all { it != null } && diagValues.all { it != null })
-        com.sagoma.planimetria.geometry.Survey.solve(sideValues.map { it!! }, diagValues.map { it!! }) else null
+        com.sagoma.planimetria.geometry.Survey.solve(sideValues.map { it!! }, diagValues.map { it!! }, from) else null
     val ceilingValue = parsePositive(ceiling)
     val thicknessValue = parsePositive(thickness)?.takeIf { it in 3.0..120.0 }
     AlertDialog(
@@ -224,18 +237,28 @@ private fun SurveyDialog(vm: EditorViewModel, props: DialogProperties) {
                         numeric = true,
                         suffix = "cm",
                         isError = sides[i].isNotEmpty() && sideValues[i] == null,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().guide(GuideTarget.Field(GuideField.SurveySide, i), value = sides[i]),
                     )
                 }
-                for (k in 0 until com.sagoma.planimetria.geometry.Survey.diagonalsNeeded(count)) {
+                if (needed > 0) {
+                    Text(if (count == 4) T.creazione.qualeDiagonale else T.creazione.diagonaliDallAngolo, style = MaterialTheme.typography.labelLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (c in fromChoices) FilterChip(
+                            selected = c == from,
+                            onClick = { diagonalsFrom = c },
+                            label = { Text(if (count == 4) "${letters[c]}${letters[c + 2]}" else "${letters[c]}") },
+                        )
+                    }
+                }
+                for (k in 0 until needed) {
                     SelectAllTextField(
                         value = diagonals[k],
                         onValueChange = { v -> diagonals = diagonals.toMutableList().also { it[k] = v } },
-                        label = T.creazione.diagonale(letters[k + 2]),
+                        label = T.creazione.diagonale(letters[from], letters[(from + k + 2) % count]),
                         numeric = true,
                         suffix = "cm",
                         isError = diagonals[k].isNotEmpty() && diagValues[k] == null,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().guide(GuideTarget.Field(GuideField.Diagonal, k), value = diagonals[k].takeIf { from == 0 }),
                     )
                 }
                 if (solved != null) {
@@ -258,11 +281,12 @@ private fun SurveyDialog(vm: EditorViewModel, props: DialogProperties) {
             TextButton(
                 enabled = solved != null && thicknessValue != null && (ceilingValue != null || type.outdoor),
                 onClick = { vm.createRoomFromSurvey(type, solved!!, ceilingValue ?: Room.DEFAULT_CEILING_HEIGHT, thicknessValue!!) },
+                modifier = Modifier.guide(GuideTarget.Create),
             ) { Text(T.creazione.creaStanza) }
         },
         dismissButton = {
             Row {
-                TextButton(onClick = vm::backToShapePicker) { Text(T.comuni.indietro) }
+                TextButton(onClick = vm::backToShapePicker, modifier = Modifier.guide(GuideTarget.Back)) { Text(T.comuni.indietro) }
                 if (props.dismissOnBackPress) TextButton(onClick = vm::cancelCreation) { Text(T.comuni.annulla) }
             }
         },
@@ -322,6 +346,7 @@ fun RoomTypePicker(selected: RoomType, onSelect: (RoomType) -> Unit) {
                 onClick = { onSelect(t) },
                 label = { Text(t.label) },
                 leadingIcon = { Box(Modifier.size(10.dp).background(Color(t.argb), CircleShape)) },
+                modifier = Modifier.guide(GuideTarget.Type(t), done = t == selected),
             )
         }
     }
@@ -345,6 +370,12 @@ private fun MeasuresDialog(step: CreationStep.Measures, vm: EditorViewModel, pro
     val lInvalid = step.shape == RoomShape.L && parsed.all { it != null } && parsed[2]!! >= parsed[0]!!
     val valid = parsed.all { it != null } && (ceilingValue != null || type.outdoor) && !lInvalid
 
+    // Per la guida interattiva: quale misura è ogni campo.
+    val fields = when (step.shape) {
+        RoomShape.Square -> listOf(GuideField.Side)
+        RoomShape.Rectangle -> listOf(GuideField.Width, GuideField.Depth)
+        RoomShape.L -> listOf(GuideField.MainWidth, GuideField.MainDepth, GuideField.ProtrusionWidth, GuideField.ProtrusionDepth)
+    }
     val labels = when (step.shape) {
         RoomShape.Square -> listOf(T.creazione.lato2)
         RoomShape.Rectangle -> listOf(T.comuni.larghezza, T.comuni.profondita)
@@ -379,7 +410,7 @@ private fun MeasuresDialog(step: CreationStep.Measures, vm: EditorViewModel, pro
                         numeric = true,
                         suffix = "cm",
                         isError = parsed[i] == null || (lInvalid && i == 2),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().guide(GuideTarget.Field(fields[i]), value = values[i]),
                     )
                 }
                 if (lInvalid) Text(T.creazione.protuberanzaDeveEsserePiu, color = MaterialTheme.colorScheme.error)
@@ -412,11 +443,12 @@ private fun MeasuresDialog(step: CreationStep.Measures, vm: EditorViewModel, pro
                     }
                     vm.createRoom(type, dims, ceilingValue ?: Room.DEFAULT_CEILING_HEIGHT)
                 },
+                modifier = Modifier.guide(GuideTarget.Create),
             ) { Text(if (type.outdoor) T.creazione.crea else T.creazione.creaStanza) }
         },
         dismissButton = {
             Row {
-                TextButton(onClick = vm::backToShapePicker) { Text(T.comuni.indietro) }
+                TextButton(onClick = vm::backToShapePicker, modifier = Modifier.guide(GuideTarget.Back)) { Text(T.comuni.indietro) }
                 if (step.cancellable) TextButton(onClick = vm::cancelCreation) { Text(T.comuni.annulla) }
             }
         },

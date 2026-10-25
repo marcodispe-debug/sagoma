@@ -70,7 +70,7 @@ val TutorialStep.sketch: Sketch
         TutorialStep.TraceCalibA, TutorialStep.TraceCalibB, TutorialStep.TraceCalibValue -> Sketch.Calibrate
         TutorialStep.TraceCheck -> Sketch.OpenInfo
         TutorialStep.TraceFade -> Sketch.PlanFade
-        TutorialStep.TraceNext -> Sketch.AddRoom
+        TutorialStep.TracePick, TutorialStep.TraceNext -> Sketch.AddRoom
         TutorialStep.TraceDone -> Sketch.Done
     }
 
