@@ -113,7 +113,7 @@ object TestiCorsoFr : TestiCorso() {
         "Sous « ${T.schedaStanza.muri} » il y a la longueur intérieure de chaque mur. Dans « ${T.schedaStanza.muro(numero)} », le " +
             "mur ${latoMuro(lato)}, écrivez $v et appuyez sur Entrée : le mur suivant se déplace et le bureau redevient carré."
     override val trascinaAngoloStudio: String get() =
-        "Quatrième façon, pour les pièces aux angles de travers : déplacer un angle. Appuyez sur le point bleu de l'angle en bas à " +
+        "Quatrième façon, pour les pièces hors d'équerre : déplacer un angle. Appuyez sur le point bleu de l'angle en bas à " +
             "droite et faites-le glisser jusqu'au repère."
     override val annullaAngolo: String get() =
         "Mais le bureau a des angles droits. Quand vous vous trompez, « ${e.annulla} », ici en haut, enlève la dernière modification : cliquez dessus."

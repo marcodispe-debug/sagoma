@@ -113,7 +113,7 @@ object TestiCorsoEs : TestiCorso() {
         "En «${T.schedaStanza.muri}» está la longitud interior de cada pared. En «${T.schedaStanza.muro(numero)}», la pared " +
             "${latoMuro(lato)}, escribe $v y pulsa Intro: la pared siguiente se mueve y el estudio vuelve a ser cuadrado."
     override val trascinaAngoloStudio: String get() =
-        "Cuarta forma, para las habitaciones con esquinas torcidas: arrastrar una esquina. Pulsa en el punto azul de la esquina de " +
+        "Cuarta forma, para las habitaciones fuera de escuadra: arrastrar una esquina. Pulsa en el punto azul de la esquina de " +
             "abajo a la derecha y arrástralo hasta la marca."
     override val annullaAngolo: String get() =
         "Pero el estudio tiene las esquinas rectas. Cuando te equivocas, «${e.annulla}», aquí arriba, quita el último cambio: haz clic en él."

@@ -138,7 +138,7 @@ open class TestiCorso {
         "Sotto «${T.schedaStanza.muri}» c'è la lunghezza interna di ogni muro. In «${T.schedaStanza.muro(numero)}», il muro " +
             "${latoMuro(lato)}, scrivi $v e premi Invio: il muro dopo si sposta e lo studio torna quadrato."
     open val trascinaAngoloStudio: String get() =
-        "Quarto modo, per le stanze con gli angoli storti: trascinare un angolo. Premi sul pallino blu dell'angolo in basso a destra e " +
+        "Quarto modo, per le stanze fuori squadro: trascinare un angolo. Premi sul pallino blu dell'angolo in basso a destra e " +
             "trascinalo fino al segno."
     open val annullaAngolo: String get() =
         "Lo studio però ha gli angoli dritti. Quando sbagli, «${e.annulla}», qui in alto, toglie l'ultima modifica: cliccalo."

@@ -112,7 +112,7 @@ object TestiCorsoEn : TestiCorso() {
         "Under «${T.schedaStanza.muri}» there is the inner length of every wall. In «${T.schedaStanza.muro(numero)}», the " +
             "${latoMuro(lato)} wall, type $v and press Enter: the next wall moves and the study is square again."
     override val trascinaAngoloStudio: String get() =
-        "Fourth way, for rooms with crooked corners: dragging a corner. Press on the blue dot of the bottom-right corner and drag it to the mark."
+        "Fourth way, for out-of-square rooms: dragging a corner. Press on the blue dot of the bottom-right corner and drag it to the mark."
     override val annullaAngolo: String get() =
         "But the study has straight corners. When you make a mistake, «${e.annulla}», up here, removes the last change: click it."
 
