@@ -24,7 +24,6 @@ open class TestiEditor {
     open val riprovaSalvare: String get() = "Riprova a salvare"
     open val pianta2d: String get() = "◱ Pianta 2D"
     open val vista3d: String get() = "🧊 Vista 3D"
-    open val chiudi: String get() = "◐ Chiudi"
     open val piantinaDisegno: String get() = "◐ Piantina e disegno"
     open val legenda: String get() = "Legenda"
     open val distanza: String get() = "📐 Distanza"

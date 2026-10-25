@@ -306,7 +306,7 @@ open class TestiCorso {
         "Ultima cosa: per vedere meglio il disegno sopra la piantina, clicca «${e.piantinaDisegno}», qui in basso a destra."
     open val trasparenzaPiantina: String get() =
         "Qui regoli la piantina: trascinando il cursore diventa più chiara o più scura, con l'interruttore la nascondi. Sotto c'è " +
-            "lo stesso per il disegno. Prova: trascina il cursore della piantina."
+            "lo stesso per il disegno. Quando hai finito, chiudi il pannello con «${T.comuni.chiudi}». Prova: trascina il cursore della piantina."
 
     /** Muri del soggiorno disegnato: 0 in alto, poi in senso orario. */
     protected open fun nomeMuroSoggiorno(muro: Int): String = when (muro) {

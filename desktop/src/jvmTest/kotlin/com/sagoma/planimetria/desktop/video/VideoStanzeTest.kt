@@ -484,11 +484,11 @@ class VideoStanzeTest {
         r.clickOn(r.rect("Tara", exact = true), "Clicca «Tara»: adesso la planimetria è in scala, ogni centimetro è giusto.", readSeconds = 3.0)
         r.wait(1.5)
         passo(6)
-        r.highlight = r.rect("Piantina ·").let { t -> Rect(t.left - 8f, t.top - 16f, r.rect("◐ Chiudi", exact = true).right, r.rect("Disegno ·").bottom + 40f) }
-        r.caption = "A destra c'è il pannello «Piantina e disegno»: qui rendi la piantina più chiara o più scura, oppure la nascondi. Per ora chiudilo con «◐ Chiudi»."
+        r.highlight = r.rect("Piantina ·").let { t -> Rect(t.left - 8f, t.top - 16f, r.rect("Chiudi", exact = true).right, r.rect("Disegno ·").bottom + 40f) }
+        r.caption = "A destra c'è il pannello «Piantina e disegno»: qui rendi la piantina più chiara o più scura, oppure la nascondi. Per ora chiudilo con «Chiudi»."
         r.moveTo(Offset(1150f, 520f))
         r.wait(6.0)
-        r.clickOn(r.rect("◐ Chiudi", exact = true), readSeconds = 1.5)
+        r.clickOn(r.rect("Chiudi", exact = true), readSeconds = 1.5)
         r.wait(0.8)
         passo(7)
         r.highlight = r.rect("Esci", exact = true)
@@ -661,7 +661,7 @@ class VideoStanzeTest {
         check(vm().state.value.plan.rooms.size == PiantinaDiProva.stanze.size) { "la lettura finta non è arrivata" }
         PiantinaDiProva.conEsterni = true
         r.wait(0.5)
-        runCatching { r.clickOn(r.rect("◐ Chiudi", exact = true), readSeconds = 0.1) }
+        runCatching { r.clickOn(r.rect("Chiudi", exact = true), readSeconds = 0.1) }
         r.wait(0.5)
         // Si vede tutta la piantina, anche dove andranno balcone e terrazza.
         inquadra(r, suPiantina(-40f, -180f), suPiantina(1060f, 890f))

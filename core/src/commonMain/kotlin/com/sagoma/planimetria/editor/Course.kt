@@ -138,7 +138,7 @@ sealed interface GuideTarget {
     data object GuidePlanImage : GuideTarget
     /** «Tara», nella finestra della misura reale. */
     data object Calibrate : GuideTarget
-    /** «◐ Piantina e disegno» / «◐ Chiudi»: fatto quando il pannello è aperto. */
+    /** «◐ Piantina e disegno»: fatto quando il pannello è aperto. */
     data object PlanPanel : GuideTarget
     /** Il cursore della trasparenza della piantina, nel pannello «◐ Piantina e disegno». */
     data object PlanOpacity : GuideTarget
