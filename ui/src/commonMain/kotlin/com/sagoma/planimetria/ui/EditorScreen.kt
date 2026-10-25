@@ -123,6 +123,7 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
     var showLayers by remember { mutableStateOf(false) }
     var showTheme by remember { mutableStateOf(false) }
     var showLanguage by remember { mutableStateOf(false) }
+    var showSite by remember { mutableStateOf(false) }
     val extraMenu = listOf(
         T.editor.progetti to { vm.saveNow(); onOpenProjects() },
         T.editor.livelli to { showLayers = true },
@@ -133,7 +134,9 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         if (state.building.units == LengthUnit.Meters) T.editor.misureInCentimetri to { vm.setUnits(LengthUnit.Centimeters) }
         else T.editor.misureInMetri to { vm.setUnits(LengthUnit.Meters) },
         T.editor.linguaMenu to { showLanguage = true },
+        T.vista3D.nordCitta to { showSite = true },
     )
+    if (showSite) HouseSiteDialog(state.building.site, onNorth = vm::setNorth, onPlace = vm::setPlace, onDismiss = { showSite = false })
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
     // "Ricalca una piantina" al posto della prima stanza: la finestra resta aperta finché non si carica e si tara la piantina.
@@ -201,6 +204,8 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
         LaunchedEffect(compactHeight) { platform.setStatusBarHidden(compactHeight) }
         // Vista 3D: telecamera e superficie OpenGL restano le stesse passando da 2D a 3D e ritorno.
         val view3dState = remember { View3DState() }
+        // Nord e città della casa: decidono il giro del sole nel 3D.
+        LaunchedEffect(state.building.site) { view3dState.site = state.building.site; view3dState.refresh() }
         var openGuide by remember { mutableStateOf<Guide?>(null) }
         openGuide?.let { GuideDialog(it, onDismiss = { openGuide = null }, onOpen3d = { vm.setView3d(true) }) }
         // Guide passo passo che si fanno sulla pianta: avanzano da sole a ogni azione.
@@ -457,6 +462,16 @@ fun EditorScreen(projectId: Long, onOpenProjects: () -> Unit) {
                     LegendButton(T.editor.legenda, onClick = { showLegend = true })
                 }
             }
+            // Bussola in alto a destra sulla pianta, sotto le schede in alto: la N si gira trascinandola, il tocco apre "Nord e città".
+            if (!state.view3d) NorthCompass(
+                state.building.site.northDeg,
+                onNorth = vm::setNorth,
+                onOpen = { showSite = true },
+                modifier = Modifier.align(Alignment.TopEnd).padding(
+                    end = with(density) { coveredRightPx.toDp() } + 8.dp,
+                    top = with(density) { coveredTopPx.toDp() } + 8.dp,
+                ),
+            )
             // Ora del giorno: su schermo largo o telefono girato, verticale a sinistra (sopra il joystick).
             if (state.view3d) {
                 if (wide || compactHeight) TimeOfDayPanel(

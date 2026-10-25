@@ -2,31 +2,25 @@ package com.sagoma.planimetria.ui
 
 import com.sagoma.planimetria.geometry.Bounds
 import com.sagoma.planimetria.geometry.Scene3D
+import com.sagoma.planimetria.geometry.SunAngles
+import com.sagoma.planimetria.geometry.SunPath
 import com.sagoma.planimetria.geometry.Vec3
-import com.sagoma.planimetria.geometry.toRadians
-import kotlin.math.cos
-import kotlin.math.max
-import kotlin.math.sin
 
 /**
- * Luce del giorno all'ora scelta, con gli stessi calcoli del renderer Filament di Android: sole a est alle 6,
- * a sud a mezzogiorno, a ovest alle 18 (nord in alto nella pianta), alto fino a 55°. Ne seguono colore e
- * forza del sole, del cielo, della luce ambiente e di quella che entra dalle finestre; le lampade si
- * accendono quando il sole è basso ("auto"), sempre ("on") o mai ("off").
+ * Luce del giorno all'ora scelta, con gli stessi calcoli del renderer Filament di Android. Il sole sta dove dice
+ * [sunAt] (città, giorno e nord della casa; senza: est alle 6, sud a mezzogiorno, ovest alle 18, alto fino a 55°).
+ * Ne seguono colore e forza del sole, del cielo, della luce ambiente e di quella che entra dalle finestre; le lampade
+ * si accendono quando il sole è basso ("auto"), sempre ("on") o mai ("off").
  */
-class Daylight(val hour: Float, lamps: String, val walking: Boolean) {
-    val elevation: Double = 55.0 * sin(kotlin.math.PI * (hour - 6.0) / 12.0)
+class Daylight(val hour: Float, lamps: String, val walking: Boolean, sunAt: SunAngles = SunPath.simple(hour)) {
+    val elevation: Double = sunAt.elevation
     /** 0 di notte, 1 con il sole alto; morbido attorno all'alba e al tramonto. */
     val day: Float = ((elevation + 6.0) / 30.0).coerceIn(0.0, 1.0).toFloat()
     /** 1 = sole basso, luce calda. */
     val low: Float = (1.0 - (elevation / 35.0).coerceIn(0.0, 1.0)).toFloat()
 
     /** Direzione verso il sole (unitaria). */
-    val toSun: Vec3 = run {
-        val az = toRadians(90.0 + (hour - 6.0) * 15.0)
-        val el = toRadians(max(elevation, 2.0))
-        Vec3(sin(az) * cos(el), sin(el), -cos(az) * cos(el))
-    }
+    val toSun: Vec3 = SunPath.toSun(sunAt)
 
     /** Colore × intensità del sole (niente sotto l'orizzonte). */
     val sun: FloatArray = if (elevation <= 0) floatArrayOf(0f, 0f, 0f) else {

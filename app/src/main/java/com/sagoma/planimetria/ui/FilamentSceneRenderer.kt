@@ -33,6 +33,8 @@ import com.google.android.filament.gltfio.UbershaderProvider
 import com.sagoma.planimetria.geometry.Glb
 import com.sagoma.planimetria.geometry.Rgba
 import com.sagoma.planimetria.geometry.Scene3D
+import com.sagoma.planimetria.geometry.SunAngles
+import com.sagoma.planimetria.geometry.SunPath
 import com.sagoma.planimetria.geometry.Vec3
 import java.nio.ByteBuffer
 import kotlin.math.pow
@@ -242,6 +244,7 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
 
     private var hour = 11f
     private var lampsMode = "auto"
+    private var sunAt: SunAngles = SunPath.simple(11f)
     /** Luci create dalla scena (lampade e finestre), da togliere quando la scena cambia. */
     private val lampEntities = mutableListOf<Int>()
     private val windowEntities = mutableListOf<Int>()
@@ -249,28 +252,26 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
     private var sceneLights: List<Scene3D.SceneLight> = emptyList()
     private var sceneWindows: List<Scene3D.SceneWindow> = emptyList()
 
-    override fun setDaylight(hour: Float, lamps: String) {
-        if (hour == this.hour && lamps == lampsMode) return
+    override fun setDaylight(hour: Float, lamps: String, sun: SunAngles) {
+        if (hour == this.hour && lamps == lampsMode && sun == sunAt) return
         this.hour = hour
         this.lampsMode = lamps
+        this.sunAt = sun
         applyLighting()
     }
 
     /**
-     * Posizione del sole all'ora scelta (nord in alto nella pianta, sole a est alle 6, a sud a mezzogiorno,
-     * a ovest alle 18), altezza fino a 55°. Ne seguono colore e forza del sole, del cielo e della luce che
+     * Posizione del sole all'ora scelta ([sunAt]: città, giorno e nord della casa; senza, est alle 6, sud a
+     * mezzogiorno, ovest alle 18, alto fino a 55°). Ne seguono colore e forza del sole, del cielo e della luce che
      * entra dalle finestre; le lampade si accendono quando il sole è basso (o sempre / mai, a scelta).
      */
-    private fun sunElevation(): Double = 55.0 * kotlin.math.sin(Math.PI * (hour - 6.0) / 12.0)
-
     private fun applyLighting() {
-        val el = sunElevation()
-        val az = Math.toRadians(90.0 + (hour - 6.0) * 15.0)
-        val elr = Math.toRadians(el.coerceAtLeast(2.0))
+        val el = sunAt.elevation
         // Direzione in cui viaggia la luce (dal sole verso la casa).
-        val sx = (kotlin.math.sin(az) * kotlin.math.cos(elr)).toFloat()
-        val sy = kotlin.math.sin(elr).toFloat()
-        val sz = (-kotlin.math.cos(az) * kotlin.math.cos(elr)).toFloat()
+        val toSun = SunPath.toSun(sunAt)
+        val sx = toSun.x.toFloat()
+        val sy = toSun.y.toFloat()
+        val sz = toSun.z.toFloat()
         // Quanto giorno c'è: 0 di notte, 1 con il sole alto; morbido attorno all'alba e al tramonto.
         val day = ((el + 6.0) / 30.0).coerceIn(0.0, 1.0).toFloat()
         val low = (1.0 - (el / 35.0).coerceIn(0.0, 1.0)).toFloat() // 1 = sole basso, luce calda

@@ -17,6 +17,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 import com.sagoma.planimetria.geometry.Mat4
 import com.sagoma.planimetria.geometry.Scene3D
+import com.sagoma.planimetria.geometry.SunAngles
+import com.sagoma.planimetria.geometry.SunPath
 import com.sagoma.planimetria.geometry.Vec3
 import com.sagoma.planimetria.geometry.toRadians
 import com.sagoma.planimetria.ui.Daylight
@@ -57,6 +59,7 @@ class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { n
     @Volatile private var released = false
     @Volatile private var hour = 11f
     @Volatile private var lamps = "auto"
+    @Volatile private var sunAt: SunAngles = SunPath.simple(11f)
     @Volatile private var walking = false
     @Volatile private var eye = Vec3.Zero
     private val camera = SimpleShaders.CameraState()
@@ -173,7 +176,7 @@ class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { n
         if (s.width <= 0 || s.height <= 0) return
         ensureFramebuffer(s)
         pendingScene?.let { upload(it); pendingScene = null }
-        val d = Daylight(hour, lamps, walking)
+        val d = Daylight(hour, lamps, walking, sunAt)
         val lightMvp = sunMatrix(d)
         roofMvp = roofMatrix()
 
@@ -700,10 +703,11 @@ class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { n
         request()
     }
 
-    override fun setDaylight(hour: Float, lamps: String) {
-        if (hour == this.hour && lamps == this.lamps) return
+    override fun setDaylight(hour: Float, lamps: String, sun: SunAngles) {
+        if (hour == this.hour && lamps == this.lamps && sun == sunAt) return
         this.hour = hour
         this.lamps = lamps
+        this.sunAt = sun
         request()
     }
 

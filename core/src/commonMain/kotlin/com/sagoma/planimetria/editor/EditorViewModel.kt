@@ -351,8 +351,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         // I livelli (nascosti, bloccati) sono un modo di guardare il disegno, non una modifica: restano come sono.
         val layers = _state.value.building.layers
         val units = _state.value.building.units
+        val site = _state.value.building.site
         history.undo(_state.value.fullBuilding)?.let {
-            setBuilding(it.copy(layers = layers, units = units))
+            setBuilding(it.copy(layers = layers, units = units, site = site))
             dropStaleCreation()
             tutorialEvent(TutorialEvent.Undo)
         }
@@ -361,7 +362,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun redo() {
         val layers = _state.value.building.layers
         val units = _state.value.building.units
-        history.redo(_state.value.fullBuilding)?.let { setBuilding(it.copy(layers = layers, units = units)); dropStaleCreation() }
+        val site = _state.value.building.site
+        history.redo(_state.value.fullBuilding)?.let { setBuilding(it.copy(layers = layers, units = units, site = site)); dropStaleCreation() }
     }
 
     /** La scelta obbligatoria della stanza iniziale non ha più senso se annullando (o ripetendo) il piano ha di nuovo delle stanze. */
@@ -381,6 +383,17 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     /** Misure sulla pianta in centimetri o in metri: come i livelli è un modo di guardare il disegno, non si annulla. */
     fun setUnits(units: LengthUnit) = _state.update { s -> s.copy(building = s.building.copy(units = units)) }
+
+    /** Dove punta il nord sulla pianta (gradi in senso orario dall'alto, tra 0 e 360): gira solo il sole, mai il disegno. Non si annulla. */
+    fun setNorth(deg: Double) = _state.update { s ->
+        val d = ((deg % 360.0) + 360.0) % 360.0
+        s.copy(building = s.building.copy(site = s.building.site.copy(northDeg = d)))
+    }
+
+    /** Città della casa per il giro del sole (null = nessuna, vale Roma). Non si annulla. */
+    fun setPlace(place: com.sagoma.planimetria.model.Place?) = _state.update { s ->
+        s.copy(building = s.building.copy(site = s.building.site.copy(place = place)))
+    }
 
     /** Blocca o sblocca un livello (bloccato: si vede ma non si tocca). */
     fun setLayerLocked(layer: Layer, locked: Boolean) = _state.update { s ->

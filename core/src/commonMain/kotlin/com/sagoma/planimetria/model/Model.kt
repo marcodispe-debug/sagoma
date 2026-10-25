@@ -913,6 +913,36 @@ data class Floor(
     }
 }
 
+/**
+ * Orientamento e luogo della casa. La pianta non si gira mai: [northDeg] dice dove punta il nord sul disegno,
+ * in gradi in senso orario dall'alto dello schermo (0 = nord in alto, 90 = nord a destra). [place] è solo la città
+ * (null = Roma), per l'altezza del sole e l'ora dell'alba e del tramonto.
+ */
+@Serializable
+data class HouseSite(val northDeg: Double = 0.0, val place: Place? = null)
+
+/** Regola dell'ora legale di un luogo. */
+@Serializable
+enum class DaylightSaving {
+    None,
+    /** Unione Europea e dintorni: dall'ultima domenica di marzo all'ultima di ottobre. */
+    Europe,
+    /** Stati Uniti e Canada: dalla seconda domenica di marzo alla prima di novembre. */
+    NorthAmerica,
+    /** Australia del sud-est e Nuova Zelanda: dalla prima domenica di ottobre alla prima di aprile. */
+    South,
+}
+
+/** Città (posizione approssimata, mai l'indirizzo): latitudine e longitudine in gradi, fuso in ore rispetto a UTC. */
+@Serializable
+data class Place(
+    val name: String,
+    val latitude: Double,
+    val longitude: Double,
+    val utcOffset: Double,
+    val dst: DaylightSaving = DaylightSaving.Europe,
+)
+
 /** La casa: i piani dal basso verso l'alto e quello che si sta modificando (`current`). */
 @Serializable
 data class Building(
@@ -922,6 +952,8 @@ data class Building(
     val layers: LayerSettings = LayerSettings(),
     /** Unità delle misure scritte sulla pianta (quote, righelli, tavola PDF). */
     val units: LengthUnit = LengthUnit.Centimeters,
+    /** Dove punta il nord rispetto alla pianta e in che città è la casa: decidono il giro del sole nel 3D (facoltativi). */
+    val site: HouseSite = HouseSite(),
 ) {
     init {
         require(floors.isNotEmpty()) { "Serve almeno un piano" }

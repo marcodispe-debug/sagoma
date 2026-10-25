@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -116,6 +117,14 @@ class View3DState {
     var lamps by mutableStateOf("auto")
     /** Cursore dell'ora aperto. */
     var timePanel by mutableStateOf(false)
+    /** Giorno scelto per il sole (null = oggi). */
+    var day by mutableStateOf<com.sagoma.planimetria.geometry.CalendarDay?>(null)
+    /** Nord e città della casa (dal progetto). */
+    var site by mutableStateOf(com.sagoma.planimetria.model.HouseSite())
+
+    /** Sole all'ora, nel giorno e nella casa scelti. */
+    val sun: com.sagoma.planimetria.geometry.SunAngles
+        get() = com.sagoma.planimetria.geometry.SunPath.at(hour, day ?: com.sagoma.planimetria.geometry.CalendarDay.today(), site)
 
     /** Cambia a ogni movimento della telecamera: chi disegna sopra la scena (maniglie) la legge nel disegno per seguirla. */
     var tick by mutableStateOf(0)
@@ -124,7 +133,7 @@ class View3DState {
 
     fun refresh() {
         tick = ++tickCounter
-        renderer?.setDaylight(hour, lamps)
+        renderer?.setDaylight(hour, lamps, sun)
         renderer?.setCamera(camera.position, camera.position + camera.forward, camera.up, camera.fovY, camera.near, walking)
     }
 
@@ -687,6 +696,7 @@ fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: B
                         },
                 )
                 Text("0", style = MaterialTheme.typography.labelSmall)
+                SunDayButton(view, compact = true)
                 TextButton(onClick = { view.timePanel = false }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(32.dp)) { Text("✕") }
             }
         }
@@ -696,14 +706,17 @@ fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: B
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             val h = view.hour.toInt()
             val m = ((view.hour - h) * 60).roundToInt()
-            Text(T.vista3D.oraGiorno(h, m.toString().padStart(2, '0')),style = MaterialTheme.typography.labelLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(T.vista3D.oraGiorno(h, m.toString().padStart(2, '0')), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                SunDayButton(view)
+            }
             androidx.compose.material3.Slider(
                 value = view.hour,
                 onValueChange = { view.hour = (it * 4).roundToInt() / 4f; view.refresh() },
                 valueRange = 0f..24f,
             )
             Text(
-                T.vista3D.soleSorgeEstDestra,
+                T.vista3D.soleSegueBussola,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
