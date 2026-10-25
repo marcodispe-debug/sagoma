@@ -6,11 +6,11 @@ import kotlin.math.sqrt
 
 /**
  * Stanza da rilievo: dai lati misurati sul posto (filo interno, in ordine, a partire dall'angolo A) e dalle
- * diagonali dall'angolo A agli angoli C, D, … si ricava la forma vera, anche fuori squadra.
+ * diagonali da un angolo scelto (di solito A) agli angoli opposti si ricava la forma vera, anche fuori squadra.
  *
- * Il poligono si costruisce a triangoli attorno ad A: A-B-C, A-C-D, … Per una stanza di n lati servono
- * n − 3 diagonali (nessuna per un triangolo, una per un quadrilatero). Va bene per le stanze che da A
- * "si vedono tutte" (convesse, o con le rientranze lontane da A).
+ * Il poligono si costruisce a triangoli attorno all'angolo da cui partono le diagonali: A-B-C, A-C-D, … Per una
+ * stanza di n lati servono n − 3 diagonali (nessuna per un triangolo, una per un quadrilatero). Va bene per le
+ * stanze che da quell'angolo "si vedono tutte" (convesse, o con le rientranze lontane da lì).
  */
 object Survey {
     /** Diagonali necessarie per `sides` lati. */
@@ -18,9 +18,21 @@ object Survey {
 
     /**
      * Angoli della stanza (filo interno, cm) in ordine orario sullo schermo, A in (0, 0) e B sull'asse x;
-     * null se le misure non sono compatibili (un triangolo non si chiude).
+     * null se le misure non sono compatibili (un triangolo non si chiude). `from` è l'angolo da cui partono le
+     * diagonali (0 = A, 1 = B, …): con una diagonale BD la stanza resta comunque dritta, con AB in alto.
      */
-    fun solve(sides: List<Double>, diagonals: List<Double>): List<Vec2>? {
+    fun solve(sides: List<Double>, diagonals: List<Double>, from: Int = 0): List<Vec2>? {
+        val n = sides.size
+        if (from !in sides.indices) return null
+        if (from == 0) return solveFromA(sides, diagonals)
+        // Si rinominano gli angoli partendo da `from`, poi si torna ai nomi veri e si raddrizza AB.
+        val turned = solveFromA(sides.drop(from) + sides.take(from), diagonals) ?: return null
+        val pts = List(n) { j -> turned[(j - from + n) % n] }
+        val u = (pts[1] - pts[0]).normalized()
+        return pts.map { p -> (p - pts[0]).let { d -> Vec2(d dot u, u.cross(d)) } }
+    }
+
+    private fun solveFromA(sides: List<Double>, diagonals: List<Double>): List<Vec2>? {
         val n = sides.size
         if (n < 3 || diagonals.size != diagonalsNeeded(n) || sides.any { it <= 0 } || diagonals.any { it <= 0 }) return null
         // Distanza di ogni angolo da A: B è il primo lato, poi le diagonali, l'ultimo angolo è l'ultimo lato.

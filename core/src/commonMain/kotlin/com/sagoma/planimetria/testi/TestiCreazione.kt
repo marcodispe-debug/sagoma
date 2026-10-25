@@ -20,10 +20,12 @@ open class TestiCreazione {
     open val tipoStanza: String get() = "Tipo di stanza"
     open val numeroLati: String get() = "Numero di lati"
     open val misuraLatiFiloInterno: String get() =
-        "Misura i lati sul filo interno dei muri, girando in senso orario dall'angolo A; poi le diagonali dall'angolo A " +
-            "agli angoli opposti. Con le diagonali la forma è quella vera, anche se gli angoli non sono a 90°."
+        "Misura i lati sul filo interno dei muri, girando in senso orario dall'angolo A; poi le diagonali, da un angolo " +
+            "agli angoli opposti (scegli tu quale). Con le diagonali la forma è quella vera, anche se gli angoli non sono a 90°."
     open fun lato(p1: Any?, p2: Any?): String = "Lato $p1$p2"
-    open fun diagonale(p1: Any?): String = "Diagonale A$p1"
+    open fun diagonale(p1: Any?, p2: Any?): String = "Diagonale $p1$p2"
+    open val qualeDiagonale: String get() = "Quale diagonale hai misurato?"
+    open val diagonaliDallAngolo: String get() = "Da quale angolo partono le diagonali?"
     open val anteprima: String get() = "Anteprima"
     open val questeMisureStanzaNon: String get() = "Con queste misure la stanza non si chiude: controlla lati e diagonali."
     open val spessoreMuri: String get() = "Spessore dei muri"

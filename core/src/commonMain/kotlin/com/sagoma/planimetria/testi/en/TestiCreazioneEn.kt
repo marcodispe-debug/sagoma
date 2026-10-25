@@ -21,10 +21,12 @@ object TestiCreazioneEn : TestiCreazione() {
     override val tipoStanza: String get() = "Room type"
     override val numeroLati: String get() = "Number of sides"
     override val misuraLatiFiloInterno: String get() =
-        "Measure the sides along the inner face of the walls, going clockwise from corner A; then the diagonals from corner A " +
-            "to the opposite corners. With the diagonals the shape is the real one, even if the corners are not 90°."
+        "Measure the sides along the inner face of the walls, going clockwise from corner A; then the diagonals, from one corner " +
+            "to the opposite corners (you choose which). With the diagonals the shape is the real one, even if the corners are not 90°."
     override fun lato(p1: Any?, p2: Any?): String = "Side $p1$p2"
-    override fun diagonale(p1: Any?): String = "Diagonal A$p1"
+    override fun diagonale(p1: Any?, p2: Any?): String = "Diagonal $p1$p2"
+    override val qualeDiagonale: String get() = "Which diagonal did you measure?"
+    override val diagonaliDallAngolo: String get() = "Which corner do the diagonals start from?"
     override val anteprima: String get() = "Preview"
     override val questeMisureStanzaNon: String get() = "With these measurements the room does not close: check the sides and diagonals."
     override val spessoreMuri: String get() = "Wall thickness"

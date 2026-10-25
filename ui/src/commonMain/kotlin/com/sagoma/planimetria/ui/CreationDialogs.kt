@@ -179,9 +179,10 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
 }
 
 /**
- * Rilievo: numero di lati, i lati in ordine a partire dall'angolo A (filo interno) e le diagonali da A;
- * l'anteprima mostra subito la forma calcolata.
+ * Rilievo: numero di lati, i lati in ordine a partire dall'angolo A (filo interno) e le diagonali da un angolo
+ * scelto (A se non si sceglie altro); l'anteprima mostra subito la forma calcolata.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SurveyDialog(vm: EditorViewModel, props: DialogProperties) {
     val preset = remember { vm.state.value.creationType }
@@ -192,10 +193,15 @@ private fun SurveyDialog(vm: EditorViewModel, props: DialogProperties) {
     var ceiling by remember { mutableStateOf(formatCm(Room.DEFAULT_CEILING_HEIGHT)) }
     var thickness by remember { mutableStateOf(formatCm(Room.WALL_THICKNESS)) }
     val letters = "ABCDEFGHIJKL"
+    var diagonalsFrom by remember { mutableStateOf(0) }
+    val needed = com.sagoma.planimetria.geometry.Survey.diagonalsNeeded(count)
+    // Con 4 lati le diagonali sono solo AC e BD; con più lati si sceglie l'angolo da cui partono tutte.
+    val fromChoices = if (count == 4) listOf(0, 1) else (0 until count).toList()
+    val from = diagonalsFrom.takeIf { it in fromChoices } ?: 0
     val sideValues = sides.take(count).map(::parsePositive)
-    val diagValues = diagonals.take(com.sagoma.planimetria.geometry.Survey.diagonalsNeeded(count)).map(::parsePositive)
+    val diagValues = diagonals.take(needed).map(::parsePositive)
     val solved = if (sideValues.all { it != null } && diagValues.all { it != null })
-        com.sagoma.planimetria.geometry.Survey.solve(sideValues.map { it!! }, diagValues.map { it!! }) else null
+        com.sagoma.planimetria.geometry.Survey.solve(sideValues.map { it!! }, diagValues.map { it!! }, from) else null
     val ceilingValue = parsePositive(ceiling)
     val thicknessValue = parsePositive(thickness)?.takeIf { it in 3.0..120.0 }
     AlertDialog(
@@ -227,11 +233,21 @@ private fun SurveyDialog(vm: EditorViewModel, props: DialogProperties) {
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                for (k in 0 until com.sagoma.planimetria.geometry.Survey.diagonalsNeeded(count)) {
+                if (needed > 0) {
+                    Text(if (count == 4) T.creazione.qualeDiagonale else T.creazione.diagonaliDallAngolo, style = MaterialTheme.typography.labelLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (c in fromChoices) FilterChip(
+                            selected = c == from,
+                            onClick = { diagonalsFrom = c },
+                            label = { Text(if (count == 4) "${letters[c]}${letters[c + 2]}" else "${letters[c]}") },
+                        )
+                    }
+                }
+                for (k in 0 until needed) {
                     SelectAllTextField(
                         value = diagonals[k],
                         onValueChange = { v -> diagonals = diagonals.toMutableList().also { it[k] = v } },
-                        label = T.creazione.diagonale(letters[k + 2]),
+                        label = T.creazione.diagonale(letters[from], letters[(from + k + 2) % count]),
                         numeric = true,
                         suffix = "cm",
                         isError = diagonals[k].isNotEmpty() && diagValues[k] == null,
