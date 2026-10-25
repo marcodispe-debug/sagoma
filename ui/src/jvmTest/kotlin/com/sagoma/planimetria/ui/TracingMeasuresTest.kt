@@ -41,6 +41,7 @@ class TracingMeasuresTest {
         vm.underlayTap(vm.px(185.0, 500.0))
         vm.underlayTap(vm.px(557.0, 500.0))
         vm.calibrateUnderlay(370.0)
+        vm.startDrawWalls()
         for ((x, y) in listOf(185.0 to 350.0, 557.0 to 350.0, 557.0 to 675.0, 185.0 to 675.0, 185.0 to 350.0)) vm.drawWallsTap(vm.px(x, y))
         vm.finishDrawWalls(RoomType.entries.first(), 270.0, wallThickness)
         return vm
@@ -128,6 +129,7 @@ class TracingMeasuresTest {
         vm.underlayTap(vm.px(185.0, 500.0))
         vm.underlayTap(vm.px(557.0, 500.0))
         vm.calibrateUnderlay(300.0) // misura sbagliata
+        vm.startDrawWalls()
         vm.drawWallsTap(vm.px(185.0, 350.0))
         vm.drawWallsTap(vm.px(557.0, 350.0))
 

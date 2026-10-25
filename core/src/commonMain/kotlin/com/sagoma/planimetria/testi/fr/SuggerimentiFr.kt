@@ -74,8 +74,8 @@ object SuggerimentiFr : Suggerimenti() {
             "Avec le bouton de l'étage, en haut à gauche, vous passez d'un étage à l'autre et en ajoutez de nouveaux. L'étage inférieur apparaît " +
                 "en gris pour aligner les murs, et ses escaliers apparaissent comme un trou dans le sol. En 3D vous voyez l'étage choisi au-dessus de ceux du dessous."
         Tip.Tracing ->
-            "Chargez la photo ou le PDF du plan, puis étalonnez-le sur une mesure connue : ensuite vous cliquez sur les angles des pièces " +
-                "et les mesures viennent toutes seules, comme celles écrites sur le plan."
+            "Chargez la photo ou le PDF du plan, puis étalonnez-le sur une mesure connue : ensuite vous choisissez comment dessiner les pièces, " +
+                "avec une forme ou en cliquant les angles avec « Mur par mur », et les mesures viennent toutes seules, comme celles écrites sur le plan."
         Tip.Calibrate ->
             "Touchez les deux extrémités d'une mesure écrite sur le plan (de préférence la plus longue, par exemple un mur entier) et tapez " +
                 "combien de cm elle fait. Si ensuite les mesures ne correspondent pas, « 📏 Refaire l'étalonnage » corrige l'échelle même au milieu d'une pièce."

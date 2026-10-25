@@ -207,7 +207,7 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
                 TextButton(onClick = vm::drawWallsClose, enabled = wd.points.size >= 3, modifier = Modifier.guide(GuideTarget.CloseRoom)) {
                     Text(if (zone) T.muroPerMuro.chiudiZona else T.muroPerMuro.chiudiStanza)
                 }
-                TextButton(onClick = vm::cancelDrawWalls, modifier = Modifier.guide(GuideTarget.LeaveWalls)) { Text(T.comuni.esci) }
+                TextButton(onClick = vm::cancelDrawWalls) { Text(T.comuni.esci) }
                 // Agganci anche qui: mentre si disegna la tendina Info non c'è.
                 SnapToggle(state.snapOn, vm::setSnapOn)
                 // Muro sbiadito o tagliato nella piantina: si può sempre scrivere la misura.

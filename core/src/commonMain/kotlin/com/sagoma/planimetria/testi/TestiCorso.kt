@@ -35,6 +35,7 @@ open class TestiCorso {
         CourseStep.ElementsDone -> "Ogni elemento, da «${T.schedaStanza.info}»"
         CourseStep.Finished -> "Hai finito la guida!"
         CourseStep.Snap -> "Spostare le stanze e il gancio 🧲"
+        CourseStep.InnerFace -> "Il lato interno dei muri"
         else -> "Fatto!"
     }
 
@@ -70,6 +71,11 @@ open class TestiCorso {
             "Ecco camera, bagno e soggiorno sopra la piantina, con le misure giuste. Con le altre stanze fai lo stesso: una forma per " +
                 "partire, attaccata alle stanze accanto, poi muri e angoli al loro posto e le misure esatte in «${T.schedaStanza.info}». " +
                 "Ora puoi disegnare la tua casa! La guida si rifà quando vuoi da «${e.guide}»."
+        CourseStep.InnerFace ->
+            "Prima di spostare la camera, una cosa importante. Sagoma misura le stanze dal lato interno dei muri, come le misure " +
+                "scritte sulla piantina: lo spessore del muro va verso l'esterno. Quando metti una stanza sopra la piantina, fai " +
+                "combaciare il più possibile il lato interno dei muri disegnati con il lato interno dei muri della piantina: guarda la " +
+                "linea interna del muro, non il centro né il lato esterno. Così misure, metri quadri e stanze accanto vengono giusti."
         else -> ""
     }
 
@@ -254,17 +260,16 @@ open class TestiCorso {
     open val taraturaB: String get() = "Ora clicca dove finisce la misura: l'angolo interno in alto a destra del soggiorno, qui."
     open fun misuraReale(cm: Int): String = "Scrivi la misura vera tra i due punti, quella scritta sulla piantina: $cm."
     open val tara: String get() = "Clicca «${T.sfondo.tara2}»: ora la piantina è in scala, ogni centimetro è giusto."
-    open val chiudiPannello: String get() =
-        "Qui a destra c'è il pannello «${e.piantinaDisegno}»: rende la piantina più chiara o più scura, oppure la nasconde. Per ora chiudilo con «${e.chiudi}»."
-    open val esciMuroPerMuro: String get() =
-        "È partito «${cr.muroMuro}» sopra la piantina: potresti cliccare gli angoli delle stanze uno a uno. Qui invece usiamo le forme e le " +
-            "aggiustiamo sulla piantina: clicca «${T.comuni.esci}»."
+    open val sceltaDopoTaratura: String get() =
+        "La taratura è registrata: la piantina ora è in scala. Adesso scegli come disegnare la prima stanza: con «${cr.muroMuro}» " +
+            "clicchi i suoi angoli sulla piantina, con una forma la crei e poi la porti sopra la piantina. Qui usiamo le forme. " +
+            "Cominciamo dalla camera, che è un rettangolo: partiamo da un quadrato, per vedere come si allunga. Clicca «${cr.quadrato}»."
     open val cameraDaQuadrato: String get() =
         "Cominciamo dalla camera, che è un rettangolo: partiamo da un quadrato, per vedere come si allunga. Clicca «${cr.quadrato}»."
     open fun latoCortoCamera(v: Int): String = "Scrivi il lato corto della camera, letto sulla piantina: $v."
     open val spostaCamera: String get() =
         "La camera c'è, ma non ancora al suo posto. Per spostare una stanza premi sul suo nome, tieni premuto e trascinala: lasciala " +
-            "quando l'angolo in alto a sinistra è sopra quello della camera disegnata (il contorno tratteggiato)."
+            "quando l'angolo interno in alto a sinistra è sopra quello interno della camera disegnata (il contorno tratteggiato)."
     open fun allungaCamera(v: Int): String =
         "La camera della piantina è più larga: $v. Basta spostare il muro di destra: premi sul muro, tieni premuto e trascinalo fino al segno. " +
             "Mentre lo sposti la misura cambia: lasciala a $v."
@@ -294,6 +299,14 @@ open class TestiCorso {
     open fun muroInfo(numero: Int, muro: Int, v: Int, first: Boolean): String =
         (if (first) "Sotto «${T.schedaStanza.muri}» c'è la lunghezza interna di ogni muro. " else "") +
             "In «${T.schedaStanza.muro(numero)}», il muro ${nomeMuroSoggiorno(muro)}, scrivi $v e premi Invio."
+
+    // ---------- Piantina più chiara o più scura ----------
+
+    open val apriPannello: String get() =
+        "Ultima cosa: per vedere meglio il disegno sopra la piantina, clicca «${e.piantinaDisegno}», qui in basso a destra."
+    open val trasparenzaPiantina: String get() =
+        "Qui regoli la piantina: trascinando il cursore diventa più chiara o più scura, con l'interruttore la nascondi. Sotto c'è " +
+            "lo stesso per il disegno. Prova: trascina il cursore della piantina."
 
     /** Muri del soggiorno disegnato: 0 in alto, poi in senso orario. */
     protected open fun nomeMuroSoggiorno(muro: Int): String = when (muro) {

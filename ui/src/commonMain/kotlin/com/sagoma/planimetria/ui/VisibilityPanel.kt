@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.testi.T
 import kotlin.math.roundToInt
 
@@ -42,6 +43,7 @@ fun VisibilityPanel(state: EditorUiState, vm: EditorViewModel, onLoadPlan: () ->
                 onVisible = vm::setUnderlayVisible,
                 onOpacity = { vm.previewUnderlayOpacity(it.toDouble()) },
                 onOpacityDone = vm::endUnderlayOpacity,
+                sliderModifier = Modifier.guide(GuideTarget.PlanOpacity),
             )
             if (u != null) TextButton(onClick = vm::recalibrateUnderlay) { Text(T.vari.rifaiTaratura) }
             VisibilityRow(
@@ -64,6 +66,7 @@ private fun VisibilityRow(
     onVisible: (Boolean) -> Unit,
     onOpacity: (Float) -> Unit,
     onOpacityDone: () -> Unit,
+    sliderModifier: Modifier = Modifier,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
@@ -74,5 +77,5 @@ private fun VisibilityRow(
         Switch(checked = visible, onCheckedChange = onVisible)
     }
     // Il cursore cambia la pianta mentre lo si trascina, non solo quando lo si lascia.
-    Slider(value = opacity, onValueChange = onOpacity, valueRange = 0.1f..1f, enabled = visible, onValueChangeFinished = onOpacityDone)
+    Slider(value = opacity, onValueChange = onOpacity, valueRange = 0.1f..1f, enabled = visible, onValueChangeFinished = onOpacityDone, modifier = sliderModifier)
 }

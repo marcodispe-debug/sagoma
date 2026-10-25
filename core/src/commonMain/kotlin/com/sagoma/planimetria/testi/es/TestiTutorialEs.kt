@@ -22,6 +22,7 @@ object TestiTutorialEs : TestiTutorial() {
         TutorialStep.TraceCalibA -> "Calibración: el primer punto"
         TutorialStep.TraceCalibB -> "Calibración: el segundo punto"
         TutorialStep.TraceCalibValue -> "Calibración: la longitud real"
+        TutorialStep.TracePick -> "Elige cómo dibujar"
         TutorialStep.TraceFirstCorner -> "La primera esquina"
         TutorialStep.TraceCorners -> "Las demás esquinas"
         TutorialStep.TraceClose -> "Cerrar la habitación"
@@ -61,6 +62,10 @@ object TestiTutorialEs : TestiTutorial() {
         TutorialStep.TraceCalibValue ->
             "En la casilla de arriba escribe cuánto mide de verdad la distancia entre A y B (en cm, como en el plano) y confirma: " +
                 "el plano ya está a escala."
+        TutorialStep.TracePick ->
+            "La calibración está guardada: el plano está a escala. Ahora elige cómo dibujar las habitaciones: con una forma " +
+                "(Cuadrado, Rectángulo, En L…) la creas con sus medidas y la arrastras por su nombre sobre el plano; con «Pared a " +
+                "pared» haces clic en sus esquinas sobre el plano, una tras otra."
         TutorialStep.TraceFirstCorner ->
             "Ahora estás en «Pared a pared». Elige una habitación y haz clic en una de sus esquinas, por el lado interior de la pared: " +
                 "el grosor de la pared se añade solo hacia fuera."
@@ -74,7 +79,7 @@ object TestiTutorialEs : TestiTutorial() {
         TutorialStep.TraceFade ->
             "Cierra el panel y pulsa «◐ Plano y dibujo» abajo a la derecha: aclara el plano u ocúltalo " +
                 "para ver bien el dibujo."
-        TutorialStep.TraceNext -> "Pulsa «🧱 Elementos constructivos» → Habitación, elige «Pared a pared» y calca la siguiente habitación, esquina a esquina como antes."
+        TutorialStep.TraceNext -> "Pulsa «🧱 Elementos constructivos» → Habitación y calca la siguiente habitación, con una forma o con «Pared a pared», como antes."
         TutorialStep.TraceDone ->
             "Sigue así con las demás habitaciones. Si el ajuste mueve tus puntos, desactívalo con 🧲. " +
                 "Con «Hecho», si aún no lo has hecho, empieza el tutorial de las demás funciones (puertas, instalaciones, medidas)."

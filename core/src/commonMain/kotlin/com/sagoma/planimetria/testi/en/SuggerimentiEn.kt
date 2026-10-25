@@ -74,8 +74,8 @@ object SuggerimentiEn : Suggerimenti() {
             "With the floor button, top left, you switch between floors and add new ones. The floor below shows " +
                 "in grey to line up the walls, and its stairs appear as a hole in the floor. In 3D you see the chosen floor on top of the ones below."
         Tip.Tracing ->
-            "Load the photo or PDF of the floor plan, then calibrate it on a measurement you know: then you click the corners of the rooms " +
-                "and the measurements come by themselves, like the ones written on the plan."
+            "Load the photo or PDF of the floor plan, then calibrate it on a measurement you know: then you choose how to draw the rooms, " +
+                "with a shape or by clicking the corners with «Wall by wall», and the measurements come by themselves, like the ones written on the plan."
         Tip.Calibrate ->
             "Tap the two ends of a measurement written on the plan (preferably the longest, for example a whole wall) and type " +
                 "how many cm it is. If the measurements don't match later, \"📏 Redo calibration\" fixes it even halfway through a room."

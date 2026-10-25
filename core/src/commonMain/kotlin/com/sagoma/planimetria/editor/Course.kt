@@ -85,9 +85,9 @@ enum class CourseStep(val lesson: Lesson, val action: Boolean = true) {
     CalibA(Lesson.OverPlan),
     CalibB(Lesson.OverPlan),
     CalibValue(Lesson.OverPlan),
-    LeaveWalls(Lesson.OverPlan),
     PlanShape(Lesson.OverPlan),
     PlanMeasures(Lesson.OverPlan),
+    InnerFace(Lesson.OverPlan, action = false),
     MoveRoom(Lesson.OverPlan),
     Stretch(Lesson.OverPlan),
     Bath(Lesson.OverPlan),
@@ -100,6 +100,7 @@ enum class CourseStep(val lesson: Lesson, val action: Boolean = true) {
     Attach(Lesson.OverPlan),
     LivingWalls(Lesson.OverPlan),
     LivingInfo(Lesson.OverPlan),
+    PlanFade(Lesson.OverPlan),
     Finished(Lesson.OverPlan, action = false),
     ;
 
@@ -133,13 +134,14 @@ sealed interface GuideTarget {
     data class Arrow(val arrow: WallArrow) : GuideTarget
     data object AddWall : GuideTarget
     data object CloseRoom : GuideTarget
-    data object LeaveWalls : GuideTarget
     /** «Usa la piantina della guida», nella finestra della piantina da ricalcare. */
     data object GuidePlanImage : GuideTarget
     /** «Tara», nella finestra della misura reale. */
     data object Calibrate : GuideTarget
-    /** «◐ Piantina e disegno» / «◐ Chiudi»: fatto quando il pannello è chiuso. */
+    /** «◐ Piantina e disegno» / «◐ Chiudi»: fatto quando il pannello è aperto. */
     data object PlanPanel : GuideTarget
+    /** Il cursore della trasparenza della piantina, nel pannello «◐ Piantina e disegno». */
+    data object PlanOpacity : GuideTarget
     /** «Info» sulla striscia in basso: fatto quando la tendina è aperta. */
     data object Info : GuideTarget
     /** La scheda «Misure» nella tendina Info di una stanza: fatto quando è aperta. */
@@ -235,10 +237,9 @@ class Course {
             // Durante la taratura il passo segue i punti toccati: il terzo tocco ricomincia da A, e la guida torna indietro.
             CourseStep.CalibA, CourseStep.CalibB, CourseStep.CalibValue -> return when (e) {
                 is TutorialEvent.CalibrationPoints -> moveTo(if (e.count >= 2) CourseStep.CalibValue else CourseStep.CalibB)
-                TutorialEvent.Calibrated -> moveTo(CourseStep.LeaveWalls)
+                TutorialEvent.Calibrated -> moveTo(CourseStep.PlanShape)
                 else -> false
             }
-            CourseStep.LeaveWalls -> e == TutorialEvent.WallDrawLeft
             CourseStep.MoveRoom, CourseStep.MoveBath -> e == TutorialEvent.RoomMoved
             CourseStep.Stretch -> e == TutorialEvent.WallDragged
             CourseStep.CornerC, CourseStep.CornerD -> e == TutorialEvent.CornerDragged
@@ -246,6 +247,7 @@ class Course {
             CourseStep.Attach -> e == TutorialEvent.RoomMoved && CourseHints(s).attached()
             CourseStep.LivingWalls -> (e == TutorialEvent.WallDragged || e == TutorialEvent.CornerDragged) && CourseHints(s).livingWalls()?.isEmpty() == true
             CourseStep.LivingInfo -> CourseHints(s).livingExact()
+            CourseStep.PlanFade -> e == TutorialEvent.PlanViewChanged
             else -> false
         }
         if (done) next()
@@ -324,7 +326,7 @@ private class CourseHints(private val s: EditorUiState) {
 
     fun of(step: CourseStep): List<GuideHint> = when (step) {
         CourseStep.Welcome, CourseStep.SquareDone, CourseStep.RectDone, CourseStep.LDone, CourseStep.SurveyDone,
-        CourseStep.WallsDone, CourseStep.ElementsDone, CourseStep.Finished -> emptyList()
+        CourseStep.WallsDone, CourseStep.ElementsDone, CourseStep.InnerFace, CourseStep.Finished -> emptyList()
 
         CourseStep.SquarePick -> pick(ShapeChoice.Square, c.scegliQuadrato)
         CourseStep.SquareMeasures -> measures(ShapeChoice.Square, c.scegliQuadrato) {
@@ -428,8 +430,7 @@ private class CourseHints(private val s: EditorUiState) {
             field(GuideField.Calibration, GuidePlan.calibrationCm, c.misuraReale(GuidePlan.calibrationCm)),
             hint(GuideTarget.Calibrate, c.tara),
         )
-        CourseStep.LeaveWalls -> listOf(hint(GuideTarget.PlanPanel, c.chiudiPannello), hint(GuideTarget.LeaveWalls, c.esciMuroPerMuro))
-        CourseStep.PlanShape -> listOf(hint(GuideTarget.Shape(ShapeChoice.Square), c.cameraDaQuadrato))
+        CourseStep.PlanShape -> listOf(hint(GuideTarget.Shape(ShapeChoice.Square), c.sceltaDopoTaratura))
         CourseStep.PlanMeasures -> measures(ShapeChoice.Square, c.cameraDaQuadrato) {
             val side = GuidePlan.side(GuidePlan.camera, 1)
             listOf(
@@ -467,6 +468,7 @@ private class CourseHints(private val s: EditorUiState) {
                 .copy(keepVisible = living()?.points.orEmpty() + GuidePlan.soggiorno.points.mapNotNull(::onPlan))
         }
         CourseStep.LivingInfo -> livingInfoHints()
+        CourseStep.PlanFade -> listOf(hint(GuideTarget.PlanPanel, c.apriPannello), hint(GuideTarget.PlanOpacity, c.trasparenzaPiantina))
     }
 
     /**
@@ -808,7 +810,7 @@ private class CourseHints(private val s: EditorUiState) {
             pad(b.union(Polygon.bounds(pts)), 40.0)
         }
         CourseStep.CalibA -> plan.underlay?.let { u -> Bounds(u.origin.x, u.origin.y, u.origin.x + u.widthCm, u.origin.y + u.heightCm) }
-        CourseStep.MoveRoom, CourseStep.Stretch -> withGoal(indoor(RoomType.Camera, 0), GuidePlan.camera, 60.0)
+        CourseStep.InnerFace, CourseStep.MoveRoom, CourseStep.Stretch -> withGoal(indoor(RoomType.Camera, 0), GuidePlan.camera, 60.0)
         CourseStep.MoveBath -> withGoal(room(RoomType.Bagno), GuidePlan.bagno, 60.0)
         CourseStep.CornerC -> withGoal(room(RoomType.Bagno), GuidePlan.bagno, 40.0)
         CourseStep.Attach -> listOfNotNull(living(), indoor(RoomType.Camera, 0)).flatMap { it.points }

@@ -175,13 +175,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     /**
      * Guida al ricalco: la pianta pronta per il passo corrente anche quando ci si arriva con "Salta passo"
-     * (taratura aperta, "Muro per muro" avviato, stanza selezionata per Info).
+     * (taratura aperta, scelta della stanza, "Muro per muro" avviato, stanza selezionata per Info).
      */
     private fun prepareTracingStep() {
         if (tutorial.course != TutorialCourse.Tracing) return
         val s = _state.value
         when (tutorial.step) {
             TutorialStep.TraceCalibA -> if (s.plan.underlay != null && s.underlayTool !is UnderlayTool.Calibrate) recalibrateUnderlay()
+            TutorialStep.TracePick -> if (s.underlayTool != null) setUnderlayTool(null)
+            // Saltata la scelta: la guida prosegue con «Muro per muro».
             TutorialStep.TraceFirstCorner -> {
                 if (s.underlayTool != null) setUnderlayTool(null)
                 if (_state.value.wallDraw == null) startDrawWalls()
@@ -302,12 +304,14 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 if (step == CourseStep.SquareCorner && s.infoExpanded) _state.update { it.copy(infoExpanded = false) }
             }
             CourseStep.CalibA -> if (s.plan.underlay != null && s.underlayTool !is UnderlayTool.Calibrate) recalibrateUnderlay()
+            // Taratura saltata: si chiude, e si torna alla scelta della stanza.
+            CourseStep.PlanShape -> if (s.underlayTool != null) setUnderlayTool(null)
             // Il soggiorno selezionato: la striscia in basso (con 🧲 e Info) è la sua.
             CourseStep.Snap, CourseStep.LivingInfo -> s.plan.rooms.lastOrNull { it.type == RoomType.Soggiorno }?.let { r ->
                 if (s.focusedRoomId != r.id || s.selection != null) _state.update { it.copy(focusedRoomId = r.id, selection = null) }
             }
-            // Ultima scheda: la tendina Info delle misure si chiude, così si vede la casa finita.
-            CourseStep.Finished -> if (s.infoExpanded) _state.update { it.copy(infoExpanded = false) }
+            // Trasparenza e ultima scheda: la tendina Info delle misure si chiude, così si vede la casa finita.
+            CourseStep.PlanFade, CourseStep.Finished -> if (s.infoExpanded) _state.update { it.copy(infoExpanded = false) }
             else -> Unit
         }
         courseFocus = Course.focus(step, _state.value)?.also { b ->
@@ -862,18 +866,17 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     /**
-     * Fine della preparazione del ricalco (taratura fatta, "Fine" o finestra chiusa). Con lo sfondo caricato si passa subito a
-     * "Muro per muro" per ricalcare le stanze; senza sfondo si torna alla scelta della stanza.
+     * Fine della preparazione del ricalco (taratura fatta, "Fine" o finestra chiusa): si torna alla scelta della stanza. Con lo
+     * sfondo caricato la taratura resta e si sceglie come disegnare la prima stanza sopra la piantina (una forma o "Muro per
+     * muro"); senza sfondo la guida al ricalco non ha niente da ricalcare.
      */
     fun endTracing() {
         val s = _state.value
         val back = s.tracing ?: return
         _state.update { it.copy(tracing = null) }
         if (s.plan.rooms.isNotEmpty()) return
-        if (s.plan.underlay == null) {
-            _state.update { it.copy(creation = back) }
-            abandonTracingGuide()
-        } else startDrawWalls()
+        _state.update { it.copy(creation = back) }
+        if (s.plan.underlay == null) abandonTracingGuide()
     }
 
     // ---------- Percorso B: schizzo e scansione guidata (la UI li offre solo dove la funzione è disponibile) ----------
@@ -1039,7 +1042,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             )
         }
         fitToView()
-        if (firstEver && !course.active) welcome() else {
+        // Durante la guida al ricalco la prima stanza fa avanzare la guida (il tutorial generale arriva dopo).
+        if (firstEver && !tutorial.active && !course.active) welcome() else {
             tutorialEvent(TutorialEvent.RoomAdded)
             showTip(if (type.outdoor) Tip.Outdoor else Tip.NewRoom)
         }
@@ -1378,12 +1382,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 it.copy(creation = CreationStep.PickShape(cancellable = false), creationType = null)
             else it
         }
-        // Tornati alla scelta iniziale a metà della guida al ricalco: la guida si chiude (ripartirà con "Ricalca una piantina").
+        // Tornati alla scelta iniziale a metà della guida al ricalco: con la piantina tarata si sceglie di nuovo come disegnare la
+        // stanza; senza, la guida si chiude (ripartirà con "Ricalca una piantina").
         if (_state.value.creation != null && tutorial.course == TutorialCourse.Tracing && tutorial.active) {
-            tutorial.stop()
+            if (_state.value.plan.underlay != null) tutorial.start(TutorialCourse.Tracing, TutorialStep.TracePick) else tutorial.stop()
             publishTutorial()
         }
-        tutorialEvent(TutorialEvent.WallDrawLeft)
     }
 
     /** Il disegno in corso ricalca la piantina: lo decide il primo angolo (vedi [WallDraw.onPlan]). Le zone non lo sono mai. */

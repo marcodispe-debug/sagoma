@@ -447,11 +447,12 @@ fun EditorScreen(
             // Legenda dei simboli: in basso a destra, sopra la striscia Info e a sinistra del pannello laterale.
             var showLegend by remember { mutableStateOf(false) }
             var showVisibility by remember { mutableStateOf(false) }
-            // Piantina appena caricata (o cambiata): i comandi per vederla e regolarla si aprono da soli. Riaprendo il progetto no.
+            // Piantina appena caricata (o cambiata): i comandi per vederla e regolarla si aprono da soli. Riaprendo il progetto no,
+            // e nemmeno durante la guida, che li spiega alla fine della lezione.
             var underlayFile by remember { mutableStateOf(state.plan.underlay?.file) }
             LaunchedEffect(state.plan.underlay?.file) {
                 val file = state.plan.underlay?.file
-                if (file != null && file != underlayFile) showVisibility = true
+                if (file != null && file != underlayFile && state.course == null) showVisibility = true
                 underlayFile = file
             }
             val cornerModifier = Modifier
@@ -475,7 +476,7 @@ fun EditorScreen(
                     if (showVisibility) VisibilityPanel(state, vm, onLoadPlan = { showBackground = true })
                     LegendButton(
                         if (showVisibility) T.editor.chiudi else T.editor.piantinaDisegno, onClick = { showVisibility = !showVisibility },
-                        modifier = Modifier.guide(GuideTarget.PlanPanel, done = !showVisibility),
+                        modifier = Modifier.guide(GuideTarget.PlanPanel, done = showVisibility),
                     )
                     PhaseLegend(state)
                     LegendButton(T.editor.legenda, onClick = { showLegend = true })

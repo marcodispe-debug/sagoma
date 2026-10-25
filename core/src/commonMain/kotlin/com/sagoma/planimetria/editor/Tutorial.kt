@@ -27,6 +27,7 @@ enum class TutorialStep(val action: Boolean = true) {
     TraceCalibA,
     TraceCalibB,
     TraceCalibValue,
+    TracePick,
     TraceFirstCorner,
     TraceCorners,
     TraceClose,
@@ -69,16 +70,15 @@ sealed interface TutorialEvent {
     /** Piantina o disegno mostrati, nascosti o resi più trasparenti. */
     data object PlanViewChanged : TutorialEvent
 
-    // Azioni che contano solo per la guida interattiva (Course).
-
     /** Scelta nella finestra della forma della stanza (Quadrato, Rettangolo, A L, Da rilievo, Muro per muro). */
     data class ShapePicked(val choice: ShapeChoice) : TutorialEvent
+
+    // Azioni che contano solo per la guida interattiva (Course).
+
     /** Scelto da che parte sporge la L. */
     data object LSidePicked : TutorialEvent
     /** «Ricalca una piantina». */
     data object TracingStarted : TutorialEvent
-    /** Uscita da «Muro per muro» senza chiudere la stanza. */
-    data object WallDrawLeft : TutorialEvent
     data object StairAdded : TutorialEvent
 }
 
@@ -143,7 +143,13 @@ class Tutorial {
             // Durante la taratura il passo segue i punti toccati: il terzo tocco ricomincia da A, e la guida torna indietro.
             TutorialStep.TraceCalibA, TutorialStep.TraceCalibB, TutorialStep.TraceCalibValue -> return when (event) {
                 is TutorialEvent.CalibrationPoints -> moveTo(if (event.count >= 2) TutorialStep.TraceCalibValue else TutorialStep.TraceCalibB)
-                TutorialEvent.Calibrated -> moveTo(TutorialStep.TraceFirstCorner)
+                TutorialEvent.Calibrated -> moveTo(TutorialStep.TracePick)
+                else -> false
+            }
+            // Dopo la taratura si sceglie come disegnare la prima stanza: «Muro per muro» angolo per angolo, o una forma.
+            TutorialStep.TracePick -> return when (event) {
+                TutorialEvent.ShapePicked(ShapeChoice.Walls) -> moveTo(TutorialStep.TraceFirstCorner)
+                TutorialEvent.RoomAdded -> moveTo(TutorialStep.TraceCheck)
                 else -> false
             }
             TutorialStep.TraceFirstCorner -> event is TutorialEvent.CornersPlaced && event.count >= 1

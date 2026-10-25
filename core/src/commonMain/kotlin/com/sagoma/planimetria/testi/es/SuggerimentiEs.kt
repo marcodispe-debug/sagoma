@@ -74,8 +74,8 @@ object SuggerimentiEs : Suggerimenti() {
             "Con el botón de la planta, arriba a la izquierda, cambias de planta y añades otras nuevas. La planta inferior se ve " +
                 "en gris para alinear las paredes, y sus escaleras aparecen como un hueco en el suelo. En 3D ves la planta elegida sobre las de abajo."
         Tip.Tracing ->
-            "Carga la foto o el PDF del plano y calíbralo con una medida que conozcas: luego haces clic en las esquinas de las habitaciones " +
-                "y las medidas salen solas, como las escritas en el plano."
+            "Carga la foto o el PDF del plano y calíbralo con una medida que conozcas: luego eliges cómo dibujar las habitaciones, " +
+                "con una forma o haciendo clic en las esquinas con «Pared a pared», y las medidas salen solas, como las escritas en el plano."
         Tip.Calibrate ->
             "Toca los dos extremos de una medida escrita en el plano (mejor la más larga, por ejemplo una pared entera) y escribe " +
                 "cuántos cm mide. Si luego las medidas no cuadran, «📏 Rehacer calibración» lo corrige incluso a mitad de una habitación."

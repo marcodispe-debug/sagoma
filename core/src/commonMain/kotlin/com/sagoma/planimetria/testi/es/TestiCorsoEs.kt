@@ -27,6 +27,7 @@ object TestiCorsoEs : TestiCorso() {
         CourseStep.ElementsDone -> "Cada elemento, desde «$infoTab»"
         CourseStep.Finished -> "¡Has terminado la guía!"
         CourseStep.Snap -> "Mover las habitaciones y el ajuste 🧲"
+        CourseStep.InnerFace -> "El lado interior de las paredes"
         else -> "¡Hecho!"
     }
 
@@ -63,6 +64,12 @@ object TestiCorsoEs : TestiCorso() {
             "Aquí están el dormitorio, el baño y el salón sobre el plano, con las medidas correctas. Haz lo mismo con las demás habitaciones: " +
                 "una forma para empezar, pegada a las habitaciones de al lado, luego paredes y esquinas en su sitio y las medidas exactas en " +
                 "«$infoTab». ¡Ya puedes dibujar tu casa! La guía se repite cuando quieras desde «${e.guide}»."
+        CourseStep.InnerFace ->
+            "Antes de mover el dormitorio, una cosa importante. Sagoma mide las habitaciones desde el lado interior de las paredes, " +
+                "como las medidas escritas en el plano: el grosor de la pared va hacia fuera. Cuando pongas una habitación sobre el " +
+                "plano, haz coincidir lo más posible el lado interior de las paredes dibujadas con el lado interior de las paredes del " +
+                "plano: mira la línea interior de la pared, no el centro ni el lado exterior. Así las medidas, los metros cuadrados y " +
+                "las habitaciones vecinas salen bien."
         else -> ""
     }
 
@@ -211,16 +218,15 @@ object TestiCorsoEs : TestiCorso() {
     override val taraturaB: String get() = "Ahora haz clic donde termina la medida: la esquina interior de arriba a la derecha del salón, aquí."
     override fun misuraReale(cm: Int): String = "Escribe la distancia real entre los dos puntos, la escrita en el plano: $cm."
     override val tara: String get() = "Haz clic en «${T.sfondo.tara2}»: ahora el plano está a escala, cada centímetro es correcto."
-    override val chiudiPannello: String get() =
-        "Aquí a la derecha está el panel «${e.piantinaDisegno}»: aclara u oscurece el plano, o lo oculta. Por ahora ciérralo con «${e.chiudi}»."
-    override val esciMuroPerMuro: String get() =
-        "Ha empezado «${cr.muroMuro}» sobre el plano: podrías hacer clic en las esquinas de las habitaciones una a una. Aquí en cambio usamos las formas y " +
-            "las ajustamos sobre el plano: haz clic en «${T.comuni.esci}»."
+    override val sceltaDopoTaratura: String get() =
+        "La calibración está guardada: el plano ya está a escala. Ahora elige cómo dibujar la primera habitación: con «${cr.muroMuro}» " +
+            "haces clic en sus esquinas sobre el plano, con una forma la creas y luego la llevas sobre el plano. Aquí usamos las formas. " +
+            "Empecemos por el dormitorio, que es un rectángulo: partimos de un cuadrado, para ver cómo se alarga. Haz clic en «${cr.quadrato}»."
     override val cameraDaQuadrato: String get() = "Empecemos por el dormitorio, que es un rectángulo: partimos de un cuadrado, para ver cómo se alarga. Haz clic en «${cr.quadrato}»."
     override fun latoCortoCamera(v: Int): String = "Escribe el lado corto del dormitorio, leído en el plano: $v."
     override val spostaCamera: String get() =
         "El dormitorio está, pero aún no en su sitio. Para mover una habitación pulsa sobre su nombre, mantén y arrástrala: suéltala " +
-            "cuando la esquina de arriba a la izquierda esté sobre la del dormitorio dibujado (el contorno discontinuo)."
+            "cuando la esquina interior de arriba a la izquierda esté sobre la esquina interior del dormitorio dibujado (el contorno discontinuo)."
     override fun allungaCamera(v: Int): String =
         "El dormitorio del plano es más ancho: $v. Basta con mover la pared de la derecha: pulsa sobre la pared, mantén y arrástrala hasta la marca. " +
             "Mientras la mueves la medida cambia: déjala en $v."
@@ -248,6 +254,13 @@ object TestiCorsoEs : TestiCorso() {
     override fun muroInfo(numero: Int, muro: Int, v: Int, first: Boolean): String =
         (if (first) "En «${T.schedaStanza.muri}» está la longitud interior de cada pared. " else "") +
             "En «${T.schedaStanza.muro(numero)}», la pared ${nomeMuroSoggiorno(muro)}, escribe $v y pulsa Intro."
+
+    override val apriPannello: String get() =
+        "Una última cosa: para ver mejor el dibujo sobre el plano, haz clic en «${e.piantinaDisegno}», aquí abajo a la derecha."
+    override val trasparenzaPiantina: String get() =
+        "Aquí ajustas el plano: arrastrando el cursor se aclara o se oscurece, con el interruptor lo ocultas. Debajo está lo mismo " +
+            "para el dibujo. Prueba: arrastra el cursor del plano."
+
     override fun nomeMuroSoggiorno(muro: Int): String = when (muro) {
         0 -> "de arriba"
         1 -> "de la derecha"
