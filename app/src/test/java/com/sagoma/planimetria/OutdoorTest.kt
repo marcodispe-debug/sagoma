@@ -64,16 +64,23 @@ class OutdoorTest {
     }
 
     @Test
-    fun `un balcone nuovo nasce appoggiato al muro destro della casa, con il lato lungo lungo il muro`() {
+    fun `un balcone nuovo nasce girato come le misure scritte, con il lato lungo contro la casa`() {
         // Casa a L: la camera sporge più a destra solo in basso (y 300..700).
         val kitchen = Room(3, "Cucina", RoomType.Cucina, RoomFactory.rectangle(300.0, 300.0))
         val room = Room(4, "Camera", RoomType.Camera, RoomFactory.rectangle(500.0, 400.0).map { it + Vec2(0.0, 300.0) })
-        val pts = RoomFactory.placeAgainstHouse(FloorPlan(listOf(kitchen, room)), RoomFactory.rectangle(400.0, 150.0))
-        val b = com.sagoma.planimetria.geometry.Polygon.bounds(pts)
-        assertEquals(500.0, b.minX, 1e-9)
-        assertEquals(300.0, b.minY, 1e-9)
-        assertEquals(150.0, b.width, 1e-9)
-        assertEquals(400.0, b.height, 1e-9)
+        val plan = FloorPlan(listOf(kitchen, room))
+        // Più profondo che largo: contro il muro destro della camera.
+        val alto = com.sagoma.planimetria.geometry.Polygon.bounds(RoomFactory.placeAgainstHouse(plan, RoomFactory.rectangle(150.0, 400.0)))
+        assertEquals(500.0, alto.minX, 1e-9)
+        assertEquals(300.0, alto.minY, 1e-9)
+        assertEquals(150.0, alto.width, 1e-9)
+        assertEquals(400.0, alto.height, 1e-9)
+        // Più largo che profondo: resta orizzontale, sotto la casa contro il muro in basso della camera.
+        val largo = com.sagoma.planimetria.geometry.Polygon.bounds(RoomFactory.placeAgainstHouse(plan, RoomFactory.rectangle(400.0, 150.0)))
+        assertEquals(0.0, largo.minX, 1e-9)
+        assertEquals(700.0, largo.minY, 1e-9)
+        assertEquals(400.0, largo.width, 1e-9)
+        assertEquals(150.0, largo.height, 1e-9)
     }
 
     @Test
