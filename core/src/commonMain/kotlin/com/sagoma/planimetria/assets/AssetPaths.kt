@@ -18,12 +18,26 @@ object AssetPaths {
     /** Vista dall'alto, per la pianta. */
     fun furnitureTop(model: String) = "furniture/${model}_top.png"
 
-    /** Mappa di un materiale fotografico: `kind` è `color`, `normal` o `orm`. */
-    fun materialMap(id: String, kind: String) = "materials/${id}_$kind.jpg"
+    /**
+     * Mappa di un materiale fotografico: `kind` è `color`, `normal` o `orm`. Le mappe 1K stanno con l'app, quelle più
+     * definite solo sul server, in una cartella per risoluzione (`materials/2k/`, `materials/4k/`).
+     */
+    fun materialMap(id: String, kind: String, resolution: MaterialResolution = MaterialResolution.K1) =
+        if (resolution.folder == null) "materials/${id}_$kind.jpg" else "materials/${resolution.folder}/${id}_$kind.jpg"
 
     /** Campione del materiale, per sceglierlo. */
     fun materialThumbnail(id: String) = "materials/${id}_thumb.jpg"
 
     /** Luce ambiente fotografata (`giorno`, `tramonto`, `interno`). */
     fun environment(name: String) = "env/$name.ibl"
+}
+
+/**
+ * Definizione delle mappe dei materiali: 1K sul telefono (arrivano con l'app), 2K nel 3D del computer, 4K per i render.
+ * Dove manca la mappa più definita si usa l'1K, che c'è sempre.
+ */
+enum class MaterialResolution(val side: Int, val folder: String?) {
+    K1(1024, null),
+    K2(2048, "2k"),
+    K4(4096, "4k"),
 }

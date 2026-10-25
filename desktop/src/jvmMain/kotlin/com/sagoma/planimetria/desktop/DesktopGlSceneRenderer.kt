@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.asComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
+import com.sagoma.planimetria.assets.MaterialResolution
 import com.sagoma.planimetria.geometry.Mat4
 import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.SunAngles
@@ -47,9 +48,13 @@ import kotlin.math.sin
  * materiali fotografici, modelli 3D degli arredi, sole con ombre morbide secondo l'ora, cielo, luci della
  * casa e luce dalle finestre; l'immagine passa a Compose come una normale immagine (così pulsanti e gesti
  * della vista 3D stanno sopra). Si ridisegna solo quando cambiano scena, telecamera, ora o misure.
- * `readAsset` legge i file di arredi e materiali (null nella versione senza catalogo).
+ * `readAsset` legge i file di arredi e materiali (null nella versione senza catalogo); `materials` è la definizione dei
+ * materiali fotografici da usare quando c'è (altrimenti l'1K).
  */
-class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { null }) : SceneRenderer {
+class DesktopGlSceneRenderer(
+    private val readAsset: (String) -> ByteArray? = { null },
+    private val materials: MaterialResolution = MaterialResolution.K1,
+) : SceneRenderer {
     /** Tutto l'OpenGL gira su questo thread (il contesto è legato a lui). */
     private val gl = Executors.newSingleThreadExecutor { Thread(it, "Sagoma 3D").apply { isDaemon = true } }
     private val scheduled = AtomicBoolean(false)
@@ -175,7 +180,7 @@ class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { n
         val s = size
         if (s.width <= 0 || s.height <= 0) return
         ensureFramebuffer(s)
-        pendingScene?.let { upload(it); pendingScene = null }
+        pendingScene?.let { res.retryMissing(); upload(it); pendingScene = null }
         val d = Daylight(hour, lamps, walking, sunAt)
         val lightMvp = sunMatrix(d)
         roofMvp = roofMatrix()
@@ -250,7 +255,7 @@ class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { n
         glUniformMatrix4fv(u("uModel"), false, IDENTITY)
         drawArrays(program, opaqueVbo, opaqueCount, Format.SCENE)
         for ((id, buf) in textured) {
-            setMaterial(albedo = res.material(id, "color"), normal = res.material(id, "normal"), orm = res.material(id, "orm"), ormHasAo = true, roughness = 1f, metallic = 1f, macro = id == GRASS)
+            setMaterial(albedo = res.material(id, "color", materials), normal = res.material(id, "normal", materials), orm = res.material(id, "orm", materials), ormHasAo = true, roughness = 1f, metallic = 1f, macro = id == GRASS)
             drawArrays(program, buf.first, buf.second, Format.TEXTURED)
         }
         forEachFurniturePart(opaqueOnly = true) { part, m ->

@@ -91,7 +91,9 @@ C'è una sola app (`com.sagoma.planimetria`, "Sagoma") per privati e professioni
   singoli, prato attorno alla casa): 380 materiali di ambientCG e Poly Haven (CC0) in `catalogo/src/main/assets/materials/`
   (1024 px, 233 MB; i tessuti e le moquette diventano anche tappeti rettangolari e tondi), preparati con `tools/furniture/PackMaterials.java` da `tools/furniture/materials.tsv` (nome, categoria,
   lato reale della foto). Nel 3D sono superfici a parte (`Scene3D.textured`, uv in ripetizioni della foto) disegnate
-  da `TexturedSurfaces` con colore, rilievo e ruvidità; il renderer semplice usa il colore medio.
+  da `TexturedSurfaces` con colore, rilievo e ruvidità; il renderer semplice usa il colore medio. Gli stessi materiali in
+  2K (3D del computer) e 4K (render) stanno solo sul server del catalogo (`MaterialResolution`, `tools/furniture/PackMaterialsHd.java`,
+  vedi `docs/catalogo-server.md`): il computer usa l'1K finché il 2K non è arrivato.
 
 ## Moduli (Kotlin Multiplatform)
 

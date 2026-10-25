@@ -72,8 +72,8 @@ private fun logError(where: String, e: Throwable) {
     }
 }
 
-/** Spazio massimo della cache dei blob remoti sul computer (valore di partenza, da tarare). */
-private const val REMOTE_CACHE_BYTES = 1024L * 1024 * 1024
+/** Spazio massimo della cache dei blob remoti sul computer: i materiali 2K pesano ~4 volte quelli 1K (valore da tarare). */
+private const val REMOTE_CACHE_BYTES = 3L * 1024 * 1024 * 1024
 
 /**
  * Il sistema remoto degli asset, uno per processo: si crea qui, una volta, e si passa a chi lo usa. Solo se si indicano gli indirizzi

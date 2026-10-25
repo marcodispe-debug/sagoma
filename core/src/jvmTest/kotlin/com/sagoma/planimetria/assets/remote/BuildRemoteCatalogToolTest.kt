@@ -81,4 +81,51 @@ class BuildRemoteCatalogToolTest {
             root.deleteRecursively()
         }
     }
+
+    @Test
+    fun `i materiali 2K e 4K vanno sul server, e con il loro elenco l'app ha lo stesso manifest senza averli`() {
+        val root = createTempDirectory("sagoma-remote-hd").toFile()
+        try {
+            val assets = File(root, "assets")
+            for ((path, text) in mapOf("materials/materials.json" to "[]", "materials/marble_01_color.jpg" to "colore 1K")) {
+                File(assets, path).apply { parentFile.mkdirs(); writeText(text) }
+            }
+            val hd = File(root, "hd")
+            val hdFiles = mapOf(
+                "materials/2k/marble_01_color.jpg" to "colore 2K",
+                "materials/2k/marble_01_normal.jpg" to "normali 2K",
+                "materials/2k/marble_01_orm.jpg" to "orm 2K",
+                "materials/4k/marble_01_color.jpg" to "colore 4K",
+            )
+            for ((path, text) in hdFiles) File(hd, path).apply { parentFile.mkdirs(); writeText(text) }
+            val index = File(root, "materiali-hd.tsv")
+            val out = File(root, "server")
+            run("--hd=${hd.path}", "--indice-hd=${index.path}", assets.path, out.path, "3")
+
+            val r = ManifestParser.parse(File(out, "manifest.json").readText(), clientVersion = 1)
+            assertIs<ManifestParseResult.Valid>(r, r.toString())
+            val resolver = BlobResolver(r.manifest)
+            for ((path, text) in hdFiles) {
+                val e = assertNotNull(resolver.entryForPath(path), path)
+                assertEquals(text, File(out, "blobs/" + r.manifest.blobLayout.keyOf(e.file.sha256)).readText(), path)
+            }
+            assertEquals(setOf("color", "normal", "orm"), resolver.entries("material:marble_01:2k").map { it.file.role }.toSet())
+            assertEquals("material-4k", resolver.asset("material:marble_01:4k")?.kind)
+            // L'1K resta il materiale di sempre.
+            assertEquals(setOf("color"), resolver.entries("material:marble_01").map { it.file.role }.toSet())
+            assertEquals(hdFiles.size, index.readLines().count { !it.startsWith("#") })
+
+            // L'app: niente cartella HD, solo l'elenco nel repository. Stesso manifest byte per byte.
+            val app = File(root, "app")
+            run("--solo-manifest", "--indice-hd=${index.path}", assets.path, app.path, "3")
+            assertEquals(File(out, "manifest.json").readText(), File(app, "manifest.json").readText())
+
+            // Rilanciato con gli stessi file, l'elenco non cambia.
+            val before = index.readText()
+            assertTrue("copiati ora: 0" in run("--hd=${hd.path}", "--indice-hd=${index.path}", assets.path, out.path, "3"))
+            assertEquals(before, index.readText())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
 }

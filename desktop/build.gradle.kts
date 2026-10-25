@@ -38,6 +38,11 @@ compose.desktop {
         mainClass = "com.sagoma.planimetria.desktop.MainKt"
         // Durante lo sviluppo gli arredi e i materiali si leggono dalla cartella del catalogo.
         jvmArgs += "-Dsagoma.assets=${rootProject.file("catalogo/src/main/assets").absolutePath}"
+        // Catalogo sul server (docs/catalogo-server.md), gli stessi indirizzi dell'app: da lì arrivano i materiali 2K, e quello che
+        // non c'è nella cartella del catalogo. Senza indirizzi niente rete, e i materiali restano quelli 1K.
+        for ((gradle, system) in listOf("sagoma.catalogo.manifest" to "sagoma.remote.manifest", "sagoma.catalogo.blobs" to "sagoma.remote.blobs")) {
+            providers.gradleProperty(gradle).orNull?.trim()?.takeIf { it.isNotEmpty() }?.let { jvmArgs += "-D$system=$it" }
+        }
         // "Leggi la piantina da sola": indirizzo del server e chiave dell'app dalle proprietà Gradle (vuoto = niente pulsante).
         for (key in listOf("sagoma.lettura.url", "sagoma.lettura.chiave")) {
             providers.gradleProperty(key).orNull?.trim()?.takeIf { it.isNotEmpty() }?.let { jvmArgs += "-D$key=$it" }

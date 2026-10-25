@@ -32,17 +32,24 @@ object AssetPlanner {
      *  - per ogni materiale fotografico con almeno un triangolo, le tre mappe (`color`, `normal`, `orm`), in ordine alfabetico;
      *  - l'erba ([MaterialCatalog.GRASS], tre mappe) se la scena ha un'estensione ([Scene3D.bounds]): è quando i renderer stendono il prato;
      *  - le luci ambiente in `environments` ([AssetPaths.environment]). Quale serva (giorno, tramonto…) lo decide il renderer in base all'ora,
-     *    quindi i nomi li passa chi chiama.
+     *    quindi i nomi li passa chi chiama;
+     *  - con una `resolution` più alta dell'1K (il computer), alla fine le stesse mappe dei materiali in quella definizione, `Soon`:
+     *    prima arriva tutto quello che serve a disegnare la scena, poi le mappe più belle (finché mancano si usa l'1K).
      */
-    fun forScene(scene: Scene3D, environments: List<String> = emptyList()): List<AssetRequest> {
+    fun forScene(
+        scene: Scene3D,
+        environments: List<String> = emptyList(),
+        resolution: MaterialResolution = MaterialResolution.K1,
+    ): List<AssetRequest> {
         val plan = Plan()
         for (f in scene.furniture) plan.model(f.model, AssetPriority.Scene)
-        for (id in scene.textured.keys.sorted()) {
+        val materials = scene.textured.keys.sorted().filter {
             // Come i renderer: una superficie con meno di un triangolo (8 float per vertice) non si disegna.
-            if ((scene.textured[id]?.size ?: 0) / 8 >= 3) plan.materialMaps(id, AssetPriority.Scene)
-        }
-        if (scene.bounds != null) plan.materialMaps(MaterialCatalog.GRASS, AssetPriority.Scene)
+            (scene.textured[it]?.size ?: 0) / 8 >= 3
+        } + listOfNotNull(MaterialCatalog.GRASS.takeIf { scene.bounds != null })
+        for (id in materials) plan.materialMaps(id, AssetPriority.Scene)
         for (name in environments) plan.environment(name, AssetPriority.Scene)
+        if (resolution != MaterialResolution.K1) for (id in materials) plan.materialMaps(id, AssetPriority.Soon, resolution)
         return plan.result()
     }
 
@@ -98,9 +105,9 @@ object AssetPlanner {
         fun environment(name: String, priority: AssetPriority) = add(AssetPaths.environment(name), name, priority)
 
         /** Le tre mappe di un materiale, tutte o nessuna (una sola non basta a disegnarlo). */
-        fun materialMaps(id: String, priority: AssetPriority) {
+        fun materialMaps(id: String, priority: AssetPriority, resolution: MaterialResolution = MaterialResolution.K1) {
             if (!isPlainName(id)) return
-            val paths = MAP_KINDS.map { AssetPaths.materialMap(id, it) }
+            val paths = MAP_KINDS.map { AssetPaths.materialMap(id, it, resolution) }
             if (paths.all { isPortableAssetPath(it) }) for (p in paths) addPath(p, priority)
         }
 

@@ -21,6 +21,7 @@ import kotlinx.coroutines.withContext
 import com.sagoma.planimetria.assets.ClasspathAssetStore
 import com.sagoma.planimetria.assets.CompositeAssetStore
 import com.sagoma.planimetria.assets.DirectoryAssetStore
+import com.sagoma.planimetria.assets.MaterialResolution
 import com.sagoma.planimetria.assets.buildCachedAssetStore
 import com.sagoma.planimetria.assets.codeSourceStamp
 import com.sagoma.planimetria.assets.directoryFingerprint
@@ -66,6 +67,9 @@ class DesktopPlatform(
 
     // Mouse e schermo largo: qui la guida interattiva ha senso (e parte al primo avvio).
     override val interactiveGuide: Boolean get() = true
+
+    // Schermo grande e scheda grafica del computer: materiali 2K (scaricati dal server; finché mancano, quelli 1K).
+    override val materialResolution: MaterialResolution get() = MaterialResolution.K2
 
     override val systemLanguage: String get() = java.util.Locale.getDefault().language
 
@@ -157,7 +161,7 @@ class DesktopPlatform(
 
     override fun now(): Long = System.currentTimeMillis()
 
-    override fun createSceneRenderer(): SceneRenderer = runCatching { DesktopGlSceneRenderer(assetStore::peek) }.getOrElse {
+    override fun createSceneRenderer(): SceneRenderer = runCatching { DesktopGlSceneRenderer(assetStore::peek, materialResolution) }.getOrElse {
         UnavailableSceneRenderer(T.vari.vista3dNonDisponibile)
     }
 }

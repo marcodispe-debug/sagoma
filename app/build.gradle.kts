@@ -84,6 +84,11 @@ abstract class ManifestoCatalogo @Inject constructor(private val exec: ExecOpera
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val tool: RegularFileProperty
 
+    /** Elenco dei materiali 2K e 4K, che stanno solo sul server (catalogo/materiali-hd.tsv; può mancare). */
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val hdIndex: ConfigurableFileCollection
+
     @get:Input
     abstract val version: Property<String>
 
@@ -96,7 +101,8 @@ abstract class ManifestoCatalogo @Inject constructor(private val exec: ExecOpera
     @TaskAction
     fun write() {
         exec.exec {
-            commandLine(java.get(), tool.get().asFile.path, "--solo-manifest", assets.get().asFile.path, output.get().dir("remote").asFile.path, version.get())
+            val index = hdIndex.files.firstOrNull { it.isFile }?.let { listOf("--indice-hd=${it.path}") }.orEmpty()
+            commandLine(listOf(java.get(), tool.get().asFile.path, "--solo-manifest") + index + listOf(assets.get().asFile.path, output.get().dir("remote").asFile.path, version.get()))
         }
     }
 }
@@ -104,6 +110,7 @@ abstract class ManifestoCatalogo @Inject constructor(private val exec: ExecOpera
 val catalogoManifestTask = tasks.register<ManifestoCatalogo>("manifestoCatalogo") {
     assets.set(catalogoRoot)
     tool.set(rootProject.layout.projectDirectory.file("tools/remote/BuildRemoteCatalog.java"))
+    hdIndex.from(rootProject.layout.projectDirectory.file("catalogo/materiali-hd.tsv"))
     version.set(catalogoVersione)
     java.set(File(System.getProperty("java.home"), "bin/java").path)
     output.set(layout.buildDirectory.dir("generated/catalogo-manifest"))

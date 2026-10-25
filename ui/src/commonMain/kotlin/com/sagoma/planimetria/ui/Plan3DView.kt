@@ -414,7 +414,7 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     LaunchedEffect(scene, assetsVersion) {
         delay(ASSET_RELOAD_DELAY_MS)
         val store = scenePlatform.assetStore
-        val missing = AssetPlanner.forScene(scene).filter { !store.isAvailable(it.path) }
+        val missing = AssetPlanner.forScene(scene, resolution = scenePlatform.materialResolution).filter { !store.isAvailable(it.path) }
         for (r in missing) scenePlatform.assetRequests.request(r.path, r.priority)
         view.assetsChecked(missing.mapTo(HashSet()) { it.path }) { store.isAvailable(it) }
     }
