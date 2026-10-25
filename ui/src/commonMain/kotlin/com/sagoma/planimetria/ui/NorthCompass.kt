@@ -72,12 +72,52 @@ private fun snapNorth(deg: Double): Double {
  * ferma, si orienta solo il sole); un tocco apre la finestra con i gradi e la città.
  */
 @Composable
-fun NorthCompass(northDeg: Double, onNorth: (Double) -> Unit, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+fun NorthCompass(
+    northDeg: Double,
+    onNorth: (Double) -> Unit,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+    rotateHint: Boolean = true,
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    Box(modifier.size(if (rotateHint) 80.dp else 56.dp), contentAlignment = Alignment.Center) {
+        // Freccia curva a due punte sul lato sinistro: fa capire che la bussola si gira trascinandola.
+        if (rotateHint) Canvas(Modifier.size(80.dp)) {
+            val c = Offset(size.width / 2f, size.height / 2f)
+            val r = size.minDimension / 2f - 4.dp.toPx()
+            val stroke = 2.5.dp.toPx()
+            val color = primary.copy(alpha = 0.8f)
+            val start = 125f
+            val sweep = 110f
+            drawArc(
+                color, start, sweep, useCenter = false,
+                topLeft = Offset(c.x - r, c.y - r), size = androidx.compose.ui.geometry.Size(2 * r, 2 * r),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+            )
+            // Punta all'angolo `deg` (gradi dello schermo, 0 = destra, in senso orario), rivolta nel verso `dir` (+1 orario, −1 antiorario).
+            fun head(deg: Float, dir: Float) {
+                val t = deg * PI.toFloat() / 180f
+                val p = Offset(c.x + r * kotlin.math.cos(t), c.y + r * kotlin.math.sin(t))
+                val along = Offset(-kotlin.math.sin(t), kotlin.math.cos(t)) * dir
+                val out = Offset(kotlin.math.cos(t), kotlin.math.sin(t))
+                val len = 7.dp.toPx()
+                drawLine(color, p, p - along * len + out * (len * 0.6f), stroke, androidx.compose.ui.graphics.StrokeCap.Round)
+                drawLine(color, p, p - along * len - out * (len * 0.6f), stroke, androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+            head(start + sweep, 1f)
+            head(start, -1f)
+        }
+        CompassDial(northDeg, onNorth, onOpen)
+    }
+}
+
+@Composable
+private fun CompassDial(northDeg: Double, onNorth: (Double) -> Unit, onOpen: () -> Unit) {
     val current by rememberUpdatedState(northDeg)
     val primary = MaterialTheme.colorScheme.primary
     val ink = MaterialTheme.colorScheme.onSurface
     val description = T.vista3D.bussola
-    Surface(modifier.size(56.dp), shape = CircleShape, tonalElevation = 3.dp, shadowElevation = 3.dp) {
+    Surface(Modifier.size(56.dp), shape = CircleShape, tonalElevation = 3.dp, shadowElevation = 3.dp) {
         Box(
             Modifier
                 .semantics { contentDescription = description }
@@ -143,7 +183,7 @@ fun HouseSiteDialog(site: HouseSite, onNorth: (Double) -> Unit, onPlace: (Place?
                 Text(T.vista3D.spiegazioneNord, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    NorthCompass(site.northDeg, onNorth = { onNorth(it); degrees = it.roundToInt().toString() }, onOpen = {})
+                    NorthCompass(site.northDeg, onNorth = { onNorth(it); degrees = it.roundToInt().toString() }, onOpen = {}, rotateHint = false)
                     Spacer(Modifier.width(12.dp))
                     OutlinedTextField(
                         value = degrees,
