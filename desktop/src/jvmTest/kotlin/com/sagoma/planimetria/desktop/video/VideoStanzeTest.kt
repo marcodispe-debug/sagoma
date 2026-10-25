@@ -28,6 +28,9 @@ import com.sagoma.planimetria.ui.Platform
 import com.sagoma.planimetria.ui.SagomaApp
 import java.io.File
 import java.nio.file.Files
+import kotlin.math.ceil
+import kotlin.math.ln
+import kotlin.math.pow
 import kotlin.test.Test
 
 /**
@@ -137,12 +140,12 @@ class VideoStanzeTest {
         r.clickOn(r.rect("Quadrato", exact = true), "Clicca su «Quadrato»: è la forma giusta per una stanza con i quattro lati uguali.", readSeconds = 3.5)
         r.wait(0.8)
         r.stepLabel = "Passo 3 di $tot"
-        r.clickOn(r.rect("Camera da letto", exact = true), "Si apre la finestra «Misure della stanza». In «Tipo di stanza» clicca su che stanza è, per esempio «Camera da letto»: sagoma le dà il nome e il colore giusti.", readSeconds = 5.0)
+        r.clickOn(r.rect("Studio", exact = true), "Si apre la finestra «Misure della stanza». In «Tipo di stanza» clicca su che stanza è, per esempio «Studio»: sagoma le dà il nome e il colore giusti.", readSeconds = 5.0)
         r.wait(1.0)
         r.stepLabel = "Passo 4 di $tot"
         val lato = r.field("Lato")
         r.clickOn(r.rectOf(lato), "Clicca nel campo «Lato» e scrivi quanto è lungo un lato, in centimetri. È la misura interna, da muro a muro, quella che prendi col metro.", readSeconds = 5.0)
-        r.type(lato, "350")
+        r.type(lato, "330")
         r.wait(1.5)
         r.stepLabel = "Passo 5 di $tot"
         r.highlight = r.rectOf(r.field("Altezza soffitto"))
@@ -152,7 +155,7 @@ class VideoStanzeTest {
         r.stepLabel = "Passo 6 di $tot"
         r.clickOn(r.rect("Crea stanza", exact = true), "Clicca su «Crea stanza».", readSeconds = 2.5)
         r.highlight = null
-        r.caption = "Fatto! La camera da letto quadrata di 3,50 × 3,50 m è sulla pianta, con le misure scritte sui muri."
+        r.caption = "Fatto! Lo studio quadrato di 3,30 × 3,30 m è sulla pianta, con le misure scritte sui muri."
         r.moveTo(Offset(1050f, 600f))
         r.wait(5.0)
     }
@@ -180,22 +183,22 @@ class VideoStanzeTest {
         r.clickOn(r.rect("Rettangolo", exact = true), "Clicca su «Rettangolo».", readSeconds = 2.5)
         r.wait(0.8)
         r.stepLabel = "Passo 4 di $tot"
-        r.clickOn(r.rect("Soggiorno", exact = true), "Scegli il tipo: per esempio «Soggiorno».", readSeconds = 3.0)
+        r.clickOn(r.rect("Camera da letto", exact = true), "Scegli il tipo: per esempio «Camera da letto».", readSeconds = 3.0)
         r.wait(0.8)
         r.stepLabel = "Passo 5 di $tot"
         val larg = r.field("Larghezza")
         r.clickOn(r.rectOf(larg), "Nel campo «Larghezza» scrivi il lato orizzontale della stanza (da sinistra a destra sulla pianta), in centimetri.", readSeconds = 4.5)
-        r.type(larg, "520")
+        r.type(larg, "400")
         r.wait(1.0)
         r.stepLabel = "Passo 6 di $tot"
         val prof = r.field("Profondità")
         r.clickOn(r.rectOf(prof), "Nel campo «Profondità» scrivi l'altro lato (dall'alto in basso sulla pianta).", readSeconds = 4.0)
-        r.type(prof, "410")
+        r.type(prof, "330")
         r.wait(1.0)
         r.stepLabel = "Passo 7 di $tot"
         r.clickOn(r.rect("Crea stanza", exact = true), "Clicca su «Crea stanza».", readSeconds = 2.0)
         r.highlight = null
-        r.caption = "Ecco il soggiorno di 5,20 × 4,10 m accanto alla camera. Poi potrai spostarlo trascinandolo dove vuoi."
+        r.caption = "Ecco la camera di 4,00 × 3,30 m accanto allo studio. Poi potrai spostarla trascinandola dove vuoi."
         r.moveTo(Offset(1100f, 560f))
         r.wait(5.0)
     }
@@ -206,7 +209,7 @@ class VideoStanzeTest {
         r.chapter = "Modo 3 · Forma a L"
         val tot = 9
         r.highlight = null
-        r.caption = "Molte cucine e molti soggiorni sono a forma di L. Vediamo come si fa."
+        r.caption = "Molti soggiorni e molte cucine sono a forma di L. Vediamo come si fa."
         r.wait(2.5)
         nuovaStanza(r, tot)
         r.stepLabel = "Passo 3 di $tot"
@@ -216,32 +219,32 @@ class VideoStanzeTest {
         r.highlight = r.rect("Dove sporge la stanza?").let { t -> Rect(t.left, t.top, r.rect("In basso a sinistra").right, r.rect("In basso a sinistra").bottom) }
         r.caption = "sagoma chiede da che parte sporge il pezzo in più della L. Guarda la tua stanza dall'alto, come su una piantina, e scegli l'angolo giusto."
         r.wait(5.5)
-        r.clickOn(r.rect("In alto a destra"), "Qui scegliamo «In alto a destra».", readSeconds = 2.5)
+        r.clickOn(r.rect("In basso a destra"), "Qui scegliamo «In basso a destra».", readSeconds = 2.5)
         r.wait(0.8)
         r.stepLabel = "Passo 5 di $tot"
-        r.clickOn(r.rect("Cucina", exact = true), "Scegli il tipo: «Cucina».", readSeconds = 2.5)
+        r.clickOn(r.rect("Soggiorno", exact = true), "Scegli il tipo: «Soggiorno».", readSeconds = 2.5)
         r.wait(0.6)
         r.stepLabel = "Passo 6 di $tot"
         val lp = r.field("Larghezza principale")
         r.clickOn(r.rectOf(lp), "La L è fatta di due pezzi. Il pezzo principale è il rettangolo più grande: in «Larghezza principale» scrivi quanto è largo.", readSeconds = 5.0)
-        r.type(lp, "450")
+        r.type(lp, "640")
         val pp = r.field("Profondità principale")
         r.clickOn(r.rectOf(pp), "In «Profondità principale» scrivi quanto è profondo il pezzo principale.", readSeconds = 3.5)
-        r.type(pp, "300")
+        r.type(pp, "270")
         r.wait(0.8)
         r.stepLabel = "Passo 7 di $tot"
         val lpr = r.field("Larghezza protuberanza")
         r.clickOn(r.rectOf(lpr), "La «protuberanza» è il pezzo che sporge. In «Larghezza protuberanza» scrivi quanto è largo: deve essere meno della larghezza principale.", readSeconds = 5.5)
-        r.type(lpr, "200")
+        r.type(lpr, "300")
         r.stepLabel = "Passo 8 di $tot"
         val ppr = r.field("Profondità protuberanza")
         r.clickOn(r.rectOf(ppr), "In «Profondità protuberanza» scrivi di quanto sporge.", readSeconds = 3.5)
-        r.type(ppr, "180")
+        r.type(ppr, "190")
         r.wait(0.8)
         r.stepLabel = "Passo 9 di $tot"
         r.clickOn(r.rect("Crea stanza", exact = true), "Clicca su «Crea stanza».", readSeconds = 2.0)
         r.highlight = null
-        r.caption = "Ecco la cucina a L: 4,50 × 3,00 m con il pezzo di 2,00 × 1,80 m che sporge in alto a destra."
+        r.caption = "Ecco il soggiorno a L: 6,40 × 2,70 m con il pezzo di 3,00 × 1,90 m che sporge in basso a destra."
         r.moveTo(Offset(1100f, 560f))
         r.wait(5.0)
     }
@@ -271,7 +274,7 @@ class VideoStanzeTest {
         r.caption = "Chiama A un angolo della stanza, poi B, C e D girando in senso orario. Misura i lati col metro sul muro, da angolo ad angolo, all'interno."
         r.moveTo(r.highlight!!.let { Offset(it.right - 40f, it.bottom - 10f) })
         r.wait(7.0)
-        val lati = PiantinaDiProva.latiBagno.mapIndexed { i, l -> "Lato ${"ABCD"[i]}${"ABCD"[(i + 1) % 4]}" to l.toString() }
+        val lati = PiantinaDiProva.latiStorta.mapIndexed { i, l -> "Lato ${"ABCD"[i]}${"ABCD"[(i + 1) % 4]}" to l.toString() }
         for ((i, l) in lati.withIndex()) {
             val f = r.field(l.first)
             val spiega = if (i == 0) "Clicca in «Lato AB» e scrivi la misura da A a B, in centimetri." else "Ora «${l.first}»."
@@ -280,9 +283,13 @@ class VideoStanzeTest {
             r.wait(0.4)
         }
         r.stepLabel = "Passo 7 di $tot"
+        r.highlight = r.rect("Quale diagonale hai misurato?").let { t -> Rect(t.left, t.top - 6f, r.rect("BD", exact = true).right + 8f, r.rect("BD", exact = true).bottom + 4f) }
+        r.caption = "Poi la diagonale: da A all'angolo opposto C (AC), oppure da B a D (BD). Basta una delle due: scegli quella che hai misurato. Qui abbiamo AC, già scelta."
+        r.moveTo(r.rect("BD", exact = true).let { Offset(it.right + 30f, it.bottom + 10f) })
+        r.wait(6.5)
         val diag = r.field("Diagonale AC")
-        r.clickOn(r.rectOf(diag), "In «Diagonale AC» scrivi la distanza in diagonale da A all'angolo opposto C. È questa misura che dice a sagoma se gli angoli sono storti.", readSeconds = 5.5)
-        r.type(diag, PiantinaDiProva.diagonaleBagno.toString())
+        r.clickOn(r.rectOf(diag), "In «Diagonale AC» scrivi la distanza in diagonale da A a C. È questa misura che dice a sagoma se gli angoli sono storti.", readSeconds = 5.0)
+        r.type(diag, PiantinaDiProva.diagonaleStorta.toString())
         r.wait(1.0)
         r.stepLabel = "Passo 8 di $tot"
         r.highlight = null
@@ -346,11 +353,11 @@ class VideoStanzeTest {
         r.moveTo(r.highlight!!.let { Offset(it.right - 40f, it.bottom + 30f) })
         r.wait(6.0)
         val muri = listOf(
-            Triple("→ destra", "350", "Primo muro: clicca «→ destra», scrivi 350 in «Lunghezza cm» e clicca «Aggiungi»."),
-            Triple("↓ giù", "150", "Secondo muro: «↓ giù», 150 cm, «Aggiungi»."),
-            Triple("← sinistra", "100", "Il muro rientra: «← sinistra», 100 cm, «Aggiungi»."),
-            Triple("↓ giù", "100", "Ancora «↓ giù», 100 cm."),
-            Triple("← sinistra", "250", "E «← sinistra», 250 cm: siamo tornati sotto il primo angolo."),
+            Triple("→ destra", "130", "Primo muro: clicca «→ destra», scrivi 130 in «Lunghezza cm» e clicca «Aggiungi»."),
+            Triple("↓ giù", "270", "Secondo muro: «↓ giù», 270 cm, «Aggiungi»."),
+            Triple("← sinistra", "440", "Poi «← sinistra», 440 cm."),
+            Triple("↑ su", "140", "Il muro risale: «↑ su», 140 cm."),
+            Triple("→ destra", "310", "E «→ destra», 310 cm: siamo tornati sotto il primo angolo."),
         )
         for ((i, m) in muri.withIndex()) {
             r.caption = m.third
@@ -365,11 +372,11 @@ class VideoStanzeTest {
         r.clickOn(r.rect("Chiudi stanza", exact = true), "Manca solo l'ultimo muro, che torna al primo angolo: clicca «Chiudi stanza» e sagoma lo disegna da solo.", readSeconds = 4.5)
         r.wait(1.0)
         r.stepLabel = "Passo 9 di $tot"
-        r.clickOn(r.rect("Studio", exact = true), "Nella finestra «Nuova stanza» scegli il tipo, per esempio «Studio». Soffitto e spessore dei muri sono già scritti.", readSeconds = 5.0)
+        r.clickOn(r.rect("Corridoio", exact = true), "Nella finestra «Nuova stanza» scegli il tipo: per l'ingresso va bene «Corridoio». Soffitto e spessore dei muri sono già scritti.", readSeconds = 5.0)
         r.wait(0.6)
         r.clickOn(r.rect("Crea stanza", exact = true), "Clicca «Crea stanza».", readSeconds = 2.0)
         r.highlight = null
-        r.caption = "Ecco lo studio, con la forma che hai disegnato muro per muro e le misure interne che hai scritto."
+        r.caption = "Ecco l'ingresso, con la forma che hai disegnato muro per muro e le misure interne che hai scritto."
         r.moveTo(Offset(1100f, 560f))
         r.wait(5.0)
     }
@@ -449,12 +456,12 @@ class VideoStanzeTest {
         r.wait(1.5)
         passo(3)
         r.highlight = r.rect("Taratura: tocca")
-        r.caption = "La planimetria ora è sotto il disegno, ma sagoma non sa ancora quanto è grande: va messa in scala con una misura scritta sopra. Usiamo il muro in alto del soggiorno: 520 cm."
+        r.caption = "La planimetria ora è sotto il disegno, ma sagoma non sa ancora quanto è grande: va messa in scala con una misura scritta sopra. Usiamo il muro in alto del soggiorno: 640 cm."
         r.moveTo(Offset(700f, 420f))
         r.wait(7.0)
         passo(4)
-        val a = { sfondo(PiantinaDiProva.px(360f), PiantinaDiProva.py(0f)) }
-        val b = { sfondo(PiantinaDiProva.px(880f), PiantinaDiProva.py(0f)) }
+        val a = { sfondo(PiantinaDiProva.px(0f), PiantinaDiProva.py(0f)) }
+        val b = { sfondo(PiantinaDiProva.px(640f), PiantinaDiProva.py(0f)) }
         fun box(p: Offset, k: Float = 22f) = Rect(p.x - k, p.y - k, p.x + k, p.y + k)
         r.highlight = box(a())
         r.caption = "Clicca dove comincia la misura: l'angolo interno in alto a sinistra del soggiorno."
@@ -471,8 +478,8 @@ class VideoStanzeTest {
         r.wait(1.0)
         passo(5)
         val cm = r.field("cm")
-        r.clickOn(r.rectOf(cm), "Nella finestra «Misura reale» scrivi la misura vera tra i due punti, quella scritta sulla piantina: 520.", readSeconds = 4.5)
-        r.type(cm, "520")
+        r.clickOn(r.rectOf(cm), "Nella finestra «Misura reale» scrivi la misura vera tra i due punti, quella scritta sulla piantina: 640.", readSeconds = 4.5)
+        r.type(cm, "640")
         r.wait(0.6)
         r.clickOn(r.rect("Tara", exact = true), "Clicca «Tara»: adesso la planimetria è in scala, ogni centimetro è giusto.", readSeconds = 3.0)
         r.wait(1.5)
@@ -492,78 +499,64 @@ class VideoStanzeTest {
         r.highlight = null
         r.wait(1.0)
         passo(8)
-        r.clickOn(r.rect("Quadrato", exact = true), "Torna la scelta della forma. Cominciamo dalla camera, che è quadrata: clicca «Quadrato».", readSeconds = 3.5)
+        r.clickOn(r.rect("Quadrato", exact = true), "Torna la scelta della forma. Cominciamo dalla camera, che è un rettangolo: partiamo da un quadrato, per vedere come si allunga. Clicca «Quadrato».", readSeconds = 5.0)
         r.wait(0.6)
         r.clickOn(r.rect("Camera da letto", exact = true), "Scegli «Camera da letto»…", readSeconds = 2.0)
         val lato = r.field("Lato")
-        r.clickOn(r.rectOf(lato), "…e scrivi il lato, letto sulla piantina: 350.", readSeconds = 2.5)
-        r.type(lato, "350")
+        r.clickOn(r.rectOf(lato), "…e scrivi il lato corto della camera, letto sulla piantina: 330.", readSeconds = 3.0)
+        r.type(lato, "330")
         r.wait(0.5)
         r.clickOn(r.rect("Crea stanza", exact = true), "Clicca «Crea stanza».", readSeconds = 2.0)
         r.wait(1.5)
         passo(9)
         r.highlight = null
         r.caption = "La camera c'è, ma non ancora al suo posto sulla piantina. Per vedere anche la piantina rimpicciolisci: gira la rotellina del mouse verso di te."
-        r.moveTo(pianta(Polygon.labelPoint(stanza(RoomType.Camera).points)) + Offset(0f, 90f))
-        r.wait(3.5)
-        r.scroll(5f, steps = 5)
+        r.wait(2.5)
+        stanza(RoomType.Camera).exterior().let { e ->
+            inquadra(r, Vec2(e.minOf { it.x }, e.minOf { it.y }), suPiantina(1080f, 640f))
+        }
         r.wait(1.0)
         prova(r, "q1")
-        // La camera va spostata finché il suo filo interno coincide con quello della camera disegnata sulla piantina.
-        val dove = riquadro(suPiantina(0f, 0f), suPiantina(350f, 350f))
+        // La camera va spostata finché il suo filo interno in alto a sinistra coincide con quello della camera sulla piantina.
+        val dove = riquadro(suPiantina(650f, 0f), suPiantina(1050f, 330f))
         r.highlight = dove
         r.caption = "Ecco dove va: sopra la camera disegnata sulla piantina."
         r.moveTo(Offset(dove.left + dove.width / 2, dove.top + dove.height / 2))
         r.wait(3.5)
         val camera = stanza(RoomType.Camera)
         val etichetta = Polygon.labelPoint(camera.points)
-        val sposta = suPiantina(0f, 0f) - Vec2(camera.interior().minOf { it.x }, camera.interior().minOf { it.y })
+        val sposta = suPiantina(650f, 0f) - stanzaInterno(camera).first
         val arrivo = pianta(etichetta + sposta)
         r.highlight = riquadro(stanzaInterno(camera).first, stanzaInterno(camera).second)
         r.caption = "Per spostare una stanza premi sul suo nome, tieni premuto il tasto del mouse e trascinala."
         r.moveTo(pianta(etichetta))
         r.wait(3.5)
         r.highlight = dove
-        r.caption = "Lasciala quando i suoi muri sono sopra i muri della piantina."
+        r.caption = "Lasciala quando l'angolo in alto a sinistra è sopra quello della camera disegnata."
         r.drag({ arrivo }, seconds = 2.4)
         r.highlight = null
         r.wait(1.5)
         prova(r, "q2")
         passo(10)
-        r.clickOn(r.rect("Elementi architettonici"), "Ora il soggiorno, che è un rettangolo. Partiamo da un quadrato, per vedere come si allunga: clicca «Elementi architettonici»…", readSeconds = 4.5)
-        r.wait(0.6)
-        r.clickOn(r.rect("▭ Stanza"), "…poi «Stanza».", readSeconds = 1.5)
-        r.wait(0.8)
-        r.clickOn(r.rect("Quadrato", exact = true), "Clicca «Quadrato»…", readSeconds = 1.5)
-        r.wait(0.6)
-        r.clickOn(r.rect("Soggiorno", exact = true), "…scegli «Soggiorno»…", readSeconds = 1.5)
-        val lato2 = r.field("Lato")
-        r.clickOn(r.rectOf(lato2), "…e scrivi il lato corto del soggiorno, 410.", readSeconds = 2.5)
-        r.type(lato2, "410")
-        r.wait(0.5)
-        r.clickOn(r.rect("Crea stanza", exact = true), "Clicca «Crea stanza»: il quadrato nasce accanto alla camera, con il muro in comune.", readSeconds = 3.0)
-        r.wait(1.5)
-        prova(r, "q3")
-        passo(11)
-        val soggiorno = stanza(RoomType.Soggiorno)
+        val quadrata = stanza(RoomType.Camera)
         // Muro 1 (a destra): si prende un po' sopra la metà, lontano dalla misura scritta sul muro.
-        val presa = soggiorno.points[1] + (soggiorno.points[2] - soggiorno.points[1]) * 0.3
-        val allunga = soggiorno.interior().minOf { it.x } + 520.0 - soggiorno.interior().maxOf { it.x }
+        val presa = quadrata.points[1] + (quadrata.points[2] - quadrata.points[1]) * 0.3
+        val allunga = quadrata.interior().minOf { it.x } + 400.0 - quadrata.interior().maxOf { it.x }
         val muroDestro = pianta(presa)
-        r.highlight = Rect(muroDestro.x - 14f, pianta(soggiorno.points[1]).y, muroDestro.x + 14f, pianta(soggiorno.points[2]).y)
-        r.caption = "Il soggiorno sulla piantina è più lungo: 520. Basta spostare il muro di destra. Porta il puntatore sul muro…"
+        r.highlight = Rect(muroDestro.x - 14f, pianta(quadrata.points[1]).y, muroDestro.x + 14f, pianta(quadrata.points[2]).y)
+        r.caption = "La camera sulla piantina è più larga: 400. Basta spostare il muro di destra. Porta il puntatore sul muro…"
         r.moveTo(muroDestro)
         r.wait(4.0)
-        r.highlight = riquadro(suPiantina(360f, 0f), suPiantina(880f, 410f))
-        r.caption = "…tieni premuto e trascinalo verso destra fino al muro della piantina. Mentre lo sposti la misura cambia: lasciala a 520."
+        r.highlight = dove
+        r.caption = "…tieni premuto e trascinalo verso destra fino al muro della piantina. Mentre lo sposti la misura cambia: lasciala a 400."
         r.drag({ pianta(presa + Vec2(allunga, 0.0)) }, seconds = 3.0)
         r.highlight = null
-        r.caption = "Fatto: il quadrato è diventato un rettangolo di 5,20 × 4,10 m, proprio come il soggiorno della piantina."
-        r.moveTo(Offset(900f, 600f))
+        r.caption = "Fatto: il quadrato è diventato un rettangolo di 4,00 × 3,30 m, proprio come la camera della piantina."
+        r.moveTo(Offset(900f, 640f))
         r.wait(4.5)
         prova(r, "q4")
         if (System.getenv("PROVA_FINO") == "q4") return
-        passo(12)
+        passo(11)
         r.clickOn(r.rect("Elementi architettonici"), "Adesso il bagno, che è storto: anche qui partiamo da un quadrato. «Elementi architettonici»…", readSeconds = 3.5)
         r.wait(0.6)
         r.clickOn(r.rect("▭ Stanza"), "…«Stanza»…", readSeconds = 1.2)
@@ -572,32 +565,31 @@ class VideoStanzeTest {
         r.wait(0.6)
         r.clickOn(r.rect("Bagno", exact = true), "…«Bagno»…", readSeconds = 1.2)
         val lato3 = r.field("Lato")
-        r.clickOn(r.rectOf(lato3), "…lato 240, il muro in alto…", readSeconds = 2.0)
-        r.type(lato3, "240")
+        r.clickOn(r.rectOf(lato3), "…lato 260, il muro in alto…", readSeconds = 2.0)
+        r.type(lato3, "260")
         r.wait(0.5)
         r.clickOn(r.rect("Crea stanza", exact = true), "…e «Crea stanza».", readSeconds = 1.5)
         r.wait(1.5)
         prova(r, "q5")
-        r.caption = "Il bagno della piantina è più a destra: rimpicciolisci ancora con la rotellina per vederlo."
-        r.moveTo(Offset(150f, 400f))
-        r.wait(3.0)
-        r.scroll(5f, steps = 5)
-        r.wait(1.0)
+        passo(12)
+        stanza(RoomType.Bagno).exterior().let { e ->
+            inquadra(r, Vec2(minOf(e.minOf { it.x }, suPiantina(640f, 0f).x), e.minOf { it.y }), Vec2(e.maxOf { it.x }, suPiantina(1080f, 640f).y))
+        }
         val bagno = stanza(RoomType.Bagno)
         val etichettaB = Polygon.labelPoint(bagno.points)
-        val spostaB = suPiantina(1350f, 0f) - Vec2(bagno.interior().minOf { it.x }, bagno.interior().minOf { it.y })
+        val spostaB = suPiantina(790f, 345f) - stanzaInterno(bagno).first
         val arrivoB = pianta(etichettaB + spostaB)
-        r.highlight = riquadro(suPiantina(1350f, 0f), suPiantina(1630f, 225f))
-        r.caption = "Trascina il bagno dal suo nome sopra il bagno della piantina, con l'angolo in alto a sinistra al suo posto."
+        r.highlight = riquadro(suPiantina(790f, 345f), suPiantina(1050f, 615f))
+        r.caption = "Il bagno va sotto la camera: trascinalo dal suo nome sopra il bagno della piantina, con l'angolo in alto a sinistra al suo posto."
         r.moveTo(pianta(etichettaB))
-        r.wait(3.5)
+        r.wait(4.0)
         r.drag({ arrivoB }, seconds = 2.4)
         r.highlight = null
         r.wait(1.0)
         prova(r, "q6")
         passo(13)
         // Vista sul bagno: si trascina un punto vuoto della pianta (sposta la vista) e si ingrandisce con la rotellina.
-        val vuoto = pianta(suPiantina(700f, 560f))
+        val vuoto = pianta(suPiantina(300f, 400f))
         val centroBagno = { pianta(Polygon.labelPoint(stanza(RoomType.Bagno).points)) }
         r.caption = "Gli angoli del bagno non sono a 90°: avviciniamoci. Per spostare la vista premi in un punto vuoto della pianta e trascina."
         r.moveTo(vuoto)
@@ -611,11 +603,11 @@ class VideoStanzeTest {
         r.wait(1.0)
         prova(r, "q7")
         passo(14)
-        // Angoli D e C sopra quelli della piantina: si trascina il pallino (mezzeria) dove il filo interno combacia.
-        val giusto = Polygon.inset(PiantinaDiProva.bagno.punti.map { (x, y) -> suPiantina(x, y) }, -stanza(RoomType.Bagno).wallThickness / 2)
+        // Angoli C e D sopra quelli della piantina: si trascina il pallino (mezzeria) dove il filo interno combacia.
+        val giusto = Polygon.inset(PiantinaDiProva.storta.punti.map { (x, y) -> suPiantina(x, y) }, -stanza(RoomType.Bagno).wallThickness / 2)
         val spiega = mapOf(
-            3 to "Ora sposta gli angoli. Premi sul pallino blu dell'angolo in basso a sinistra e trascinalo finché l'angolo combacia con quello della piantina.",
-            2 to "Poi l'angolo in basso a destra: trascinalo sull'angolo della piantina. Le misure dei muri si aggiornano mentre lo sposti.",
+            2 to "Ora sposta gli angoli. Premi sul pallino blu dell'angolo in basso a destra e trascinalo finché l'angolo combacia con quello della piantina.",
+            3 to "Poi l'angolo in basso a sinistra: qui basta un po' più giù. Le misure dei muri si aggiornano mentre lo sposti.",
         )
         for ((i, testo) in spiega) {
             val da = pianta(stanza(RoomType.Bagno).points[i])
@@ -628,6 +620,7 @@ class VideoStanzeTest {
             r.drag({ pianta(a2) }, seconds = 2.0)
             r.highlight = null
             r.wait(1.2)
+            if (System.getenv("PROVA") != null) File("build/video/angolo-$i.txt").writeText("voluto ${a2}\nottenuto ${stanza(RoomType.Bagno).points[i]}\ninterno ${stanza(RoomType.Bagno).interior()}\nscala ${vm().state.value.camera.scale}")
         }
         prova(r, "q8")
         r.caption = "Ecco il bagno storto, uguale a quello della piantina."
@@ -663,8 +656,16 @@ class VideoStanzeTest {
         r.clickOn(r.rect("Ricalca una piantina"), readSeconds = 0.1)
         r.wait(0.5)
         r.clickOn(r.rect("Leggi la piantina da sola"), readSeconds = 0.1)
-        r.wait(5.0)
+        // Il lettore finto risponde dopo qualche secondo vero: si aspetta che le stanze siano sulla pianta.
+        repeat(80) { if (vm().state.value.plan.rooms.size < PiantinaDiProva.stanze.size) r.wait(0.25) }
+        check(vm().state.value.plan.rooms.size == PiantinaDiProva.stanze.size) { "la lettura finta non è arrivata" }
         PiantinaDiProva.conEsterni = true
+        r.wait(0.5)
+        runCatching { r.clickOn(r.rect("◐ Chiudi", exact = true), readSeconds = 0.1) }
+        r.wait(0.5)
+        // Si vede tutta la piantina, anche dove andranno balcone e terrazza.
+        inquadra(r, suPiantina(-40f, -180f), suPiantina(1060f, 890f))
+        r.wait(0.5)
         prova(r, "e0")
         r.cursor = Offset(900f, 600f)
     }
@@ -703,14 +704,14 @@ class VideoStanzeTest {
             r.wait(0.6)
         }
 
-        // 1. Porta tra camera e soggiorno.
+        // 1. Porta tra ingresso e soggiorno.
         passo(1)
         menu(
-            "Elementi architettonici" to "Cominciamo da una porta tra la camera e il soggiorno. Clicca «Elementi architettonici»…",
+            "Elementi architettonici" to "Cominciamo da una porta tra l'ingresso e il soggiorno. Clicca «Elementi architettonici»…",
             "🚪 Porte" to "…poi «Porte»…",
             "Porta ad 1 anta" to "…e scegli il tipo, per esempio «Porta ad 1 anta».",
         )
-        val porta = pianta(suPiantina(355f, 290f))
+        val porta = pianta(suPiantina(495f, 465f))
         r.highlight = box(porta, 26f)
         r.caption = "Ora clicca sul muro, nel punto dove va la porta."
         r.moveTo(porta)
@@ -726,7 +727,7 @@ class VideoStanzeTest {
             "🪟 Finestre" to "…«Finestre»…",
             "Finestra a 2 ante" to "…«Finestra a 2 ante».",
         )
-        val finestra = pianta(suPiantina(620f, -15f))
+        val finestra = pianta(suPiantina(320f, -15f))
         r.highlight = box(finestra, 26f)
         r.caption = "Clicca sul muro esterno del soggiorno, dove va la finestra."
         r.moveTo(finestra)
@@ -735,10 +736,10 @@ class VideoStanzeTest {
         r.highlight = null
         r.wait(1.5)
         prova(r, "e2")
-        // 3. Balcone sotto il soggiorno, con la porta-finestra.
+        // 3. Balcone sopra la camera, con la porta-finestra.
         passo(3)
         menu(
-            "Elementi architettonici" to "Ora il balcone, sotto il soggiorno. «Elementi architettonici»…",
+            "Elementi architettonici" to "Ora il balcone, sopra la camera. «Elementi architettonici»…",
             "🌿 Balconi e terrazze" to "…«Balconi e terrazze»…",
             "Balcone" to "…«Balcone».",
         )
@@ -752,16 +753,16 @@ class VideoStanzeTest {
         r.clickOn(r.rectOf(prof), "…e profondità 140.", readSeconds = 1.5)
         r.type(prof, "140")
         r.wait(0.4)
-        r.clickOn(r.rect("Crea stanza", exact = true), "Clicca «Crea stanza».", readSeconds = 2.0)
+        r.clickOn(r.rect("Crea", exact = true), "Clicca «Crea».", readSeconds = 2.0)
         r.wait(1.5)
         prova(r, "e4")
         miniGuida("Anche il balcone ha la sua mini guida: al posto dei muri c'è il parapetto, e da «Info» scegli ringhiera, muretto o vetro.")
         passo(4)
         val balcone = stanza(RoomType.Balcone)
         val etB = Polygon.labelPoint(balcone.points)
-        val arrivoB = pianta(etB + (suPiantina(470f, 440f) - stanzaInterno(balcone).first))
-        r.highlight = riquadro(suPiantina(470f, 440f), suPiantina(770f, 580f))
-        r.caption = "Trascina il balcone dal suo nome fino al suo posto sulla piantina, sotto il soggiorno."
+        val arrivoB = pianta(etB + (suPiantina(700f, -170f) - stanzaInterno(balcone).first))
+        r.highlight = riquadro(suPiantina(700f, -170f), suPiantina(1000f, -30f))
+        r.caption = "Trascina il balcone dal suo nome fino al suo posto sulla piantina, sopra la camera."
         r.moveTo(pianta(etB))
         r.wait(3.0)
         r.drag({ arrivoB }, seconds = 2.2)
@@ -773,15 +774,15 @@ class VideoStanzeTest {
             "🚪 Porte-finestre" to "…«Porte-finestre»…",
             "Balcone a 2 ante" to "…«Balcone a 2 ante».",
         )
-        val pf = pianta(suPiantina(620f, 425f))
+        val pf = pianta(suPiantina(850f, -15f))
         r.highlight = box(pf, 26f)
-        r.caption = "Clicca sul muro tra il soggiorno e il balcone."
+        r.caption = "Clicca sul muro tra la camera e il balcone."
         r.moveTo(pf)
         r.wait(2.5)
         r.click()
         r.highlight = null
         r.wait(1.5)
-        // 4. Terrazza nel vuoto in alto.
+        // 4. Terrazza a sud, sotto studio e ingresso.
         passo(5)
         menu(
             "Elementi architettonici" to "La terrazza si fa come il balcone: «Elementi architettonici»…",
@@ -791,18 +792,18 @@ class VideoStanzeTest {
         r.clickOn(r.rect("Rettangolo", exact = true), "«Rettangolo»…", readSeconds = 1.5)
         r.wait(0.5)
         val lt = r.field("Larghezza")
-        r.clickOn(r.rectOf(lt), "…larghezza 200…", readSeconds = 1.2)
-        r.type(lt, "200")
+        r.clickOn(r.rectOf(lt), "…larghezza 640…", readSeconds = 1.2)
+        r.type(lt, "640")
         val pt = r.field("Profondità")
-        r.clickOn(r.rectOf(pt), "…profondità 170…", readSeconds = 1.2)
-        r.type(pt, "170")
-        r.clickOn(r.rect("Crea stanza", exact = true), "…«Crea stanza».", readSeconds = 1.5)
+        r.clickOn(r.rectOf(pt), "…profondità 240…", readSeconds = 1.2)
+        r.type(pt, "240")
+        r.clickOn(r.rect("Crea", exact = true), "…«Crea».", readSeconds = 1.5)
         r.wait(1.5)
         val terrazza = stanza(RoomType.Terrazza)
         val etT = Polygon.labelPoint(terrazza.points)
-        val arrivoT = pianta(etT + (suPiantina(910f, -20f) - stanzaInterno(terrazza).first))
-        r.highlight = riquadro(suPiantina(910f, -20f), suPiantina(1110f, 150f))
-        r.caption = "Trascinala nel suo spazio, in alto tra il soggiorno e la cucina."
+        val arrivoT = pianta(etT + (suPiantina(-20f, 640f) - stanzaInterno(terrazza).first))
+        r.highlight = riquadro(suPiantina(-20f, 640f), suPiantina(620f, 880f))
+        r.caption = "Trascinala al suo posto, a sud, sotto lo studio e l'ingresso."
         r.moveTo(pianta(etT))
         r.wait(3.0)
         r.drag({ arrivoT }, seconds = 2.2)
@@ -816,9 +817,9 @@ class VideoStanzeTest {
             "🔌 Impianti" to "…«Impianti»…",
             "Calorifero" to "…«Calorifero».",
         )
-        val cal = pianta(suPiantina(-15f, 175f))
+        val cal = pianta(suPiantina(-15f, 520f))
         r.highlight = box(cal, 26f)
-        r.caption = "Termosifoni, prese, interruttori e punti acqua si mettono cliccando sul muro: qui il muro esterno della camera."
+        r.caption = "Termosifoni, prese, interruttori e punti acqua si mettono cliccando sul muro: qui il muro esterno dello studio."
         r.moveTo(cal)
         r.wait(3.5)
         r.click()
@@ -832,9 +833,9 @@ class VideoStanzeTest {
             "Luci" to "…«Luci»…",
             "Lampadario" to "…per esempio «Lampadario».",
         )
-        val luce = pianta(suPiantina(620f, 205f))
+        val luce = pianta(suPiantina(330f, 110f))
         r.highlight = box(luce, 26f)
-        r.caption = "Clicca nella stanza, dove va la luce: qui al centro del soggiorno."
+        r.caption = "Clicca nella stanza, dove va la luce: qui nel soggiorno."
         r.moveTo(luce)
         r.wait(2.5)
         r.click()
@@ -843,13 +844,13 @@ class VideoStanzeTest {
         prova(r, "e8")
         // 6. Scala nello studio.
         passo(8)
-        val studio = pianta(suPiantina(120f, 560f))
+        val studio = pianta(suPiantina(120f, 540f))
         r.clickOn(box(studio, 30f), "Ultima, la scala. Prima clicca nella stanza dove va, per esempio lo studio…", readSeconds = 3.0)
         r.wait(0.6)
         menu(
             "Elementi architettonici" to "…poi «Elementi architettonici»…",
             "🪜 Scale" to "…«Scale»…",
-            "Rampa dritta" to "…e scegli la forma, per esempio «Rampa dritta».",
+            "A chiocciola" to "…e scegli la forma, per esempio «A chiocciola».",
         )
         r.wait(1.0)
         prova(r, "e9")
@@ -874,6 +875,33 @@ class VideoStanzeTest {
     /** Angoli in alto a sinistra e in basso a destra del filo interno di una stanza (cm). */
     private fun stanzaInterno(room: com.sagoma.planimetria.model.Room): Pair<Vec2, Vec2> =
         room.interior().let { p -> Vec2(p.minOf { it.x }, p.minOf { it.y }) to Vec2(p.maxOf { it.x }, p.maxOf { it.y }) }
+
+    /**
+     * Rimpicciolisce con la rotellina finché il rettangolo della pianta tra `a` e `b` (cm) si vede tutto, lontano dai
+     * pulsanti: il puntatore va prima nel punto da cui la rotellina porta il rettangolo al centro della vista.
+     */
+    private fun inquadra(r: Regista, a: Vec2, b: Vec2) {
+        val vista = Rect(60f, 120f, 1180f, 800f)
+        val p0 = pianta(a)
+        val p1 = pianta(b)
+        if (p0.x >= vista.left && p1.x <= vista.right && p0.y >= vista.top && p1.y <= vista.bottom) return
+        val serve = maxOf((p1.x - p0.x) / vista.width, (p1.y - p0.y) / vista.height)
+        var n = maxOf(1, ceil(ln(serve.toDouble()) / ln(1.1)).toInt())
+        val centro = Offset((p0.x + p1.x) / 2, (p0.y + p1.y) / 2)
+        val meta = Offset(vista.left + vista.width / 2, vista.top + vista.height / 2)
+        while (true) {
+            // Dopo n scatti tutto si avvicina al puntatore P di un fattore f: P + (centro − P)·f = meta.
+            val f = 1.1.pow(-n).toFloat()
+            val p = (meta - centro * f) / (1 - f)
+            if (p.x in 20f..1180f && p.y in 100f..820f) {
+                r.moveTo(p)
+                r.wait(1.0)
+                r.scroll(n.toFloat(), steps = n)
+                return
+            }
+            n++
+        }
+    }
 
     /** Riquadro sullo schermo tra due punti della pianta (cm). */
     private fun riquadro(a: Vec2, b: Vec2): Rect = pianta(a).let { p -> pianta(b).let { q -> Rect(p.x, p.y, q.x, q.y) } }

@@ -184,11 +184,18 @@ class Regista(private val scene: ImageComposeScene, private val width: Int, priv
         wait(0.4)
         val from = cursor
         val n = (seconds * fps).toInt().coerceAtLeast(1)
+        // Sotto i ~18 px l'app lo prende per un clic: per gli spostamenti piccoli si va un po' oltre e si torna indietro.
+        val corto = (to() - from).getDistance() < 30f
         for (i in 1..n) {
             val x = i.toFloat() / n
-            val e = x * x * (3 - 2 * x)
             val end = to()
-            cursor = Offset(from.x + (end.x - from.x) * e, from.y + (end.y - from.y) * e)
+            val d = end - from
+            val oltre = if (d.getDistance() > 0.1f) end + d / d.getDistance() * 30f else end + Offset(30f, 0f)
+            cursor = when {
+                !corto -> from + d * (x * x * (3 - 2 * x))
+                x < 0.6f -> (x / 0.6f).let { e -> from + (oltre - from) * (e * e * (3 - 2 * e)) }
+                else -> ((x - 0.6f) / 0.4f).let { e -> oltre + (end - oltre) * (e * e * (3 - 2 * e)) }
+            }
             scene.sendPointerEvent(PointerEventType.Move, cursor)
             during()
             frame()
