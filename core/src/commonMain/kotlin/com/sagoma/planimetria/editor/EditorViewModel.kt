@@ -2,6 +2,7 @@ package com.sagoma.planimetria.editor
 
 import androidx.lifecycle.ViewModel
 import com.sagoma.planimetria.geometry.Dimensions
+import com.sagoma.planimetria.geometry.arcOf
 import com.sagoma.planimetria.geometry.Furnishings
 import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.interiorLengths
@@ -2288,35 +2289,52 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     // ---------- Spessore dei muri e forma libera ----------
 
-    /** Spessore di tutti i muri della stanza (quelli con uno spessore proprio restano come sono). */
+    /**
+     * Spessore di tutti i muri della stanza (quelli con uno spessore proprio restano come sono). Il filo interno resta fermo:
+     * i muri ingrossano o si assottigliano solo verso fuori, così misure e metri quadri della stanza non cambiano.
+     */
     fun setRoomWallThickness(roomId: Long, thickness: Double) = commit { plan ->
         val room = plan.room(roomId)?.takeIf { thickness in 3.0..120.0 } ?: return@commit plan
-        plan.replace(room.copy(wallThickness = thickness))
+        var offsets = room.wallOffsets
+        for (i in 0 until room.wallCount) {
+            if (i in room.wallThicknesses) continue
+            offsets = withInnerFaceKept(room, offsets, i, (thickness - room.wallThickness) / 2)
+        }
+        plan.replace(room.copy(wallThickness = thickness, wallOffsets = offsets))
     }
 
     /**
-     * Spessore di un solo muro (null = come gli altri della stanza). Un muro in comune con un'altra stanza
-     * è lo stesso muro fisico: cambia anche per lei.
+     * Mezzeria del muro `i` spostata di `delta` cm verso fuori, perché il filo interno resti fermo quando il muro cambia
+     * spessore. I muri curvi restano centrati sulla linea (la mezzeria spostata vale solo per i muri dritti).
+     */
+    private fun withInnerFaceKept(r: Room, offsets: Map<Int, Double>, i: Int, delta: Double): Map<Int, Double> {
+        if (r.arcOf(i) != null || kotlin.math.abs(delta) < 1e-9) return offsets
+        val off = (offsets[i] ?: 0.0) + delta
+        return if (kotlin.math.abs(off) < 0.01) offsets - i else offsets + (i to off)
+    }
+
+    /**
+     * Spessore di un solo muro (null = come gli altri della stanza). Il filo verso la stanza resta fermo: il muro ingrossa
+     * o si assottiglia solo verso fuori (come dice la guida), così misure e metri quadri della stanza non cambiano. Un muro
+     * in comune con un'altra stanza è lo stesso muro fisico: cambia anche per lei, e si allarga verso di lei.
      */
     fun setWallThickness(roomId: Long, index: Int, thickness: Double?) = commit { plan ->
         val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
         if (thickness != null && thickness !in 3.0..120.0) return@commit plan
-        fun apply(r: Room, i: Int) = r.copy(wallThicknesses = if (thickness == null || thickness == r.wallThickness) r.wallThicknesses - i else r.wallThicknesses + (i to thickness))
-        // Tratto di un muro a scalini (allineato con il muro prima o dopo): il filo verso la stanza resta fermo, il muro
-        // ingrossa o si assottiglia solo verso fuori.
-        fun keepInnerFace(r: Room): Room {
-            val n = r.wallCount
-            if (!r.isStraightCorner(index) && !r.isStraightCorner((index + 1) % n)) return r
-            val off = (r.wallOffsets[index] ?: 0.0) + ((thickness ?: r.wallThickness) - room.thicknessOf(index)) / 2
-            return r.copy(wallOffsets = if (kotlin.math.abs(off) < 0.01) r.wallOffsets - index else r.wallOffsets + (index to off))
-        }
-        var result = plan.replace(keepInnerFace(apply(room, index)))
+        // Di quanto si sposta la mezzeria verso fuori dalla stanza del muro scelto.
+        val delta = ((thickness ?: room.wallThickness) - room.thicknessOf(index)) / 2
+        fun apply(r: Room, i: Int, shift: Double) = r.copy(
+            wallThicknesses = if (thickness == null || thickness == r.wallThickness) r.wallThicknesses - i else r.wallThicknesses + (i to thickness),
+            wallOffsets = withInnerFaceKept(r, r.wallOffsets, i, shift),
+        )
+        var result = plan.replace(apply(room, index, delta))
         val a = room.wallStart(index)
         val b = room.wallEnd(index)
         for (other in plan.rooms) {
             if (other.id == roomId) continue
             for (j in 0 until other.wallCount) {
-                if (Dimensions.sharesWall(a, b, other.wallStart(j), other.wallEnd(j))) result = result.replace(apply(result.room(other.id)!!, j))
+                // Per la stanza accanto "fuori" è dall'altra parte: la mezzeria si sposta verso di lei.
+                if (Dimensions.sharesWall(a, b, other.wallStart(j), other.wallEnd(j))) result = result.replace(apply(result.room(other.id)!!, j, -delta))
             }
         }
         result
