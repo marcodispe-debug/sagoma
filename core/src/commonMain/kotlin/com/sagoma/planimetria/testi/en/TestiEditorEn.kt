@@ -25,7 +25,6 @@ object TestiEditorEn : TestiEditor() {
     override val riprovaSalvare: String get() = "Try saving again"
     override val pianta2d: String get() = "◱ 2D plan"
     override val vista3d: String get() = "🧊 3D view"
-    override val chiudi: String get() = "◐ Close"
     override val piantinaDisegno: String get() = "◐ Floor plan and drawing"
     override val legenda: String get() = "Legend"
     override val distanza: String get() = "📐 Distance"

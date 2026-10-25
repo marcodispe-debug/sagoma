@@ -24,10 +24,10 @@ import kotlin.math.roundToInt
 
 /**
  * "◐ Piantina e disegno": mostra/nascondi e trasparenza della piantina importata e del disegno, regolate dal vivo sulla pianta.
- * La piantina si salva nel progetto (e si annulla in un passo); il disegno è solo un modo di guardare.
+ * La piantina si salva nel progetto (e si annulla in un passo); il disegno è solo un modo di guardare. Si chiude con «Chiudi», in fondo.
  */
 @Composable
-fun VisibilityPanel(state: EditorUiState, vm: EditorViewModel, onLoadPlan: () -> Unit, modifier: Modifier = Modifier) {
+fun VisibilityPanel(state: EditorUiState, vm: EditorViewModel, onLoadPlan: () -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
     Surface(modifier.width(280.dp), shape = RoundedCornerShape(16.dp), tonalElevation = 3.dp, shadowElevation = 4.dp) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             val u = state.plan.underlay
@@ -54,6 +54,7 @@ fun VisibilityPanel(state: EditorUiState, vm: EditorViewModel, onLoadPlan: () ->
                 onOpacity = { vm.setDrawingOpacity(it.toDouble()) },
                 onOpacityDone = {},
             )
+            TextButton(onClick = onClose, modifier = Modifier.align(Alignment.End)) { Text(T.comuni.chiudi) }
         }
     }
 }

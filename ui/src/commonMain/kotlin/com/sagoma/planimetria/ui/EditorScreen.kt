@@ -473,9 +473,9 @@ fun EditorScreen(
                 if (state.view3d) View3DControls(state, view3dState)
                 else {
                     // Mostra/nascondi e trasparenza di piantina e disegno, regolate dal vivo.
-                    if (showVisibility) VisibilityPanel(state, vm, onLoadPlan = { showBackground = true })
+                    if (showVisibility) VisibilityPanel(state, vm, onLoadPlan = { showBackground = true }, onClose = { showVisibility = false })
                     LegendButton(
-                        if (showVisibility) T.editor.chiudi else T.editor.piantinaDisegno, onClick = { showVisibility = !showVisibility },
+                        T.editor.piantinaDisegno, onClick = { showVisibility = !showVisibility },
                         modifier = Modifier.guide(GuideTarget.PlanPanel, done = showVisibility),
                     )
                     PhaseLegend(state)

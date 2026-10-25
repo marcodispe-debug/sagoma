@@ -259,7 +259,7 @@ object TestiCorsoEs : TestiCorso() {
         "Una última cosa: para ver mejor el dibujo sobre el plano, haz clic en «${e.piantinaDisegno}», aquí abajo a la derecha."
     override val trasparenzaPiantina: String get() =
         "Aquí ajustas el plano: arrastrando el cursor se aclara o se oscurece, con el interruptor lo ocultas. Debajo está lo mismo " +
-            "para el dibujo. Prueba: arrastra el cursor del plano."
+            "para el dibujo. Cuando termines, cierra el panel con «${T.comuni.chiudi}». Prueba: arrastra el cursor del plano."
 
     override fun nomeMuroSoggiorno(muro: Int): String = when (muro) {
         0 -> "de arriba"

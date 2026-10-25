@@ -251,7 +251,7 @@ object TestiCorsoEn : TestiCorso() {
         "One last thing: to see the drawing on top of the plan better, click «${e.piantinaDisegno}», here at the bottom right."
     override val trasparenzaPiantina: String get() =
         "Here you adjust the plan: dragging the slider makes it lighter or darker, the switch hides it. Below is the same for the " +
-            "drawing. Try it: drag the plan slider."
+            "drawing. When you are done, close the panel with «${T.comuni.chiudi}». Try it: drag the plan slider."
 
     override fun nomeMuroSoggiorno(muro: Int): String = when (muro) {
         0 -> "top"
