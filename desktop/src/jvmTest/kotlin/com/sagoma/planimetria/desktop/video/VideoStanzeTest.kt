@@ -92,10 +92,20 @@ class VideoStanzeTest {
                     r.stop()
                     shot("5")
                 }
-                r.start(File(out, "6-sopra-la-planimetria.mp4"))
-                sopraLaPlanimetria(r)
-                r.stop()
-                shot("6")
+                if (solo == null || solo == "6") {
+                    r.start(File(out, "6-sopra-la-planimetria.mp4"))
+                    sopraLaPlanimetria(r)
+                    r.stop()
+                    shot("6")
+                }
+                // Secondo video: porte, finestre, balconi, impianti e scale sull'appartamento di prova già disegnato.
+                if (solo == null || solo == "7") {
+                    preparaAppartamento(r, tips)
+                    r.start(File(out, "7-porte-finestre-e-altro.mp4"))
+                    elementi(r)
+                    r.stop()
+                    shot("7")
+                }
                 // Capitoli vecchi fuori dalla serie: muro singolo (andrà nei mini tutorial), ricalco angolo per angolo, lettura automatica.
                 if (System.getenv("VIDEO_RICALCO") != null) {
                     r.start(File(out, "6-muro-singolo.mp4"))
@@ -628,6 +638,235 @@ class VideoStanzeTest {
         r.caption = "Fai lo stesso con le altre stanze: una forma per partire, poi muri e angoli al loro posto, sopra la tua planimetria."
         r.moveTo(Offset(900f, 640f))
         r.wait(6.0)
+    }
+
+    /**
+     * Fuori dal video: un progetto nuovo con l'appartamento di prova già disegnato sopra la piantina (con «Leggi la piantina da
+     * sola» e il lettore finto, senza terrazza e balcone, che si mettono nel video). Le mini guide degli elementi del video
+     * tornano da vedere, così compaiono come la prima volta.
+     */
+    private fun preparaAppartamento(r: Regista, tips: TipStore) {
+        tips.save(tips.seen() - listOf(Tip.Opening, Tip.Fixture, Tip.Stair, Tip.Outdoor).map { it.name }.toSet())
+        PiantinaDiProva.conEsterni = false
+        if (r.nodes().any { n -> r.texts(n).any { it.contains("Ricalca una piantina") } }) r.clickOn(r.rect("Progetti", exact = false), readSeconds = 0.1)
+        else {
+            r.clickOn(r.rect("⋮", exact = true), readSeconds = 0.1)
+            r.wait(0.3)
+            r.clickOn(r.rect("Progetti", exact = false), readSeconds = 0.1)
+        }
+        r.wait(0.5)
+        r.clickOn(r.rect("Nuovo progetto"), readSeconds = 0.1)
+        r.wait(0.3)
+        r.type(r.field("Nome del progetto"), "Appartamento di prova")
+        r.clickOn(r.rect("Salva", exact = true), readSeconds = 0.1)
+        r.wait(0.8)
+        r.clickOn(r.rect("Ricalca una piantina"), readSeconds = 0.1)
+        r.wait(0.5)
+        r.clickOn(r.rect("Leggi la piantina da sola"), readSeconds = 0.1)
+        r.wait(5.0)
+        PiantinaDiProva.conEsterni = true
+        prova(r, "e0")
+        r.cursor = Offset(900f, 600f)
+    }
+
+    /** Porte, finestre, balconi e terrazze, impianti e scale: come si mettono; il resto si cambia da Info. */
+    private fun elementi(r: Regista) {
+        r.titleCard("Porte, finestre e altri elementi", "Porte, finestre, balconi, impianti e scale")
+        r.chapter = "Porte, finestre e altri elementi"
+        val tot = 9
+        fun passo(k: Int) { r.stepLabel = "Passo $k di $tot" }
+        fun box(p: Offset, k: Float = 22f) = Rect(p.x - k, p.y - k, p.x + k, p.y + k)
+        r.highlight = null
+        r.stepLabel = ""
+        r.caption = "Partiamo dall'appartamento di prova già disegnato. Porte, finestre e tutto il resto si aggiungono dal pulsante «Elementi architettonici»."
+        r.moveTo(Offset(700f, 500f))
+        r.wait(6.0)
+        fun menu(vararg voci: Pair<String, String>) {
+            r.clickOn(r.rect("Elementi architettonici"), voci.first().second, readSeconds = 3.0)
+            r.wait(0.5)
+            for ((voce, spiega) in voci.drop(1)) {
+                // Le voci con un sottomenu finiscono con «  ▸».
+                val dove = runCatching { r.rect(voce, exact = true) }.getOrElse { r.rect("$voce  ▸", exact = true) }
+                r.clickOn(dove, spiega, readSeconds = 2.2)
+                r.wait(0.5)
+            }
+        }
+        /** La mini guida che si apre la prima volta: si legge e si chiude con «Ho capito». */
+        fun miniGuida(spiega: String) {
+            r.wait(0.8)
+            val card = r.rect("💡", exact = false).let { t -> Rect(t.left - 60f, t.top - 16f, r.rect("Ho capito", exact = true).right + 8f, r.rect("Ho capito", exact = true).bottom + 4f) }
+            r.highlight = card
+            r.caption = spiega
+            r.moveTo(Offset(card.right - 60f, card.bottom + 40f))
+            r.wait(6.5)
+            r.clickOn(r.rect("Ho capito", exact = true), "Quando hai letto, clicca «Ho capito»: non si apre più.", readSeconds = 2.5)
+            r.wait(0.6)
+        }
+
+        // 1. Porta tra camera e soggiorno.
+        passo(1)
+        menu(
+            "Elementi architettonici" to "Cominciamo da una porta tra la camera e il soggiorno. Clicca «Elementi architettonici»…",
+            "🚪 Porte" to "…poi «Porte»…",
+            "Porta ad 1 anta" to "…e scegli il tipo, per esempio «Porta ad 1 anta».",
+        )
+        val porta = pianta(suPiantina(355f, 290f))
+        r.highlight = box(porta, 26f)
+        r.caption = "Ora clicca sul muro, nel punto dove va la porta."
+        r.moveTo(porta)
+        r.wait(3.0)
+        r.click()
+        r.highlight = null
+        prova(r, "e1")
+        miniGuida("La prima volta che metti una porta si apre una mini guida che spiega cosa puoi fare: spostarla trascinandola lungo il muro, cambiare misure e verso di apertura da «Info».")
+        // 2. Finestra sul muro in alto del soggiorno.
+        passo(2)
+        menu(
+            "Elementi architettonici" to "Una finestra si mette allo stesso modo: «Elementi architettonici»…",
+            "🪟 Finestre" to "…«Finestre»…",
+            "Finestra a 2 ante" to "…«Finestra a 2 ante».",
+        )
+        val finestra = pianta(suPiantina(620f, -15f))
+        r.highlight = box(finestra, 26f)
+        r.caption = "Clicca sul muro esterno del soggiorno, dove va la finestra."
+        r.moveTo(finestra)
+        r.wait(2.5)
+        r.click()
+        r.highlight = null
+        r.wait(1.5)
+        prova(r, "e2")
+        // 3. Balcone sotto il soggiorno, con la porta-finestra.
+        passo(3)
+        menu(
+            "Elementi architettonici" to "Ora il balcone, sotto il soggiorno. «Elementi architettonici»…",
+            "🌿 Balconi e terrazze" to "…«Balconi e terrazze»…",
+            "Balcone" to "…«Balcone».",
+        )
+        prova(r, "e3")
+        r.clickOn(r.rect("Rettangolo", exact = true), "Si sceglie la forma come per le stanze: il balcone è un rettangolo.", readSeconds = 3.0)
+        r.wait(0.5)
+        val larg = r.field("Larghezza")
+        r.clickOn(r.rectOf(larg), "Scrivi le misure della piantina: larghezza 300…", readSeconds = 2.0)
+        r.type(larg, "300")
+        val prof = r.field("Profondità")
+        r.clickOn(r.rectOf(prof), "…e profondità 140.", readSeconds = 1.5)
+        r.type(prof, "140")
+        r.wait(0.4)
+        r.clickOn(r.rect("Crea stanza", exact = true), "Clicca «Crea stanza».", readSeconds = 2.0)
+        r.wait(1.5)
+        prova(r, "e4")
+        miniGuida("Anche il balcone ha la sua mini guida: al posto dei muri c'è il parapetto, e da «Info» scegli ringhiera, muretto o vetro.")
+        passo(4)
+        val balcone = stanza(RoomType.Balcone)
+        val etB = Polygon.labelPoint(balcone.points)
+        val arrivoB = pianta(etB + (suPiantina(470f, 440f) - stanzaInterno(balcone).first))
+        r.highlight = riquadro(suPiantina(470f, 440f), suPiantina(770f, 580f))
+        r.caption = "Trascina il balcone dal suo nome fino al suo posto sulla piantina, sotto il soggiorno."
+        r.moveTo(pianta(etB))
+        r.wait(3.0)
+        r.drag({ arrivoB }, seconds = 2.2)
+        r.highlight = null
+        r.wait(1.0)
+        prova(r, "e5")
+        menu(
+            "Elementi architettonici" to "Per uscire sul balcone serve una porta-finestra: «Elementi architettonici»…",
+            "🚪 Porte-finestre" to "…«Porte-finestre»…",
+            "Balcone a 2 ante" to "…«Balcone a 2 ante».",
+        )
+        val pf = pianta(suPiantina(620f, 425f))
+        r.highlight = box(pf, 26f)
+        r.caption = "Clicca sul muro tra il soggiorno e il balcone."
+        r.moveTo(pf)
+        r.wait(2.5)
+        r.click()
+        r.highlight = null
+        r.wait(1.5)
+        // 4. Terrazza nel vuoto in alto.
+        passo(5)
+        menu(
+            "Elementi architettonici" to "La terrazza si fa come il balcone: «Elementi architettonici»…",
+            "🌿 Balconi e terrazze" to "…«Balconi e terrazze»…",
+            "Terrazza" to "…«Terrazza».",
+        )
+        r.clickOn(r.rect("Rettangolo", exact = true), "«Rettangolo»…", readSeconds = 1.5)
+        r.wait(0.5)
+        val lt = r.field("Larghezza")
+        r.clickOn(r.rectOf(lt), "…larghezza 200…", readSeconds = 1.2)
+        r.type(lt, "200")
+        val pt = r.field("Profondità")
+        r.clickOn(r.rectOf(pt), "…profondità 170…", readSeconds = 1.2)
+        r.type(pt, "170")
+        r.clickOn(r.rect("Crea stanza", exact = true), "…«Crea stanza».", readSeconds = 1.5)
+        r.wait(1.5)
+        val terrazza = stanza(RoomType.Terrazza)
+        val etT = Polygon.labelPoint(terrazza.points)
+        val arrivoT = pianta(etT + (suPiantina(910f, -20f) - stanzaInterno(terrazza).first))
+        r.highlight = riquadro(suPiantina(910f, -20f), suPiantina(1110f, 150f))
+        r.caption = "Trascinala nel suo spazio, in alto tra il soggiorno e la cucina."
+        r.moveTo(pianta(etT))
+        r.wait(3.0)
+        r.drag({ arrivoT }, seconds = 2.2)
+        r.highlight = null
+        r.wait(1.5)
+        prova(r, "e6")
+        // 5. Impianti: calorifero sul muro, lampadario nella stanza.
+        passo(6)
+        menu(
+            "Elementi architettonici" to "Gli impianti: termosifoni, prese, interruttori, punti acqua e luci. «Elementi architettonici»…",
+            "🔌 Impianti" to "…«Impianti»…",
+            "Calorifero" to "…«Calorifero».",
+        )
+        val cal = pianta(suPiantina(-15f, 175f))
+        r.highlight = box(cal, 26f)
+        r.caption = "Termosifoni, prese, interruttori e punti acqua si mettono cliccando sul muro: qui il muro esterno della camera."
+        r.moveTo(cal)
+        r.wait(3.5)
+        r.click()
+        r.highlight = null
+        prova(r, "e7")
+        miniGuida("Mini guida degli impianti: quelli a muro scorrono lungo il muro, e da «Info» imposti altezza da terra e misure.")
+        passo(7)
+        menu(
+            "Elementi architettonici" to "Le luci invece vanno dentro la stanza. «Elementi architettonici»…",
+            "🔌 Impianti" to "…«Impianti»…",
+            "Luci" to "…«Luci»…",
+            "Lampadario" to "…per esempio «Lampadario».",
+        )
+        val luce = pianta(suPiantina(620f, 205f))
+        r.highlight = box(luce, 26f)
+        r.caption = "Clicca nella stanza, dove va la luce: qui al centro del soggiorno."
+        r.moveTo(luce)
+        r.wait(2.5)
+        r.click()
+        r.highlight = null
+        r.wait(1.5)
+        prova(r, "e8")
+        // 6. Scala nello studio.
+        passo(8)
+        val studio = pianta(suPiantina(120f, 560f))
+        r.clickOn(box(studio, 30f), "Ultima, la scala. Prima clicca nella stanza dove va, per esempio lo studio…", readSeconds = 3.0)
+        r.wait(0.6)
+        menu(
+            "Elementi architettonici" to "…poi «Elementi architettonici»…",
+            "🪜 Scale" to "…«Scale»…",
+            "Rampa dritta" to "…e scegli la forma, per esempio «Rampa dritta».",
+        )
+        r.wait(1.0)
+        prova(r, "e9")
+        miniGuida("Quando metti una scala si apre la sua mini guida, che ti spiega tutto: come spostarla e accostarla a un muro, e cosa cambi da «Info» (tipo, larghezza, gradini, verso).")
+        // 7. Info.
+        passo(9)
+        r.clickOn(r.rect("Info", exact = true), "La scala è selezionata. Per tutte le altre modifiche clicca «Info»: vale per ogni elemento, porte, finestre, balconi, impianti e scale.", readSeconds = 5.0)
+        r.wait(1.2)
+        prova(r, "e10")
+        r.highlight = null
+        r.caption = "Nella scheda «Info» cambi misure, tipo e tutto il resto dell'elemento selezionato. Per chiuderla clicca «▼»."
+        r.moveTo(Offset(1000f, 600f))
+        r.wait(6.0)
+        r.clickOn(r.rect("▼", exact = true), readSeconds = 1.5)
+        r.caption = "Ecco l'appartamento con porte, finestre, balcone, terrazza, impianti e scala. Per ogni elemento: lo scegli da «Elementi architettonici», lo metti sulla pianta, e il resto da «Info»."
+        r.moveTo(Offset(900f, 640f))
+        r.wait(7.0)
     }
 
     private fun stanza(type: RoomType) = vm().state.value.plan.rooms.last { it.type == type }

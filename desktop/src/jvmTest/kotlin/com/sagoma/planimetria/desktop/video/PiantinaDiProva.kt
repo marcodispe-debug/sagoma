@@ -167,7 +167,7 @@ object PiantinaDiProva {
     fun lettura(width: Int, height: Int): PlanReading {
         val k = width.toDouble() / WIDTH
         fun p(x: Float, y: Float) = listOf(px(x) * k, py(y) * k)
-        val rooms = (stanze + esterni.map { Stanza(it.nome, it.punti) }).map { st ->
+        val rooms = (stanze + esterni.filter { conEsterni }.map { Stanza(it.nome, it.punti) }).map { st ->
             PlanReading.ReadRoom(
                 name = st.nome,
                 corners = st.punti.map { (x, y) -> p(x, y) },
@@ -177,6 +177,9 @@ object PiantinaDiProva {
         }
         return PlanReading(image = PlanReading.ImageSize(width, height), rooms = rooms, openings = emptyList(), exteriorWallPx = 30.0 * k)
     }
+
+    /** Nella lettura finta ci sono anche terrazza e balcone (false: solo le stanze, per metterli a mano nel video). */
+    var conEsterni = true
 
     /** Il servizio di lettura finto: risponde dopo qualche secondo con [lettura]. */
     val lettore = object : PlanReader {
