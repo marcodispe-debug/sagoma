@@ -10,6 +10,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.geometry.Scene3D
+import com.sagoma.planimetria.geometry.SunAngles
+import com.sagoma.planimetria.geometry.SunPath
 import com.sagoma.planimetria.geometry.Vec3
 
 /**
@@ -32,9 +34,10 @@ interface SceneRenderer {
     fun setCamera(eye: Vec3, center: Vec3, up: Vec3, fovY: Double, near: Double, walking: Boolean)
     /**
      * Ora del giorno (0–24, decide sole, cielo e luce dalle finestre) e luci della casa ("auto": accese
-     * quando fa buio, "on", "off"). Solo i renderer avanzati le usano.
+     * quando fa buio, "on", "off"). [sun]: dove sta il sole, secondo città, giorno e nord della casa (senza, il giro
+     * semplice di sempre). Solo i renderer avanzati le usano.
      */
-    fun setDaylight(hour: Float, lamps: String) {}
+    fun setDaylight(hour: Float, lamps: String, sun: SunAngles = SunPath.simple(hour)) {}
     fun onPause() {}
     fun onResume() {}
     /** La superficie non serve più: libera la memoria della scheda grafica. */
