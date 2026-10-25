@@ -261,6 +261,8 @@ data class EditorUiState(
     val tip: Tip? = null,
     /** Tutorial guidato in corso (null = nessuno). */
     val tutorial: TutorialUi? = null,
+    /** Guida interattiva in corso (null = nessuna): lezione e passo; cosa indicare lo calcola [Course.hints]. */
+    val course: CourseUi? = null,
     /** Vista 3D al posto della pianta 2D. */
     val view3d: Boolean = false,
     /** Impianto scelto dal menu, in attesa del tocco su un muro (a muro) o dentro una stanza (luci). */

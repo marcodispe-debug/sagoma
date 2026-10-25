@@ -54,7 +54,7 @@ class VideoStanzeTest {
         val out = File("build/video").apply { mkdirs() }
         try {
             val repo = FileProjectRepository(dir)
-            val tips = FileTipStore(dir).also { s -> s.save(Tip.entries.map { it.name }.toSet() + TipStore.TUTORIAL_DONE + TipStore.TRACING_GUIDE_DONE) }
+            val tips = FileTipStore(dir).also { s -> s.save(Tip.entries.map { it.name }.toSet() + TipStore.TUTORIAL_DONE + TipStore.TRACING_GUIDE_DONE + TipStore.COURSE_DONE) }
             FileLanguageStore(dir).save(LanguageChoice.Italian)
             val desktop = DesktopPlatform(
                 account = Account(profile = Profile.Professional), projects = repo, tips = tips, language = FileLanguageStore(dir), assets = null,

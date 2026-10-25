@@ -67,7 +67,7 @@ class RoomPhotosImageTest {
             }
             val room = Room(1, "Cucina", RoomType.Cucina, RoomFactory.rectangle(400.0, 300.0)).copy(photos = photos)
             repo.planStore(p.id).save(Building.single(FloorPlan(listOf(room))))
-            val tips = FileTipStore(dir).also { s -> s.save(Tip.entries.map { it.name }.toSet() + TipStore.TUTORIAL_DONE) }
+            val tips = FileTipStore(dir).also { s -> s.save(Tip.entries.map { it.name }.toSet() + TipStore.TUTORIAL_DONE + TipStore.COURSE_DONE) }
             repo.markOpened(p.id)
 
             val taps = tocchi

@@ -42,7 +42,7 @@ class DarkThemeImageTest {
                 openings = listOf(Opening.default(1, OpeningKind.Window2, 0, 250.0)),
             )
             repo.planStore(p.id).save(Building.single(FloorPlan(listOf(room))))
-            val tips = FileTipStore(dir).also { s -> s.save(Tip.entries.map { it.name }.toSet() + TipStore.TUTORIAL_DONE) }
+            val tips = FileTipStore(dir).also { s -> s.save(Tip.entries.map { it.name }.toSet() + TipStore.TUTORIAL_DONE + TipStore.COURSE_DONE) }
             FileThemeStore(dir).save(ThemeChoice.Dark)
 
             fun shot(name: String, taps: List<Pair<Offset, String>> = emptyList()): Int {

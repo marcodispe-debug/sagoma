@@ -37,7 +37,7 @@ class RealWindowSaveTest {
             val p = repo.create("Prova")
             repo.planStore(p.id).save(Building.single(FloorPlan(listOf(Room(1, "Soggiorno", RoomType.Soggiorno, RoomFactory.rectangle(500.0, 400.0))))))
             repo.markOpened(p.id)
-            val tips = FileTipStore(dir).also { s -> s.save(Tip.entries.map { it.name }.toSet() + TipStore.TUTORIAL_DONE) }
+            val tips = FileTipStore(dir).also { s -> s.save(Tip.entries.map { it.name }.toSet() + TipStore.TUTORIAL_DONE + TipStore.COURSE_DONE) }
             val platform = DesktopPlatform(projects = repo, tips = tips, assets = null)
             SwingUtilities.invokeAndWait {
                 window = ComposeWindow().apply {

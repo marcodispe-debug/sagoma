@@ -13,6 +13,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import com.sagoma.planimetria.editor.Lesson
+import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.persistence.ThemeChoice
 import com.sagoma.planimetria.testi.Lingue
 import com.sagoma.planimetria.testi.T
@@ -39,7 +41,11 @@ fun SagomaApp(platform: Platform) {
     CompositionLocalProvider(LocalPlatform provides platform, LocalThemeSetting provides themeSetting, LocalLanguageSetting provides languageSetting) {
         MaterialTheme(colorScheme = if (dark) SagomaDarkColors else SagomaLightColors) {
             val projects = platform.projects
-            var open by rememberSaveable { mutableStateOf(projects.lastOpened ?: -1L) }
+            val courseProjects = remember { CourseProjects(platform) }
+            // Primo avvio sul computer: la guida interattiva, sul suo progetto di prova (i progetti dell'utente non si toccano).
+            val firstCourse = remember { platform.interactiveGuide && TipStore.COURSE_DONE !in platform.tips.seen() }
+            var courseLesson by remember { mutableStateOf(if (firstCourse) Lesson.Square else null) }
+            var open by rememberSaveable { mutableStateOf(if (firstCourse) courseProjects.project(Lesson.Square) else projects.lastOpened ?: -1L) }
             key(lingua.codice) {
                 Surface {
                     if (open < 0) {
@@ -52,13 +58,42 @@ fun SagomaApp(platform: Platform) {
                         platform.BackHandler(enabled = true) { open = -1L }
                         key(open) {
                             // Il progetto aperto: le sue immagini (piantina, foto delle stanze) stanno tra i suoi file.
-                            androidx.compose.runtime.CompositionLocalProvider(LocalProjectId provides open) {
-                                EditorScreen(open, onOpenProjects = { open = -1L })
+                            androidx.compose.runtime.CompositionLocalProvider(LocalProjectId provides open, LocalGuide provides remember { GuideTargets() }) {
+                                EditorScreen(
+                                    open,
+                                    onOpenProjects = { open = -1L },
+                                    courseLesson = courseLesson,
+                                    onCourseStarted = { courseLesson = null },
+                                    onCourse = { lesson ->
+                                        courseLesson = lesson
+                                        open = courseProjects.project(lesson)
+                                    },
+                                )
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * I due progetti di prova della guida interattiva: uno per le lezioni sulle stanze, uno per quella sopra la planimetria (che
+ * parte da un progetto vuoto). Creati la prima volta; il loro numero e la data di creazione stanno con le guide già viste.
+ */
+internal class CourseProjects(private val platform: Platform) {
+    fun project(lesson: Lesson): Long {
+        val tips = platform.tips
+        val projects = platform.projects
+        val key = if (lesson == Lesson.OverPlan) "guida-progetto-2=" else "guida-progetto-1="
+        val saved = tips.seen().firstOrNull { it.startsWith(key) }?.removePrefix(key)?.split(':')
+        val id = saved?.getOrNull(0)?.toLongOrNull()
+        val created = saved?.getOrNull(1)?.toLongOrNull()
+        // Solo se è proprio quello: un progetto nuovo può riprendere il numero di uno eliminato, e la guida lo svuoterebbe.
+        if (id != null) projects.info(id)?.takeIf { it.created == created }?.let { return it.id }
+        val p = projects.create(if (lesson == Lesson.OverPlan) T.corso.progettoProvaPlanimetria else T.corso.progettoProva)
+        tips.save(tips.seen().filterNot { it.startsWith(key) }.toSet() + "$key${p.id}:${p.created}")
+        return p.id
     }
 }

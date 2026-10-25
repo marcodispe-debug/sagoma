@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.Ceilings
 import androidx.compose.ui.unit.dp
@@ -151,7 +152,7 @@ fun InfoSheet(
                     modifier = Modifier.weight(1f),
                 )
                 actions()
-                TextButton(onClick = onToggle) { Text(T.schedaStanza.info) }
+                TextButton(onClick = onToggle, modifier = Modifier.guide(GuideTarget.Info, done = expanded)) { Text(T.schedaStanza.info) }
                 IconButton(onClick = onToggle) {
                     Text(if (expanded) "▼" else "▲", style = MaterialTheme.typography.titleMedium)
                 }

@@ -64,6 +64,9 @@ class DesktopPlatform(
     override val planReader: com.sagoma.planimetria.reading.PlanReader? = null,
 ) : Platform {
 
+    // Mouse e schermo largo: qui la guida interattiva ha senso (e parte al primo avvio).
+    override val interactiveGuide: Boolean get() = true
+
     override val systemLanguage: String get() = java.util.Locale.getDefault().language
 
     /** Finestra principale (per le finestre di dialogo). */

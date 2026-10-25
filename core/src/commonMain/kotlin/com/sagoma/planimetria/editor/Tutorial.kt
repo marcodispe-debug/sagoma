@@ -68,6 +68,18 @@ sealed interface TutorialEvent {
     data class CornersPlaced(val count: Int) : TutorialEvent
     /** Piantina o disegno mostrati, nascosti o resi più trasparenti. */
     data object PlanViewChanged : TutorialEvent
+
+    // Azioni che contano solo per la guida interattiva (Course).
+
+    /** Scelta nella finestra della forma della stanza (Quadrato, Rettangolo, A L, Da rilievo, Muro per muro). */
+    data class ShapePicked(val choice: ShapeChoice) : TutorialEvent
+    /** Scelto da che parte sporge la L. */
+    data object LSidePicked : TutorialEvent
+    /** «Ricalca una piantina». */
+    data object TracingStarted : TutorialEvent
+    /** Uscita da «Muro per muro» senza chiudere la stanza. */
+    data object WallDrawLeft : TutorialEvent
+    data object StairAdded : TutorialEvent
 }
 
 /** Cosa mostra la scheda del tutorial. `detail`: avanzamento dentro il passo (es. lati cambiati). */

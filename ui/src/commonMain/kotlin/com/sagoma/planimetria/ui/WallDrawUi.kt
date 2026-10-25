@@ -1,5 +1,6 @@
 package com.sagoma.planimetria.ui
 
+import com.sagoma.planimetria.editor.GuideField
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
@@ -51,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.editor.WallArrow
 import com.sagoma.planimetria.editor.WallDirection
 import com.sagoma.planimetria.editor.WallDirectionProblem
@@ -160,6 +162,7 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
                             selected = arrow == a, enabled = !back,
                             onClick = { arrow = if (arrow == a) null else a },
                             label = { Text(arrowLabel(a)) },
+                            modifier = Modifier.guide(GuideTarget.Arrow(a), done = arrow == a),
                         )
                     }
                 }
@@ -171,7 +174,7 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
                         value = length, onValueChange = { length = it }, label = { Text(T.muroPerMuro.lunghezzaCm) }, singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { add() }),
-                        modifier = Modifier.weight(1f).then(keys),
+                        modifier = Modifier.weight(1f).then(keys).guide(GuideTarget.Field(GuideField.WallLength), value = length),
                     )
                     // L'angolo tra i muri ha senso dal secondo muro e con una freccia che dice da che parte girare.
                     if (!firstWall) OutlinedTextField(
@@ -181,7 +184,9 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
                         keyboardActions = KeyboardActions(onDone = { add() }),
                         modifier = Modifier.weight(1f).then(keys),
                     )
-                    Button(onClick = { add() }, enabled = lengthCm != null && lengthCm > 0 && problem == null) { Text(T.muroPerMuro.aggiungi) }
+                    Button(onClick = { add() }, enabled = lengthCm != null && lengthCm > 0 && problem == null, modifier = Modifier.guide(GuideTarget.AddWall)) {
+                        Text(T.muroPerMuro.aggiungi)
+                    }
                 }
                 Text(
                     when {
@@ -199,8 +204,10 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = vm::drawWallsUndo, enabled = wd.points.isNotEmpty()) { Text(T.muroPerMuro.ultimo) }
-                TextButton(onClick = vm::drawWallsClose, enabled = wd.points.size >= 3) { Text(if (zone) T.muroPerMuro.chiudiZona else T.muroPerMuro.chiudiStanza) }
-                TextButton(onClick = vm::cancelDrawWalls) { Text(T.comuni.esci) }
+                TextButton(onClick = vm::drawWallsClose, enabled = wd.points.size >= 3, modifier = Modifier.guide(GuideTarget.CloseRoom)) {
+                    Text(if (zone) T.muroPerMuro.chiudiZona else T.muroPerMuro.chiudiStanza)
+                }
+                TextButton(onClick = vm::cancelDrawWalls, modifier = Modifier.guide(GuideTarget.LeaveWalls)) { Text(T.comuni.esci) }
                 // Agganci anche qui: mentre si disegna la tendina Info non c'è.
                 SnapToggle(state.snapOn, vm::setSnapOn)
                 // Muro sbiadito o tagliato nella piantina: si può sempre scrivere la misura.
@@ -262,7 +269,10 @@ private fun WallDrawCloseDialog(vm: EditorViewModel, onPlan: Boolean) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(T.muroPerMuro.tipoStanza, style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (rt in RoomType.entries) FilterChip(selected = rt == type, onClick = { type = rt }, label = { Text(rt.label) })
+                    for (rt in RoomType.entries) FilterChip(
+                        selected = rt == type, onClick = { type = rt }, label = { Text(rt.label) },
+                        modifier = Modifier.guide(GuideTarget.Type(rt), done = rt == type),
+                    )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SelectAllTextField(value = ceiling, onValueChange = { ceiling = it }, label = T.muroPerMuro.soffittoCm, modifier = Modifier.weight(1f))
@@ -275,7 +285,10 @@ private fun WallDrawCloseDialog(vm: EditorViewModel, onPlan: Boolean) {
             }
         },
         confirmButton = {
-            TextButton(enabled = c != null && c > 0 && t != null && t in 3.0..120.0, onClick = { vm.finishDrawWalls(type, c!!, t!!) }) { Text(T.muroPerMuro.creaStanza) }
+            TextButton(
+                enabled = c != null && c > 0 && t != null && t in 3.0..120.0, onClick = { vm.finishDrawWalls(type, c!!, t!!) },
+                modifier = Modifier.guide(GuideTarget.Create),
+            ) { Text(T.muroPerMuro.creaStanza) }
         },
         dismissButton = { TextButton(onClick = vm::drawWallsResume) { Text(T.muroPerMuro.continuaDisegnare) } },
     )

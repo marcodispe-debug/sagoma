@@ -29,6 +29,12 @@ class History<T>(private val limit: Int = 200) {
         for (i in future.indices) future[i] = transform(future[i])
     }
 
+    /** Cronologia vuota (la guida interattiva ricomincia il progetto di prova da capo). */
+    fun clear() {
+        past.clear()
+        future.clear()
+    }
+
     fun undo(current: T): T? {
         val prev = past.removeLastOrNull() ?: return null
         future.addLast(current)

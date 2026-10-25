@@ -49,6 +49,9 @@ interface TipStore {
 
         /** Guida al ricalco di una piantina completata o chiusa con "Esci". */
         const val TRACING_GUIDE_DONE = "guida-ricalco"
+
+        /** Guida interattiva (le lezioni sul progetto di prova) finita o chiusa con "Esci": al primo avvio non riparte. */
+        const val COURSE_DONE = "guida-interattiva"
     }
 }
 
@@ -60,32 +63,42 @@ object NoTipStore : TipStore {
 /**
  * Coda dei suggerimenti: uno alla volta; quelli chiesti mentre ne è aperto un altro aspettano il loro turno.
  * `current` è quello da mostrare (null = nessuno).
+ *
+ * Ogni scrittura riparte da ciò che c'è nell'archivio: ci scrivono anche gli altri progetti aperti (la guida interattiva passa
+ * da un progetto di prova all'altro) e l'elenco dei progetti di prova, che non vanno persi.
  */
 class TipQueue(private val store: TipStore) {
-    private val stored = store.seen().toMutableSet()
+    private var stored: Set<String> = store.seen()
     private val seen = Tip.entries.filter { it.name in stored }.toMutableSet()
 
-    private fun persist() {
-        stored.removeAll { name -> Tip.entries.any { it.name == name } }
-        stored += seen.map { it.name }
-        store.save(stored)
+    /** Le voci salvate; dove l'archivio non conserva niente ([NoTipStore]) quelle scritte finora. */
+    private fun saved(): Set<String> = store.seen().ifEmpty { stored }
+
+    private fun write(change: MutableSet<String>.() -> Unit) {
+        val next = saved().toMutableSet().apply(change)
+        stored = next
+        store.save(next)
+        seen.clear()
+        seen += Tip.entries.filter { it.name in next }
     }
+
+    private fun flag(name: String, value: Boolean) = write { if (value) add(name) else remove(name) }
 
     /** Tutorial guidato già completato o saltato. */
     var tutorialDone: Boolean
-        get() = TipStore.TUTORIAL_DONE in stored
-        set(value) {
-            if (value) stored += TipStore.TUTORIAL_DONE else stored -= TipStore.TUTORIAL_DONE
-            store.save(stored)
-        }
+        get() = TipStore.TUTORIAL_DONE in saved()
+        set(value) = flag(TipStore.TUTORIAL_DONE, value)
 
     /** Guida al ricalco già completata o chiusa. */
     var tracingGuideDone: Boolean
-        get() = TipStore.TRACING_GUIDE_DONE in stored
-        set(value) {
-            if (value) stored += TipStore.TRACING_GUIDE_DONE else stored -= TipStore.TRACING_GUIDE_DONE
-            store.save(stored)
-        }
+        get() = TipStore.TRACING_GUIDE_DONE in saved()
+        set(value) = flag(TipStore.TRACING_GUIDE_DONE, value)
+
+    /** Guida interattiva già finita o chiusa. */
+    var courseDone: Boolean
+        get() = TipStore.COURSE_DONE in saved()
+        set(value) = flag(TipStore.COURSE_DONE, value)
+
     private val waiting = ArrayDeque<Tip>()
     var current: Tip? = null
         private set
@@ -98,30 +111,30 @@ class TipQueue(private val store: TipStore) {
 
     /** "Ho capito": il suggerimento non ricompare più, si passa al prossimo in attesa. */
     fun dismiss() {
-        current?.let { seen += it; persist() }
+        current?.let { t -> write { add(t.name) } }
         current = waiting.removeFirstOrNull()
     }
 
     /** Segna come visti i suggerimenti indicati (es. quelli delle funzioni già spiegate dal tutorial). */
     fun markSeen(tips: Collection<Tip>) {
-        seen += tips
-        persist()
+        write { addAll(tips.map { it.name }) }
         waiting.removeAll { it in tips }
         if (current in tips) current = waiting.removeFirstOrNull()
     }
 
+    /** I suggerimenti indicati tornano come mai visti (la guida interattiva li fa leggere). */
+    fun unsee(tips: Collection<Tip>) = write { removeAll(tips.map { it.name }.toSet()) }
+
     /** "Salta tutti": nessun suggerimento comparirà più (finché non si chiede di rivederli). */
     fun skipAll() {
-        seen += Tip.entries
-        persist()
+        write { addAll(Tip.entries.map { it.name }) }
         waiting.clear()
         current = null
     }
 
     /** "Rivedi i suggerimenti": tutti tornano come mai visti. */
     fun reset() {
-        seen.clear()
-        persist()
+        write { removeAll(Tip.entries.map { it.name }.toSet()) }
         waiting.clear()
         current = null
     }
