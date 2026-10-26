@@ -397,7 +397,12 @@ data class Room(
         return copy(
             points = points.take(i + 1) + mid + points.drop(i + 1),
             wallHeights = shift(wallHeights, dup = true),
-            wallCuts = shift(wallCuts, dup = false),
+            // Il taglio del sottotetto va sulla metà che ha l'angolo basso: con l'angolo basso alla fine è la seconda.
+            // Restando sulla prima, il suo angolo basso diventava l'angolo nuovo (alto) e la parete tornava alta e dritta.
+            wallCuts = shift(wallCuts, dup = false).let { m ->
+                val cut = m[i]
+                if (cut?.towardEnd == true) m - i + (i + 1 to cut) else m
+            },
             wallPaints = shift(wallPaints, dup = true),
             wallFinishes = shift(wallFinishes, dup = true),
             wallThicknesses = shift(wallThicknesses, dup = true),
