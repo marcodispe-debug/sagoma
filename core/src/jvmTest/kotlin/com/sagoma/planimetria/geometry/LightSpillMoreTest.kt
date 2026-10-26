@@ -9,7 +9,6 @@ import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Vec2
-import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -55,7 +54,6 @@ class LightSpillMoreTest {
         assertEquals(byRoom[Polygon.bounds(north.points)]!!.lumens, byRoom[Polygon.bounds(south.points)]!!.lumens, 1e-6)
     }
 
-    @Ignore // DIFETTO: LightSpill usa Openings.inwardNormal, che nelle stanze antiorarie punta fuori: la luce non passa.
     @Test
     fun `una stanza disegnata in senso antiorario manda la luce dalla parte giusta`() {
         val door = Opening.default(1, OpeningKind.Door, 1, 150.0)

@@ -24,7 +24,7 @@ object LightSpill {
     data class Portal(val from: Room, val to: Room, val a: Vec2, val b: Vec2, val top: Double, val into: Vec2)
 
     /**
-     * Varchi del piano: porte e passaggi su un muro a contatto con quello di un'altra stanza ([Openings.sharedGaps]), e muri tolti
+     * Varchi del piano (verso la stanza di là con [Room.outwardOf], giusto anche per le stanze disegnate in senso antiorario): porte e passaggi su un muro a contatto con quello di un'altra stanza ([Openings.sharedGaps]), e muri tolti
      * da entrambe le stanze dove si toccano (ambienti aperti). Ognuno nei due versi.
      */
     fun portals(plan: FloorPlan): List<Portal> {
@@ -43,7 +43,7 @@ object LightSpill {
                 for (other in plan.rooms) {
                     if (other.id == room.id) continue
                     if ((0 until other.wallCount).none { Dimensions.inContact(a, b, other.wallStart(it), other.wallEnd(it)) }) continue
-                    add(room, other, a, b, o.height, Openings.inwardNormal(room, o.wallIndex) * -1.0)
+                    add(room, other, a, b, o.height, room.outwardOf(o.wallIndex))
                 }
             }
             for (i in room.removedWalls) {
@@ -59,7 +59,7 @@ object LightSpill {
                         if (j >= other.wallCount || !Dimensions.inContact(s, e, other.wallStart(j), other.wallEnd(j))) continue
                         val t0 = ((other.wallStart(j) - s) dot u).coerceIn(0.0, len)
                         val t1 = ((other.wallEnd(j) - s) dot u).coerceIn(0.0, len)
-                        add(room, other, s + u * min(t0, t1), s + u * max(t0, t1), min(room.ceilingHeight, other.ceilingHeight), Openings.inwardNormal(room, i) * -1.0)
+                        add(room, other, s + u * min(t0, t1), s + u * max(t0, t1), min(room.ceilingHeight, other.ceilingHeight), room.outwardOf(i))
                     }
                 }
             }
