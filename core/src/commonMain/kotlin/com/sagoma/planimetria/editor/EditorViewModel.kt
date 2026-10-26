@@ -230,8 +230,40 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     // ---------- Guida interattiva ----------
 
     private fun publishCourse() {
-        if (!course.active) courseFocus = null
-        _state.update { it.copy(course = course.ui(it)) }
+        if (!course.active) {
+            courseFocus = null
+            courseSteps.clear()
+        }
+        // Ogni passo nuovo si ricorda com'era la casa quando è cominciato: «Indietro» la rimette così.
+        course.step?.let { st -> if (courseSteps.lastOrNull()?.first != st) courseSteps += st to _state.value }
+        _state.update { it.copy(course = course.ui(it)?.copy(canGoBack = courseSteps.size > 1)) }
+    }
+
+    /** I passi della guida fatti finora, con la pianta com'era all'inizio di ognuno. */
+    private val courseSteps = mutableListOf<Pair<CourseStep, EditorUiState>>()
+
+    /**
+     * "Indietro": il passo di prima, con la casa (e le finestre aperte) com'erano quando è cominciato. Si torna avanti con
+     * Annulla, o rifacendo il passo.
+     */
+    fun previousCourseStep() {
+        if (!course.active || courseSteps.size < 2) return
+        courseSteps.removeAt(courseSteps.lastIndex)
+        val (step, before) = courseSteps.last()
+        val now = _state.value
+        if (before.fullBuilding != now.fullBuilding) history.record(now.fullBuilding)
+        setBuilding(before.fullBuilding)
+        _state.update {
+            it.copy(
+                creation = before.creation, creationIntent = before.creationIntent, tracing = before.tracing,
+                underlayTool = before.underlayTool, wallDraw = before.wallDraw, pendingOpening = null, pendingFixture = null,
+                focusedRoomId = before.focusedRoomId, selection = before.selection, infoExpanded = false,
+                canUndo = history.canUndo, canRedo = history.canRedo,
+            )
+        }
+        course.goTo(step)
+        prepareCourseStep()
+        publishCourse()
     }
 
     /**
@@ -245,6 +277,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             publishTutorial()
         }
         history.clear()
+        courseSteps.clear()
         val house = Building.single(if (lesson == Lesson.OverPlan) FloorPlan() else Course.house(lesson), autoLevel = true)
         _state.update {
             EditorUiState(

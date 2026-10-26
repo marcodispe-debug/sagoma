@@ -344,4 +344,36 @@ class CourseTest {
         }
         for (r in listOf(GuidePlan.camera, GuidePlan.bagno, GuidePlan.soggiorno)) assertTrue(onPlan(r), "${r.type} non è sulla piantina")
     }
+
+    @Test
+    fun `indietro torna al passo prima con la casa com'era, e il passo si può rifare`() {
+        val vm = emptyProject()
+        vm.startCourse(Lesson.Square)
+        assertFalse(vm.state.value.course!!.canGoBack, "al primo passo non c'è un passo prima")
+        vm.nextCourseStep()
+        vm.pickShape(RoomShape.Square)
+        vm.createRoom(RoomType.Studio, ShapeDimensions(330.0, 330.0), 270.0)
+        assertEquals(CourseStep.SquareWall, vm.step)
+        assertTrue(vm.state.value.course!!.canGoBack)
+
+        // Indietro: lo studio sparisce e torna la finestra delle misure, come prima di creare la stanza.
+        vm.previousCourseStep()
+        assertEquals(CourseStep.SquareMeasures, vm.step)
+        assertTrue(vm.state.value.plan.rooms.isEmpty())
+        assertTrue(vm.state.value.creation is com.sagoma.planimetria.editor.CreationStep.Measures)
+        vm.createRoom(RoomType.Studio, ShapeDimensions(330.0, 330.0), 270.0)
+        assertEquals(CourseStep.SquareWall, vm.step, "il passo si rifà")
+
+        // Anche dopo un passo saltato: indietro rimette lo studio dritto, prima del muro trascinato dalla guida.
+        vm.skipCourseStep()
+        assertEquals(CourseStep.SquareInfo, vm.step)
+        vm.previousCourseStep()
+        assertEquals(CourseStep.SquareWall, vm.step)
+        assertTrue(vm.room(RoomType.Studio).interiorLengths().all { kotlin.math.abs(it - 330.0) < 0.5 })
+        vm.previousCourseStep()
+        vm.previousCourseStep()
+        vm.previousCourseStep()
+        assertEquals(CourseStep.Welcome, vm.step)
+        assertFalse(vm.state.value.course!!.canGoBack)
+    }
 }

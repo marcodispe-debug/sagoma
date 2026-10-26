@@ -189,6 +189,8 @@ data class CourseUi(
     val number: Int,
     val total: Int,
     val detail: String?,
+    /** «Indietro»: c'è un passo prima a cui tornare. */
+    val canGoBack: Boolean = false,
 )
 
 /** Avanzamento della guida interattiva. Le azioni arrivano come [TutorialEvent], come per il tutorial. */
@@ -276,6 +278,11 @@ class Course {
             CourseStep.WallsFirst, CourseStep.WallsTyped, CourseStep.WallsClose -> CourseStep.WallsDone
             else -> return next()
         }
+    }
+
+    /** «Indietro»: di nuovo al passo `target` (uno già fatto). */
+    fun goTo(target: CourseStep) {
+        step = target
     }
 
     private fun moveTo(target: CourseStep): Boolean {
