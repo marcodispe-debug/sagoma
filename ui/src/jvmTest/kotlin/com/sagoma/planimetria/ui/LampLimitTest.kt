@@ -8,7 +8,6 @@ import com.sagoma.planimetria.geometry.Vec3
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
-import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -25,7 +24,6 @@ class LampLimitTest {
     private fun light(x: Double, lumens: Double, spill: Boolean) =
         Scene3D.SceneLight(Vec3(x, 260.0, 500.0), null, lumens, warm = true, room = box, profile = LightProfile.Downlight, spill = spill)
 
-    @Ignore // DIFETTO: le luci sono scelte solo per distanza, quelle deboli dalle porte tolgono il posto alle lampade vere.
     @Test
     fun `con troppe luci restano le lampade vere, non quelle che passano dalle porte`() {
         // 22 lampade vere lontane da chi guarda e 6 luci deboli dalle porte vicine.
