@@ -98,6 +98,7 @@ import com.sagoma.planimetria.geometry.Distances
 import com.sagoma.planimetria.access.Right
 import com.sagoma.planimetria.access.Rights
 import com.sagoma.planimetria.ifc.IfcExport
+import com.sagoma.planimetria.ifc.IfcFurniture
 import com.sagoma.planimetria.ifc.IfcImport
 import com.sagoma.planimetria.ifc.IfcRoundTrip
 import com.sagoma.planimetria.model.Building
@@ -163,6 +164,7 @@ fun EditorScreen(
     ) + if (Rights.has(platform.account, Right.ExchangeIfc)) listOf(
         T.editor.esportaIfc to { exportIfc(platform, state.fullBuilding, projects.info(projectId)?.name, projectId) },
         T.editor.rileggiIfc to { readIfc(platform, vm, projectId) },
+        T.editor.cucinaNegozio to { readShopKitchen(platform, vm) },
     ) else emptyList()
     if (showSite) HouseSiteDialog(state.building.site, onNorth = vm::setNorth, onPlace = vm::setPlace, onDismiss = { showSite = false })
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
@@ -1170,6 +1172,20 @@ private fun exportIfc(platform: Platform, building: Building, name: String?, pro
     platform.saveFile(file, "application/x-step", text.encodeToByteArray()) { ok ->
         platform.toast(if (ok) T.editor.ifcEsportato else T.vari.esportazioneNonRiuscita)
     }
+}
+
+/**
+ * La cucina del negozio dal suo IFC (Winner esporta i soli mobili): entra nel piano corrente come oggetto fornito, che non va
+ * nel catalogo e non esce da sagoma. Si annulla con Annulla.
+ */
+private fun readShopKitchen(platform: Platform, vm: EditorViewModel) = platform.openFile(listOf(ANY_FILE)) { file ->
+    file ?: return@openFile
+    val name = file.name.substringBeforeLast('.').ifBlank { T.editor.cucinaNegozio }
+    val read = runCatching { IfcFurniture.read(file.bytes.decodeToString(), id = 1, name = name) }.getOrNull()
+    val obj = read?.obj
+    if (obj == null) { platform.toast(T.editor.cucinaNonLetta); return@openFile }
+    vm.addSupplied(obj, read.center)
+    platform.toast(T.editor.cucinaMessa(obj.elements.size))
 }
 
 /** Ritorno dal professionista: il suo IFC prende il posto della planimetria, gli arredi restano (Annulla torna a prima). */

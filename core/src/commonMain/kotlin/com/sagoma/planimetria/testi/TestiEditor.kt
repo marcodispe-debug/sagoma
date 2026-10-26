@@ -105,6 +105,10 @@ open class TestiEditor {
     open val linguaMenu: String get() = "🌐 Lingua · Language…"
     open val esportaIfc: String get() = "🏗 Esporta IFC per il professionista"
     open val rileggiIfc: String get() = "🏗 Rileggi l'IFC del professionista"
+    open val cucinaNegozio: String get() = "🍳 Metti la cucina del negozio (IFC)"
+    open val cucinaNonLetta: String get() = "In questo file IFC non ci sono mobili da mettere"
+    open fun cucinaMessa(mobili: Any?): String =
+        "Cucina del negozio nella casa: $mobili mobili. Spostala e girala come un arredo; resta solo in questo progetto"
     open val ifcEsportato: String get() = "Planimetria esportata in IFC (senza arredi)"
     open val ifcNonLetto: String get() = "Questo file IFC non si legge: mancano stanze e muri"
     open fun ifcRiletto(uguali: Any?, cambiate: Any?, nuove: Any?, tolte: Any?, controllare: Any?): String =

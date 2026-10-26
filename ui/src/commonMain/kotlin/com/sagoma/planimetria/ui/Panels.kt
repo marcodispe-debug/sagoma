@@ -106,7 +106,7 @@ fun selectionTitle(selection: Selection, plan: FloorPlan, levelHeight: Double = 
     }
     if (selection is Selection.Furniture) {
         val f = plan.furniture(selection.furnitureId) ?: return ""
-        val name = com.sagoma.planimetria.model.FurnitureCatalog.item(f.model)?.nome ?: T.pannelli.arredo
+        val name = plan.suppliedFor(f.model)?.name ?: com.sagoma.planimetria.model.FurnitureCatalog.item(f.model)?.nome ?: T.pannelli.arredo
         return T.pannelli.cm(name, formatCm(f.width), formatCm(f.depth))
     }
     if (selection is Selection.Stair) {

@@ -459,7 +459,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
             drawFloorBelow(state.planBelow, state.camera)
             drawPlan(shown, measurer)
             if (layers.visible(Layer.Structure)) drawStairs(state, measurer)
-            if (layers.visible(Layer.Furniture)) drawFurniture(state.plan.furniture, state.camera, (state.selection as? Selection.Furniture)?.furnitureId)
+            if (layers.visible(Layer.Furniture)) drawFurniture(state.plan.furniture, state.camera, (state.selection as? Selection.Furniture)?.furnitureId, state.plan.supplied)
             // Quote dei muri (solo lettura: le lunghezze si cambiano dalla tendina Info della stanza).
             if (layers.visible(Layer.WallLengths)) drawWallDimensions(state.plan, state.camera, measurer, avoid = labels.map { it.rect(state.camera, labelPadPx) })
             drawWallCuts(state)

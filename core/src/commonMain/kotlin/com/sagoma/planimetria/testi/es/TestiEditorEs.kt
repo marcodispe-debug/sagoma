@@ -105,6 +105,10 @@ object TestiEditorEs : TestiEditor() {
     override val linguaMenu: String get() = "🌐 Idioma · Language…"
     override val esportaIfc: String get() = "🏗 Exportar IFC para el profesional"
     override val rileggiIfc: String get() = "🏗 Volver a leer el IFC del profesional"
+    override val cucinaNegozio: String get() = "🍳 Colocar la cocina de la tienda (IFC)"
+    override val cucinaNonLetta: String get() = "Este archivo IFC no tiene muebles para colocar"
+    override fun cucinaMessa(mobili: Any?): String =
+        "Cocina de la tienda colocada: $mobili muebles. Muévela y gírala como un mueble; solo queda en este proyecto"
     override val ifcEsportato: String get() = "Plano exportado en IFC (sin muebles)"
     override val ifcNonLetto: String get() = "No se puede leer este archivo IFC: no hay habitaciones ni muros"
     override fun ifcRiletto(uguali: Any?, cambiate: Any?, nuove: Any?, tolte: Any?, controllare: Any?): String =

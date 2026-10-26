@@ -99,7 +99,7 @@ internal class Solid(val base: List<V3>, val extrusion: V3) {
     val points get() = base + base.map { it + extrusion }
 }
 
-private class IfcReader(val f: StepFile) {
+internal class IfcReader(val f: StepFile) {
     /** cm per unità di lunghezza del file. */
     val scale = lengthScale()
     val psets = readPsets()
