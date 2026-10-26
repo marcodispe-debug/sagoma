@@ -82,7 +82,8 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
     private val assetLoader: AssetLoader
     private val resourceLoader: ResourceLoader
     private val texturedSurfaces: TexturedSurfaces
-    private val uiHelper = UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK)
+    /** Collega il motore alla superficie: uno nuovo per ogni superficie (a ogni apertura della vista 3D). */
+    private var uiHelper: UiHelper? = null
     private var displayHelper: DisplayHelper? = null
     private var swapChain: SwapChain? = null
     private var surfaceView: SurfaceView? = null
@@ -179,7 +180,7 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
             Choreographer.getInstance().postFrameCallback(this)
             pendingScene?.let { load(it); pendingScene = null }
             val chain = swapChain ?: return
-            if (!dirty || !uiHelper.isReadyToRender) return
+            if (!dirty || uiHelper?.isReadyToRender != true) return
             if (renderer.beginFrame(chain, frameTimeNanos)) {
                 renderer.render(view)
                 renderer.endFrame()
@@ -188,14 +189,24 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         }
     }
 
+    /**
+     * Si riusa tra un'apertura e l'altra della vista 3D: chiudendola si stacca solo la superficie ([detachSurface]) e il motore
+     * tiene materiali, foto dei materiali, modelli degli arredi e luci ambiente già pronti.
+     */
+    override val reusable: Boolean get() = true
+
     override fun createView(context: Context): AndroidView {
+        // Una superficie alla volta: se la precedente è ancora collegata, si stacca.
+        detachSurface()
         val sv = SurfaceView(context)
         surfaceView = sv
         displayHelper = DisplayHelper(context)
-        uiHelper.renderCallback = object : UiHelper.RendererCallback {
+        val helper = UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK)
+        uiHelper = helper
+        helper.renderCallback = object : UiHelper.RendererCallback {
             override fun onNativeWindowChanged(surface: Surface) {
                 swapChain?.let { engine.destroySwapChain(it) }
-                swapChain = engine.createSwapChain(surface, uiHelper.swapChainFlags)
+                swapChain = engine.createSwapChain(surface, helper.swapChainFlags)
                 displayHelper?.attach(renderer, sv.display)
                 dirty = true
             }
@@ -217,9 +228,24 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
                 dirty = true
             }
         }
-        uiHelper.attachTo(sv)
+        helper.attachTo(sv)
         onResume()
         return sv
+    }
+
+    override fun detachSurface() {
+        onPause()
+        uiHelper?.detach()
+        uiHelper = null
+        // Di solito la superficie avvisa (onDetachedFromSurface) e la catena è già chiusa; se no, si chiude qui.
+        swapChain?.let {
+            displayHelper?.detach()
+            engine.destroySwapChain(it)
+            engine.flushAndWait()
+        }
+        swapChain = null
+        displayHelper = null
+        surfaceView = null
     }
 
     override fun setScene(scene: Scene3D) {
@@ -572,8 +598,7 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
     }
 
     override fun release() {
-        onPause()
-        uiHelper.detach()
+        detachSurface()
         asset?.let {
             scene.removeEntities(it.entities)
             assetLoader.destroyAsset(it)
@@ -604,6 +629,5 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         EntityManager.get().destroy(sun)
         EntityManager.get().destroy(fill)
         engine.destroy()
-        surfaceView = null
     }
 }

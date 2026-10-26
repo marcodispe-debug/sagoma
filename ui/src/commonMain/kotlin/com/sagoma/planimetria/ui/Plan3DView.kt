@@ -102,6 +102,8 @@ class View3DState {
     val camera = Camera3D()
     /** Renderer della superficie visibile (null quando la vista 3D è chiusa). */
     private var renderer: SceneRenderer? = null
+    /** Renderer tenuto da parte a vista 3D chiusa ([SceneRenderer.reusable]), e la piattaforma che l'ha creato. */
+    private var kept: Pair<SceneRenderer, Platform>? = null
     private var scene: Scene3D? = null
     var walking by mutableStateOf(false)
         private set
@@ -155,17 +157,32 @@ class View3DState {
 
     /** Crea il renderer della vista 3D (quello della piattaforma e della versione). */
     fun attach(platform: Platform): SceneRenderer {
-        renderer?.release()
-        val r = platform.createSceneRenderer()
+        val current = renderer
+        renderer = null
+        if (current != null && current !== kept?.first) current.release()
+        // Riaprendo la vista 3D si riprende il renderer di prima (stessa piattaforma): niente motore, materiali e luci da rifare.
+        val r = kept?.takeIf { it.second === platform }?.first ?: run {
+            dispose()
+            platform.createSceneRenderer().also { if (it.reusable) kept = it to platform }
+        }
         renderer = r
         scene?.let(r::setScene)
         refresh()
         return r
     }
 
+    /** La vista 3D si chiude: il renderer riutilizzabile resta da parte, gli altri si liberano. */
     fun detach() {
-        renderer?.release()
+        val r = renderer ?: return
         renderer = null
+        if (r === kept?.first) r.detachSurface() else r.release()
+    }
+
+    /** L'editor si chiude: si libera anche il renderer tenuto da parte (memoria della scheda grafica). */
+    fun dispose() {
+        detach()
+        kept?.first?.release()
+        kept = null
     }
 
     fun setScene(s: Scene3D) {

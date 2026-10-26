@@ -42,6 +42,15 @@ interface SceneRenderer {
     fun onResume() {}
     /** La superficie non serve più: libera la memoria della scheda grafica. */
     fun release() {}
+
+    /**
+     * Il renderer sa staccarsi dalla superficie tenendo il resto (motore, materiali, modelli, luci ambiente) e ripartire su una
+     * superficie nuova: chiudendo e riaprendo la vista 3D non si rifà tutto da capo. Di base no: si libera e se ne crea un altro.
+     */
+    val reusable: Boolean get() = false
+
+    /** La vista 3D si chiude ma il renderer resta per la prossima apertura ([reusable]): si ferma e lascia la superficie. */
+    fun detachSurface() {}
 }
 
 /** Piattaforme su cui la vista 3D non c'è ancora: un avviso al posto della scena. */
