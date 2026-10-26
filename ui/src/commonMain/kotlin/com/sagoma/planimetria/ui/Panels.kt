@@ -922,12 +922,12 @@ private fun NumberField(
 ) {
     var text by remember(value) { mutableStateOf(formatCm(value)) }
     val valid = { v: Double -> allowNegative || (if (allowZero) v >= 0 else v > 0) }
-    val parsed = text.replace(',', '.').toDoubleOrNull()?.takeIf(valid)
+    val parsed = parseNumber(text)?.takeIf(valid)
     SelectAllTextField(
         value = text,
         onValueChange = {
             text = it
-            it.replace(',', '.').toDoubleOrNull()?.takeIf(valid)?.let(onValue)
+            parseNumber(it)?.takeIf(valid)?.let(onValue)
         },
         label = label,
         numeric = true,

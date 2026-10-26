@@ -119,8 +119,8 @@ fun WallDrawCard(state: EditorUiState, vm: EditorViewModel) {
     val tracing = state.plan.underlay?.visible == true
     val simple = (tracing || zone) && !typing
     val firstWall = wd.points.size < 2
-    val lengthCm = length.replace(',', '.').toDoubleOrNull()
-    val cornerDeg = angle.replace(',', '.').toDoubleOrNull().takeIf { arrow != null && !firstWall }
+    val lengthCm = parseNumber(length)
+    val cornerDeg = parseNumber(angle).takeIf { arrow != null && !firstWall }
     val typed = arrow?.let { vm.typedWallDirection(it, cornerDeg) }
     val problem = (typed as? WallDirection.Result.Invalid)?.problem
     // Anteprima tratteggiata del muro scritto, prima di "Aggiungi"; a ogni angolo messo (o tolto) e a ogni anteprima la
@@ -260,8 +260,8 @@ private fun WallDrawCloseDialog(vm: EditorViewModel, onPlan: Boolean) {
     var type by remember { mutableStateOf(RoomType.entries.first()) }
     var ceiling by remember { mutableStateOf(formatCm(Room.DEFAULT_CEILING_HEIGHT)) }
     var thickness by remember { mutableStateOf(formatCm(Room.WALL_THICKNESS)) }
-    val c = ceiling.replace(',', '.').toDoubleOrNull()
-    val t = thickness.replace(',', '.').toDoubleOrNull()
+    val c = parseNumber(ceiling)
+    val t = parseNumber(thickness)
     AlertDialog(
         onDismissRequest = vm::drawWallsResume,
         title = { Text(T.muroPerMuro.nuovaStanza) },

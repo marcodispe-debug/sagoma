@@ -308,7 +308,7 @@ fun UnderlayToolCard(state: EditorUiState, vm: EditorViewModel) {
     }
     if (tool is UnderlayTool.Calibrate && tool.first != null && tool.second != null) {
         var text by remember(tool) { mutableStateOf("") }
-        val cm = text.replace(',', '.').toDoubleOrNull()
+        val cm = parseNumber(text)
         AlertDialog(
             onDismissRequest = { vm.setUnderlayTool(UnderlayTool.Calibrate()) },
             title = { Text(T.sfondo.misuraReale) },
