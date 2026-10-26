@@ -227,7 +227,11 @@ object Stairs {
      * Tratti della ringhiera attorno al vano scala al piano di sopra: il contorno del vuoto, tranne
      * dove tocca un muro (`walls`, i muri del piano di sopra) e tranne l'arrivo, da cui si esce dalla scala.
      */
-    fun wellRailingRuns(s: Stair, rise: Double, walls: List<Pair<Vec2, Vec2>>): List<Pair<Vec2, Vec2>> {
+    fun wellRailingRuns(s: Stair, rise: Double, walls: List<Pair<Vec2, Vec2>>): List<Pair<Vec2, Vec2>> =
+        wellRailingRunsAlong(s, rise, walls.map { (a, b) -> Structure.WallLine(a, b, Room.WALL_THICKNESS / 2) })
+
+    /** Come [wellRailingRuns], con i muri veri ([Structure.wallLines]): contro un muro spesso la ringhiera non serve fino alla sua faccia. */
+    fun wellRailingRunsAlong(s: Stair, rise: Double, walls: List<Structure.WallLine>): List<Pair<Vec2, Vec2>> {
         val l = layout(s, rise)
         // Il contorno è quello del vuoto vero (se il pavimento copre i primi gradini, il vuoto è più corto).
         val pieces = well(s, rise, l)
@@ -239,7 +243,6 @@ object Stairs {
         // l'ultimo spicchio (si esce di lato, verso l'esterno).
         val spiral = s.kind == StairKind.Spiral
         val arrival = if (spiral) edgesOf(last.polygon) else listOfNotNull(edgesOf(last.polygon).maxByOrNull { (a, b) -> ((a + b) / 2.0) dot endDir })
-        val half = Room.WALL_THICKNESS / 2
         val runs = mutableListOf<Pair<Vec2, Vec2>>()
         for ((pi, piece) in pieces.withIndex()) for ((a, b) in edgesOf(piece)) {
             val len = a.distanceTo(b)
@@ -253,7 +256,7 @@ object Stairs {
                 val inner = pieces.withIndex().any { (qi, q) ->
                     qi != pi && (Polygon.contains(q, mid) || edgesOf(q).any { (c, d) -> Polygon.distanceToSegment(mid, c, d) < 0.5 })
                 }
-                val nearWall = walls.any { (c, d) -> Polygon.distanceToSegment(mid, c, d) < half + 4 }
+                val nearWall = walls.any { w -> Polygon.distanceToSegment(mid, w.a, w.b) < w.half + 4 }
                 val atArrival = arrival.any { (c, d) -> Polygon.distanceToSegment(mid, c, d) < if (spiral) 3.0 else 2.0 }
                 val free = !inner && !nearWall && !atArrival
                 if (free && runStart == null) runStart = p0

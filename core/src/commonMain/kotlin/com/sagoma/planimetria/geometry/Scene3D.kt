@@ -529,9 +529,9 @@ private class SceneBuilder(
             }
             // Ringhiere attorno ai vani delle scale che salgono dal piano di sotto.
             previous?.let { p ->
-                val walls = plan.rooms.flatMap { r -> (0 until r.wallCount).map { r.wallStart(it) to r.wallEnd(it) } }
+                val walls = Structure.wallLines(plan)
                 for (s in p.plan.stairs) if (s.wellRailing != StairRailing.None) {
-                    for ((a, b) in Stairs.wellRailingRuns(s, p.levelHeight, walls)) {
+                    for ((a, b) in Stairs.wellRailingRunsAlong(s, p.levelHeight, walls)) {
                         wellRail(a, b, s.wellRailing, Pick.StairWell(s.id))
                         if (current) obstacles += Obstacle(a, b)
                     }
