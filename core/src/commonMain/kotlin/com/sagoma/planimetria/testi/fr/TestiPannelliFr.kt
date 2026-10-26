@@ -94,6 +94,7 @@ object TestiPannelliFr : TestiPannelli() {
     override val duplicaStanza: String get() = "⧉ Dupliquer la pièce"
     override val togliParapetto: String get() = "Retirer le garde-corps"
     override val eliminaMuro: String get() = "🗑 Supprimer le mur"
+    override val eliminaMuroDueStanze: String get() = "🗑 Supprimer le mur (2 pièces restent)"
     override fun parapettoCmCambiaInfo(p1: Any?, p2: Any?, name: Any?): String = "Garde-corps : $p1, $p2 cm (à changer dans les Infos de $name). Là où le balcon touche la maison, le mur de la maison reste."
     override val altezzaMuro: String get() = "Hauteur du mur"
     override fun standardCm(p1: Any?): String = "Standard\n($p1 cm)"
@@ -118,7 +119,7 @@ object TestiPannelliFr : TestiPannelli() {
         "Avec « Angle au milieu du mur », le mur est coupé en deux : faites glisser le nouvel angle pour faire des murs en biais, des renfoncements ou " +
             "n'importe quelle forme (près de 90° il se redresse tout seul)."
     override val oggetto: String get() = "Objet"
-    override fun eliminaMuroUnisci(name: Any?): String = "Supprimer le mur · fusionner avec $name"
+    override fun eliminaMuroUnisci(name: Any?): String = "Supprimer le mur et fusionner en 1 pièce avec $name"
     override fun muroCm2(p1: Any?, p2: Any?): String = "mur $p1 ($p2 cm)"
     override val taglioDiagonaleSottotetto: String get() = "Coupe en biais (sous le toit)"
     override val taglioServeMuroPerpendicolare: String get() = "La coupe demande un mur perpendiculaire plus bas (ex. 200 cm) : baissez d'abord le mur voisin vers lequel descend le toit."

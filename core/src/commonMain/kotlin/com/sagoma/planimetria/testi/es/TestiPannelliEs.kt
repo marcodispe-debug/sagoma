@@ -94,6 +94,7 @@ object TestiPannelliEs : TestiPannelli() {
     override val duplicaStanza: String get() = "⧉ Duplicar habitación"
     override val togliParapetto: String get() = "Quitar antepecho"
     override val eliminaMuro: String get() = "🗑 Eliminar pared"
+    override val eliminaMuroDueStanze: String get() = "🗑 Quitar la pared (quedan 2 habitaciones)"
     override fun parapettoCmCambiaInfo(p1: Any?, p2: Any?, name: Any?): String = "Antepecho: $p1, $p2 cm (se cambia en la Info de $name). Donde el balcón toca la casa queda la pared de la casa."
     override val altezzaMuro: String get() = "Altura de la pared"
     override fun standardCm(p1: Any?): String = "Estándar\n($p1 cm)"
@@ -118,7 +119,7 @@ object TestiPannelliEs : TestiPannelli() {
         "Con «Esquina a media pared» la pared se divide en dos: arrastra la nueva esquina para hacer paredes inclinadas, entrantes o " +
             "cualquier forma (cerca de 90° se endereza sola)."
     override val oggetto: String get() = "Objeto"
-    override fun eliminaMuroUnisci(name: Any?): String = "Eliminar pared · unir con $name"
+    override fun eliminaMuroUnisci(name: Any?): String = "Quitar la pared y unir en 1 habitación con $name"
     override fun muroCm2(p1: Any?, p2: Any?): String = "pared $p1 ($p2 cm)"
     override val taglioDiagonaleSottotetto: String get() = "Corte diagonal (bajo cubierta)"
     override val taglioServeMuroPerpendicolare: String get() = "El corte necesita una pared perpendicular más baja (p. ej. 200 cm): primero baja la pared contigua hacia la que cae el tejado."

@@ -93,6 +93,8 @@ open class TestiPannelli {
     open val duplicaStanza: String get() = "⧉ Duplica stanza"
     open val togliParapetto: String get() = "Togli parapetto"
     open val eliminaMuro: String get() = "🗑 Elimina muro"
+    /** Muro in comune con un'altra stanza: si toglie, ma le stanze restano due (ognuna con i suoi m²). */
+    open val eliminaMuroDueStanze: String get() = "🗑 Togli il muro (restano 2 stanze)"
     open fun parapettoCmCambiaInfo(p1: Any?, p2: Any?, name: Any?): String = "Parapetto: $p1, $p2 cm (si cambia da Info di $name). Dove il balcone tocca la casa resta il muro della casa."
     open val altezzaMuro: String get() = "Altezza muro"
     open fun standardCm(p1: Any?): String = "Standard\n($p1 cm)"
@@ -117,7 +119,7 @@ open class TestiPannelli {
         "Con \"Angolo a metà muro\" il muro si divide in due: trascina il nuovo angolo per fare pareti inclinate, rientranze o " +
             "forme qualsiasi (vicino a 90° si raddrizza da solo)."
     open val oggetto: String get() = "Oggetto"
-    open fun eliminaMuroUnisci(name: Any?): String = "Elimina muro · unisci con $name"
+    open fun eliminaMuroUnisci(name: Any?): String = "Togli il muro e unisci in 1 stanza con $name"
     open fun muroCm2(p1: Any?, p2: Any?): String = "muro $p1 ($p2 cm)"
     open val taglioDiagonaleSottotetto: String get() = "Taglio diagonale (sottotetto)"
     open val taglioServeMuroPerpendicolare: String get() = "Per il taglio serve un muro perpendicolare più basso (es. 200 cm): abbassa prima il muro accanto verso cui scende il tetto."

@@ -94,6 +94,7 @@ object TestiPannelliEn : TestiPannelli() {
     override val duplicaStanza: String get() = "⧉ Duplicate room"
     override val togliParapetto: String get() = "Remove parapet"
     override val eliminaMuro: String get() = "🗑 Delete wall"
+    override val eliminaMuroDueStanze: String get() = "🗑 Remove wall (2 rooms remain)"
     override fun parapettoCmCambiaInfo(p1: Any?, p2: Any?, name: Any?): String = "Parapet: $p1, $p2 cm (change it from the Info of $name). Where the balcony touches the house, the house wall stays."
     override val altezzaMuro: String get() = "Wall height"
     override fun standardCm(p1: Any?): String = "Standard\n($p1 cm)"
@@ -118,7 +119,7 @@ object TestiPannelliEn : TestiPannelli() {
         "With \"Corner mid-wall\" the wall is split in two: drag the new corner to make slanted walls, recesses or " +
             "any shape (near 90° it straightens by itself)."
     override val oggetto: String get() = "Object"
-    override fun eliminaMuroUnisci(name: Any?): String = "Delete wall · merge with $name"
+    override fun eliminaMuroUnisci(name: Any?): String = "Remove wall and merge into 1 room with $name"
     override fun muroCm2(p1: Any?, p2: Any?): String = "wall $p1 ($p2 cm)"
     override val taglioDiagonaleSottotetto: String get() = "Diagonal cut (under the roof)"
     override val taglioServeMuroPerpendicolare: String get() = "The cut needs a lower perpendicular wall (e.g. 200 cm): first lower the adjacent wall the roof slopes towards."

@@ -549,7 +549,16 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
     PanelActions {
         DuplicateButton(vm, if (room.outdoor) T.pannelli.duplica(T.lingua.minuscola(room.type.defaultName)) else T.pannelli.duplicaStanza)
         TextButton(onClick = { vm.setWallRemoved(room.id, sel.index, removed = true) }) {
-            Text(if (room.outdoor) T.pannelli.togliParapetto else T.pannelli.eliminaMuro, color = MaterialTheme.colorScheme.error)
+            // Muro in comune: si dice che le stanze restano due (l'altro pulsante, più sotto, le unisce in una).
+            val shared = !room.outdoor && RoomMerge.partners(plan, room.id, sel.index).isNotEmpty()
+            Text(
+                when {
+                    room.outdoor -> T.pannelli.togliParapetto
+                    shared -> T.pannelli.eliminaMuroDueStanze
+                    else -> T.pannelli.eliminaMuro
+                },
+                color = MaterialTheme.colorScheme.error,
+            )
         }
     }
     // Stato di fatto / progetto del muro (pratiche edilizie): esistente, da demolire (giallo), nuovo (rosso).
