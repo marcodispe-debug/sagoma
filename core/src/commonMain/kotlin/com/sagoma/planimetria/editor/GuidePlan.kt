@@ -1,5 +1,6 @@
 package com.sagoma.planimetria.editor
 
+import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Underlay
 import com.sagoma.planimetria.model.Vec2
@@ -15,7 +16,8 @@ import kotlin.math.roundToInt
 object GuidePlan {
     /**
      * Una stanza disegnata: `label` è dove va il nome (null: nel baricentro dei vertici), `letters` scrive A, B, C, … agli
-     * angoli e la diagonale AC tratteggiata.
+     * angoli e la diagonale AC tratteggiata. `nameWidth`: quanto può essere largo il nome sulla piantina (null: non si
+     * stringe); nel disegno in piccolo, dove il tramezzo non c'è, quel nome sta al centro della stanza.
      */
     class Room(
         val name: () -> String,
@@ -24,6 +26,7 @@ object GuidePlan {
         val label: Vec2? = null,
         val smallName: Boolean = false,
         val letters: Boolean = false,
+        val nameWidth: Double? = null,
     )
 
     private fun p(x: Int, y: Int) = Vec2(x.toDouble(), y.toDouble())
@@ -35,8 +38,17 @@ object GuidePlan {
     /** Studio 330 × 330: «Quadrato», la prima stanza. */
     val studio = Room({ RoomType.Studio.label }, RoomType.Studio, rect(0, 285, 330, 615))
 
-    /** Camera 400 × 330: «Rettangolo», a destra del soggiorno; nella lezione sulla planimetria un quadrato da allungare. */
-    val camera = Room({ RoomType.Camera.label }, RoomType.Camera, rect(655, 0, 1055, 330))
+    /**
+     * Camera 400 × 330: «Rettangolo», a destra del soggiorno; nella lezione sulla planimetria un quadrato da allungare. Il nome
+     * sta a sinistra del tramezzo della cabina armadio.
+     */
+    val camera = Room({ RoomType.Camera.label }, RoomType.Camera, rect(655, 0, 1055, 330), label = p(810, 165), nameWidth = 260.0)
+
+    /**
+     * Tramezzo in cartongesso (8 cm) della cabina armadio, nella camera: «Muro singolo». Parte dal muro in alto (filo interno) e
+     * scende per 210 cm, lasciando in fondo il passaggio per entrare.
+     */
+    val tramezzo = FreeWall(1, p(945, 0), p(945, 210), thickness = 8.0)
 
     /** Ingresso a sei muri, nello spazio che resta tra le altre stanze: «Muro per muro». */
     val ingresso = Room(

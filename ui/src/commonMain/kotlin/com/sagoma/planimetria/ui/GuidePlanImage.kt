@@ -66,6 +66,9 @@ private fun DrawScope.drawGuidePlan(measurer: TextMeasurer, overview: Boolean) {
     for (r in GuidePlan.rooms) drawPath(path(r), Color.White)
     // Il pavimento all'aperto un po' grigio, per distinguerlo dalle stanze.
     for (o in GuidePlan.outdoor) drawPath(path(o), Color(0xFFF1F1F1))
+    // Il tramezzo della cabina armadio: un muro da solo, dentro la camera, con il suo spessore (non nel disegno in piccolo).
+    val t = GuidePlan.tramezzo
+    if (!overview) drawLine(Ink, px(t.start), px(t.end), t.thickness.toFloat())
 
     fun text(s: String, at: Offset, size: Int, color: Color, bold: Boolean = false, degrees: Float = 0f) {
         val layout = measurer.measure(s, TextStyle(color = color, fontSize = size.sp, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal))
@@ -77,11 +80,13 @@ private fun DrawScope.drawGuidePlan(measurer: TextMeasurer, overview: Boolean) {
             val n = r.points.size
             val name = r.name().uppercase()
             // Grande, ma dentro la stanza (i nomi lunghi, come «Camera da letto», un po' più piccoli).
+            // Senza il tramezzo, il nome stretto accanto al tramezzo (la camera) torna al centro, largo quanto la stanza.
             val room = r.points.maxOf { it.x } - r.points.minOf { it.x }
             val big = if (r.smallName) 54 else 66
             val wide = measurer.measure(name, TextStyle(fontSize = big.sp, fontWeight = FontWeight.Bold)).size.width
             val size = if (wide > room * 0.9) (big * room * 0.9 / wide).toInt() else big
-            text(name, px(r.label ?: Vec2(r.points.sumOf { it.x } / n, r.points.sumOf { it.y } / n)), size, Ink, bold = true)
+            val center = Vec2(r.points.sumOf { it.x } / n, r.points.sumOf { it.y } / n)
+            text(name, px(r.label?.takeIf { r.nameWidth == null } ?: center), size, Ink, bold = true)
         }
         return
     }
@@ -89,7 +94,11 @@ private fun DrawScope.drawGuidePlan(measurer: TextMeasurer, overview: Boolean) {
     for (r in GuidePlan.rooms + GuidePlan.outdoor) {
         val n = r.points.size
         val label = px(r.label ?: Vec2(r.points.sumOf { it.x } / n, r.points.sumOf { it.y } / n))
-        text(r.name().uppercase(), label - Offset(0f, 14f), if (r.smallName) 20 else 24, Ink, bold = true)
+        // Un nome stretto (la camera, accanto al tramezzo) si rimpicciolisce se non ci sta.
+        val big = if (r.smallName) 20 else 24
+        val wide = measurer.measure(r.name().uppercase(), TextStyle(fontSize = big.sp, fontWeight = FontWeight.Bold)).size.width
+        val size = r.nameWidth?.takeIf { wide > it * 0.9 }?.let { (big * it * 0.9 / wide).toInt() } ?: big
+        text(r.name().uppercase(), label - Offset(0f, 14f), size, Ink, bold = true)
         text("${fmt2(Polygon.area(r.points) / 10000)} m²", label + Offset(0f, 16f), 19, Gray)
         for (i in 0 until n) {
             val a = r.points[i]
@@ -105,6 +114,10 @@ private fun DrawScope.drawGuidePlan(measurer: TextMeasurer, overview: Boolean) {
             text(s, px((a + b) / 2.0 + inward * 24.0), 19, Gray, degrees = deg)
         }
     }
+    // Lunghezza del tramezzo accanto al muro e la scritta nella cabina armadio, a destra.
+    text(t.length.roundToInt().toString(), px(t.start + Vec2(-20.0, 70.0)), 19, Gray, degrees = -90f)
+    val camera = GuidePlan.camera.points
+    text(T.corso.cabinaArmadio, px(Vec2((t.start.x + camera.maxOf { it.x }) / 2, 110.0)), 17, Gray, degrees = -90f)
     // Stanza storta: lettere agli angoli e diagonale AC tratteggiata, con la misura vicino a C.
     for (r in GuidePlan.rooms.filter { it.letters }) {
         val a = r.points[0]

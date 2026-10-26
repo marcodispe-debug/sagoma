@@ -33,7 +33,7 @@ object TestiCorsoFr : TestiCorso() {
 
     override fun testoScheda(s: CourseStep): String = when (s) {
         CourseStep.Welcome ->
-            "Je vous guide pas à pas pour dessiner le logement de ce plan inventé, en 7 courtes leçons : une pièce à la fois, chacune " +
+            "Je vous guide pas à pas pour dessiner le logement de ce plan inventé, en ${Lesson.entries.size} courtes leçons : une pièce à la fois, chacune " +
                 "à sa place comme sur le dessin. C'est vous qui faites les actions : à chaque étape un cadre orange vous montre où " +
                 "cliquer. C'est un projet juste pour s'entraîner : vos projets ne sont pas touchés."
         CourseStep.SquareDone ->
@@ -55,7 +55,12 @@ object TestiCorsoFr : TestiCorso() {
                 "leçon : l'entrée, dessinée mur par mur dans l'espace qui reste entre les pièces."
         CourseStep.WallsDone ->
             "L'entrée ferme le logement : maintenant toutes les pièces sont reliées, comme sur le plan. Vous avez vu toutes les " +
-                "façons de créer une pièce. Dans la prochaine leçon : portes, fenêtres, balcon, équipements et escaliers."
+                "façons de créer une pièce. Dans la prochaine leçon : le mur libre, un mur tout seul qui ne ferme pas une pièce."
+        CourseStep.FreeWallDone ->
+            "La chambre a maintenant son dressing, séparé par une cloison avec le passage au fond. Dans le panneau « ${T.schedaStanza.info} » " +
+                "du mur libre vous choisissez aussi la hauteur (jusqu'au plafond ou plus basse, comme un muret), la couleur et la courbe ; " +
+                "et vous pouvez aussi ajouter des portes et des fenêtres aux murs libres. Dans la prochaine leçon : portes, fenêtres, " +
+                "balcon, équipements et escaliers."
         CourseStep.ElementsDone ->
             "Dans « $infoTab » vous changez les mesures, le type et tout le reste de l'élément sélectionné ; il se ferme avec « ▼ ». Pour chaque élément : " +
                 "vous le choisissez dans « ${e.elementiArchitettonici} », vous le placez sur le plan, et le reste depuis « $infoTab ». Dernière leçon : " +
@@ -79,11 +84,12 @@ object TestiCorsoFr : TestiCorso() {
     override val nienteDaIndicare: String get() = "Faites l'action de cette étape, ou cliquez sur « ${e.saltaPasso} »."
     override val tornaIndietro: String get() = "Ce n'est pas la forme de cette étape : cliquez sur « ${T.comuni.indietro} » et choisissez la bonne."
     override val vaiAllaLezione: String get() = "Ou allez à la leçon :"
-    override val voceMenu: String get() = "Guide interactif (7 leçons)"
+    override val voceMenu: String get() = "Guide interactif (${Lesson.entries.size} leçons)"
     override val progettoProva: String get() = "Essai du guide"
     override val progettoProvaPlanimetria: String get() = "Essai du guide · plan"
     override val usaPiantina: String get() = "🧭 Utiliser le plan du guide"
     override val ingresso: String get() = "Entrée"
+    override val cabinaArmadio: String get() = "dressing"
     override val notaMisure: String get() = "mesures en cm, au nu intérieur des murs"
 
     override val apriElementi: String get() = "Cliquez sur « ${e.elementiArchitettonici} », ici en bas."
@@ -170,6 +176,25 @@ object TestiCorsoFr : TestiCorso() {
     override fun muriFatti(n: Int, tot: Int): String = "Murs faits : $n sur $tot"
     override val chiudiStanza: String get() = "Il ne manque que le dernier mur, qui revient au premier angle : cliquez sur « ${T.muroPerMuro.chiudiStanza} » et Sagoma le dessine pour vous."
     override fun tipoIngresso(nome: String): String = "Choisissez le type : pour l'entrée « $nome » convient. Plafond et épaisseur des murs sont déjà écrits."
+
+    override fun selezionaCameraTramezzo(nome: String): String =
+        "Un mur libre est un mur tout seul, qui ne ferme pas une pièce : par exemple la cloison du dressing dans la chambre, comme " +
+            "sur le plan. Le mur naît dans la pièce sélectionnée : cliquez sur le nom de la chambre, « $nome »."
+    override val apriElementiMuroSingolo: String get() = "Cliquez maintenant sur « ${e.elementiArchitettonici} », ici en bas."
+    override val scegliMuroSingolo: String get() =
+        "En bas de la fenêtre il y a « ${cr.muroSingolo} » : il n'apparaît que s'il y a déjà au moins une pièce. Cliquez dessus."
+    override val spostaTramezzo: String get() =
+        "Le mur naît droit à travers la chambre, d'un mur à l'autre, et il est déjà sélectionné. On le déplace en le faisant " +
+            "glisser : appuyez sur le mur, maintenez et amenez-le jusqu'à la ligne pointillée, où va la cloison. Les deux extrémités " +
+            "restent accrochées aux murs."
+    override val selezionaMuroSingolo: String get() = "Cliquez sur le mur libre pour le sélectionner : les points apparaissent à ses deux extrémités."
+    override val accorciaTramezzo: String get() =
+        "La cloison ne va pas jusqu'au bout : elle laisse le passage pour entrer dans le dressing. Appuyez sur le point bleu en bas, " +
+            "au bout du mur, et faites-le glisser vers le haut jusqu'au repère : le mur raccourcit."
+    override val infoTramezzo: String get() = "Comme pour les pièces, les mesures exactes s'écrivent dans « ${T.schedaStanza.info} » : cliquez dessus."
+    override fun lunghezzaTramezzo(v: Int): String =
+        "Dans « ${T.comuni.lunghezza} » écrivez $v : le mur s'allonge ou raccourcit par sa fin, le départ en haut ne bouge pas."
+    override fun spessoreTramezzo(v: Int): String = "Une cloison en plaque de plâtre est fine : dans « ${T.comuni.spessore} » écrivez $v."
 
     override val portaElementi: String get() = "Les portes, les fenêtres et tout le reste s'ajoutent depuis « ${e.elementiArchitettonici} ». Cliquez dessus."
     override val porte: String get() = "Cliquez sur « ${e.porte} »."

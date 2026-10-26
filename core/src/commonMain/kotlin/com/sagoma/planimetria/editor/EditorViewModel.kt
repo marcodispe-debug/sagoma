@@ -311,8 +311,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             CourseStep.Snap, CourseStep.LivingInfo -> s.plan.rooms.lastOrNull { it.type == RoomType.Soggiorno }?.let { r ->
                 if (s.focusedRoomId != r.id || s.selection != null) _state.update { it.copy(focusedRoomId = r.id, selection = null) }
             }
-            // Trasparenza e ultima scheda: la tendina Info delle misure si chiude, così si vede la casa finita.
-            CourseStep.PlanFade, CourseStep.Finished -> if (s.infoExpanded) _state.update { it.copy(infoExpanded = false) }
+            // Il muro singolo selezionato: i pallini alle estremità e la sua scheda Info.
+            CourseStep.FreeWallEnd, CourseStep.FreeWallInfo -> s.plan.freeWalls.lastOrNull()?.let { w ->
+                if (s.selection != Selection.FreeWall(w.id)) _state.update { it.copy(focusedRoomId = null, selection = Selection.FreeWall(w.id)) }
+            }
+            // Trasparenza e ultima scheda (anche quella del tramezzo): la tendina Info si chiude, così si vede la casa.
+            CourseStep.FreeWallDone, CourseStep.PlanFade, CourseStep.Finished -> if (s.infoExpanded) _state.update { it.copy(infoExpanded = false) }
             else -> Unit
         }
         courseFocus = Course.focus(step, _state.value)?.also { b ->
@@ -643,6 +647,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         commit { it.copy(freeWalls = it.freeWalls + wall) }
         _state.update { it.copy(focusedRoomId = null, selection = Selection.FreeWall(wall.id), pendingOpening = null, pendingFixture = null, infoExpanded = false) }
         showTip(Tip.FreeWall)
+        tutorialEvent(TutorialEvent.FreeWallAdded)
     }
 
     /**
@@ -670,7 +675,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     fun selectFreeWall(id: Long) = _state.update { it.copy(focusedRoomId = null, selection = Selection.FreeWall(id)) }
-    fun updateFreeWall(w: FreeWall) = commit { it.replace(w) }
+    fun updateFreeWall(w: FreeWall) {
+        commit { it.replace(w) }
+        tutorialEvent(TutorialEvent.FreeWallChanged)
+    }
 
     fun removeFreeWall(id: Long) {
         commit { it.copy(freeWalls = it.freeWalls.filter { w -> w.id != id }) }
@@ -2409,6 +2417,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.Corner -> tutorialEvent(TutorialEvent.CornerDragged)
             is DragTarget.Opening -> tutorialEvent(TutorialEvent.OpeningDragged)
             is DragTarget.RoomLabel -> tutorialEvent(TutorialEvent.RoomMoved)
+            is DragTarget.FreeWallBody -> tutorialEvent(TutorialEvent.FreeWallMoved)
+            is DragTarget.FreeWallEnd -> tutorialEvent(TutorialEvent.FreeWallEndDragged)
             else -> Unit
         }
         dragTarget = null

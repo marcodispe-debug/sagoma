@@ -33,7 +33,7 @@ object TestiCorsoEn : TestiCorso() {
 
     override fun testoScheda(s: CourseStep): String = when (s) {
         CourseStep.Welcome ->
-            "I'll guide you step by step to draw the home of this made-up floor plan, in 7 short lessons: one room at a time, each " +
+            "I'll guide you step by step to draw the home of this made-up floor plan, in ${Lesson.entries.size} short lessons: one room at a time, each " +
                 "in its place as in the drawing. You do the actions: at every step an orange frame shows you what to click. It's a " +
                 "project just for practice: your own projects are not touched."
         CourseStep.SquareDone ->
@@ -54,7 +54,11 @@ object TestiCorsoEn : TestiCorso() {
                 "hall, drawn wall by wall in the space left between the rooms."
         CourseStep.WallsDone ->
             "The hall closes the house: now all the rooms are connected, as on the plan. You have seen all the ways to create a " +
-                "room. In the next lesson: doors, windows, a balcony, fixtures and stairs."
+                "room. In the next lesson: the free wall, a wall on its own that doesn't close a room."
+        CourseStep.FreeWallDone ->
+            "The bedroom now has its walk-in closet, divided by a partition with the way in at the end. In the «$infoTab» panel of the " +
+                "free wall you also choose the height (up to the ceiling or lower, like a low wall), the colour and the curve; and you " +
+                "can add doors and windows to free walls too. In the next lesson: doors, windows, a balcony, fixtures and stairs."
         CourseStep.ElementsDone ->
             "In the «$infoTab» panel you change sizes, type and everything else of the selected element; it closes with «▼». For every element: " +
                 "you pick it from «${e.elementiArchitettonici}», you place it on the plan, and the rest from «$infoTab». Last lesson: building the " +
@@ -78,11 +82,12 @@ object TestiCorsoEn : TestiCorso() {
     override val nienteDaIndicare: String get() = "Do the action of this step, or click «${e.saltaPasso}»."
     override val tornaIndietro: String get() = "This is not the shape for this step: click «${T.comuni.indietro}» and choose the right one."
     override val vaiAllaLezione: String get() = "Or go to lesson:"
-    override val voceMenu: String get() = "Interactive guide (7 lessons)"
+    override val voceMenu: String get() = "Interactive guide (${Lesson.entries.size} lessons)"
     override val progettoProva: String get() = "Guide practice"
     override val progettoProvaPlanimetria: String get() = "Guide practice · floor plan"
     override val usaPiantina: String get() = "🧭 Use the guide's floor plan"
     override val ingresso: String get() = "Hall"
+    override val cabinaArmadio: String get() = "walk-in closet"
     override val notaMisure: String get() = "measurements in cm, on the inner face of the walls"
 
     override val apriElementi: String get() = "Click «${e.elementiArchitettonici}», down here."
@@ -165,6 +170,24 @@ object TestiCorsoEn : TestiCorso() {
     override fun muriFatti(n: Int, tot: Int): String = "Walls done: $n of $tot"
     override val chiudiStanza: String get() = "Only the last wall is missing, the one back to the first corner: click «${T.muroPerMuro.chiudiStanza}» and Sagoma draws it for you."
     override fun tipoIngresso(nome: String): String = "Choose the type: for the hall «$nome» is fine. Ceiling and wall thickness are already filled in."
+
+    override fun selezionaCameraTramezzo(nome: String): String =
+        "A free wall is a wall on its own that doesn't close a room: for example the partition of the walk-in closet in the " +
+            "bedroom, as on the plan. The wall is created in the selected room: click the bedroom's name, «$nome»."
+    override val apriElementiMuroSingolo: String get() = "Now click «${e.elementiArchitettonici}», down here."
+    override val scegliMuroSingolo: String get() =
+        "At the bottom of the window there is «${cr.muroSingolo}»: it only appears when there is already at least one room. Click it."
+    override val spostaTramezzo: String get() =
+        "The wall is created straight across the bedroom, from one wall to the other, and it's already selected. You move it by " +
+            "dragging: press on the wall, hold and bring it to the dashed line, where the partition goes. Both ends stay attached to the walls."
+    override val selezionaMuroSingolo: String get() = "Click the free wall to select it: the dots appear at its two ends."
+    override val accorciaTramezzo: String get() =
+        "The partition doesn't go all the way: it leaves the way into the walk-in closet. Press on the blue dot at the bottom, at " +
+            "the end of the wall, and drag it up to the mark: the wall gets shorter."
+    override val infoTramezzo: String get() = "As for rooms, the exact measurements are written in «$infoTab»: click it."
+    override fun lunghezzaTramezzo(v: Int): String =
+        "In «${T.comuni.lunghezza}» write $v: the wall gets longer or shorter from its end, the start at the top stays where it is."
+    override fun spessoreTramezzo(v: Int): String = "A plasterboard partition is thin: in «${T.comuni.spessore}» write $v."
 
     override val portaElementi: String get() = "Doors, windows and everything else are added from «${e.elementiArchitettonici}». Click it."
     override val porte: String get() = "Click «${e.porte}»."

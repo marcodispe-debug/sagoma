@@ -22,6 +22,7 @@ open class TestiCorso {
         Lesson.LShape -> "Forma a L"
         Lesson.Survey -> cr.rilievo
         Lesson.Walls -> cr.muroMuro
+        Lesson.FreeWall -> cr.muroSingolo
         Lesson.Elements -> "Porte, finestre e altro"
         Lesson.OverPlan -> "Sopra la tua planimetria"
     }
@@ -41,7 +42,7 @@ open class TestiCorso {
 
     open fun testoScheda(s: CourseStep): String = when (s) {
         CourseStep.Welcome ->
-            "Ti guido passo passo a disegnare la casa di questa piantina inventata, in 7 lezioni brevi: una stanza alla volta, " +
+            "Ti guido passo passo a disegnare la casa di questa piantina inventata, in ${Lesson.entries.size} lezioni brevi: una stanza alla volta, " +
                 "ognuna al suo posto come nel disegno. Le azioni le fai tu: a ogni passo ti indico con un riquadro arancione cosa " +
                 "cliccare. È un progetto solo per fare pratica: i tuoi progetti non si toccano."
         CourseStep.SquareDone ->
@@ -62,7 +63,11 @@ open class TestiCorso {
                 "l'ingresso, disegnato muro per muro nello spazio che resta tra le stanze."
         CourseStep.WallsDone ->
             "L'ingresso chiude la casa: ora tutte le stanze sono collegate, come sulla piantina. Hai visto tutti i modi per creare " +
-                "una stanza. Nella prossima lezione: porte, finestre, balcone, impianti e scale."
+                "una stanza. Nella prossima lezione: il muro singolo, un muro da solo che non chiude una stanza."
+        CourseStep.FreeWallDone ->
+            "La camera ora ha la sua cabina armadio, divisa da un tramezzo con il passaggio in fondo. Nella scheda «${T.schedaStanza.info}» " +
+                "del muro singolo scegli anche l'altezza (fino al soffitto o più bassa, come un muretto), il colore e la curva; e anche " +
+                "ai muri singoli puoi aggiungere porte e finestre. Nella prossima lezione: porte, finestre, balcone, impianti e scale."
         CourseStep.ElementsDone ->
             "Nella scheda «${T.schedaStanza.info}» cambi misure, tipo e tutto il resto dell'elemento selezionato; si chiude con «▼». " +
                 "Per ogni elemento: lo scegli da «${e.elementiArchitettonici}», lo metti sulla pianta e il resto da «${T.schedaStanza.info}». " +
@@ -94,7 +99,7 @@ open class TestiCorso {
     open val vaiAllaLezione: String get() = "Oppure vai alla lezione:"
 
     /** Voce di «❔ Guide» che fa ripartire la guida. */
-    open val voceMenu: String get() = "Guida interattiva (7 lezioni)"
+    open val voceMenu: String get() = "Guida interattiva (${Lesson.entries.size} lezioni)"
     open val progettoProva: String get() = "Prova della guida"
     open val progettoProvaPlanimetria: String get() = "Prova della guida · planimetria"
 
@@ -103,6 +108,7 @@ open class TestiCorso {
 
     /** Scritte della piantina della guida. */
     open val ingresso: String get() = "Ingresso"
+    open val cabinaArmadio: String get() = "cabina armadio"
     open val notaMisure: String get() = "misure in cm, sul filo interno dei muri"
 
     // ---------- Indicazioni comuni ----------
@@ -210,6 +216,26 @@ open class TestiCorso {
         WallArrow.LEFT -> T.muroPerMuro.sinistra
         WallArrow.UP -> T.muroPerMuro.su
     }
+
+    // ---------- Muro singolo ----------
+
+    open fun selezionaCameraTramezzo(nome: String): String =
+        "Un muro singolo è un muro da solo, che non chiude una stanza: per esempio il tramezzo della cabina armadio nella camera, " +
+            "come sulla piantina. Il muro nasce nella stanza selezionata: clicca sul nome della camera, «$nome»."
+    open val apriElementiMuroSingolo: String get() = "Ora clicca «${e.elementiArchitettonici}», qui in basso."
+    open val scegliMuroSingolo: String get() =
+        "In fondo alla finestra c'è «${cr.muroSingolo}»: compare solo quando c'è già almeno una stanza. Cliccalo."
+    open val spostaTramezzo: String get() =
+        "Il muro nasce dritto attraverso la camera, da un muro all'altro, ed è già selezionato. Si sposta trascinandolo: premi sul " +
+            "muro, tieni premuto e portalo fino alla linea tratteggiata, dove va il tramezzo. Le due estremità restano attaccate ai muri."
+    open val selezionaMuroSingolo: String get() = "Clicca sul muro singolo per selezionarlo: compaiono i pallini alle due estremità."
+    open val accorciaTramezzo: String get() =
+        "Il tramezzo non arriva fino in fondo: lascia il passaggio per entrare nella cabina armadio. Premi sul pallino blu in basso, " +
+            "alla fine del muro, e trascinalo in su fino al segno: il muro si accorcia."
+    open val infoTramezzo: String get() = "Come per le stanze, le misure esatte si scrivono in «${T.schedaStanza.info}»: cliccalo."
+    open fun lunghezzaTramezzo(v: Int): String =
+        "In «${T.comuni.lunghezza}» scrivi $v: il muro si allunga o si accorcia dalla fine, la partenza in alto resta ferma."
+    open fun spessoreTramezzo(v: Int): String = "Un tramezzo in cartongesso è sottile: in «${T.comuni.spessore}» scrivi $v."
 
     // ---------- Porte, finestre e altro ----------
 
