@@ -6,7 +6,6 @@ import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.model.WallPaint
-import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -23,7 +22,6 @@ class RoomMergeWallsTest {
     /** Il muro di `r` che passa per il punto `p`. */
     private fun wallAt(r: Room, p: Vec2): Int = (0 until r.wallCount).single { Polygon.distanceToSegment(p, r.wallStart(it), r.wallEnd(it)) < 1.0 }
 
-    @Ignore // DIFETTO: RoomMerge rifà la stanza da zero e perde spessori, muri spostati, pavimento e pareti.
     @Test
     fun `lo spessore dei muri della stanza resta dopo l'unione`() {
         val plan = FloorPlan(listOf(soggiorno.copy(wallThickness = 30.0), cucina.copy(wallThickness = 30.0)))
@@ -33,7 +31,6 @@ class RoomMergeWallsTest {
         assertEquals(670.0 * 270.0, merged.interiorArea(), 1e-6)
     }
 
-    @Ignore // DIFETTO: RoomMerge rifà la stanza da zero e perde spessori, muri spostati, pavimento e pareti.
     @Test
     fun `un muro ingrossato verso fuori resta ingrossato e il filo interno non si muove`() {
         // Muro a sinistra del soggiorno (3) da 40 cm, ingrossato verso fuori di 12,5 cm (come fa l'editor).
@@ -46,7 +43,6 @@ class RoomMergeWallsTest {
         assertEquals(before, merged.interiorArea(), 1e-6)
     }
 
-    @Ignore // DIFETTO: RoomMerge rifà la stanza da zero e perde spessori, muri spostati, pavimento e pareti.
     @Test
     fun `pavimento e pareti della stanza restano`() {
         val plan = FloorPlan(listOf(soggiorno.copy(floorFinish = FloorFinish.OakParquet, wallPaint = WallPaint.Sage, floorMaterial = "parquet-rovere"), cucina))
@@ -54,5 +50,16 @@ class RoomMergeWallsTest {
         assertEquals(FloorFinish.OakParquet, merged.floorFinish)
         assertEquals(WallPaint.Sage, merged.wallPaint)
         assertEquals("parquet-rovere", merged.floorMaterial)
+    }
+
+    @Test
+    fun `le pareti che venivano dall'altra stanza tengono il loro colore`() {
+        val plan = FloorPlan(listOf(soggiorno.copy(wallPaint = WallPaint.Sage), cucina.copy(wallPaint = WallPaint.Sky, wallThicknesses = mapOf(1 to 30.0), wallOffsets = mapOf(1 to 7.5))))
+        val merged = assertNotNull(RoomMerge.merge(plan, 1, 1)).plan.rooms.single()
+        val right = wallAt(merged, Vec2(700.0, 150.0))
+        assertEquals(WallPaint.Sky, merged.wallPaints[right])
+        assertEquals(30.0, merged.thicknessOf(right))
+        assertEquals(null, merged.wallPaints[wallAt(merged, Vec2(0.0, 150.0))], "le pareti del soggiorno hanno il colore della stanza")
+        assertEquals(WallPaint.Sage, merged.wallPaint)
     }
 }
