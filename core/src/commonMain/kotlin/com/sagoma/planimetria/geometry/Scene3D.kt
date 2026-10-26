@@ -176,6 +176,8 @@ class Scene3D(
          * luce di ogni lampada nella sua stanza; chi la lascia passare dai muri (Filament sul telefono) non la aggiunge.
          */
         val spill: Boolean = false,
+        /** Rettangoli della stanza ([LightZones]): la luce resta lì dentro anche in una stanza a L. null = tutto [room]. */
+        val zones: List<Bounds>? = null,
     ) {
         /** Asse attorno a cui si misura [profile]: dove punta il faretto, altrimenti [axis]. */
         val beamAxis: Vec3 get() = direction ?: axis
@@ -587,7 +589,16 @@ private class SceneBuilder(
                 }
             }
             // Luce delle lampade che passa dalle porte nelle stanze vicine (solo il piano corrente ha le luci).
-            if (current) lights += LightSpill.through(plan, lights.toList())
+            if (current) {
+                lights += LightSpill.through(plan, lights.toList())
+                // Stanze a L o a U: la luce resta nei rettangoli della stanza, non in tutto il suo riquadro.
+                val zones = plan.rooms.associate { Polygon.bounds(it.points) to LightZones.of(it.points) }
+                for (k in lights.indices) {
+                    val l = lights[k]
+                    val z = l.room?.let { zones[it] } ?: continue
+                    if (l.zones == null && z.size > 1) lights[k] = l.copy(zones = z)
+                }
+            }
             previous = level
         }
         // Piano interrato: il terreno sta più in alto, la casa si vede in fondo a uno scavo.
@@ -1509,10 +1520,10 @@ private class SceneBuilder(
                     // Listello in cima al rivestimento quando non arriva al soffitto.
                     if (abs(r.endInclusive - coverTop) < 0.01 && coverTop < h - 0.01) trim(finish, s, u, side, half, c0, c1, coverTop, pick)
                 }
-                // Battiscopa sulla faccia verso la stanza, dove il muro arriva a terra (non sotto le porte).
-                if (interior && r.start < 0.01 && pick == wallPick && r.endInclusive > SKIRTING && !(covered && finish.covering in NO_SKIRTING)) {
+                // Battiscopa sulla faccia verso la stanza, dove il muro arriva a terra: anche sotto le finestre, non sotto le porte.
+                if (interior && r.start < 0.01 && r.endInclusive > SKIRTING && !(covered && finish.covering in NO_SKIRTING)) {
                     val n = side * (half + 0.6)
-                    box(p0 + n, p1 + n, 0.6, 0.0, SKIRTING, skirting, pick)
+                    box(p0 + n, p1 + n, 0.6, 0.0, SKIRTING, skirting, wallPick)
                 }
                 // Chi cammina urta i tratti di muro all'altezza del corpo (non sopra una porta, non un davanzale basso).
                 if (r.start < 150 && r.endInclusive > 40) blocks = true

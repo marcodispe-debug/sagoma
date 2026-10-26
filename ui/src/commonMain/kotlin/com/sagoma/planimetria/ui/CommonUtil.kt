@@ -66,3 +66,14 @@ fun androidx.compose.ui.focus.FocusRequester.requestFocusSafely() {
 /** Altezza della finestra dell'app (al posto di `LocalConfiguration.screenHeightDp`). */
 @Composable
 fun windowHeight(): Dp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
+
+/**
+ * Come `awaitFirstDown`, ma con qualunque tasto del mouse: quello di Compose aspetta solo il tasto sinistro, e il destro
+ * (deseleziona, sposta la vista) o la rotellina premuta non arriverebbero mai.
+ */
+suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.awaitAnyDown(requireUnconsumed: Boolean = true): androidx.compose.ui.input.pointer.PointerInputChange {
+    while (true) {
+        val e = awaitPointerEvent()
+        if (e.changes.isNotEmpty() && e.changes.all { it.pressed && !it.previousPressed && (!requireUnconsumed || !it.isConsumed) }) return e.changes[0]
+    }
+}

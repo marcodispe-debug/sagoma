@@ -190,6 +190,13 @@ fun EditorScreen(
                 if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 // Selezione multipla: Canc elimina gli oggetti selezionati, Esc svuota la selezione (poi esce).
                 if (!e.isCtrlPressed) return@onKeyEvent when {
+                    // WASD e frecce spostano la pianta (con Maiusc di più), come la vista 3D.
+                    !state.view3d && planPan(e.key) != null -> {
+                        val (dx, dy) = planPan(e.key)!!
+                        val step = if (e.isShiftPressed) 180f else 60f
+                        vm.pan(dx * step, dy * step)
+                        true
+                    }
                     // Canc: elimina ciò che è selezionato (gruppo, oggetto, muro → lato aperto, stanza con conferma).
                     !state.view3d && (e.key == Key.Delete || e.key == Key.Backspace) -> vm.deleteSelected()
                     state.pasting && e.key == Key.Escape -> { vm.stopPaste(); true }
@@ -1156,4 +1163,16 @@ private fun RoomTabs(rooms: List<Room>, focusedId: Long?, onTap: (Long) -> Unit,
             }
         }
     }
+}
+
+/**
+ * Tasti che spostano la pianta: direzione in cui scorre il disegno (la vista va dalla parte opposta, come con le frecce
+ * di un gioco: W o ↑ guardano più in su). null = non è un tasto di movimento.
+ */
+private fun planPan(k: Key): Pair<Float, Float>? = when (k) {
+    Key.W, Key.DirectionUp -> 0f to 1f
+    Key.S, Key.DirectionDown -> 0f to -1f
+    Key.A, Key.DirectionLeft -> 1f to 0f
+    Key.D, Key.DirectionRight -> -1f to 0f
+    else -> null
 }

@@ -525,7 +525,7 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
                 }
                 .pointerInput(Unit) {
                 awaitEachGesture {
-                    val down = awaitFirstDown()
+                    val down = awaitAnyDown()
                     keyFocus.requestFocusSafely()
                     val w = size.width.toFloat()
                     val h = size.height.toFloat()

@@ -1,6 +1,7 @@
 package com.sagoma.planimetria.ui
 
 import com.sagoma.planimetria.geometry.Bounds
+import com.sagoma.planimetria.geometry.LightZones
 import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.SunAngles
 import com.sagoma.planimetria.geometry.SunPath
@@ -205,8 +206,11 @@ object LitShaders {
     class Lights(scene: Scene3D?, daylight: Daylight, viewer: Vec3, windowsAlways: Boolean = false) {
         val lamps = FloatArray(MAX_LAMPS * 4)
         val lampColors = FloatArray(MAX_LAMPS * 3)
-        /** Stanza di ogni lampada in pianta (minX, minZ, maxX, maxZ): la luce non passa i muri. */
-        val lampBoxes = FloatArray(MAX_LAMPS * 4)
+        /**
+         * Stanza di ogni lampada in pianta: [LightZones.MAX] rettangoli (minX, minZ, maxX, maxZ) per lampada, quelli in più vuoti.
+         * La luce non passa i muri.
+         */
+        val lampBoxes = FloatArray(MAX_LAMPS * LightZones.MAX * 4)
         /** Asse di ogni lampada (x, y, z) e forma della sua luce ([com.sagoma.planimetria.geometry.LightProfile.ordinal]). */
         val lampAxes = FloatArray(MAX_LAMPS * 4)
         var lampCount = 0
@@ -230,10 +234,19 @@ object LitShaders {
                     lampAxes[i * 4 + 3] = l.profile.ordinal.toFloat()
                     // Gli angoli della stanza sono in mezzeria dei muri: poco oltre ci sono le facce interne (illuminate),
                     // mentre le facce esterne restano fuori (buie).
-                    val b = l.room
+                    val zones = l.zones ?: listOfNotNull(l.room)
                     val m = 3.0
-                    lampBoxes[i * 4] = (b?.minX?.minus(m) ?: -1e7).toFloat(); lampBoxes[i * 4 + 1] = (b?.minY?.minus(m) ?: -1e7).toFloat()
-                    lampBoxes[i * 4 + 2] = (b?.maxX?.plus(m) ?: 1e7).toFloat(); lampBoxes[i * 4 + 3] = (b?.maxY?.plus(m) ?: 1e7).toFloat()
+                    for (z in 0 until LightZones.MAX) {
+                        val o = (i * LightZones.MAX + z) * 4
+                        val b = zones.getOrNull(z)
+                        if (b == null && (z > 0 || l.room != null)) {
+                            // Rettangolo vuoto: non contiene nessun punto.
+                            lampBoxes[o] = 1e7f; lampBoxes[o + 1] = 1e7f; lampBoxes[o + 2] = -1e7f; lampBoxes[o + 3] = -1e7f
+                            continue
+                        }
+                        lampBoxes[o] = (b?.minX?.minus(m) ?: -1e7).toFloat(); lampBoxes[o + 1] = (b?.minY?.minus(m) ?: -1e7).toFloat()
+                        lampBoxes[o + 2] = (b?.maxX?.plus(m) ?: 1e7).toFloat(); lampBoxes[o + 3] = (b?.maxY?.plus(m) ?: 1e7).toFloat()
+                    }
                 }
             }
             // Luce dalle finestre solo camminando: vista dall'alto la stanza è già aperta sul cielo, e la luce
