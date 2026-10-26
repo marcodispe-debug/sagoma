@@ -68,7 +68,18 @@ class RightClickDeselectTest {
                 scene.ctrl(Key.C)
                 frames()
                 assertTrue(platform.message?.startsWith("Copiato") != true, "dopo il clic destro non c'è niente da copiare: ${platform.message}")
+                // Stanza di nuovo selezionata, poi trascinamento col tasto destro: si sposta la vista, non la stanza.
+                scene.sendPointerEvent(PointerEventType.Press, c)
+                scene.sendPointerEvent(PointerEventType.Release, c)
+                frames()
+                scene.sendPointerEvent(PointerEventType.Press, c, buttons = right, button = PointerButton.Secondary)
+                for (k in 1..10) { scene.sendPointerEvent(PointerEventType.Move, c + Offset(k * 20f, k * 10f), buttons = right); frames(1) }
+                scene.sendPointerEvent(PointerEventType.Release, c + Offset(200f, 100f), buttons = PointerButtons(), button = PointerButton.Secondary)
+                frames(20)
             }
+            Thread.sleep(1500)
+            val saved = repo.planStore(p.id).load()!!.floor.plan.rooms.single()
+            kotlin.test.assertEquals(room.points, saved.points, "il trascinamento col tasto destro non sposta la stanza")
         } finally {
             dir.deleteRecursively()
         }
