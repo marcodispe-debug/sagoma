@@ -561,6 +561,17 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
             )
         }
     }
+    // Muro in comune: subito sotto «Togli il muro (restano 2 stanze)», l'altra scelta, unire le stanze in un unico ambiente
+    // (un pulsante per ogni stanza con cui il muro è in comune).
+    val partners = remember(plan, sel) { RoomMerge.mergeablePartners(plan, sel.roomId, sel.index) }
+    for (partner in partners) {
+        OutlinedButton(
+            onClick = { vm.requestMergeWall(MergeRequest(sel.roomId, sel.index, partner.id)) },
+            modifier = Modifier.padding(end = 8.dp).fillMaxWidth(),
+        ) {
+            Text(T.pannelli.eliminaMuroUnisci(partner.name), color = MaterialTheme.colorScheme.error)
+        }
+    }
     // Stato di fatto / progetto del muro (pratiche edilizie): esistente, da demolire (giallo), nuovo (rosso).
     if (!room.outdoor) PhaseChoice(room.phaseOf(sel.index), PhaseLabels.wall) { vm.setWallPhase(room.id, sel.index, it) }
     // Lunghezza misurata sul lato interno, scritta a mano (come in Info → Misure). Per i tratti di un muro
@@ -594,17 +605,7 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
             TextButton(onClick = { vm.setWallHeight(sel.roomId, sel.index, null) }) { Text(T.pannelli.standardCm(formatCm(room.ceilingHeight))) }
         }
     }
-    // Colore di questa sola parete (lato verso la stanza), diverso da quello delle altre.
-    if (!room.outdoor) {
-        val own = room.hasOwnFinish(sel.index)
-        FinishPicker(
-            T.pannelli.finituraQuestaParete + if (!own) T.pannelli.stanza else "",
-            room.finishOf(sel.index),
-            { vm.setWallFinish(room.id, sel.index, it) },
-        )
-        if (own) TextButton(onClick = { vm.setWallFinish(room.id, sel.index, null) }) { Text(T.pannelli.altreParetiStanza) }
-    }
-    // Spessore di questo muro (portante, tramezzo…) e forma libera: un angolo in più o in meno.
+    // Spessore di questo muro (portante, tramezzo…), subito sotto l'altezza.
     if (!room.outdoor) {
         val own = room.wallThicknesses[sel.index]
         Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -623,6 +624,17 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
             }
         }
     }
+    // Colore di questa sola parete (lato verso la stanza), diverso da quello delle altre.
+    if (!room.outdoor) {
+        val own = room.hasOwnFinish(sel.index)
+        FinishPicker(
+            T.pannelli.finituraQuestaParete + if (!own) T.pannelli.stanza else "",
+            room.finishOf(sel.index),
+            { vm.setWallFinish(room.id, sel.index, it) },
+        )
+        if (own) TextButton(onClick = { vm.setWallFinish(room.id, sel.index, null) }) { Text(T.pannelli.altreParetiStanza) }
+    }
+    // Forma libera: un angolo in più o in meno.
     Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = { vm.splitWall(room.id, sel.index) }, modifier = Modifier.weight(1f)) { Text(T.pannelli.angoloMetaMuro, maxLines = 2) }
         if (room.wallCount > 3) OutlinedButton(onClick = { vm.mergeWithNext(room.id, sel.index) }, modifier = Modifier.weight(1f)) { Text(T.pannelli.unisciMuroDopo, maxLines = 2) }
@@ -639,16 +651,6 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel)
     for (c in Collisions.of(plan).filter { it.roomId == room.id && it.wallIndex == sel.index }) {
         val name = c.openingId?.let { id -> room.opening(id)?.let(::openingLabel) } ?: c.fixtureId?.let { id -> room.fixture(id)?.kind?.label } ?: T.pannelli.oggetto
         CollisionWarning(c, name)
-    }
-    // Muro in comune con altre stanze: ogni tratto in comune si può eliminare per farne un unico ambiente.
-    val partners = remember(plan, sel) { RoomMerge.mergeablePartners(plan, sel.roomId, sel.index) }
-    for (partner in partners) {
-        OutlinedButton(
-            onClick = { vm.requestMergeWall(MergeRequest(sel.roomId, sel.index, partner.id)) },
-            modifier = Modifier.padding(end = 8.dp).fillMaxWidth(),
-        ) {
-            Text(T.pannelli.eliminaMuroUnisci(partner.name), color = MaterialTheme.colorScheme.error)
-        }
     }
 }
 
