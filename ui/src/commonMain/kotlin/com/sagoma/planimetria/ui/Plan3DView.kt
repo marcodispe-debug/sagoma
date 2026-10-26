@@ -71,6 +71,7 @@ import com.sagoma.planimetria.assets.isAvailable
 import com.sagoma.planimetria.editor.DragTarget
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.editor.Selection
 import com.sagoma.planimetria.geometry.Camera3D
 import com.sagoma.planimetria.geometry.Pick
@@ -130,6 +131,9 @@ class View3DState {
     var day by mutableStateOf<com.sagoma.planimetria.geometry.CalendarDay?>(null)
     /** Nord e città della casa (dal progetto). */
     var site by mutableStateOf(com.sagoma.planimetria.model.HouseSite())
+    /** Chi vuole sapere quando l'utente cambia ora o giorno del sole (la guida interattiva). */
+    var onSunHour: (Float) -> Unit = {}
+    var onSunDay: (com.sagoma.planimetria.geometry.CalendarDay?) -> Unit = {}
 
     /** Sole all'ora, nel giorno e nella casa scelti. */
     val sun: com.sagoma.planimetria.geometry.SunAngles
@@ -715,7 +719,7 @@ fun View3DControls(state: EditorUiState, view: View3DState, modifier: Modifier =
         val h = view.hour.toInt()
         val m = ((view.hour - h) * 60).roundToInt()
         val icon = if (view.hour < 6.5f || view.hour > 19.5f) "🌙" else if (view.hour < 8f || view.hour > 18f) "🌅" else "☀"
-        LegendButton("$icon $h:${m.toString().padStart(2, '0')}",modifier = modifier, onClick = { view.timePanel = !view.timePanel })
+        LegendButton("$icon $h:${m.toString().padStart(2, '0')}", modifier = modifier.guide(GuideTarget.SunTime, done = view.timePanel), onClick = { view.timePanel = !view.timePanel })
         val lampLabel = when (view.lamps) { "on" -> T.vista3D.luciAccese; "off" -> T.vista3D.luciSpente; else -> T.vista3D.luciAuto }
         LegendButton(lampLabel, modifier = modifier, onClick = { view.nextLamps() })
     }
@@ -757,9 +761,10 @@ fun TimeOfDayPanel(
                 // Slider girato: in basso mezzanotte, in alto la sera.
                 androidx.compose.material3.Slider(
                     value = view.hour,
-                    onValueChange = { view.hour = (it * 4).roundToInt() / 4f; view.refresh() },
+                    onValueChange = { view.hour = (it * 4).roundToInt() / 4f; view.refresh(); view.onSunHour(view.hour) },
                     valueRange = 0f..24f,
                     modifier = Modifier
+                        .guide(GuideTarget.SunSlider, value = view.hour.toString())
                         .height(length)
                         .graphicsLayer { rotationZ = 270f; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f) }
                         .layout { measurable, constraints ->
@@ -790,8 +795,9 @@ fun TimeOfDayPanel(
             }
             androidx.compose.material3.Slider(
                 value = view.hour,
-                onValueChange = { view.hour = (it * 4).roundToInt() / 4f; view.refresh() },
+                onValueChange = { view.hour = (it * 4).roundToInt() / 4f; view.refresh(); view.onSunHour(view.hour) },
                 valueRange = 0f..24f,
+                modifier = Modifier.guide(GuideTarget.SunSlider, value = view.hour.toString()),
             )
             Text(
                 T.vista3D.soleSegueBussola,

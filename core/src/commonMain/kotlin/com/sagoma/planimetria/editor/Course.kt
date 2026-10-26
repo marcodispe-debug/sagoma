@@ -23,9 +23,14 @@ import kotlin.math.roundToInt
  * destra, il bagno sotto la camera, l'ingresso nello spazio che resta, il tramezzo della cabina armadio nella camera, poi porte,
  * finestre e il resto; poi il controllo della pianta, sulla casa fatta. L'ultima («Sopra la tua planimetria») si fa in un secondo
  * progetto, sopra l'immagine della stessa piantina.
+ *
+ * [Sun] non fa parte della guida: parte da sola, sul progetto dell'utente, la prima volta che si tocca la bussola.
  */
 enum class Lesson {
-    Square, LShape, Rectangle, Survey, Walls, FreeWall, Elements, Check, OverPlan;
+    Square, LShape, Rectangle, Survey, Walls, FreeWall, Elements, Check, OverPlan, Sun;
+
+    /** Lezione della guida interattiva (le altre partono da sole, quando serve). */
+    val inCourse: Boolean get() = this != Sun
 
     /** La stanza della piantina che si disegna nella lezione (null: nessuna). */
     val planRoom: GuidePlan.Room?
@@ -118,6 +123,14 @@ enum class CourseStep(val lesson: Lesson, val action: Boolean = true) {
     LivingInfo(Lesson.OverPlan),
     PlanFade(Lesson.OverPlan),
     Finished(Lesson.OverPlan, action = false),
+
+    // Il sole, al primo tocco sulla bussola: niente da scrivere, ogni scelta va bene e ogni passo si può saltare.
+    North(Lesson.Sun),
+    City(Lesson.Sun),
+    Open3d(Lesson.Sun),
+    SunHour(Lesson.Sun),
+    SunDay(Lesson.Sun),
+    SunDone(Lesson.Sun, action = false),
     ;
 
     companion object {
@@ -182,6 +195,18 @@ sealed interface GuideTarget {
     data object CheckMark : GuideTarget
     /** «Togli dalla pianta» nella scheda di un «!» (il primo problema). */
     data object CheckHide : GuideTarget
+    /** La bussola sulla pianta: si trascina per girare la N, un tocco apre «Nord e città» (fatto quando è aperta). */
+    data object Compass : GuideTarget
+    /** «Chiudi» nella finestra «Nord e città». */
+    data object CloseSite : GuideTarget
+    /** «Vista 3D» / «Pianta 2D» in basso a destra. */
+    data object View3d : GuideTarget
+    /** L'ora nel 3D («☀ 12:00»): fatto quando il cursore dell'ora è aperto. */
+    data object SunTime : GuideTarget
+    /** Il cursore dell'ora del giorno. */
+    data object SunSlider : GuideTarget
+    /** «📅» accanto al cursore dell'ora: fatto quando l'elenco dei giorni è aperto. */
+    data object SunDay : GuideTarget
 }
 
 /**
@@ -213,6 +238,8 @@ data class CourseUi(
     val detail: String?,
     /** «Indietro»: c'è un passo prima a cui tornare. */
     val canGoBack: Boolean = false,
+    /** Una lezione sola, sul progetto dell'utente (per esempio quella del sole, al primo tocco sulla bussola). */
+    val single: Boolean = false,
 )
 
 /** Avanzamento della guida interattiva. Le azioni arrivano come [TutorialEvent], come per il tutorial. */
@@ -222,18 +249,24 @@ class Course {
 
     val active: Boolean get() = step != null
 
-    fun start(lesson: Lesson) {
+    /** Lezione sola sul progetto dell'utente (il sole, dalla bussola): finita la lezione la guida finisce. */
+    var single: Boolean = false
+        private set
+
+    fun start(lesson: Lesson, single: Boolean = false) {
         step = CourseStep.first(lesson)
+        this.single = single
     }
 
     fun stop() {
         step = null
+        single = false
     }
 
     /** Passo successivo ("Avanti", "Salta passo" o passo completato); null dopo l'ultimo. */
     fun next() {
         val s = step ?: return
-        step = CourseStep.entries.getOrNull(s.ordinal + 1)
+        step = CourseStep.entries.getOrNull(s.ordinal + 1)?.takeUnless { if (single) it.lesson != s.lesson else !it.lesson.inCourse }
     }
 
     /** Registra un'azione dell'utente sulla casa `s` (già aggiornata); true se il passo è cambiato. */
@@ -291,6 +324,12 @@ class Course {
             CourseStep.FreeWallMove -> e == TutorialEvent.FreeWallMoved && CourseHints(s).freeWallInPlace()
             CourseStep.FreeWallEnd -> e == TutorialEvent.FreeWallEndDragged && CourseHints(s).freeWallShortened()
             CourseStep.FreeWallInfo -> CourseHints(s).freeWallExact()
+            // Il sole: la casa dell'utente ha il suo nord e la sua città, ogni scelta va bene.
+            CourseStep.North -> e == TutorialEvent.NorthTurned
+            CourseStep.City -> e == TutorialEvent.SiteClosed
+            CourseStep.Open3d -> e == TutorialEvent.View3dOpened
+            CourseStep.SunHour -> e is TutorialEvent.SunHour
+            CourseStep.SunDay -> e is TutorialEvent.SunDay
             else -> false
         }
         if (done) next()
@@ -325,9 +364,10 @@ class Course {
         val steps = CourseStep.entries.filter { it.lesson == st.lesson && it.action }
         val detail = when (st) {
             CourseStep.WallsTyped -> T.corso.muriFatti(((s.wallDraw?.points?.size ?: 1) - 1).coerceAtLeast(0), GuidePlan.entranceWalls.size)
+            CourseStep.North -> T.corso.nordOra(s.building.site.northDeg.roundToInt())
             else -> null
         }
-        return CourseUi(st, st.lesson.ordinal + 1, Lesson.entries.size, steps.indexOf(st) + 1, steps.size, detail)
+        return CourseUi(st, st.lesson.ordinal + 1, Lesson.entries.count { it.inCourse }, steps.indexOf(st) + 1, steps.size, detail, single = single)
     }
 
     companion object {
@@ -421,7 +461,7 @@ private class CourseHints(private val s: EditorUiState) {
 
     fun of(step: CourseStep): List<GuideHint> = when (step) {
         CourseStep.Welcome, CourseStep.SquareDone, CourseStep.RectDone, CourseStep.LDone, CourseStep.SurveyDone,
-        CourseStep.WallsDone, CourseStep.ElementsDone, CourseStep.CheckDone, CourseStep.InnerFace, CourseStep.Finished -> emptyList()
+        CourseStep.WallsDone, CourseStep.ElementsDone, CourseStep.CheckDone, CourseStep.SunDone, CourseStep.InnerFace, CourseStep.Finished -> emptyList()
 
         CourseStep.SquarePick -> pick(ShapeChoice.Square, c.scegliQuadrato)
         CourseStep.SquareMeasures -> measures(ShapeChoice.Square, c.scegliQuadrato) {
@@ -581,6 +621,16 @@ private class CourseHints(private val s: EditorUiState) {
         }
         CourseStep.LivingInfo -> livingInfoHints()
         CourseStep.PlanFade -> listOf(hint(GuideTarget.PlanPanel, c.apriPannello), hint(GuideTarget.PlanOpacity, c.trasparenzaPiantina))
+
+        // La bussola è solo sulla pianta, ora e giorno solo nel 3D: chi è dall'altra parte ci viene riportato.
+        CourseStep.North -> if (s.view3d) listOf(hint(GuideTarget.View3d, c.tornaAllaPianta)) else listOf(hint(GuideTarget.Compass, c.giraBussola))
+        CourseStep.City -> if (s.view3d) listOf(hint(GuideTarget.View3d, c.tornaAllaPianta))
+        else listOf(hint(GuideTarget.Compass, c.toccaBussola), hint(GuideTarget.CloseSite, c.sceltaCitta))
+        CourseStep.Open3d -> listOf(hint(GuideTarget.View3d, c.apriVista3d))
+        CourseStep.SunHour -> if (!s.view3d) listOf(hint(GuideTarget.View3d, c.tornaAl3d))
+        else listOf(hint(GuideTarget.SunTime, c.apriOra), hint(GuideTarget.SunSlider, c.trascinaOra))
+        CourseStep.SunDay -> if (!s.view3d) listOf(hint(GuideTarget.View3d, c.tornaAl3d))
+        else listOf(hint(GuideTarget.SunTime, c.riapriOra), hint(GuideTarget.SunDay, c.apriGiorno), GuideHint(c.scegliGiorno))
     }
 
     /**

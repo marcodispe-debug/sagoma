@@ -231,7 +231,7 @@ fun EditorScreen(
         T.editor.rileggiIfc to { readIfc(platform, vm, projectId) },
         T.editor.cucinaNegozio to { readShopKitchen(platform, vm) },
     ) else emptyList()
-    if (showSite) HouseSiteDialog(state.building.site, onNorth = vm::setNorth, onPlace = vm::setPlace, onDismiss = { showSite = false })
+    if (showSite) HouseSiteDialog(state.building.site, onNorth = vm::setNorth, onPlace = vm::setPlace, onDismiss = { showSite = false; vm.siteDialogClosed() })
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
     if (showCheck) PlanCheckDialog(state, vm, onDismiss = { showCheck = false; vm.planCheckClosed() }, projectName = projects.info(projectId)?.name)
@@ -261,6 +261,9 @@ fun EditorScreen(
     val view3dState = remember { View3DState() }
     // Nord e città della casa: decidono il giro del sole nel 3D.
     LaunchedEffect(state.building.site) { view3dState.site = state.building.site; view3dState.refresh() }
+    // Ora e giorno del sole scelti nel 3D: li segue la guida del sole.
+    view3dState.onSunHour = vm::sunHourChanged
+    view3dState.onSunDay = { d -> (d ?: com.sagoma.planimetria.geometry.CalendarDay.today()).let { vm.sunDayChanged(it.month, it.day) } }
     // Luminosità delle lampade scelta nel progetto: la vista 3D la ritrova a ogni apertura.
     LaunchedEffect(state.building.lampBrightness) { view3dState.lampBrightness = state.building.lampBrightness.toFloat(); view3dState.refresh() }
     // WASD e frecce tenuti premuti nella pianta: scorre in modo continuo, a ogni fotogramma (come nel 3D).
@@ -638,6 +641,7 @@ fun EditorScreen(
                         if (state.view3d && view3dState.walking) view3dState.stopWalking()
                         vm.setView3d(!state.view3d)
                     },
+                    modifier = Modifier.guide(GuideTarget.View3d),
                 )
                 if (state.view3d) View3DControls(state, view3dState)
                 else {
@@ -657,11 +661,12 @@ fun EditorScreen(
             if (!state.view3d) NorthCompass(
                 state.building.site.northDeg,
                 onNorth = vm::setNorth,
-                onOpen = { showSite = true },
+                // Sul computer il primo tocco fa partire la lezione del sole; poi apre «Nord e città».
+                onOpen = { if (!(platform.interactiveGuide && vm.compassTapped())) showSite = true },
                 modifier = Modifier.align(Alignment.TopEnd).padding(
                     end = with(density) { coveredRightPx.toDp() } + 8.dp,
                     top = with(density) { coveredTopPx.toDp() } + 8.dp,
-                ),
+                ).guide(GuideTarget.Compass, done = showSite),
             )
             // Segnale di «Controlla la pianta» in alto a sinistra, sotto le schede in alto: il tocco apre l'elenco.
             if (!state.view3d) liveIssues?.let { issues ->

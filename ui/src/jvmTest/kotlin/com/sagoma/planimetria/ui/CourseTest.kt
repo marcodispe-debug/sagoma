@@ -425,4 +425,54 @@ class CourseTest {
         assertEquals(CourseStep.Welcome, vm.step)
         assertFalse(vm.state.value.course!!.canGoBack)
     }
+
+    @Test
+    fun `al primo tocco sulla bussola parte la lezione del sole sul progetto dell'utente, una volta sola e senza obblighi`() {
+        val tips = MemoryTips(setOf(TipStore.COURSE_DONE, TipStore.TUTORIAL_DONE))
+        val vm = emptyProject(tips)
+        vm.pickShape(RoomShape.Rectangle)
+        vm.createRoom(RoomType.Soggiorno, ShapeDimensions(500.0, 400.0), 270.0)
+        val rooms = vm.state.value.plan.rooms
+        assertTrue(vm.compassTapped())
+        assertEquals(CourseStep.North, vm.step)
+        assertTrue(vm.state.value.course!!.single)
+        assertEquals(rooms, vm.state.value.plan.rooms, "la casa dell'utente non si tocca")
+        // Qualsiasi nord va bene, la città si può lasciare vuota, ora e giorno a piacere.
+        vm.setNorth(30.0)
+        assertEquals(CourseStep.City, vm.step)
+        assertEquals(listOf(GuideTarget.Compass, GuideTarget.CloseSite), Course.hints(CourseStep.City, vm.state.value).map { it.target })
+        vm.siteDialogClosed()
+        assertEquals(CourseStep.Open3d, vm.step)
+        assertNull(vm.state.value.building.site.place)
+        vm.nextCourseStep() // «Salta passo»: niente 3D
+        assertEquals(CourseStep.SunHour, vm.step)
+        vm.setView3d(true)
+        vm.sunHourChanged(17f)
+        assertEquals(CourseStep.SunDay, vm.step)
+        vm.sunDayChanged(6, 21)
+        assertEquals(CourseStep.SunDone, vm.step)
+        vm.finishCourse()
+        assertNull(vm.step, "finita la lezione, la guida non va avanti alle altre")
+        assertEquals(30.0, vm.state.value.building.site.northDeg)
+        assertTrue(TipStore.SUN_GUIDE_DONE in tips.seen)
+        assertFalse(vm.compassTapped(), "la seconda volta la bussola apre «Nord e città»")
+    }
+
+    @Test
+    fun `la lezione del sole non fa parte della guida interattiva`() {
+        val vm = emptyProject()
+        vm.startCourse(Lesson.OverPlan)
+        while (vm.step != CourseStep.Finished) vm.nextCourseStep()
+        vm.nextCourseStep()
+        assertNull(vm.step, "dopo l'ultima lezione la guida finisce, senza passare al sole")
+        // Dopo la lezione del sole sul progetto dell'utente la guida intera resta da fare.
+        val tips = MemoryTips(setOf(TipStore.TUTORIAL_DONE))
+        val other = emptyProject(tips)
+        other.pickShape(RoomShape.Rectangle)
+        other.createRoom(RoomType.Camera, ShapeDimensions(400.0, 300.0), 270.0)
+        assertTrue(other.compassTapped())
+        other.finishCourse(completed = false)
+        assertNull(other.step)
+        assertFalse(TipStore.COURSE_DONE in tips.seen, "la guida intera non risulta fatta")
+    }
 }

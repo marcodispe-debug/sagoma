@@ -16,6 +16,7 @@ object TestiCorsoEs : TestiCorso() {
         Lesson.LShape -> "Forma de L"
         Lesson.Elements -> "Puertas, ventanas y más"
         Lesson.Check -> "Revisar el plano"
+        Lesson.Sun -> "El sol y la brújula"
         Lesson.OverPlan -> "Sobre tu plano"
         else -> super.lezione(l)
     }
@@ -29,12 +30,13 @@ object TestiCorsoEs : TestiCorso() {
         CourseStep.Finished -> "¡Has terminado la guía!"
         CourseStep.Snap -> "Mover las habitaciones y el ajuste 🧲"
         CourseStep.InnerFace -> "El lado interior de las paredes"
+        CourseStep.SunDone -> "El sol de tu casa"
         else -> "¡Hecho!"
     }
 
     override fun testoScheda(s: CourseStep): String = when (s) {
         CourseStep.Welcome ->
-            "Te guío paso a paso para dibujar la casa de este plano inventado, en ${Lesson.entries.size} lecciones cortas: una habitación cada vez, cada " +
+            "Te guío paso a paso para dibujar la casa de este plano inventado, en ${Lesson.entries.count { it.inCourse }} lecciones cortas: una habitación cada vez, cada " +
                 "una en su sitio como en el dibujo. Las acciones las haces tú: en cada paso un recuadro naranja te indica dónde hacer " +
                 "clic. Es un proyecto solo para practicar: tus proyectos no se tocan."
         CourseStep.SquareDone ->
@@ -74,6 +76,9 @@ object TestiCorsoEs : TestiCorso() {
             "Aquí están el dormitorio, el baño y el salón sobre el plano, con las medidas correctas. Haz lo mismo con las demás habitaciones: " +
                 "una forma para empezar, pegada a las habitaciones de al lado, luego paredes y esquinas en su sitio y las medidas exactas en " +
                 "«$infoTab». ¡Ya puedes dibujar tu casa! La guía se repite cuando quieras desde «${e.guide}»."
+        CourseStep.SunDone ->
+            "Hecho. El norte y la ciudad se quedan en el proyecto y los cambias cuando quieras desde la brújula o el menú ⋮; el día " +
+                "y la hora sirven solo para mirar. Nada de esto es obligatorio: lo que no pongas se queda como estaba (norte arriba, Roma, hoy)."
         CourseStep.InnerFace ->
             "Antes de mover el dormitorio, una cosa importante. Sagoma mide las habitaciones desde el lado interior de las paredes, " +
                 "como las medidas escritas en el plano: el grosor de la pared va hacia fuera. Cuando pongas una habitación sobre el " +
@@ -90,7 +95,7 @@ object TestiCorsoEs : TestiCorso() {
     override val nienteDaIndicare: String get() = "Haz la acción de este paso, o haz clic en «${e.saltaPasso}»."
     override val tornaIndietro: String get() = "Esta no es la forma de este paso: haz clic en «${T.comuni.indietro}» y elige la correcta."
     override val vaiAllaLezione: String get() = "O ve a la lección:"
-    override val voceMenu: String get() = "Guía interactiva (${Lesson.entries.size} lecciones)"
+    override val voceMenu: String get() = "Guía interactiva (${Lesson.entries.count { it.inCourse }} lecciones)"
     override val progettoProva: String get() = "Prueba de la guía"
     override val progettoProvaPlanimetria: String get() = "Prueba de la guía · plano"
     override val usaPiantina: String get() = "🧭 Usar el plano de la guía"
@@ -308,6 +313,29 @@ object TestiCorsoEs : TestiCorso() {
     override val trasparenzaPiantina: String get() =
         "Aquí ajustas el plano: arrastrando el cursor se aclara o se oscurece, con el interruptor lo ocultas. Debajo está lo mismo " +
             "para el dibujo. Cuando termines, cierra el panel con «${T.comuni.chiudi}». Prueba: arrastra el cursor del plano."
+
+    override fun intestazioneSola(nome: String): String = "Guía · $nome"
+    override val giraBussola: String get() =
+        "La brújula 🧭 dice dónde está el norte respecto a tu plano: solo sirve para que el sol entre por el lado correcto en el 3D. " +
+            "No estás obligado a poner toda esta información: puedes saltar cada paso con «${e.saltaPasso}», o salir. Si sabes " +
+            "dónde está el norte, pulsa en la brújula y gírala hasta que la N apunte allí. El plano nunca gira."
+    override fun nordOra(gradi: Int): String = "Norte: $gradi°"
+    override val toccaBussola: String get() =
+        "Si quieres, elige también la ciudad de la casa: decide cuánto sube el sol y a qué hora sale y se pone. Toca la brújula, " +
+            "sin arrastrarla. También es opcional: sin ciudad vale Roma."
+    override val sceltaCitta: String get() =
+        "Aquí también puedes escribir los grados del norte. Para la ciudad, escríbela en «${T.vista3D.cercaCitta}» y haz clic en " +
+            "ella en la lista. Luego haz clic en «${T.comuni.chiudi}». Si no te interesa, cierra y listo."
+    override val apriVista3d: String get() = "Para ver el sol haz clic en «${e.vista3d}», aquí abajo a la derecha. Si no lo necesitas, sal."
+    override val tornaAllaPianta: String get() = "La brújula está en el plano: haz clic en «${e.pianta2d}» para volver."
+    override val tornaAl3d: String get() = "El sol se mira en el 3D: haz clic en «${e.vista3d}»."
+    override val apriOra: String get() = "El sol sigue la hora del día: haz clic en la hora con el sol ☀, aquí abajo a la derecha. Se abre el cursor de la hora."
+    override val riapriOra: String get() = "Vuelve a abrir el cursor de la hora: haz clic en la hora con el sol ☀, aquí abajo a la derecha."
+    override val trascinaOra: String get() =
+        "Arrastra el cursor: el sol se mueve con la hora y la luz entra por las ventanas. La hora no se guarda en el proyecto: solo sirve para mirar."
+    override val apriGiorno: String get() = "El sol también cambia con las estaciones. Junto al cursor haz clic en «📅»: normalmente es hoy."
+    override val scegliGiorno: String get() =
+        "Elige un día: en invierno el sol está bajo y entra más al fondo de las habitaciones, en verano está alto. El día también sirve solo para mirar."
 
     override fun nomeMuroSoggiorno(muro: Int): String = when (muro) {
         0 -> "de arriba"
