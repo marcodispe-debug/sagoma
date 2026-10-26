@@ -178,6 +178,16 @@ class View3DState {
         if (r === kept?.first) r.detachSurface() else r.release()
     }
 
+    /**
+     * L'app va in secondo piano: se la vista 3D è chiusa, il renderer tenuto da parte si libera (sul telefono la scheda grafica usa
+     * la memoria di tutto il telefono). Con la vista 3D aperta resta: tornando nell'app riprende da dov'era.
+     */
+    fun releaseIfClosed() {
+        if (renderer != null) return
+        kept?.first?.release()
+        kept = null
+    }
+
     /** L'editor si chiude: si libera anche il renderer tenuto da parte (memoria della scheda grafica). */
     fun dispose() {
         detach()

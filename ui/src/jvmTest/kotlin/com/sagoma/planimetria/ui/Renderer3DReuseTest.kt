@@ -110,4 +110,23 @@ class Renderer3DReuseTest {
         assertEquals(1, r.detached)
         assertEquals(1, r.released)
     }
+
+    @Test
+    fun `in secondo piano si libera il renderer del 3D chiuso, non quello aperto`() {
+        val platform = FakePlatform(reusable = true)
+        val view = View3DState()
+        val first = view.attach(platform) as FakeRenderer
+        // 3D aperto: resta.
+        view.releaseIfClosed()
+        assertEquals(0, first.released)
+        // 3D chiuso: si libera, e la prossima apertura ne crea uno nuovo.
+        view.detach()
+        view.releaseIfClosed()
+        assertEquals(1, first.released)
+        val second = view.attach(platform)
+        assertNotSame(first, second)
+        view.dispose()
+        assertEquals(1, first.released)
+        assertEquals(1, (second as FakeRenderer).released)
+    }
 }
