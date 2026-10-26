@@ -102,6 +102,22 @@ fun Room.arcOf(i: Int): WallArc? {
 /** Distanza dalla mezzeria del muro `i`, dritto o curvo. */
 fun Room.distanceToWall(i: Int, p: Vec2): Double = arcOf(i)?.distanceTo(p) ?: Polygon.distanceToSegment(p, wallStart(i), wallEnd(i))
 
+/**
+ * Distanza dal muro `i` com'è disegnato: dalla sua mezzeria vera (curva o spostata di lato) meno metà spessore, quindi 0
+ * dentro il muro. Serve a prendere col dito un muro spesso o spostato in tutta la sua larghezza.
+ */
+fun Room.distanceToWallBody(i: Int, p: Vec2): Double {
+    val shift = outwardOf(i) * wallShift(i)
+    return (distanceToWall(i, p - shift) - thicknessOf(i) / 2).coerceAtLeast(0.0)
+}
+
+/** Distanza dal vano dell'apertura `o` (largo quanto il suo muro, spostato con lui): 0 dentro il vano. */
+fun Room.distanceToOpeningBody(o: com.sagoma.planimetria.model.Opening, p: Vec2): Double {
+    val (a, b) = Openings.span(this, o)
+    val shift = outwardOf(o.wallIndex) * wallShift(o.wallIndex)
+    return (Polygon.distanceToSegment(p - shift, a, b) - thicknessOf(o.wallIndex) / 2).coerceAtLeast(0.0)
+}
+
 /** Punto a metà del muro sulla sua mezzeria (in cima alla curva, per un muro curvo): dove sta la maniglia della curva. */
 fun Room.wallMiddle(i: Int): Vec2 = arcOf(i)?.at(0.0) ?: ((wallStart(i) + wallEnd(i)) / 2.0)
 
