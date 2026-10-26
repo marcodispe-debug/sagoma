@@ -299,7 +299,8 @@ class Scene3D(
 internal class Level(source: FloorPlan, val base: Double, val levelHeight: Double, val current: Boolean) {
     /** Muri curvi srotolati in pezzi dritti: il 3D si costruisce su questi. */
     val expanded = source.expandCurves()
-    val plan: FloorPlan = expanded.plan
+    /** Con gli angoli quasi sovrapposti di stanze diverse saldati ([CornerWeld]). */
+    val plan: FloorPlan = CornerWeld.weld(expanded.plan)
 }
 
 /** Array di float che cresce da solo. */
@@ -1341,6 +1342,38 @@ private class SceneBuilder(
         val others = plan.rooms.filter { it.id != room.id && !it.outdoor }
         /** Un'altra stanza tocca questo punto (con un suo muro): lì la casa continua, non è uno spigolo esterno. */
         fun touched(p: Vec2) = others.any { o -> (0 until o.wallCount).any { j -> Polygon.distanceToSegment(p, o.wallStart(j), o.wallEnd(j)) < 1.0 } }
+        /**
+         * Angolo `p` della casa dove il muro esterno continua in un'altra stanza, girando (es. il muro del bagno, storto, e
+         * quello dell'ingresso, dritto, che partono dallo stesso angolo): di quanto allungare la fascia esterna oltre `p`,
+         * verso `along`, perché la sua faccia arrivi dove comincia quella dell'altro muro. Senza, tra le due fasce resta uno
+         * scalino o una fessura. Solo allungata (il pezzo in più sta dentro il muro dell'altra stanza); 0 se non c'è.
+         */
+        fun junction(p: Vec2, along: Vec2): Double {
+            val out = inward * -1.0
+            var best = 0.5
+            var ext = 0.0
+            for (o in others) for (j in 0 until o.wallCount) {
+                if (o.isRemoved(j)) continue
+                val a = o.wallStart(j)
+                val b = o.wallEnd(j)
+                val (q, far) = when {
+                    a.distanceTo(p) < 1.0 -> a to b
+                    b.distanceTo(p) < 1.0 -> b to a
+                    else -> continue
+                }
+                if (q.distanceTo(far) < 1e-6) continue
+                val d = (far - q).normalized()
+                val align = along dot d
+                if (align <= best) continue
+                val c = along.x * d.y - along.y * d.x
+                val oh = o.thicknessOf(j) / 2
+                val w = (q + o.outwardOf(j) * oh) - (p + out * half)
+                val t = if (abs(c) < 1e-6) 0.0 else (w.x * d.y - w.y * d.x) / c
+                best = align
+                ext = if (t > 2 * max(half, oh) + 1) 0.0 else max(t, 0.0)
+            }
+            return ext
+        }
 
         // Tratti del muro in comune con altre stanze (non all'aperto). Conta da che parte sta l'altra stanza:
         // - dall'altra parte del muro (stanze accostate): il muro è interno alla casa, niente facciata lì;
@@ -1415,13 +1448,19 @@ private class SceneBuilder(
         for (r in exterior) {
             val a = when {
                 r.start >= 0.5 -> r.start
-                else -> nearlyStraightJoin(atEnd = false, side = -1.0)
-                    ?: (shiftStart + if (startConvex && !startStraight && !touched(s + u * shiftStart)) -prevHalf else r.start)
+                else -> nearlyStraightJoin(atEnd = false, side = -1.0) ?: when {
+                    startConvex && !startStraight && !touched(s + u * shiftStart) -> shiftStart - prevHalf
+                    startConvex && !startStraight -> shiftStart + r.start - junction(s, u * -1.0)
+                    else -> shiftStart + r.start
+                }
             }
             val b = when {
                 r.endInclusive <= len - 0.5 -> r.endInclusive
-                else -> nearlyStraightJoin(atEnd = true, side = -1.0)?.let { len + it }
-                    ?: (shiftEnd + if (endConvex && !endStraight && !touched(e + u * shiftEnd)) len + nextHalf else r.endInclusive)
+                else -> nearlyStraightJoin(atEnd = true, side = -1.0)?.let { len + it } ?: when {
+                    endConvex && !endStraight && !touched(e + u * shiftEnd) -> shiftEnd + len + nextHalf
+                    endConvex && !endStraight -> shiftEnd + r.endInclusive + junction(e, u)
+                    else -> shiftEnd + r.endInclusive
+                }
             }
             band(bandStart, u, len, gaps, sloped, room, i, wallPick, a..b, inward * -1.0, facade, interior = false)
         }
