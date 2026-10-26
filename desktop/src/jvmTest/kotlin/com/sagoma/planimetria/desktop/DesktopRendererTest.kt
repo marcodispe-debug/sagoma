@@ -44,6 +44,30 @@ class DesktopRendererTest {
         Furniture(3, "ph_ottoman_01", Vec2(220.0, 200.0), width = 88.0, depth = 62.0, height = 45.0),
     )
 
+    /**
+     * Foto 4K della vista: stessa inquadratura a 3840 pixel di lato lungo (build/prova-3d-foto-4k.png), poi lo schermo torna
+     * alle sue misure. Con i soli materiali dell'app (niente 4K) la foto si fa lo stesso con quelli meno definiti.
+     */
+    @Test
+    fun foto4k() {
+        val scene = Scene3D.build(FloorPlan(listOf(room), furniture = furniture), null, null, ceilings = false)
+        val r = DesktopGlSceneRenderer(::read, com.sagoma.planimetria.assets.MaterialResolution.K2)
+        r.setScene(scene)
+        r.setDaylight(11f, "auto")
+        r.setCamera(Vec3(250.0, 1000.0, 560.0), Vec3(250.0, 0.0, 210.0), Vec3.Up, 50.0, 5.0, walking = false)
+        assertNotNull(r.renderNow(960, 540))
+        val done = java.util.concurrent.CountDownLatch(1)
+        var photo: androidx.compose.ui.graphics.ImageBitmap? = null
+        r.renderPhoto(3840) { photo = it; done.countDown() }
+        assertTrue(done.await(120, java.util.concurrent.TimeUnit.SECONDS), "foto non arrivata")
+        val p = assertNotNull(photo)
+        assertTrue(p.width == 3840 && p.height == 2160, "foto ${p.width}×${p.height}")
+        File("build/prova-3d-foto-4k.png").writeBytes(SkiaImages.encodePng(p)!!)
+        val after = assertNotNull(r.renderNow(960, 540))
+        assertTrue(after.width == 960 && after.height == 540, "schermo ${after.width}×${after.height}")
+        r.release()
+    }
+
     /** Divano angolare normale (a sinistra) e specchiato (a destra): la penisola deve stare dall'altra parte. */
     @Test
     fun divanoSpecchiato() {

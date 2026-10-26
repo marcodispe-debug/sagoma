@@ -29,4 +29,10 @@ object TestiVista3DEn : TestiVista3D() {
     override val giugno21: String get() = "21 June"
     override val settembre21: String get() = "21 September"
     override val dicembre21: String get() = "21 December"
+    override val foto4k: String get() = "📷 4K photo"
+    override val fotoInPreparazione: String get() = "📷 Preparing the 4K photo: downloading the sharper materials, it may take a minute…"
+    override val fotoSalvata: String get() = "4K photo saved"
+    override val fotoSalvataMarchio: String get() = "4K photo saved, with the Sagoma watermark"
+    override val fotoMaterialiMenoDefiniti: String get() = "Photo saved. Some materials were not available in 4K yet: they look a little less sharp in the photo"
+    override val fotoNonRiuscita: String get() = "The photo failed: the graphics card may be full, close other programs and try again"
 }
