@@ -78,7 +78,7 @@ fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Uni
         },
         confirmButton = {
             Row {
-                TextButton(onClick = { platform.shareText(T.computo.computo(title), Takeoff.csv(res).replace(';', '\t')) }) { Text(T.computo.condividi) }
+                TextButton(onClick = { platform.shareText(T.computo.computo(title), Takeoff.csv(res, sep = '\t')) }) { Text(T.computo.condividi) }
                 TextButton(onClick = { exportCsv() }) { Text(T.computo.esportaCsv) }
             }
         },

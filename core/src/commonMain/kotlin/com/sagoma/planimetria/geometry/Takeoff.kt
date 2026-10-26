@@ -152,24 +152,31 @@ object Takeoff {
 
     private fun cm(v: Double) = if (v == kotlin.math.round(v)) v.toLong().toString() else formatDecimal(v, 1)
 
-    /** Tabella in formato CSV (separatore ";", come la aprono Excel e LibreOffice in italiano). */
-    fun csv(res: Result): String = buildString {
+    /**
+     * Tabella in formato CSV (separatore ";", come la aprono Excel e LibreOffice in italiano; con `sep` = tabulazione è il
+     * testo da incollare in un foglio di calcolo). I nomi scritti dall'utente (stanze, piani) possono contenere il separatore,
+     * le virgolette o un a capo: vanno tra virgolette, altrimenti spostano le colonne.
+     */
+    fun csv(res: Result, sep: Char = ';'): String = buildString {
         fun n(v: Double) = formatDecimal(v, 2)
-        appendLine(T.computo.stanze2)
-        appendLine(T.computo.pianoStanzaPavimentoM2)
-        for (l in res.rooms) appendLine("${l.floor};${l.room};${n(l.floorArea)};${n(l.perimeter)};${n(l.wallArea)};${n(l.openingsArea)};${n(l.skirting)};${l.floorFinish};${l.wallFinish};${l.doors};${l.windows}")
-        appendLine(T.computo.totale2(n(res.totalFloor), n(res.totalWalls), n(res.totalSkirting)))
+        fun t(s: String) = if (s.any { it == sep || it == '"' || it == '\n' || it == '\r' }) "\"" + s.replace("\"", "\"\"") + "\"" else s
+        fun row(vararg cells: String) = appendLine(cells.joinToString(sep.toString()))
+        fun head(s: String) = appendLine(s.replace(';', sep))
+        head(T.computo.stanze2)
+        head(T.computo.pianoStanzaPavimentoM2)
+        for (l in res.rooms) row(t(l.floor), t(l.room), n(l.floorArea), n(l.perimeter), n(l.wallArea), n(l.openingsArea), n(l.skirting), t(l.floorFinish), t(l.wallFinish), "${l.doors}", "${l.windows}")
+        head(T.computo.totale2(n(res.totalFloor), n(res.totalWalls), n(res.totalSkirting)))
         appendLine()
-        appendLine(T.computo.pavimentiM2M210)
-        for (t in res.floorMaterials) appendLine("${t.what};${n(t.quantity)};${n(t.quantity * 1.1)}")
+        head(T.computo.pavimentiM2M210)
+        for (x in res.floorMaterials) row(t(x.what), n(x.quantity), n(x.quantity * 1.1))
         appendLine()
-        appendLine(T.computo.paretiM22)
-        for (t in res.wallFinishes) appendLine("${t.what};${n(t.quantity)}")
+        head(T.computo.paretiM22)
+        for (x in res.wallFinishes) row(t(x.what), n(x.quantity))
         appendLine()
-        appendLine(T.computo.arrediMisureQuantitaDove)
-        for (i in res.furniture) appendLine("${i.name};${i.size};${i.count};${i.where}")
+        head(T.computo.arrediMisureQuantitaDove)
+        for (i in res.furniture) row(t(i.name), t(i.size), "${i.count}", t(i.where))
         appendLine()
-        appendLine(T.computo.impiantiQuantitaDove)
-        for (i in res.fixtures) appendLine("${i.name};${i.count};${i.where}")
+        head(T.computo.impiantiQuantitaDove)
+        for (i in res.fixtures) row(t(i.name), "${i.count}", t(i.where))
     }
 }

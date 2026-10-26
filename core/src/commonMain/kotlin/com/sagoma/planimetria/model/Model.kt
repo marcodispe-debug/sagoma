@@ -961,7 +961,7 @@ data class Building(
 
     val floor: Floor get() = floors[current.coerceIn(floors.indices)]
     /** Piano di sotto (null al piano più basso). */
-    val below: Floor? get() = floors.getOrNull(current - 1)
+    val below: Floor? get() = floors.getOrNull(current.coerceIn(floors.indices) - 1)
 
     /** Quota del pavimento del piano `index` rispetto al piano terra (cm). */
     fun elevation(index: Int): Double = floors.take(index).sumOf { it.levelHeight }
@@ -969,7 +969,10 @@ data class Building(
     /** Stessa casa con la pianta del piano corrente sostituita. */
     fun withPlan(plan: FloorPlan): Building {
         val updated = floor.copy(plan = plan).synced() // con l'interpiano automatico segue le stanze
-        return if (updated == floor) this else copy(floors = floors.mapIndexed { i, f -> if (i == current) updated else f })
+        // Stesso piano di [floor] anche con un indice fuori misura (file scritto a mano o da altri programmi):
+        // altrimenti la modifica non finirebbe in nessun piano e non verrebbe mai salvata.
+        val index = current.coerceIn(floors.indices)
+        return if (updated == floor) this else copy(floors = floors.mapIndexed { i, f -> if (i == index) updated else f })
     }
 
     val nextFloorId: Long get() = (floors.maxOfOrNull { it.id } ?: 0L) + 1

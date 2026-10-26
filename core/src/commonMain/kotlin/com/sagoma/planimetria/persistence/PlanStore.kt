@@ -32,7 +32,8 @@ object PlanJson {
         // Un file scritto da altri programmi può iniziare con il segno BOM: si ignora.
         val doc = json.decodeFromString(SavedDocument.serializer(), text.removePrefix("﻿"))
         val building = doc.building ?: Building.single(doc.plan ?: FloorPlan())
-        return building.copy(floors = building.floors.map { it.copy(plan = migrate(it.plan)) })
+        // Piano corrente fuori misura (file scritto a mano o da altri programmi): si apre il più vicino.
+        return building.copy(floors = building.floors.map { it.copy(plan = migrate(it.plan)) }, current = building.current.coerceIn(building.floors.indices))
     }
 
     /** Pianta del piano corrente. */
