@@ -75,7 +75,7 @@ object Takeoff {
         val gaps = induced.filter { it.roomId == r.id && it.wallIndex == i }
         fun holesBetween(lo: Double, hi: Double) = openings.sumOf { o ->
             val bottom = if (o.kind.glazed) o.sillHeight else 0.0
-            o.width * ((minOf(bottom + o.height, hi) - maxOf(bottom, lo)).coerceAtLeast(0.0))
+            minOf(o.width, r.wallLength(i)) * ((minOf(bottom + o.height, hi) - maxOf(bottom, lo)).coerceAtLeast(0.0))
         } + gaps.sumOf { g -> g.a.distanceTo(g.b) * ((minOf(g.height, hi) - maxOf(0.0, lo)).coerceAtLeast(0.0)) }
         fun area(lo: Double, hi: Double) = ((length * (hi - lo) - holesBetween(lo, hi)) / 10_000.0).coerceAtLeast(0.0)
         val paint = paintName(f.argb)
@@ -140,13 +140,18 @@ object Takeoff {
         // I muri eliminati (lati aperti) non si dipingono e non hanno battiscopa.
         if (!r.outdoor) for (i in 0 until r.wallCount) if (!r.isRemoved(i)) wall += lengths[i] * r.wallHeight(i) / 10_000.0
         val openSides = (0 until r.wallCount).filter { r.isRemoved(it) }.sumOf { lengths[it] } / 100.0
-        for (o in r.openings) holes += o.width * o.height / 10_000.0
+        // Il vano non è mai più largo del muro né più alto della parete (una misura scritta per sbaglio, es. 2100 invece di 210).
+        for (o in r.openings) if (o.wallIndex < r.wallCount && !r.isRemoved(o.wallIndex)) {
+            val bottom = if (o.kind.glazed) o.sillHeight else 0.0
+            val h = (minOf(bottom + o.height, r.wallHeight(o.wallIndex)) - bottom).coerceAtLeast(0.0)
+            holes += minOf(o.width, r.wallLength(o.wallIndex)) * h / 10_000.0
+        }
         // Varchi delle porte della stanza accanto sul muro in comune (sui muri eliminati non c'è parete da togliere).
         val gaps = induced.filter { it.roomId == r.id && it.wallIndex < r.wallCount && !r.isRemoved(it.wallIndex) }
-        if (!r.outdoor) for (g in gaps) holes += g.a.distanceTo(g.b) * g.height / 10_000.0
+        if (!r.outdoor) for (g in gaps) holes += g.a.distanceTo(g.b) * minOf(g.height, r.wallHeight(g.wallIndex)) / 10_000.0
         // Il battiscopa si interrompe davanti a porte, porte-finestre e varchi (tutto ciò che arriva a terra), anche quelli
         // delle porte della stanza accanto.
-        val atFloor = (r.openings.filter { !it.kind.glazed || it.sillHeight == 0.0 }.sumOf { it.width } + gaps.sumOf { it.a.distanceTo(it.b) }) / 100.0
+        val atFloor = (r.openings.filter { (!it.kind.glazed || it.sillHeight == 0.0) && it.wallIndex < r.wallCount }.sumOf { minOf(it.width, r.wallLength(it.wallIndex)) } + gaps.sumOf { it.a.distanceTo(it.b) }) / 100.0
         val doors = r.openings.count { !it.kind.glazed }
         val windows = r.openings.count { it.kind.glazed }
         val wallName = if (r.outdoor) "—" else (0 until r.wallCount).map { wallFinishName(r, it) }.distinct().joinToString(" / ")
