@@ -54,7 +54,10 @@ class EditorStressTest {
         // Di solito 30 sessioni; per una prova lunga: variabile d'ambiente SAGOMA_STRESS=numero di sessioni.
         val sessions = System.getenv("SAGOMA_STRESS")?.toIntOrNull() ?: 30
         val steps = if (sessions > 30) 500 else 300
-        for (seed in 1..sessions) runSession(seed, steps, problems)
+        // Per rifare solo alcune sessioni (quelle di un problema trovato): SAGOMA_STRESS_SEEDS=53,242 (con 500 passi).
+        val only = System.getenv("SAGOMA_STRESS_SEEDS")?.split(',')?.mapNotNull { it.trim().toIntOrNull() }.orEmpty()
+        if (only.isNotEmpty()) for (seed in only) runSession(seed, 500, problems)
+        else for (seed in 1..sessions) runSession(seed, steps, problems)
         println("Prova di resistenza: $sessions sessioni × $steps passi; in media alla fine ${"%.1f".format(totals.values.sum().toDouble() / sessions)} oggetti per sessione: $totals")
         if (problems.isNotEmpty()) {
             fail("Problemi trovati (${problems.size}):\n" + problems.entries.joinToString("\n\n") { (k, v) -> "$k\n$v" })
