@@ -551,8 +551,13 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         closeFloorDialog()
         commitBuilding { b ->
             val top = b.floors.last()
+            // I muri come sono: con il loro spessore, spostati di lato e curvi (altrimenti al piano di sopra tornerebbero
+            // dritti, da 15 cm e centrati, e non starebbero più sopra quelli di sotto).
             val rooms = if (copyRooms) top.plan.rooms.map {
-                Room(it.id, it.name, it.type, it.points, ceilingHeight = it.ceilingHeight, floorFinish = it.type.defaultFloor)
+                Room(
+                    it.id, it.name, it.type, it.points, ceilingHeight = it.ceilingHeight, floorFinish = it.type.defaultFloor,
+                    wallThickness = it.wallThickness, wallThicknesses = it.wallThicknesses, wallOffsets = it.wallOffsets, wallBulges = it.wallBulges,
+                )
             } else emptyList()
             // Il piano nuovo ha la stessa facciata di quello sotto: l'esterno di una casa è quasi sempre uguale.
             val plan = FloorPlan(rooms, facade = top.plan.facade, facadeFinish = top.plan.facadeFinish)
