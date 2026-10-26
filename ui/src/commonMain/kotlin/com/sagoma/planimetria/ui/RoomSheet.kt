@@ -249,27 +249,11 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
                 style = MaterialTheme.typography.bodyMedium,
             )
             // Schede a larghezza fissa: tutte visibili anche sul telefono ("Porte e impianti" va su due righe).
-            androidx.compose.material3.SecondaryTabRow(selectedTabIndex = tabs.indexOf(tab), containerColor = Color.Transparent) {
-                // Margini stretti: con quelli standard le parole si spezzano a metà nella tendina.
-                for (t in tabs) androidx.compose.material3.Tab(
-                    selected = t == tab,
-                    onClick = { lastRoomTab = t },
-                    modifier = Modifier.guide(GuideTarget.MeasuresTab.takeIf { t == RoomTab.Measures }, done = tab == RoomTab.Measures),
-                ) {
-                    // Se una parola non ci sta (pannello stretto col telefono in orizzontale: «Progett-o») il carattere si rimpicciolisce.
-                    val label = if (t == RoomTab.Photos && room.photos.isNotEmpty()) "${t.label} (${room.photos.size})" else t.label
-                    val style = MaterialTheme.typography.labelLarge
-                    var scale by remember(label) { mutableStateOf(1f) }
-                    Text(
-                        label,
-                        style = style.copy(fontSize = style.fontSize * scale),
-                        textAlign = TextAlign.Center,
-                        maxLines = 2,
-                        onTextLayout = { if ((it.breaksWord() || it.hasVisualOverflow) && scale > 0.7f) scale -= 0.05f },
-                        modifier = Modifier.padding(horizontal = 2.dp, vertical = 10.dp),
-                    )
-                }
-            }
+            InfoTabRow(
+                tabs.map { t -> if (t == RoomTab.Photos && room.photos.isNotEmpty()) "${t.label} (${room.photos.size})" else t.label },
+                tabs.indexOf(tab),
+                tabModifier = { i -> Modifier.guide(GuideTarget.MeasuresTab.takeIf { tabs[i] == RoomTab.Measures }, done = tab == RoomTab.Measures) },
+            ) { lastRoomTab = tabs[it] }
         }
         // Contenuto della scheda: scorre nello spazio rimasto, con la barra di scorrimento a destra (ogni scheda riparte dall'alto).
         val scroll = key(tab) { rememberScrollState() }
