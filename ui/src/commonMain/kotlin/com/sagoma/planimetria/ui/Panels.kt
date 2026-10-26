@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.MergeRequest
@@ -944,11 +945,18 @@ internal fun Choice(label: String, options: List<String>, selected: Int, modifie
                     onClick = { onSelect(i) },
                     shape = SegmentedButtonDefaults.itemShape(i, options.size),
                     icon = {}, // niente spunta: lo spazio serve al testo
-                ) { Text(opt, style = MaterialTheme.typography.labelMedium, maxLines = 1) }
+                    contentPadding = ChoicePadding,
+                ) {
+                    // I nomi lunghi (es. "Tagliata a filo del pavimento") vanno a capo invece di essere tagliati.
+                    Text(opt, style = MaterialTheme.typography.labelMedium, maxLines = 2, textAlign = TextAlign.Center)
+                }
             }
         }
     }
 }
+
+/** Margini dei pulsanti di [Choice]: più stretti di quelli normali, così il testo ha più posto. */
+private val ChoicePadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
 
 /** Numero intero con i pulsanti − e + (null = pulsante disattivato). */
 @Composable
