@@ -278,7 +278,9 @@ internal suspend fun readPlan(platform: Platform, reader: PlanReader, file: Pick
             return false
         }
     }
-    val result = PlanReadingImport.toPlan(reading.scaledTo(img.width, img.height), name)
+    // Le coordinate sono nei pixel dell'immagine mandata: la sua misura la sappiamo noi, non si prende quella della risposta.
+    val sent = reading.copy(image = com.sagoma.planimetria.reading.PlanReading.ImageSize(small.width, small.height))
+    val result = PlanReadingImport.toPlan(sent.scaledTo(img.width, img.height), name)
     val units = if (reading.units.trim().lowercase() == "m") LengthUnit.Meters else LengthUnit.Centimeters
     if (!vm.applyPlanReading(result.plan, units)) {
         platform.toast(T.sfondo.letturaNonRiuscita)
