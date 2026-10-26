@@ -37,4 +37,14 @@ class SplitAtticWallTest {
         assertEquals(270.0, Ceilings.wallTopAt(split, 0, 150.0), 1e-6)
         assertEquals(270.0, Ceilings.wallTopAt(split, 1, 100.0), 1e-6)
     }
+
+    @Test
+    fun `aggiungere e togliere l'angolo riporta la parete com'era`() {
+        for (toward in listOf(true, false)) {
+            val before = attic(toward)
+            val back = before.splitWall(0).removeCorner(1)!!
+            assertEquals(before.wallCuts, back.wallCuts, "angolo basso alla fine: $toward")
+            for (t in listOf(0.0, 100.0, 200.0, 300.0, 400.0)) assertEquals(Ceilings.wallTopAt(before, 0, t), Ceilings.wallTopAt(back, 0, t), 1e-6)
+        }
+    }
 }

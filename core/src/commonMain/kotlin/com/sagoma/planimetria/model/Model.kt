@@ -449,7 +449,10 @@ data class Room(
         return copy(
             points = newPoints,
             wallHeights = remap(wallHeights),
-            wallCuts = remap(wallCuts),
+            // Taglio del sottotetto sul muro unito: quello dei due pezzi il cui angolo basso resta un angolo della stanza
+            // (il primo pezzo verso l'inizio, il secondo verso la fine); quello verso l'angolo tolto non ha più senso.
+            wallCuts = remap(wallCuts).filterKeys { it != map(c) } +
+                listOfNotNull(wallCuts[prev]?.takeIf { !it.towardEnd }, wallCuts[c]?.takeIf { it.towardEnd }).take(1).map { map(c) to it },
             wallPaints = remap(wallPaints),
             wallFinishes = remap(wallFinishes),
             wallThicknesses = remap(wallThicknesses),
