@@ -80,6 +80,14 @@ sealed interface TutorialEvent {
     /** «Ricalca una piantina». */
     data object TracingStarted : TutorialEvent
     data object StairAdded : TutorialEvent
+    /** «Muro singolo» nella finestra delle forme: il muro è nato. */
+    data object FreeWallAdded : TutorialEvent
+    /** Muro singolo trascinato tutto intero. */
+    data object FreeWallMoved : TutorialEvent
+    /** Estremità di un muro singolo trascinata. */
+    data object FreeWallEndDragged : TutorialEvent
+    /** Lunghezza, spessore o altro cambiati nella scheda del muro singolo. */
+    data object FreeWallChanged : TutorialEvent
 }
 
 /** Cosa mostra la scheda del tutorial. `detail`: avanzamento dentro il passo (es. lati cambiati). */

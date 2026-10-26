@@ -35,6 +35,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -430,9 +431,22 @@ private fun FinishesTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
     if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS)) {
         MaterialPicker(T.schedaStanza.pavimentoFotografico, room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
     }
-    // Colore qualsiasi e rivestimenti. La facciata è una sola per tutto il piano: si cambia da qualunque stanza.
+    // Colore qualsiasi e rivestimenti. La facciata è una sola per tutta la casa: si cambia da qualunque stanza
+    // e vale per tutti i piani; con più piani si può fare un'eccezione per il piano corrente.
     if (!room.outdoor) FinishPicker(T.schedaStanza.paretiInterne, room.roomFinish, { vm.setRoomFinish(room.id, it) })
-    FinishPicker(T.schedaStanza.paretiEsterneFacciataPiano, plan.facadeOrPaint, { vm.setFacadeFinish(it) })
+    val floors = vm.state.collectAsState().value.fullBuilding.floors
+    val differs = floors.any { it.plan.facadeOrPaint != plan.facadeOrPaint }
+    var onlyThisFloor by remember(floors.size > 1, differs) { mutableStateOf(differs) }
+    val label = if (onlyThisFloor) T.schedaStanza.paretiEsterneSoloPiano else T.schedaStanza.paretiEsterneTuttaCasa
+    FinishPicker(label, plan.facadeOrPaint, { vm.setFacadeFinish(it, onlyThisFloor) })
+    if (floors.size > 1) Row(verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.Checkbox(checked = onlyThisFloor, onCheckedChange = { on ->
+            onlyThisFloor = on
+            // Tornando a "tutta la casa", gli altri piani prendono la facciata di questo.
+            if (!on && differs) vm.setFacadeFinish(plan.facadeOrPaint)
+        })
+        Text(T.schedaStanza.soloQuestoPiano, style = MaterialTheme.typography.bodyMedium)
+    }
 }
 
 /** Una riga dell'elenco: un tocco seleziona l'oggetto e ne apre il riquadro caratteristiche. */
