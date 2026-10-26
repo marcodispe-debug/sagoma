@@ -121,6 +121,10 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     val plan = expanded.plan
     val rooms = plan.rooms.sortedBy { it.id == state.focusedRoomId }
     val paths = rooms.associate { it.id to roomPath(it, cam) }
+    // Ingombro sullo schermo di ogni stanza: i ritocchi ritagliati (varchi, sguinci) si fanno solo sulle stanze che toccano,
+    // invece che su tutte (ritagliare costa, soprattutto sul telefono). Il disegno resta identico.
+    val bounds = paths.mapValues { it.value.getBounds() }
+    fun touches(r: Room, area: Rect) = bounds.getValue(r.id).overlaps(area)
     val wallPx = (Room.WALL_THICKNESS * cam.scale).toFloat().coerceAtLeast(2f)
     // Riempimento tinto dal tipo, più intenso se la stanza è attiva (§3).
     fun fill(r: Room) = Color(r.type.argb).copy(alpha = if (r.id == state.focusedRoomId) 0.30f else 0.13f)
@@ -164,9 +168,14 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
 
     // Varchi: si "cancella" il muro e si ripristina il riempimento delle stanze su entrambi i lati.
     fun clearGap(a: Vec2, b: Vec2, px: Float) {
-        drawLine(background, cam.o(a), cam.o(b), strokeWidth = px + 2f, cap = StrokeCap.Butt)
-        for (r in rooms) clipPath(paths.getValue(r.id)) {
-            drawLine(fill(r), cam.o(a), cam.o(b), strokeWidth = px + 2f, cap = StrokeCap.Butt)
+        val oa = cam.o(a)
+        val ob = cam.o(b)
+        drawLine(background, oa, ob, strokeWidth = px + 2f, cap = StrokeCap.Butt)
+        // La linea, con il suo spessore (e un pixel di sfumatura), sta in questo rettangolo.
+        val pad = px / 2f + 2f
+        val area = Rect(minOf(oa.x, ob.x) - pad, minOf(oa.y, ob.y) - pad, maxOf(oa.x, ob.x) + pad, maxOf(oa.y, ob.y) + pad)
+        for (r in rooms) if (touches(r, area)) clipPath(paths.getValue(r.id)) {
+            drawLine(fill(r), oa, ob, strokeWidth = px + 2f, cap = StrokeCap.Butt)
         }
     }
     // Muri eliminati: tutto il muro diventa un varco, tranne dove la stanza accanto ha ancora il suo muro.
@@ -174,16 +183,21 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
     for (g in removed) clearGap(g.a, g.b, (plan.room(g.roomId)!!.thicknessOf(g.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f))
     // Dove il varco passa sopra l'angolo del muro di un'altra stanza (per esempio il muro di testa che arriva
     // al lato tolto), quel muro torna intero: il muro eliminato non ci lascia una tacca.
+    val rings = HashMap<Long, Path>()
     for (g in removed) {
         val band = wallBand(g.a, g.b, plan.room(g.roomId)!!.thicknessOf(g.wallIndex) / 2 + 1 / cam.scale, cam)
+        val bandArea = band.getBounds()
         for (r in rooms) {
             if (r.outdoor || r.id == g.roomId) continue
+            // I muri di una stanza lontana dal varco non finiscono nel ritaglio: si saltano.
+            val ring = rings.getOrPut(r.id) { wallRing(r, cam) }
+            if (!bandArea.overlaps(ring.getBounds())) continue
             val own = r.removedWalls.filter { it < r.wallCount }
             val clip = if (own.isEmpty()) band else Path().apply {
                 val holes = Path().apply { for (i in own) addPath(wallBand(r.wallStart(i), r.wallEnd(i), r.thicknessOf(i) / 2 + 1 / cam.scale, cam)) }
                 op(band, holes, PathOperation.Difference)
             }
-            clipPath(clip) { drawPath(wallRing(r, cam), if (r.id == state.focusedRoomId) WallFocusedColor else WallColor) }
+            clipPath(clip) { drawPath(ring, if (r.id == state.focusedRoomId) WallFocusedColor else WallColor) }
         }
     }
     val gaps = rooms.flatMap { r -> r.openings.filter { it.wallIndex < r.wallCount }.map { Openings.span(r, it) to (r.thicknessOf(it.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f) } } +
@@ -205,7 +219,8 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
             close()
         }
         drawPath(trapezoid, background)
-        for (other in rooms) clipPath(paths.getValue(other.id)) { drawPath(trapezoid, fill(other)) }
+        val area = trapezoid.getBounds().inflate(2f)
+        for (other in rooms) if (touches(other, area)) clipPath(paths.getValue(other.id)) { drawPath(trapezoid, fill(other)) }
     }
 
     // Dove c'era il muro resta una linea tratteggiata sottile: il confine della stanza (si tocca per rimetterlo).

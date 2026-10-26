@@ -66,7 +66,8 @@ internal val PlanBackgroundColor = Color(0xFFF8F9FA)
 @Composable
 fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = Modifier, onPointerDown: () -> Unit = {}) {
     val pointerDown by rememberUpdatedState(onPointerDown)
-    val measurer = rememberTextMeasurer()
+    // Ogni fotogramma riscrive decine di misure e nomi: con la cache di serie (8 testi) li reimpaginava quasi tutti ogni volta.
+    val measurer = rememberTextMeasurer(cacheSize = 256)
     val density = LocalDensity.current
     val touchSlop = LocalViewConfiguration.current.touchSlop
     // Zone di presa più larghe dell'elemento visibile (§13).
