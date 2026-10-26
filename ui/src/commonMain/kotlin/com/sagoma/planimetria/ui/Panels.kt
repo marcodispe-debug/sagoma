@@ -947,7 +947,7 @@ internal fun Choice(label: String, options: List<String>, selected: Int, modifie
                     icon = {}, // niente spunta: lo spazio serve al testo
                     contentPadding = ChoicePadding,
                 ) {
-                    // I nomi lunghi (es. "Tagliata a filo del pavimento") vanno a capo invece di essere tagliati; se una parola da sola
+                    // I nomi lunghi (es. "Tagliata a filo del solaio") vanno a capo invece di essere tagliati; se una parola da sola
                     // non ci sta («Verso l'estern-o» con tre pulsanti) il carattere si rimpicciolisce un po'.
                     val style = MaterialTheme.typography.labelMedium
                     var scale by remember(opt) { mutableStateOf(1f) }
