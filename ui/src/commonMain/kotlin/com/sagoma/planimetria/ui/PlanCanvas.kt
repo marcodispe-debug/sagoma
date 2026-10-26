@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
@@ -339,6 +340,22 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                     val down = awaitFirstDown(requireUnconsumed = true)
                     // Un clic sulla pianta le ridà la tastiera (scorciatoie come Ctrl+C / Ctrl+V).
                     pointerDown()
+                    // Tasto destro del mouse: un clic deseleziona tutto, trascinando sposta la vista (non gli oggetti).
+                    if (currentEvent.buttons.isSecondaryPressed) {
+                        var moved = Offset.Zero
+                        var panning = false
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val ch = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!ch.pressed) break
+                            val delta = ch.position - ch.previousPosition
+                            moved += delta
+                            if (!panning && moved.getDistance() > touchSlop) panning = true
+                            if (panning) { vm.pan(delta.x, delta.y); ch.consume() }
+                        }
+                        if (!panning) vm.deselectAll()
+                        return@awaitEachGesture
+                    }
                     // Strumenti della pianta di sfondo: il disegno non si tocca.
                     val tool = currentState.underlayTool
                     val moveUnderlay = tool == UnderlayTool.Move && currentState.plan.underlay != null

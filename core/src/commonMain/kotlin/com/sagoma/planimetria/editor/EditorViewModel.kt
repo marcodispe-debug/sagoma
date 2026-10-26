@@ -1642,6 +1642,14 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     fun closeSelection() = _state.update { it.copy(selection = null) }
 
+    /**
+     * Deseleziona tutto (tasto destro del mouse sul computer): oggetto, stanza attiva, gruppo selezionato, e la porta, l'impianto
+     * o la copia che si stava per mettere. Il disegno dei muri, le quote e i testi in corso restano.
+     */
+    fun deselectAll() = _state.update {
+        it.copy(focusedRoomId = null, selection = null, multi = emptySet(), selectRect = null, pendingOpening = null, pendingFixture = null, pasting = false, pasteCursor = null)
+    }
+
     /** Punto da tenere visibile: l'oggetto selezionato o, senza selezione, l'etichetta della stanza a fuoco. */
     private fun focusAnchor(s: EditorUiState): Vec2? = when (val sel = s.selection) {
         is Selection.Wall -> s.plan.room(sel.roomId)?.takeIf { sel.index < it.wallCount }

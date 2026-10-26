@@ -172,25 +172,28 @@ object LitShaders {
     /**
      * Prato: un grande quadrato poco sotto il pavimento più basso della scena (se si guarda un piano di sopra,
      * sotto quelli di sotto: altrimenti il prato li taglierebbe e li coprirebbe), nel formato dei vertici della scena.
+     * Attorno a uno scavo sono quattro rettangoli che lasciano il buco.
      */
     fun ground(scene: Scene3D): FloatArray {
-        val b = scene.bounds ?: return FloatArray(0)
-        val m = 4000.0
-        val x0 = (b.minX - m).toFloat(); val x1 = (b.maxX + m).toFloat()
-        val z0 = (b.minY - m).toFloat(); val z1 = (b.maxY + m).toFloat()
         var lowest = 0f
         var k = 1
         while (k < scene.opaque.size) { lowest = minOf(lowest, scene.opaque[k]); k += Scene3D.FLOATS_PER_VERTEX }
-        // Con degli interrati sotto il piano terra il prato sta alla sua quota e li copre (sono sotto terra).
+        // Con degli interrati sotto il piano terra il prato sta alla sua quota e li copre (sono sotto terra); guardando un
+        // interrato resta lassù, attorno allo scavo ([Scene3D.excavation]).
         val y = (scene.groundLevel?.toFloat() ?: lowest) - 0.5f
         val g = grass
-        val corners = listOf(x0 to z0, x0 to z1, x1 to z1, x0 to z0, x1 to z1, x1 to z0)
-        val out = FloatArray(corners.size * Scene3D.FLOATS_PER_VERTEX)
-        corners.forEachIndexed { i, (x, z) ->
-            val o = i * Scene3D.FLOATS_PER_VERTEX
-            out[o] = x; out[o + 1] = y; out[o + 2] = z
-            out[o + 3] = 0f; out[o + 4] = 1f; out[o + 5] = 0f
-            out[o + 6] = g[0]; out[o + 7] = g[1]; out[o + 8] = g[2]; out[o + 9] = 1f
+        val rects = scene.lawn(4000.0)
+        val out = FloatArray(rects.size * 6 * Scene3D.FLOATS_PER_VERTEX)
+        var o = 0
+        for (r in rects) {
+            val x0 = r.minX.toFloat(); val x1 = r.maxX.toFloat()
+            val z0 = r.minY.toFloat(); val z1 = r.maxY.toFloat()
+            for ((x, z) in listOf(x0 to z0, x0 to z1, x1 to z1, x0 to z0, x1 to z1, x1 to z0)) {
+                out[o] = x; out[o + 1] = y; out[o + 2] = z
+                out[o + 3] = 0f; out[o + 4] = 1f; out[o + 5] = 0f
+                out[o + 6] = g[0]; out[o + 7] = g[1]; out[o + 8] = g[2]; out[o + 9] = 1f
+                o += Scene3D.FLOATS_PER_VERTEX
+            }
         }
         return out
     }

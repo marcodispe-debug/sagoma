@@ -246,6 +246,20 @@ class View3DState {
     /** Tasti premuti in questo momento (frecce, WASD, PagSu/PagGiù, + e −, Maiusc). */
     val keys = mutableStateSetOf<Key>()
 
+    /**
+     * Tasto premuto o lasciato: se muove la telecamera (o è Maiusc) lo segna e dice true. Lo usano la vista 3D e, quando la
+     * tastiera è rimasta altrove (es. sul pulsante appena premuto), la schermata dell'editor: così WASD e frecce vanno subito.
+     */
+    fun onKey(e: androidx.compose.ui.input.key.KeyEvent): Boolean {
+        val k = e.key
+        if (k !in MOVE_KEYS && k != Key.ShiftLeft && k != Key.ShiftRight) return false
+        when (e.type) {
+            KeyEventType.KeyDown -> keys += k
+            KeyEventType.KeyUp -> keys -= k
+        }
+        return true
+    }
+
     /** C'è qualcosa che muove la telecamera a ogni fotogramma (tasti tenuti o joystick). */
     val moving: Boolean get() = keys.any { it in MOVE_KEYS } || joystick != Offset.Zero
 
@@ -398,9 +412,10 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     // Mentre si orienta un faretto la scena resta quella di prima (niente ricostruzione della geometria a ogni movimento del dito):
     // cambiano solo le luci (vedi sotto). Alla fine del trascinamento la scena si ricostruisce con il nuovo orientamento.
     val scenePlan = state.aimDrag?.basePlan ?: state.plan
-    // Interrati sotto il piano terra: guardando dal piano terra in su il prato sta alla quota del piano terra e li copre.
+    // Interrati sotto il piano terra: guardando dal piano terra in su il prato sta alla quota del piano terra e li copre;
+    // guardando un interrato il prato resta lassù e la casa si vede in fondo allo scavo.
     val building = state.building
-    val groundLevel = if (building.groundIndex in 1..building.current) building.elevation(building.groundIndex) - building.elevation(building.current) else null
+    val groundLevel = if (building.groundIndex > 0) building.elevation(building.groundIndex) - building.elevation(building.current) else null
     val scene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, view.walking, noFurniture, phase, groundLevel) {
         fun shown(p: com.sagoma.planimetria.model.FloorPlan) = com.sagoma.planimetria.geometry.Phases.view(p, phase)
         val plan = shown(if (noFurniture) scenePlan.copy(furniture = emptyList()) else scenePlan)
@@ -456,7 +471,13 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
         }
     }
     val keyFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { keyFocus.requestFocusSafely() }
+    // La tastiera alla vista 3D all'apertura e passando da orbita a camminata, dopo un fotogramma: il clic sul pulsante che
+    // l'ha aperta non deve riprenderla.
+    LaunchedEffect(view.walking) {
+        keyFocus.requestFocusSafely()
+        withFrameNanos { }
+        keyFocus.requestFocusSafely()
+    }
 
     Box(
         modifier.onSizeChanged {
@@ -488,15 +509,7 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
                 // Tastiera (computer): frecce, WASD, PagSu/PagGiù, + e −, Maiusc per correre o spostare.
                 .focusRequester(keyFocus)
                 .focusable()
-                .onKeyEvent { e ->
-                    val k = e.key
-                    val handled = k in MOVE_KEYS || k == Key.ShiftLeft || k == Key.ShiftRight
-                    when (e.type) {
-                        KeyEventType.KeyDown -> if (handled) view.keys += k
-                        KeyEventType.KeyUp -> view.keys -= k
-                    }
-                    handled
-                }
+                .onKeyEvent { e -> view.onKey(e) }
                 .onFocusChanged { if (!it.isFocused) view.keys.clear() }
                 // Rotellina del mouse: zoom (camminando, passi avanti e indietro).
                 .pointerInput(Unit) {
@@ -517,16 +530,20 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
                     val w = size.width.toFloat()
                     val h = size.height.toFloat()
                     val cam = view.camera
-                    // Mouse: tasto destro o rotellina premuta spostano la vista invece di ruotarla.
+                    // Mouse: tasto destro o rotellina premuta spostano la vista invece di ruotarla; un clic col destro deseleziona tutto.
                     val buttons = currentEvent.buttons
                     if (buttons.isSecondaryPressed || buttons.isTertiaryPressed) {
+                        var moved = 0f
                         while (true) {
                             val event = awaitPointerEvent()
                             val ch = event.changes.firstOrNull { it.id == down.id } ?: break
                             if (!ch.pressed) break
-                            view.panBy(ch.position - ch.previousPosition, h)
+                            val delta = ch.position - ch.previousPosition
+                            moved += delta.getDistance()
+                            view.panBy(delta, h)
                             ch.consume()
                         }
+                        if (buttons.isSecondaryPressed && moved <= viewConfiguration.touchSlop) vm.deselectAll()
                         return@awaitEachGesture
                     }
                     // Maniglia del fascio di un faretto a parete selezionato: si controlla prima di qualunque oggetto della scena,

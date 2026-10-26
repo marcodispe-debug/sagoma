@@ -479,16 +479,19 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         var minY = 0f
         var k = 1
         while (k < s.opaque.size) { minY = minOf(minY, s.opaque[k]); k += Scene3D.FLOATS_PER_VERTEX }
-        val b = s.bounds ?: return FloatArray(0)
-        val m = 4000.0
-        val x0 = (b.minX - m).toFloat(); val x1 = (b.maxX + m).toFloat()
-        val z0 = (b.minY - m).toFloat(); val z1 = (b.maxY + m).toFloat()
-        // Con degli interrati sotto il piano terra il prato sta alla sua quota e li copre.
+        // Con degli interrati sotto il piano terra il prato sta alla sua quota e li copre; guardando un interrato resta lassù,
+        // attorno allo scavo.
         val y = (s.groundLevel?.toFloat() ?: minY) - 0.3f
         val size = 200f
         fun v(x: Float, z: Float) = floatArrayOf(x, y, z, 0f, 1f, 0f, x / size, z / size)
-        // Due triangoli rivolti verso l'alto.
-        return v(x0, z0) + v(x0, z1) + v(x1, z1) + v(x0, z0) + v(x1, z1) + v(x1, z0)
+        // Per ogni rettangolo di prato due triangoli rivolti verso l'alto.
+        var out = FloatArray(0)
+        for (r in s.lawn(4000.0)) {
+            val x0 = r.minX.toFloat(); val x1 = r.maxX.toFloat()
+            val z0 = r.minY.toFloat(); val z1 = r.maxY.toFloat()
+            out += v(x0, z0) + v(x0, z1) + v(x1, z1) + v(x0, z0) + v(x1, z1) + v(x1, z0)
+        }
+        return out
     }
 
     private fun modelFile(name: String): ByteBuffer? = modelFiles.getOrPut(name) {

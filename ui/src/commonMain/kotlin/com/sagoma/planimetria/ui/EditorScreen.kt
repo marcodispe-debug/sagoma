@@ -172,6 +172,11 @@ fun EditorScreen(
     if (showLanguage) LanguageDialog(onDismiss = { showLanguage = false })
     state.textDialogAt?.let { at -> NewTextDialog(at, vm) }
 
+    // Vista 3D: telecamera e superficie OpenGL restano le stesse passando da 2D a 3D e ritorno.
+    val view3dState = remember { View3DState() }
+    // Nord e città della casa: decidono il giro del sole nel 3D.
+    LaunchedEffect(state.building.site) { view3dState.site = state.building.site; view3dState.refresh() }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -180,6 +185,8 @@ fun EditorScreen(
             // Scorciatoie da tastiera (§8). Dopo i campi di testo (onKeyEvent, non "preview"): dentro un campo
             // Ctrl+C, Ctrl+V, Ctrl+Z e Canc lavorano sul testo, non sugli oggetti della pianta.
             .onKeyEvent { e ->
+                // Nel 3D WASD e frecce muovono la vista anche se la tastiera è rimasta su un pulsante.
+                if (state.view3d && !e.isCtrlPressed && view3dState.onKey(e)) return@onKeyEvent true
                 if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 // Selezione multipla: Canc elimina gli oggetti selezionati, Esc svuota la selezione (poi esce).
                 if (!e.isCtrlPressed) return@onKeyEvent when {
@@ -221,10 +228,6 @@ fun EditorScreen(
         val wideWindow = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() } >= 900.dp
         // E la barra di stato si nasconde (riappare temporaneamente scorrendo dal bordo superiore).
         LaunchedEffect(compactHeight) { platform.setStatusBarHidden(compactHeight) }
-        // Vista 3D: telecamera e superficie OpenGL restano le stesse passando da 2D a 3D e ritorno.
-        val view3dState = remember { View3DState() }
-        // Nord e città della casa: decidono il giro del sole nel 3D.
-        LaunchedEffect(state.building.site) { view3dState.site = state.building.site; view3dState.refresh() }
         var openGuide by remember { mutableStateOf<Guide?>(null) }
         openGuide?.let { GuideDialog(it, onDismiss = { openGuide = null }, onOpen3d = { vm.setView3d(true) }) }
         // Guide passo passo che si fanno sulla pianta: avanzano da sole a ogni azione.
