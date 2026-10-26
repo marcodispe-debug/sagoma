@@ -429,6 +429,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     /**
+     * Ritorno dal professionista ([com.sagoma.planimetria.ifc.IfcRoundTrip]): la casa con la planimetria del file IFC e gli arredi
+     * del progetto. Si annulla con Annulla, come ogni modifica.
+     */
+    fun applyIfcReturn(merged: Building) = commitBuilding { merged }
+
+    /**
      * Nomi automatici di stanze e piani nella lingua dell'app (dopo un cambio di lingua): anche negli stati di
      * Annulla, così annullare non riporta i nomi nella lingua di prima. Non è una modifica da annullare.
      */

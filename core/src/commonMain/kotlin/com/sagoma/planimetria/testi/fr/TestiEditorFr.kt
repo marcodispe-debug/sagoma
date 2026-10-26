@@ -103,4 +103,10 @@ object TestiEditorFr : TestiEditor() {
     override val guidaRicalco: String get() = "Guide du décalque"
     override val tutorial: String get() = "Tutoriel"
     override val linguaMenu: String get() = "🌐 Langue · Language…"
+    override val esportaIfc: String get() = "🏗 Exporter en IFC pour le professionnel"
+    override val rileggiIfc: String get() = "🏗 Relire l'IFC du professionnel"
+    override val ifcEsportato: String get() = "Plan exporté en IFC (sans mobilier)"
+    override val ifcNonLetto: String get() = "Impossible de lire ce fichier IFC : aucune pièce ni aucun mur"
+    override fun ifcRiletto(uguali: Any?, cambiate: Any?, nuove: Any?, tolte: Any?, controllare: Any?): String =
+        "Plan mis à jour : $uguali pièces inchangées, $cambiate modifiées, $nuove nouvelles, $tolte supprimées. Meubles à vérifier : $controllare (Annuler revient en arrière)"
 }

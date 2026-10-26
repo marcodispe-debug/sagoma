@@ -103,4 +103,10 @@ object TestiEditorEs : TestiEditor() {
     override val guidaRicalco: String get() = "Guía de calcado"
     override val tutorial: String get() = "Tutorial"
     override val linguaMenu: String get() = "🌐 Idioma · Language…"
+    override val esportaIfc: String get() = "🏗 Exportar IFC para el profesional"
+    override val rileggiIfc: String get() = "🏗 Volver a leer el IFC del profesional"
+    override val ifcEsportato: String get() = "Plano exportado en IFC (sin muebles)"
+    override val ifcNonLetto: String get() = "No se puede leer este archivo IFC: no hay habitaciones ni muros"
+    override fun ifcRiletto(uguali: Any?, cambiate: Any?, nuove: Any?, tolte: Any?, controllare: Any?): String =
+        "Plano actualizado: $uguali habitaciones iguales, $cambiate cambiadas, $nuove nuevas, $tolte quitadas. Muebles por revisar: $controllare (Deshacer vuelve atrás)"
 }
