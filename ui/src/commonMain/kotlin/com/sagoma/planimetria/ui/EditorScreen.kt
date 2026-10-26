@@ -520,8 +520,8 @@ fun EditorScreen(
                 )
                 else TimeOfDayPanel(view3dState, Modifier.align(Alignment.TopCenter).padding(12.dp).fillMaxWidth())
             }
-            // Joystick per spostarsi: camminando e anche nella vista dall'alto (stessi comandi).
-            if (state.view3d) {
+            // Joystick per spostarsi: camminando e anche nella vista dall'alto (stessi comandi). Sul computer no: ci sono WASD e mouse.
+            if (state.view3d && platform.walkJoystick) {
                 WalkJoystick(
                     view3dState,
                     Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = with(density) { coveredBottomPx.toDp() } + 16.dp),

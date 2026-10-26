@@ -68,6 +68,9 @@ class DesktopPlatform(
     // Mouse e schermo largo: qui la guida interattiva ha senso (e parte al primo avvio).
     override val interactiveGuide: Boolean get() = true
 
+    // Nel 3D ci si muove con WASD, frecce e mouse: il joystick sullo schermo non serve.
+    override val walkJoystick: Boolean get() = false
+
     // Schermo grande e scheda grafica del computer: materiali 2K (scaricati dal server; finché mancano, quelli 1K).
     override val materialResolution: MaterialResolution get() = MaterialResolution.K2
 
