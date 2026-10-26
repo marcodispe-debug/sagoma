@@ -11,7 +11,6 @@ import java.nio.file.Files
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.test.AfterTest
-import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -196,7 +195,6 @@ class FileProjectRepositoryTest {
         assertEquals(2, repo.list().size, "l'elenco dei progetti non è stato sovrascritto")
     }
 
-    @Ignore // DIFETTO: con index.json illeggibile l'elenco risulta vuoto e il primo progetto nuovo lo sovrascrive.
     @Test
     fun `un elenco dei progetti rovinato non fa sparire i progetti`() {
         val repo = FileProjectRepository(root)
@@ -207,8 +205,10 @@ class FileProjectRepositoryTest {
         val reopened = FileProjectRepository(root)
         assertEquals(listOf(1L, 2L), reopened.list().map { it.id }.sorted())
         assertEquals(house("Camera"), reopened.planStore(2).load())
-        // Un progetto nuovo non prende il posto di quelli che c'erano.
+        // Un progetto nuovo non prende il posto di quelli che c'erano; l'elenco rovinato resta da parte.
         assertEquals(3L, reopened.create("Nuovo").id)
+        assertEquals(3, FileProjectRepository(root).list().size)
+        assertTrue(File(root, "projects").list()!!.any { it.startsWith("index.corrupt-") })
     }
 
     private fun zip(vararg entries: Pair<String, ByteArray>): ByteArray {
