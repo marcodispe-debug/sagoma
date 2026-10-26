@@ -13,16 +13,27 @@ MODELLO_GEMINI = "gemini-3.8-flash"
 MODELLO_CLOUDFLARE = "@cf/qwen/qwen3.8-27b"
 # Il modello di Claude, con LETTORE = «claude». «claude-sonnet-5-5» costa circa la metà.
 MODELLO = "claude-opus-5-5"
-# Letture al giorno per dispositivo e in tutto (con il contatore LIMITI qui sotto).
+# Letture al giorno per dispositivo, per indirizzo di rete e in tutto (con il contatore CONTATORE qui sotto).
+# Con un'AI a pagamento LIMITE_GIORNO è anche il tetto della spesa del giorno: vedi «Quanto costa» in LEGGIMI.md.
 LIMITE_DISPOSITIVO = "10"
+LIMITE_IP = "30"
 LIMITE_GIORNO = "300"
 
 # L'AI di Cloudflare (Workers AI).
 [ai]
 binding = "AI"
 
-# Contatore delle letture del giorno. L'id si ottiene con:  npx wrangler kv namespace create LIMITI
-# Finché le righe qui sotto restano commentate, i limiti non si applicano.
+# Contatore delle letture del giorno: un Durable Object, compreso nel piano gratuito. Non serve nessun id da copiare,
+# quindi vale anche dopo un deploy da una cartella nuova. Senza contatore il server non legge.
+[[durable_objects.bindings]]
+name = "CONTATORE"
+class_name = "Contatore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Contatore"]
+
+# Il vecchio contatore KV (prima del CONTATORE): non serve più e si può togliere da Cloudflare quando il nuovo funziona.
 # [[kv_namespaces]]
 # binding = "LIMITI"
 # id = "<id del contatore>"
