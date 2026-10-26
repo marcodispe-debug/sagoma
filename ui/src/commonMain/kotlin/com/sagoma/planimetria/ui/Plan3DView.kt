@@ -79,6 +79,7 @@ import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.SpotAim
 import com.sagoma.planimetria.geometry.Vec3
 import com.sagoma.planimetria.geometry.at
+import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Mount
@@ -116,7 +117,7 @@ class View3DState {
     /** Ora del giorno (6:30 = 6.5) e luci della casa ("auto", "on", "off"). */
     var hour by mutableStateOf(11f)
     var lamps by mutableStateOf("auto")
-    /** Luminosità delle lampade della casa (cursore «Luminosità luci»): 1 = normale. */
+    /** Luminosità delle lampade della casa (cursore «Luminosità luci»): 1 = normale. Viene dal progetto ([Building.lampBrightness]). */
     var lampBrightness by mutableStateOf(1f)
     /** Cursore dell'ora aperto. */
     var timePanel by mutableStateOf(false)
@@ -693,7 +694,14 @@ fun View3DControls(state: EditorUiState, view: View3DState, modifier: Modifier =
  * larghi (computer, telefono girato) sta a sinistra, stretto e verticale (lungo `length`), per non coprire la vista.
  */
 @Composable
-fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: Boolean = false, length: androidx.compose.ui.unit.Dp = 240.dp) {
+fun TimeOfDayPanel(
+    view: View3DState,
+    modifier: Modifier = Modifier,
+    vertical: Boolean = false,
+    length: androidx.compose.ui.unit.Dp = 240.dp,
+    /** La luminosità delle lampade è cambiata: si salva nel progetto. */
+    onLampBrightness: (Float) -> Unit = {},
+) {
     if (!view.timePanel) return
     if (vertical) {
         Surface(modifier, shape = RoundedCornerShape(16.dp), tonalElevation = 3.dp, shadowElevation = 4.dp) {
@@ -722,7 +730,7 @@ fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: B
                 )
                 Text("0", style = MaterialTheme.typography.labelSmall)
                 SunDayButton(view, compact = true)
-                LampBrightness(view, compact = true)
+                LampBrightness(view, onLampBrightness, compact = true)
                 TextButton(onClick = { view.timePanel = false }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(32.dp)) { Text("✕") }
             }
         }
@@ -745,19 +753,24 @@ fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: B
                 T.vista3D.soleSegueBussola,
                 style = MaterialTheme.typography.bodySmall,
             )
-            LampBrightness(view)
+            LampBrightness(view, onLampBrightness)
         }
     }
 }
 
 /**
  * Luminosità delle lampade della casa, dal 25% al 200%: cursore nel pannello largo; in quello stretto e verticale il valore
- * con − e + (un cursore lo allargherebbe).
+ * con − e + (un cursore lo allargherebbe). Il valore si salva nel progetto (`onChange`).
  */
 @Composable
-private fun LampBrightness(view: View3DState, compact: Boolean = false) {
+private fun LampBrightness(view: View3DState, onChange: (Float) -> Unit, compact: Boolean = false) {
     if (view.lamps == "off") return
-    fun set(v: Float) { view.lampBrightness = ((v * 20).roundToInt() / 20f).coerceIn(0.25f, 2f); view.refresh() }
+    fun set(v: Float) {
+        val k = ((v * 20).roundToInt() / 20f).coerceIn(Building.MIN_LAMP_BRIGHTNESS.toFloat(), Building.MAX_LAMP_BRIGHTNESS.toFloat())
+        view.lampBrightness = k
+        view.refresh()
+        onChange(k)
+    }
     val pct = (view.lampBrightness * 100).roundToInt()
     if (compact) {
         Text("💡 $pct%", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
@@ -768,7 +781,11 @@ private fun LampBrightness(view: View3DState, compact: Boolean = false) {
         return
     }
     Text(T.vista3D.luminositaLuci(pct), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 6.dp))
-    androidx.compose.material3.Slider(value = view.lampBrightness, onValueChange = { set(it) }, valueRange = 0.25f..2f)
+    androidx.compose.material3.Slider(
+        value = view.lampBrightness,
+        onValueChange = { set(it) },
+        valueRange = Building.MIN_LAMP_BRIGHTNESS.toFloat()..Building.MAX_LAMP_BRIGHTNESS.toFloat(),
+    )
 }
 
 /** Joystick per camminare: si trascina il pomello, la spinta è proporzionale allo spostamento. */

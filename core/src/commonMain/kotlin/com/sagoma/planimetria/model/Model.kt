@@ -959,6 +959,11 @@ data class Building(
      * Nel 3D il prato sta alla sua quota e copre gli interrati.
      */
     val ground: Int = 0,
+    /**
+     * Luminosità delle lampade della casa nel 3D e nei render, scelta da chi usa l'app: 1 = come le fa sagoma, da
+     * [MIN_LAMP_BRIGHTNESS] a [MAX_LAMP_BRIGHTNESS].
+     */
+    val lampBrightness: Double = 1.0,
 ) {
     init {
         require(floors.isNotEmpty()) { "Serve almeno un piano" }
@@ -986,6 +991,9 @@ data class Building(
     val nextFloorId: Long get() = (floors.maxOfOrNull { it.id } ?: 0L) + 1
 
     companion object {
+        const val MIN_LAMP_BRIGHTNESS = 0.25
+        const val MAX_LAMP_BRIGHTNESS = 2.0
+
         /** Casa a un piano. `autoLevel`: l'interpiano segue le stanze (i progetti nuovi); i file vecchi sono manuali. */
         fun single(plan: FloorPlan, autoLevel: Boolean = false) =
             Building(listOf(Floor(1, floorName(0), plan, autoLevel = autoLevel).synced()))

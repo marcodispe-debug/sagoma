@@ -504,6 +504,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         s.copy(building = s.building.copy(site = s.building.site.copy(northDeg = d)))
     }
 
+    /**
+     * Luminosità delle lampade della casa (1 = normale): si salva nel progetto, così il 3D la ritrova e i render la usano.
+     * Come il nord, non si annulla.
+     */
+    fun setLampBrightness(k: Double) = _state.update { s ->
+        val v = k.coerceIn(Building.MIN_LAMP_BRIGHTNESS, Building.MAX_LAMP_BRIGHTNESS)
+        if (v == s.building.lampBrightness) s else s.copy(building = s.building.copy(lampBrightness = v))
+    }
+
     /** Città della casa per il giro del sole (null = nessuna, vale Roma). Non si annulla. */
     fun setPlace(place: com.sagoma.planimetria.model.Place?) = _state.update { s ->
         s.copy(building = s.building.copy(site = s.building.site.copy(place = place)))

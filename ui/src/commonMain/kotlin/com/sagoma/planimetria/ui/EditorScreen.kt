@@ -176,6 +176,8 @@ fun EditorScreen(
     val view3dState = remember { View3DState() }
     // Nord e città della casa: decidono il giro del sole nel 3D.
     LaunchedEffect(state.building.site) { view3dState.site = state.building.site; view3dState.refresh() }
+    // Luminosità delle lampade scelta nel progetto: la vista 3D la ritrova a ogni apertura.
+    LaunchedEffect(state.building.lampBrightness) { view3dState.lampBrightness = state.building.lampBrightness.toFloat(); view3dState.refresh() }
 
     Column(
         Modifier
@@ -517,8 +519,12 @@ fun EditorScreen(
                 if (wide || compactHeight) TimeOfDayPanel(
                     view3dState, Modifier.align(Alignment.TopStart).padding(12.dp), vertical = true,
                     length = (maxHeight - 120.dp - 16.dp - 24.dp - 110.dp).coerceIn(90.dp, 260.dp),
+                    onLampBrightness = { vm.setLampBrightness(it.toDouble()) },
                 )
-                else TimeOfDayPanel(view3dState, Modifier.align(Alignment.TopCenter).padding(12.dp).fillMaxWidth())
+                else TimeOfDayPanel(
+                    view3dState, Modifier.align(Alignment.TopCenter).padding(12.dp).fillMaxWidth(),
+                    onLampBrightness = { vm.setLampBrightness(it.toDouble()) },
+                )
             }
             // Joystick per spostarsi: camminando e anche nella vista dall'alto (stessi comandi). Sul computer no: ci sono WASD e mouse.
             if (state.view3d && platform.walkJoystick) {
