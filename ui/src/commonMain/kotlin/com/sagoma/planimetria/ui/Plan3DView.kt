@@ -398,12 +398,16 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     // Mentre si orienta un faretto la scena resta quella di prima (niente ricostruzione della geometria a ogni movimento del dito):
     // cambiano solo le luci (vedi sotto). Alla fine del trascinamento la scena si ricostruisce con il nuovo orientamento.
     val scenePlan = state.aimDrag?.basePlan ?: state.plan
-    val scene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, view.walking, noFurniture, phase) {
+    // Interrati sotto il piano terra: guardando dal piano terra in su il prato sta alla quota del piano terra e li copre.
+    val building = state.building
+    val groundLevel = if (building.groundIndex in 1..building.current) building.elevation(building.groundIndex) - building.elevation(building.current) else null
+    val scene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, view.walking, noFurniture, phase, groundLevel) {
         fun shown(p: com.sagoma.planimetria.model.FloorPlan) = com.sagoma.planimetria.geometry.Phases.view(p, phase)
         val plan = shown(if (noFurniture) scenePlan.copy(furniture = emptyList()) else scenePlan)
         Scene3D.build(
             plan, state.focusedRoomId, selectedPick, ceilings = view.walking, levelHeight = state.levelHeight,
             below = below.map { it.copy(plan = shown(it.plan)) }, above = above?.let { it.copy(plan = shown(it.plan)) },
+            groundLevel = groundLevel,
         )
     }
     LaunchedEffect(scene) { view.setScene(scene) }

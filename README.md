@@ -82,7 +82,8 @@ C'è una sola app (`com.sagoma.planimetria`, "Sagoma") per privati e professioni
   LED e le lampade del catalogo sono luci vere (`Scene3D.lights`), accese quando fa buio, sempre o mai. Ogni tipo ha la
   sua forma di luce come nei profili IES (`LightProfile`: fascio stretto del faretto, plafoniera solo verso il basso,
   paralume che illumina sopra e sotto, applique verso la stanza…): sul computer nello shader, su Android con i coni di
-  Filament.
+  Filament. Sul computer la luce di una lampada resta nella sua stanza, ma da porte, passaggi e muri tolti ne passa una parte
+  nella stanza vicina (`LightSpill`: una luce morbida sulla soglia con il flusso che attraversa il varco).
 - Cielo e riflessi: foto a 360° di Poly Haven
   (CC0: *kloofendal_48d_partly_cloudy_puresky*, *lilienstein*, *lebombo*) in `catalogo/src/main/assets/env/*.ibl`, preparate
   con `tools/furniture/PackEnv.java` (armoniche sferiche per la luce diffusa + cubo per riflessi e cielo; i livelli
@@ -146,9 +147,11 @@ Pareti sotto il tetto (sottotetti): nel riquadro di un muro c'è "Taglio diagona
 
 Guida mansarda: il pulsante "⌂ Mansarda" in fondo alla barra in basso (e nella colonna a sinistra in orizzontale) apre una guida di 8 passi con un disegno per ognuno. I passi sono: com'è fatta una mansarda, disegnare la stanza, abbassare il muretto ("Altezza muro"), attivare "Taglio diagonale" sulla prima parete laterale, scegliere dove inizia la discesa (campo o pallino da trascinare), ripetere sulla parete di fronte, controllare gli avvisi, vista 3D. L'ultimo passo ha il pulsante "Apri la vista 3D" (`ui/Guides.kt`).
 
-Piani: il pulsante del piano in alto a sinistra ("🏠 Piano terra ▾") mostra il piano su cui si lavora. Dal suo menu si fanno tre cose:
+Piani: il pulsante del piano in alto a sinistra ("🏠 Piano terra ▾") mostra il piano su cui si lavora. Dal suo menu si fanno quattro cose:
 - cambiare piano;
 - aggiungere un piano sopra, scegliendo nome, interpiano (default 300 cm) e se partire dai muri del piano più alto (solo i muri) o da un piano vuoto;
+- aggiungere un piano sotto (interrato), allo stesso modo partendo dal piano più basso: il piano terra resta quello (`Building.ground`)
+  e nel 3D, guardando dal piano terra in su, il prato sta alla sua quota e copre gli interrati;
 - modificare nome e interpiano del piano corrente, o eliminarlo.
 
 Il piano di sotto si vede in grigio tratteggiato. La cronologia vale per tutta la casa: ↶ riporta anche al piano della modifica. Il file salvato passa alla versione 2 (`building` con tutti i piani); i file della versione 1 si aprono come casa a un piano (`model/Building`, `persistence/PlanStore`).

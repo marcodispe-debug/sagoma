@@ -322,13 +322,15 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
      */
     override fun setLights(lights: List<Scene3D.SceneLight>): Boolean {
         val old = sceneLights
-        sceneLights = lights
+        // Qui le lampade illuminano anche oltre i muri (niente ombre): la luce che passa dalle porte c'è già.
+        val lamps = lights.filterNot { it.spill }
+        sceneLights = lamps
         if (!lampsOnNow) return true // lampade spente: niente da aggiornare, le luci nuove valgono alla prossima accensione
         val lm = engine.lightManager
-        val sameShape = lampEntities.size == lights.size && old.size == lights.size &&
-            lights.indices.all { (old[it].direction == null) == (lights[it].direction == null) && old[it].profile == lights[it].profile }
+        val sameShape = lampEntities.size == lamps.size && old.size == lamps.size &&
+            lamps.indices.all { (old[it].direction == null) == (lamps[it].direction == null) && old[it].profile == lamps[it].profile }
         if (sameShape) {
-            for ((i, l) in lights.withIndex()) {
+            for ((i, l) in lamps.withIndex()) {
                 val inst = lm.getInstance(lampEntities[i])
                 val p = l.position
                 lm.setPosition(inst, (p.x * 0.01).toFloat(), (p.y * 0.01).toFloat(), (p.z * 0.01).toFloat())
@@ -464,7 +466,7 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         asset = next
         loadFurniture(s.furniture)
         texturedSurfaces.update(s.textured + (GRASS to ground(s)))
-        sceneLights = s.lights
+        sceneLights = s.lights.filterNot { it.spill }
         sceneWindows = s.windows
         applyLighting()
     }
@@ -481,7 +483,8 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         val m = 4000.0
         val x0 = (b.minX - m).toFloat(); val x1 = (b.maxX + m).toFloat()
         val z0 = (b.minY - m).toFloat(); val z1 = (b.maxY + m).toFloat()
-        val y = minY - 0.3f
+        // Con degli interrati sotto il piano terra il prato sta alla sua quota e li copre.
+        val y = (s.groundLevel?.toFloat() ?: minY) - 0.3f
         val size = 200f
         fun v(x: Float, z: Float) = floatArrayOf(x, y, z, 0f, 1f, 0f, x / size, z / size)
         // Due triangoli rivolti verso l'alto.

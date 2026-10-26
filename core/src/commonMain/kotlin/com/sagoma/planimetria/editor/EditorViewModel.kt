@@ -534,24 +534,26 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         if (!userAdjustedView) fitToView()
     }
 
-    fun openFloorDialog(index: Int?) = _state.update { it.copy(floorDialog = FloorDialog(index)) }
+    fun openFloorDialog(index: Int?, below: Boolean = false) = _state.update { it.copy(floorDialog = FloorDialog(index, below)) }
 
     fun closeFloorDialog() = _state.update { it.copy(floorDialog = null) }
 
     /**
-     * Nuovo piano in cima alla casa, che diventa quello corrente. Con `copyRooms` parte con le stanze
-     * del piano più alto (solo i muri, senza aperture né impianti), da modificare; altrimenti è vuoto
-     * e si apre subito la creazione della prima stanza.
+     * Nuovo piano in cima alla casa o, con `below`, sotto il più basso (un interrato: il piano terra resta quello di prima),
+     * che diventa quello corrente. Con `copyRooms` parte con le stanze del piano più alto (o più basso) (solo i muri, senza
+     * aperture né impianti), da modificare; altrimenti è vuoto e si apre subito la creazione della prima stanza.
      */
-    fun addFloor(name: String, levelHeight: Double, copyRooms: Boolean, autoLevel: Boolean = false) {
+    fun addFloor(name: String, levelHeight: Double, copyRooms: Boolean, autoLevel: Boolean = false, below: Boolean = false) {
         closeFloorDialog()
         commitBuilding { b ->
-            val top = b.floors.last()
-            val rooms = if (copyRooms) top.plan.rooms.map {
+            val from = if (below) b.floors.first() else b.floors.last()
+            val rooms = if (copyRooms) from.plan.rooms.map {
                 Room(it.id, it.name, it.type, it.points, ceilingHeight = it.ceilingHeight, floorFinish = it.type.defaultFloor)
             } else emptyList()
-            val floor = Floor(b.nextFloorId, name.trim().ifBlank { Building.floorName(b.floors.size) }, FloorPlan(rooms), levelHeight, autoLevel).synced()
-            b.copy(floors = b.floors + floor, current = b.floors.size)
+            val level = if (below) b.level(0) - 1 else b.level(b.floors.lastIndex) + 1
+            val floor = Floor(b.nextFloorId, name.trim().ifBlank { Building.floorName(level) }, FloorPlan(rooms), levelHeight, autoLevel).synced()
+            if (below) b.copy(floors = listOf(floor) + b.floors, current = 0, ground = b.groundIndex + 1)
+            else b.copy(floors = b.floors + floor, current = b.floors.size)
         }
         if (!userAdjustedView) fitToView()
         if (_state.value.plan.rooms.isEmpty()) _state.update { it.copy(creation = CreationStep.PickShape(cancellable = true)) }
@@ -573,7 +575,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         commitBuilding { b ->
             if (b.floors.size < 2 || index !in b.floors.indices) return@commitBuilding b
             val floors = b.floors.filterIndexed { i, _ -> i != index }
-            b.copy(floors = floors, current = (if (b.current >= index) b.current - 1 else b.current).coerceIn(floors.indices))
+            // Tolto un interrato, il piano terra scende di un posto nell'elenco (resta lo stesso piano).
+            val ground = if (index < b.groundIndex) b.groundIndex - 1 else b.groundIndex
+            b.copy(floors = floors, current = (if (b.current >= index) b.current - 1 else b.current).coerceIn(floors.indices), ground = ground.coerceIn(floors.indices))
         }
         if (!userAdjustedView) fitToView()
     }

@@ -181,7 +181,8 @@ object LitShaders {
         var lowest = 0f
         var k = 1
         while (k < scene.opaque.size) { lowest = minOf(lowest, scene.opaque[k]); k += Scene3D.FLOATS_PER_VERTEX }
-        val y = lowest - 0.5f
+        // Con degli interrati sotto il piano terra il prato sta alla sua quota e li copre (sono sotto terra).
+        val y = (scene.groundLevel?.toFloat() ?: lowest) - 0.5f
         val g = grass
         val corners = listOf(x0 to z0, x0 to z1, x1 to z1, x0 to z0, x1 to z1, x1 to z0)
         val out = FloatArray(corners.size * Scene3D.FLOATS_PER_VERTEX)

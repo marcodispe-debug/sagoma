@@ -134,6 +134,8 @@ class Scene3D(
      * (vista dall'alto): per la luce la casa ha comunque il tetto, il sole e il cielo entrano solo dalle aperture.
      */
     val roofs: FloatArray = FloatArray(0),
+    /** Quota del terreno (il pavimento del piano terra), se sotto ci sono interrati da coprire; null = sotto il piano più basso. */
+    val groundLevel: Double? = null,
 ) {
     /**
      * Luce artificiale: `position` in cm; `direction` non nulla = faretto che punta lì; `lumens` flusso
@@ -149,13 +151,18 @@ class Scene3D(
         val profile: LightProfile = LightProfile.Uniform,
         /** Asse della lampada senza [direction]: in basso, o verso la stanza per quelle a parete. */
         val axis: Vec3 = Vec3(0.0, -1.0, 0.0),
+        /**
+         * Luce arrivata da una stanza vicina attraverso una porta o un passaggio ([LightSpill]): serve ai renderer che tengono la
+         * luce di ogni lampada nella sua stanza; chi la lascia passare dai muri (Filament sul telefono) non la aggiunge.
+         */
+        val spill: Boolean = false,
     ) {
         /** Asse attorno a cui si misura [profile]: dove punta il faretto, altrimenti [axis]. */
         val beamAxis: Vec3 get() = direction ?: axis
     }
 
     /** Stessa scena con altre luci: serve ad aggiornare solo le luci, senza ricostruire la geometria. */
-    fun withLights(newLights: List<SceneLight>) = Scene3D(opaque, transparent, picks, obstacles, bounds, furniture, textured, newLights, windows, roofs)
+    fun withLights(newLights: List<SceneLight>) = Scene3D(opaque, transparent, picks, obstacles, bounds, furniture, textured, newLights, windows, roofs, groundLevel)
 
     /** Apertura vetrata: centro in cm, normale verso l'interno della stanza, misure in cm. */
     data class SceneWindow(val center: Vec3, val inward: Vec3, val width: Double, val height: Double)
@@ -246,6 +253,8 @@ class Scene3D(
             below: List<Floor> = emptyList(),
             /** Piano di sopra (camminando): si vede dal vano scala, chiuso in alto dal suo solaio. */
             above: Floor? = null,
+            /** Quota del piano terra rispetto a questo piano, se tra quelli di sotto ci sono interrati ([Scene3D.groundLevel]). */
+            groundLevel: Double? = null,
         ): Scene3D {
             // Quote dei pavimenti: il piano corrente a 0, quelli di sotto più in basso.
             val levels = mutableListOf<Level>()
@@ -256,7 +265,7 @@ class Scene3D(
             }
             levels += Level(plan, 0.0, levelHeight, current = true)
             if (above != null) levels += Level(above.plan, levelHeight, above.levelHeight, current = false)
-            return SceneBuilder(levels, focusedRoomId, selected, ceilings).build()
+            return SceneBuilder(levels, focusedRoomId, selected, ceilings, groundLevel).build()
         }
     }
 }
@@ -284,6 +293,7 @@ private class SceneBuilder(
     val focusedRoomId: Long?,
     val selected: Pick?,
     val ceilings: Boolean,
+    val groundLevel: Double? = null,
 ) {
     private val opaque = FloatList()
     private val transparent = FloatList()
@@ -545,6 +555,8 @@ private class SceneBuilder(
                     }
                 }
             }
+            // Luce delle lampade che passa dalle porte nelle stanze vicine (solo il piano corrente ha le luci).
+            if (current) lights += LightSpill.through(plan, lights.toList())
             previous = level
         }
         // Inquadratura sul piano che si sta guardando (non su quello di sopra, che si vede solo dal vano scala).
@@ -552,7 +564,7 @@ private class SceneBuilder(
         return Scene3D(
             opaque.toArray(), transparent.toArray(), picks, obstacles, Openings.planBounds(top.plan, top.levelHeight), placed,
             textured.mapValues { it.value.toArray() },
-            lights, windows, roofs.toArray(),
+            lights, windows, roofs.toArray(), groundLevel,
         )
     }
 

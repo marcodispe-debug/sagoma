@@ -61,26 +61,30 @@ fun FloorButton(building: Building, vm: EditorViewModel, modifier: Modifier = Mo
             }
             HorizontalDivider()
             DropdownMenuItem(text = { Text(T.piani.aggiungiPianoSopra) }, onClick = { open = false; vm.openFloorDialog(null) })
+            DropdownMenuItem(text = { Text(T.piani.aggiungiPianoSotto) }, onClick = { open = false; vm.openFloorDialog(null, below = true) })
             DropdownMenuItem(text = { Text(T.piani.modifica(building.floor.name)) }, onClick = { open = false; vm.openFloorDialog(building.current) })
         }
     }
 }
 
 /**
- * Finestra per un nuovo piano (nome, interpiano, copia delle stanze del piano più alto) o per modificare
- * un piano esistente (nome, interpiano, eliminazione).
+ * Finestra per un nuovo piano (nome, interpiano, copia delle stanze del piano più alto, o del più basso per un piano sotto)
+ * o per modificare un piano esistente (nome, interpiano, eliminazione).
  */
 @Composable
 fun FloorEditDialog(dialog: FloorDialog, building: Building, vm: EditorViewModel) {
     val index = dialog.index
     val existing = index?.let { building.floors.getOrNull(it) }
-    var name by remember(dialog) { mutableStateOf(existing?.name ?: Building.floorName(building.floors.size)) }
-    var level by remember(dialog) { mutableStateOf(formatCm(existing?.levelHeight ?: building.floors.last().levelHeight)) }
+    // Piano nuovo: parte dal piano accanto, il più alto (sopra) o il più basso (sotto).
+    val next = if (dialog.below) building.floors.first() else building.floors.last()
+    val newLevel = if (dialog.below) building.level(0) - 1 else building.level(building.floors.lastIndex) + 1
+    var name by remember(dialog) { mutableStateOf(existing?.name ?: Building.floorName(newLevel)) }
+    var level by remember(dialog) { mutableStateOf(formatCm(existing?.levelHeight ?: next.levelHeight)) }
     var auto by remember(dialog) { mutableStateOf(existing?.autoLevel ?: true) }
     var copyRooms by remember(dialog) { mutableStateOf(true) }
     var confirmDelete by remember(dialog) { mutableStateOf(false) }
     // Automatico: altezza della stanza più alta più il solaio. Un piano nuovo parte dalle stanze che copia (o dal valore standard).
-    val autoValue = Floor.autoLevelHeight(existing?.plan ?: if (copyRooms) building.floors.last().plan else FloorPlan())
+    val autoValue = Floor.autoLevelHeight(existing?.plan ?: if (copyRooms) next.plan else FloorPlan())
     val levelValue = if (auto) autoValue else parsePositive(level)?.takeIf { it in 150.0..1000.0 }
 
     if (confirmDelete && existing != null && index != null) {
@@ -128,7 +132,7 @@ fun FloorEditDialog(dialog: FloorDialog, building: Building, vm: EditorViewModel
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = copyRooms, onCheckedChange = { copyRooms = it })
                         Text(
-                            T.piani.partiMuriLiModifichi(building.floors.last().name),
+                            T.piani.partiMuriLiModifichi(next.name),
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(start = 4.dp),
                         )
@@ -144,7 +148,7 @@ fun FloorEditDialog(dialog: FloorDialog, building: Building, vm: EditorViewModel
                 enabled = levelValue != null,
                 onClick = {
                     val h = levelValue ?: return@TextButton
-                    if (index == null) vm.addFloor(name, h, copyRooms, auto) else vm.updateFloor(index, name, h, auto)
+                    if (index == null) vm.addFloor(name, h, copyRooms, auto, below = dialog.below) else vm.updateFloor(index, name, h, auto)
                 },
             ) { Text(if (existing == null) T.piani.aggiungi else T.comuni.salva) }
         },
