@@ -947,8 +947,17 @@ internal fun Choice(label: String, options: List<String>, selected: Int, modifie
                     icon = {}, // niente spunta: lo spazio serve al testo
                     contentPadding = ChoicePadding,
                 ) {
-                    // I nomi lunghi (es. "Tagliata a filo del pavimento") vanno a capo invece di essere tagliati.
-                    Text(opt, style = MaterialTheme.typography.labelMedium, maxLines = 2, textAlign = TextAlign.Center)
+                    // I nomi lunghi (es. "Tagliata a filo del pavimento") vanno a capo invece di essere tagliati; se una parola da sola
+                    // non ci sta («Verso l'estern-o» con tre pulsanti) il carattere si rimpicciolisce un po'.
+                    val style = MaterialTheme.typography.labelMedium
+                    var scale by remember(opt) { mutableStateOf(1f) }
+                    Text(
+                        opt,
+                        style = style.copy(fontSize = style.fontSize * scale),
+                        maxLines = 2,
+                        textAlign = TextAlign.Center,
+                        onTextLayout = { if ((it.breaksWord() || it.hasVisualOverflow) && scale > 0.7f) scale -= 0.05f },
+                    )
                 }
             }
         }
@@ -974,8 +983,14 @@ private fun Stepper(label: String, value: String, onMinus: (() -> Unit)?, onPlus
 
 /** Azioni del riquadro (es. "Rimuovi"), allineate a destra: il titolo sta nella striscia "Info". */
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 internal fun PanelActions(actions: @Composable () -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+    // Se i comandi non stanno su una riga vanno a capo (arredo: «↻ 90°, Specchia, Duplica, Rimuovi» spezzava «Rimu-ovi»).
+    androidx.compose.foundation.layout.FlowRow(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
         actions()
     }
 }

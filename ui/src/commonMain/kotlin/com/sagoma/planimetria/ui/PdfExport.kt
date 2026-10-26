@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
@@ -401,7 +403,7 @@ fun PdfExportDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> U
         onDismissRequest = onDismiss,
         title = { Text(T.pdf.tavolaPdfScala) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(T.pdf.foglioOrizzontale, style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (p in PdfExport.Paper.entries) FilterChip(selected = paper == p, onClick = { paper = p }, label = { Text(p.label) })

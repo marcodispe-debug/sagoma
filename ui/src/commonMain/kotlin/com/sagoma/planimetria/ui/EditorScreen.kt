@@ -467,8 +467,11 @@ fun EditorScreen(
                     bottom = with(density) { coveredBottomPx.toDp() } + 8.dp,
                 )
             // Angolo in basso a destra: passaggio 2D/3D, e la legenda (2D) o Cammina / Vista dall'alto (3D).
+            // Telefono in orizzontale col pannello «Piantina e disegno» aperto: non c'è altezza per pannello e pulsanti insieme
+            // (la Legenda finiva fuori dallo schermo e «Vista 3D» sotto la bussola). Resta solo il pannello, che ha il suo «Chiudi».
+            val panelOnly = compactHeight && showVisibility && !state.view3d
             Column(cornerModifier, horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                LegendButton(
+                if (!panelOnly) LegendButton(
                     if (state.view3d) T.editor.pianta2d else T.editor.vista3d,
                     onClick = {
                         if (state.view3d && view3dState.walking) view3dState.stopWalking()
@@ -479,12 +482,14 @@ fun EditorScreen(
                 else {
                     // Mostra/nascondi e trasparenza di piantina e disegno, regolate dal vivo.
                     if (showVisibility) VisibilityPanel(state, vm, onLoadPlan = { showBackground = true }, onClose = { showVisibility = false })
-                    LegendButton(
-                        T.editor.piantinaDisegno, onClick = { showVisibility = !showVisibility },
-                        modifier = Modifier.guide(GuideTarget.PlanPanel, done = showVisibility),
-                    )
-                    PhaseLegend(state)
-                    LegendButton(T.editor.legenda, onClick = { showLegend = true })
+                    if (!panelOnly) {
+                        LegendButton(
+                            T.editor.piantinaDisegno, onClick = { showVisibility = !showVisibility },
+                            modifier = Modifier.guide(GuideTarget.PlanPanel, done = showVisibility),
+                        )
+                        PhaseLegend(state)
+                        LegendButton(T.editor.legenda, onClick = { showLegend = true })
+                    }
                 }
             }
             // Bussola in alto a destra sulla pianta, sotto le schede in alto: la N si gira trascinandola, il tocco apre "Nord e città".
@@ -1018,10 +1023,10 @@ private fun MenuButton(
     fun close() { open = false; path = emptyList() }
     Box(modifier.guide(guide, done = open)) {
         if (filled) Button(enabled = enabled, onClick = { open = true }, modifier = Modifier.fillMaxWidth(), contentPadding = contentPadding) {
-            Text(if (arrow) "$label ▾" else label, maxLines = 1)
+            FitText(if (arrow) "$label ▾" else label)
         }
         else OutlinedButton(enabled = enabled, onClick = { open = true }, modifier = Modifier.fillMaxWidth(), contentPadding = contentPadding) {
-            Text(if (arrow) "$label ▾" else label, maxLines = 1)
+            FitText(if (arrow) "$label ▾" else label)
         }
         DropdownMenu(expanded = open, onDismissRequest = ::close) {
             val current = path.lastOrNull()

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -44,6 +43,7 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.assets.AssetPaths
 import com.sagoma.planimetria.assets.remote.AssetPriority
@@ -135,7 +135,11 @@ private fun CatalogCard(item: FurnitureCatalog.Item, onClick: () -> Unit) {
                     }
                 }
             }
-            Text(item.nome, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center, maxLines = 2, modifier = Modifier.padding(top = 4.dp).height(30.dp))
+            // Due righe misurate dal testo (30 dp fissi tagliavano la seconda) e i puntini se il nome è ancora più lungo.
+            Text(
+                item.nome, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center,
+                minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp),
+            )
             Text(
                 T.arredi.testoTesto(formatCm(item.width), formatCm(item.depth), formatCm(item.height)),
                 style = MaterialTheme.typography.labelSmall,

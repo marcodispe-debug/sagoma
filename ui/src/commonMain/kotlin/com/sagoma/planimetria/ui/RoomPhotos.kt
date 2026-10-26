@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -168,7 +170,7 @@ private fun PhotoDialog(photo: RoomPhoto, onNote: (String) -> Unit, onRemove: ()
     AlertDialog(
         onDismissRequest = close,
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val frame = Modifier.fillMaxWidth().heightIn(max = 560.dp)
                 if (img != null) {
                     Image(img, T.foto.fotoStanza, frame.aspectRatio(img.width.toFloat() / img.height), contentScale = ContentScale.Fit)

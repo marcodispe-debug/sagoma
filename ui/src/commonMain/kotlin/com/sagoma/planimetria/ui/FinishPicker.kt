@@ -47,6 +47,8 @@ import com.sagoma.planimetria.model.ProPalette
 import com.sagoma.planimetria.model.WallFinish
 import com.sagoma.planimetria.testi.T
 import kotlin.math.roundToInt
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 /** Colori scelti di recente con il selettore libero (per questa sessione), il più recente per primo. */
 object RecentColors {
@@ -154,7 +156,7 @@ private fun CustomColorDialog(initial: Long, onDismiss: () -> Unit, onPick: (Lon
         onDismissRequest = onDismiss,
         title = { Text(T.finiture.colorePersonalizzato) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Box(Modifier.fillMaxWidth().height(56.dp).background(Color(current()), RoundedCornerShape(10.dp)).border(1.dp, Color(0x33000000), RoundedCornerShape(10.dp)))
                 fun hsv(h: Float, s: Float, v: Float) = Color(hsvToColor(floatArrayOf(h, s, v)))
                 // Sopra ogni cursore la sfumatura che si ottiene spostandolo.
@@ -234,7 +236,11 @@ private fun Swatch(label: String, id: String?, isSelected: Boolean, onClick: () 
             if (thumb != null) androidx.compose.foundation.Image(thumb, contentDescription = label, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(58.dp).clip(RoundedCornerShape(7.dp)))
             else Text("—", style = MaterialTheme.typography.titleMedium)
         }
-        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 2.dp))
+        // Fino a tre righe: con due «Parquet rovere miele» perdeva l'ultima parola senza segno.
+        Text(
+            label, style = MaterialTheme.typography.labelSmall, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 2.dp),
+        )
     }
 }
 
