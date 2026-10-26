@@ -134,7 +134,7 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
                     // Un muro da solo (tramezzo): solo quando sul piano c'è già almeno una stanza in cui metterlo (non per la prima
                     // stanza del progetto né per la prima di un piano nuovo).
                     if (step.cancellable && !sketchMode && vm.state.value.plan.rooms.isNotEmpty()) {
-                        OutlinedCard(onClick = vm::addFreeWall, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedCard(onClick = vm::addFreeWall, modifier = Modifier.fillMaxWidth().guide(GuideTarget.Shape(ShapeChoice.FreeWall))) {
                             Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 ShapeIcon(RoomFactory.rectangle(14.0, 1.6), Modifier.size(48.dp))
                                 Spacer(Modifier.size(12.dp))

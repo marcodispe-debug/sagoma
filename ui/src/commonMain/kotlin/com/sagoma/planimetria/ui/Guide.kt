@@ -383,7 +383,7 @@ private fun CourseBubble(course: CourseUi, hint: GuideHint?, vm: EditorViewModel
             course.detail?.let {
                 Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
             }
-            // Al benvenuto la piantina della casa da disegnare, e si può andare dritti a una lezione (la 7 si fa nel suo progetto).
+            // Al benvenuto la piantina della casa da disegnare, e si può andare dritti a una lezione (l'ultima si fa nel suo progetto).
             if (step == CourseStep.Welcome) {
                 val measurer = rememberTextMeasurer()
                 val plan = remember(measurer) { guidePlanBitmap(measurer, overview = true) }
