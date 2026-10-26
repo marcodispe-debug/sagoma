@@ -52,6 +52,12 @@ object PlanReadingImport {
     private const val OPENING_MARGIN = 15.0
     /** Le aperture vanno sui muri dei balconi solo se nessuna stanza interna ha un muro adatto. */
     private const val OUTDOOR_PENALTY = 1_000.0
+    /**
+     * Scale possibili (cm per pixel): da mezzo millimetro a mezzo metro per pixel. Fuori da qui una misura è letta male, e
+     * una stanza di chilometri bloccherebbe il 3D.
+     */
+    private const val MIN_SCALE = 0.05
+    private const val MAX_SCALE = 50.0
     /** Pedata tipica, per contare i gradini quando la lettura non li dice. */
     private const val DEFAULT_TREAD = 28.0
 
@@ -89,7 +95,7 @@ object PlanReadingImport {
         }
         val cmPerPx = scale(read)
         // Senza misure: l'immagine larga 12 m, come quando si carica uno sfondo prima di tararlo.
-        val k = cmPerPx ?: (1200.0 / max(reading.image.width, reading.image.height))
+        val k = cmPerPx ?: (1200.0 / max(max(reading.image.width, reading.image.height), 1))
         val exterior = reading.exteriorWallPx?.let { (it * k).coerceIn(MIN_WALL, MAX_WALL) } ?: EXTERIOR_WALL
         val types = read.map { (r, _) -> typeOf(r.name) }
         val interiors = RoomOverlaps.separated(
@@ -166,10 +172,10 @@ object PlanReadingImport {
             val (ri, j, t) = best ?: continue
             val d = Opening.default(++id, kind, j, t)
             added[ri] += d.copy(
-                width = o.widthCm ?: a.distanceTo(b),
-                height = o.heightCm ?: d.height,
-                sillHeight = if (kind == OpeningKind.Window1 || kind == OpeningKind.Window2) o.sillCm ?: d.sillHeight else 0.0,
-                splay = if (kind.glazed) o.splayCm ?: 0.0 else 0.0,
+                width = positive(o.widthCm) ?: a.distanceTo(b),
+                height = positive(o.heightCm) ?: d.height,
+                sillHeight = if (kind == OpeningKind.Window1 || kind == OpeningKind.Window2) notNegative(o.sillCm) ?: d.sillHeight else 0.0,
+                splay = if (kind.glazed) notNegative(o.splayCm) ?: 0.0 else 0.0,
                 splayRounded = o.splayRounded,
                 frame = when (o.frame?.lowercase()) {
                     "outside" -> FramePosition.Outside
@@ -200,13 +206,14 @@ object PlanReadingImport {
                 if (o.ends.size < 2 || o.ends.any { it.size < 2 }) return@mapNotNull null
                 val a = Vec2(o.ends[0][0] * k, o.ends[0][1] * k)
                 val b = Vec2(o.ends[1][0] * k, o.ends[1][1] * k)
-                val width = min(o.widthCm ?: a.distanceTo(b), len)
+                val width = min(positive(o.widthCm) ?: a.distanceTo(b), len)
+                if (width < 1.0) return@mapNotNull null
                 val d = Opening.default(++openingId, kind, 0, 0.0)
                 val opening = d.copy(
                     position = Openings.clampPosition(len, width, ((a + b) / 2.0 - start) dot u),
                     width = width,
-                    height = o.heightCm ?: d.height,
-                    sillHeight = if (kind == OpeningKind.Window1 || kind == OpeningKind.Window2) o.sillCm ?: d.sillHeight else 0.0,
+                    height = positive(o.heightCm) ?: d.height,
+                    sillHeight = if (kind == OpeningKind.Window1 || kind == OpeningKind.Window2) notNegative(o.sillCm) ?: d.sillHeight else 0.0,
                     sliding = o.sliding && kind.hasLeaves,
                 )
                 leavesAsDrawn(opening, wall.host, o, k)
@@ -243,14 +250,18 @@ object PlanReadingImport {
         val run = a.distanceTo(b)
         if (run < 50.0) return@mapIndexedNotNull null
         val d = (b - a) / run
-        val treads = (r.treads ?: kotlin.math.round(run / DEFAULT_TREAD).toInt()).coerceIn(Stairs.MIN_RISERS - 1, Stairs.MAX_RISERS - 1)
+        val treads = (r.treads?.takeIf { it > 0 } ?: kotlin.math.round(run / DEFAULT_TREAD).toInt()).coerceIn(Stairs.MIN_RISERS - 1, Stairs.MAX_RISERS - 1)
         Stair(
             id = i + 1L, kind = StairKind.Straight, center = (a + b) / 2.0,
             rotation = toDegrees(kotlin.math.atan2(d.x, -d.y)),
-            width = r.widthCm ?: r.widthPx?.let { it * k } ?: Stair(0, StairKind.Straight, Vec2.Zero).width,
+            width = positive(r.widthCm) ?: positive(r.widthPx)?.let { it * k } ?: Stair(0, StairKind.Straight, Vec2.Zero).width,
             tread = run / treads, risers = treads + 1,
         )
     }
+
+    /** Misure lette: zero, negative o infinite sono lette male e valgono come non scritte. */
+    private fun positive(x: Double?): Double? = x?.takeIf { it > 0 && it.isFinite() }
+    private fun notNegative(x: Double?): Double? = x?.takeIf { it >= 0 && it.isFinite() }
 
     internal fun openingKind(kind: String): OpeningKind? = when (kind.lowercase().trim()) {
         "door" -> OpeningKind.Door
@@ -331,13 +342,13 @@ object PlanReadingImport {
                     val b = Polygon.bounds(px)
                     val pxSides = listOf(b.width, b.height).sorted()
                     val cm = r.sidesM.map { it * 100 }.sorted()
-                    for (j in 0..1) if (pxSides[j] > 0) add(cm[j] / pxSides[j])
+                    for (j in 0..1) if (pxSides[j] > 0 && cm[j] > 0) add(cm[j] / pxSides[j])
                 }
                 val a = r.areaM2
                 val pxArea = Polygon.area(px) - zonesPx(r).sumOf { Polygon.area(it) }
                 if (a != null && a > 0 && pxArea > 0) add(sqrt(a * 10_000 / pxArea))
             }
-        }.sorted()
+        }.filter { it in MIN_SCALE..MAX_SCALE }.sorted() // misure lette male (es. 5030 m invece di 5,03 m) non tarano niente
         if (ratios.isEmpty()) return null
         val m = ratios.size / 2
         return if (ratios.size % 2 == 1) ratios[m] else (ratios[m - 1] + ratios[m]) / 2
