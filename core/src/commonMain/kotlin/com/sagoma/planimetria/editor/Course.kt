@@ -6,6 +6,7 @@ import com.sagoma.planimetria.geometry.RoomFactory
 import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.interiorLengths
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.LOrientation
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomShape
@@ -13,16 +14,17 @@ import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
- * Guida interattiva: sette lezioni brevi in cui l'utente fa davvero le azioni, su un progetto di prova. A ogni passo la guida
- * indica cosa cliccare ([GuideHint]) e va avanti da sola quando l'azione è fatta. Le prime sei lezioni costruiscono la casa
- * della piantina della guida ([GuidePlan]), una stanza per lezione e ognuna al suo posto: lo studio, il soggiorno attaccato
- * sopra, la camera a destra, il bagno sotto la camera e l'ingresso nello spazio che resta. L'ultima («Sopra la tua
- * planimetria») si fa in un secondo progetto, sopra l'immagine della stessa piantina.
+ * Guida interattiva: lezioni brevi in cui l'utente fa davvero le azioni, su un progetto di prova. A ogni passo la guida
+ * indica cosa cliccare ([GuideHint]) e va avanti da sola quando l'azione è fatta. Le lezioni prima dell'ultima costruiscono la
+ * casa della piantina della guida ([GuidePlan]), ogni cosa al suo posto: lo studio, il soggiorno attaccato sopra, la camera a
+ * destra, il bagno sotto la camera, l'ingresso nello spazio che resta, il tramezzo della cabina armadio nella camera, poi porte,
+ * finestre e il resto. L'ultima («Sopra la tua planimetria») si fa in un secondo progetto, sopra l'immagine della stessa piantina.
  */
 enum class Lesson {
-    Square, LShape, Rectangle, Survey, Walls, Elements, OverPlan;
+    Square, LShape, Rectangle, Survey, Walls, FreeWall, Elements, OverPlan;
 
     /** La stanza della piantina che si disegna nella lezione (null: nessuna). */
     val planRoom: GuidePlan.Room?
@@ -70,6 +72,12 @@ enum class CourseStep(val lesson: Lesson, val action: Boolean = true) {
     WallsClose(Lesson.Walls),
     WallsDone(Lesson.Walls, action = false),
 
+    FreeWallPick(Lesson.FreeWall),
+    FreeWallMove(Lesson.FreeWall),
+    FreeWallEnd(Lesson.FreeWall),
+    FreeWallInfo(Lesson.FreeWall),
+    FreeWallDone(Lesson.FreeWall, action = false),
+
     Door(Lesson.Elements),
     Window(Lesson.Elements),
     Balcony(Lesson.Elements),
@@ -110,10 +118,10 @@ enum class CourseStep(val lesson: Lesson, val action: Boolean = true) {
 }
 
 /** Le scelte della finestra «Scegli la forma della stanza». */
-enum class ShapeChoice { Square, Rectangle, L, Survey, Walls, Trace }
+enum class ShapeChoice { Square, Rectangle, L, Survey, Walls, Trace, FreeWall }
 
 /** Campi in cui la guida fa scrivere una misura. `index` in [GuideTarget.Field] dice quale lato o diagonale. */
-enum class GuideField { Side, Width, Depth, MainWidth, MainDepth, ProtrusionWidth, ProtrusionDepth, SurveySide, Diagonal, WallLength, Calibration, WallInfo }
+enum class GuideField { Side, Width, Depth, MainWidth, MainDepth, ProtrusionWidth, ProtrusionDepth, SurveySide, Diagonal, WallLength, Calibration, WallInfo, FreeWallLength, FreeWallThickness }
 
 /** Voci del menu «Elementi architettonici» che la guida indica. */
 enum class GuideMenu { Room, Doors, Door, Windows, Window, FrenchWindows, FrenchWindow, Systems, Radiator, Lights, Chandelier, Stairs, Spiral, Outdoor, Balcony }
@@ -248,6 +256,11 @@ class Course {
             CourseStep.LivingWalls -> (e == TutorialEvent.WallDragged || e == TutorialEvent.CornerDragged) && CourseHints(s).livingWalls()?.isEmpty() == true
             CourseStep.LivingInfo -> CourseHints(s).livingExact()
             CourseStep.PlanFade -> e == TutorialEvent.PlanViewChanged
+            // Il tramezzo: nato nella camera, portato al suo posto, accorciato, poi lunghezza e spessore esatti in Info.
+            CourseStep.FreeWallPick -> e == TutorialEvent.FreeWallAdded
+            CourseStep.FreeWallMove -> e == TutorialEvent.FreeWallMoved && CourseHints(s).freeWallInPlace()
+            CourseStep.FreeWallEnd -> e == TutorialEvent.FreeWallEndDragged && CourseHints(s).freeWallShortened()
+            CourseStep.FreeWallInfo -> CourseHints(s).freeWallExact()
             else -> false
         }
         if (done) next()
@@ -288,16 +301,21 @@ class Course {
         fun place(step: CourseStep?, s: EditorUiState, interior: List<Vec2>, shape: List<Vec2>, outdoor: Boolean): List<Vec2>? =
             CourseHints(s).place(step, interior, shape, outdoor)
 
-        /** La casa di prova com'è all'inizio della lezione `lesson`: le stanze delle lezioni prima, al loro posto. */
-        fun house(lesson: Lesson): FloorPlan = Lesson.entries.takeWhile { it != lesson }.mapNotNull { it.planRoom }.fold(FloorPlan()) { plan, r ->
-            val room = Room(
-                id = plan.nextId,
-                name = RoomFactory.autoName(plan, r.type),
-                type = r.type,
-                points = Polygon.fromInterior(r.points, Room.WALL_THICKNESS),
-                floorFinish = r.type.defaultFloor,
-            )
-            plan.copy(rooms = plan.rooms + room)
+        /** La casa di prova com'è all'inizio della lezione `lesson`: le stanze (e il tramezzo) delle lezioni prima, al loro posto. */
+        fun house(lesson: Lesson): FloorPlan {
+            val before = Lesson.entries.takeWhile { it != lesson }
+            val rooms = before.mapNotNull { it.planRoom }.fold(FloorPlan()) { plan, r ->
+                val room = Room(
+                    id = plan.nextId,
+                    name = RoomFactory.autoName(plan, r.type),
+                    type = r.type,
+                    points = Polygon.fromInterior(r.points, Room.WALL_THICKNESS),
+                    floorFinish = r.type.defaultFloor,
+                )
+                plan.copy(rooms = plan.rooms + room)
+            }
+            return if (Lesson.FreeWall !in before) rooms
+            else rooms.copy(freeWalls = rooms.freeWalls + GuidePlan.tramezzo.copy(id = rooms.nextFreeWallId))
         }
     }
 }
@@ -397,6 +415,13 @@ private class CourseHints(private val s: EditorUiState) {
             hint(GuideTarget.Type(RoomType.Corridoio), c.tipoIngresso(RoomType.Corridoio.label)),
             hint(GuideTarget.Create, c.creaStanza),
         ) else listOf(hint(GuideTarget.CloseRoom, c.chiudiStanza))
+
+        CourseStep.FreeWallPick -> freeWallPickHints()
+        CourseStep.FreeWallMove -> freeWallMoveHints()
+        CourseStep.FreeWallEnd -> freeWallEndHints()
+        CourseStep.FreeWallInfo -> freeWallInfoHints()
+        // La scheda finale: il tramezzo tratteggiato, e il fumetto che non lo copre.
+        CourseStep.FreeWallDone -> listOfNotNull(freeWall()?.let { w -> mark("", PlanMark(listOf(w.start, w.end), goal = true)) })
 
         CourseStep.Door -> if (s.pendingOpening == null) menu(c.portaElementi, GuideMenu.Doors to c.porte, GuideMenu.Door to c.portaUnaAnta)
         else listOf(mark(c.cliccaMuroPorta, PlanMark(listOf(doorSpot()))))
@@ -611,6 +636,87 @@ private class CourseHints(private val s: EditorUiState) {
         else -> if (v.y > 0) WallArrow.DOWN else WallArrow.UP
     }
 
+    // ---------- Il muro singolo: il tramezzo della cabina armadio, nella camera ----------
+
+    private fun freeWall(): FreeWall? = plan.freeWalls.lastOrNull()
+
+    /** Dove va il tramezzo nella casa di prova (in mezzeria): dall'alto in basso. Null senza lo studio. */
+    private fun partition(): Pair<Vec2, Vec2>? = offset()?.let { o -> GuidePlan.tramezzo.start + o to GuidePlan.tramezzo.end + o }
+
+    /** L'estremità in basso del muro singolo, quella da trascinare per accorciarlo. */
+    private fun bottom(w: FreeWall): Vec2 = if (w.end.y >= w.start.y) w.end else w.start
+
+    private fun upright(w: FreeWall): Boolean = abs(w.start.x - w.end.x) < 1.0
+
+    private fun selectFreeWall(w: FreeWall): GuideHint = mark(c.selezionaMuroSingolo, PlanMark(listOf(w.mid)))
+
+    /**
+     * «Muro singolo» nella finestra delle forme: nasce nella stanza selezionata, così prima si seleziona la camera. Con la finestra
+     * di un'altra forma si torna indietro.
+     */
+    private fun freeWallPickHints(): List<GuideHint> {
+        val choose = hint(GuideTarget.Shape(ShapeChoice.FreeWall), c.scegliMuroSingolo)
+        when (s.creation) {
+            is CreationStep.PickShape -> return listOf(choose)
+            null -> Unit
+            else -> return listOf(hint(GuideTarget.Back, c.tornaIndietro))
+        }
+        val camera = room(RoomType.Camera)
+        if (camera != null && (s.focusedRoomId != camera.id || s.selection != null)) {
+            return listOf(mark(c.selezionaCameraTramezzo(camera.name), PlanMark(listOf(Polygon.labelPoint(camera.points)))))
+        }
+        return menu(c.apriElementiMuroSingolo, GuideMenu.Room to c.poiStanza) + choose
+    }
+
+    /** Il muro dritto, come nasce, portato di lato fino alla linea tratteggiata: lì va il tramezzo. */
+    private fun freeWallMoveHints(): List<GuideHint> {
+        val w = freeWall() ?: return freeWallPickHints()
+        val (top, _) = partition() ?: return emptyList()
+        val from = w.start + (w.end - w.start) * 0.7
+        val line = listOf(Vec2(top.x, w.start.y), Vec2(top.x, w.end.y))
+        return listOf(mark(c.spostaTramezzo, PlanMark(listOf(from)), PlanMark(listOf(Vec2(top.x, from.y)), goal = true), PlanMark(line, goal = true)))
+    }
+
+    fun freeWallInPlace(): Boolean {
+        val w = freeWall() ?: return false
+        val (top, _) = partition() ?: return false
+        return upright(w) && abs(w.mid.x - top.x) <= FREE_WALL_FIT_CM
+    }
+
+    /** L'estremità in basso trascinata in su, fino a dove finisce il tramezzo: resta il passaggio per la cabina. */
+    private fun freeWallEndHints(): List<GuideHint> {
+        val w = freeWall() ?: return freeWallPickHints()
+        if (s.selection != Selection.FreeWall(w.id)) return listOf(selectFreeWall(w))
+        val (_, end) = partition() ?: return emptyList()
+        val from = bottom(w)
+        return listOf(mark(c.accorciaTramezzo, PlanMark(listOf(from)), PlanMark(listOf(Vec2(from.x, end.y)), goal = true)))
+    }
+
+    fun freeWallShortened(): Boolean {
+        val w = freeWall() ?: return false
+        val (_, end) = partition() ?: return false
+        return upright(w) && abs(bottom(w).y - end.y) <= FREE_WALL_FIT_CM
+    }
+
+    private val partitionLength: Int get() = GuidePlan.tramezzo.length.roundToInt()
+    private val partitionThickness: Int get() = GuidePlan.tramezzo.thickness.roundToInt()
+
+    /** Lunghezza e spessore esatti nella scheda del muro singolo. */
+    private fun freeWallInfoHints(): List<GuideHint> {
+        val w = freeWall() ?: return freeWallPickHints()
+        if (s.selection != Selection.FreeWall(w.id)) return listOf(selectFreeWall(w))
+        return listOf(
+            hint(GuideTarget.Info, c.infoTramezzo),
+            field(GuideField.FreeWallLength, partitionLength, c.lunghezzaTramezzo(partitionLength)),
+            field(GuideField.FreeWallThickness, partitionThickness, c.spessoreTramezzo(partitionThickness)),
+        )
+    }
+
+    fun freeWallExact(): Boolean {
+        val w = freeWall() ?: return false
+        return abs(w.length - partitionLength) < 0.5 && abs(w.thickness - partitionThickness) < 0.5
+    }
+
     // ---------- Dove cliccare sull'appartamento di prova ----------
 
     /** Primo angolo dell'ingresso: dove è sulla piantina, tra soggiorno, camera e bagno (senza lo studio, sotto le stanze). */
@@ -809,6 +915,8 @@ private class CourseHints(private val s: EditorUiState) {
             val pts = GuidePlan.ingresso.points.map { it - GuidePlan.ingresso.points[0] + st }
             pad(b.union(Polygon.bounds(pts)), 40.0)
         }
+        CourseStep.FreeWallPick, CourseStep.FreeWallDone -> roomsBounds()?.let { pad(it, 60.0) }
+        CourseStep.FreeWallMove, CourseStep.FreeWallEnd, CourseStep.FreeWallInfo -> room(RoomType.Camera)?.let { pad(Polygon.bounds(it.points), 60.0) }
         CourseStep.CalibA -> plan.underlay?.let { u -> Bounds(u.origin.x, u.origin.y, u.origin.x + u.widthCm, u.origin.y + u.heightCm) }
         CourseStep.InnerFace, CourseStep.MoveRoom, CourseStep.Stretch -> withGoal(indoor(RoomType.Camera, 0), GuidePlan.camera, 60.0)
         CourseStep.MoveBath -> withGoal(room(RoomType.Bagno), GuidePlan.bagno, 60.0)
@@ -838,6 +946,9 @@ private const val GAP_CM = 120.0
 
 /** Quanto può scostarsi dal disegno una stanza al suo posto: le misure del bagno sono arrotondate al centimetro. */
 private const val PLACE_CM = 3.0
+
+/** Quanto il tramezzo trascinato a mano può restare lontano dal suo posto: la lunghezza esatta si scrive dopo in Info. */
+private const val FREE_WALL_FIT_CM = 12.0
 
 /** Muri del soggiorno da trascinare, nell'ordine (numerazione di quello disegnato): sinistra, in basso, poi il resto. */
 private val LIVING_WALL_ORDER = listOf(5, 4, 2, 3, 1, 0)

@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -157,7 +159,8 @@ fun ProjectInfoDialog(initial: ProjectInfo, title: String, onDismiss: () -> Unit
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Scorre: col telefono in orizzontale l'ultimo campo (Progettista) restava tagliato.
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SelectAllTextField(value = name, onValueChange = { name = it }, label = T.progetti.nomeProgetto, modifier = Modifier.fillMaxWidth())
                 SelectAllTextField(value = client, onValueChange = { client = it }, label = T.progetti.cliente, modifier = Modifier.fillMaxWidth())
                 SelectAllTextField(value = address, onValueChange = { address = it }, label = T.progetti.indirizzo, modifier = Modifier.fillMaxWidth())

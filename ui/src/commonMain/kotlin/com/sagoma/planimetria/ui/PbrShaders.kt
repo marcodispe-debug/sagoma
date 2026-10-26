@@ -1,5 +1,7 @@
 package com.sagoma.planimetria.ui
 
+import com.sagoma.planimetria.geometry.LightZones
+
 /**
  * Shader "fotorealistico" del computer: materiali fisici (PBR metallo/ruvidità, come glTF e Filament), luce
  * in spazio lineare con esposizione e tone mapping ACES (resa simile a una fotografia), sole con ombre
@@ -74,7 +76,7 @@ object PbrShaders {
         uniform int uLampCount;
         uniform vec4 uLamp[$MAX_LAMPS];
         uniform vec3 uLampColor[$MAX_LAMPS];
-        uniform vec4 uLampBox[$MAX_LAMPS];
+        uniform vec4 uLampBox[${MAX_LAMPS * LightZones.MAX}];
         uniform vec4 uLampAxis[$MAX_LAMPS];
         uniform int uWinCount;
         uniform vec4 uWin[$MAX_WINDOWS];
@@ -211,19 +213,26 @@ object PbrShaders {
             if (ndlSun > 0.0) color += shade(N, V, uToSun, uSun, albedo, rough, metal) * sunShadow(ndlSun);
             for (int i = 0; i < $MAX_LAMPS; i++) {
                 if (i >= uLampCount) break;
-                // La lampada illumina solo la sua stanza (niente luce attraverso i muri, né sul prato).
-                vec4 box = uLampBox[i];
-                if (vPos.x < box.x || vPos.x > box.z || vPos.z < box.y || vPos.z > box.w) continue;
+                // La lampada illumina solo la sua stanza, cioè i suoi rettangoli (niente luce attraverso i muri, né sul prato).
+                bool inRoom = false;
+                for (int z = 0; z < ${LightZones.MAX}; z++) {
+                    vec4 box = uLampBox[i * ${LightZones.MAX} + z];
+                    if (vPos.x >= box.x && vPos.x <= box.z && vPos.z >= box.y && vPos.z <= box.w) inRoom = true;
+                }
+                if (!inRoom) continue;
                 vec3 d = uLamp[i].xyz - vPos;
-                float dist2 = max(dot(d, d), 400.0);
+                // Sotto i 50 cm la luce non cresce più: niente macchie bruciate vicino alla lampada (le lampade vere hanno un
+                // diffusore, non sono un punto).
+                float dist2 = max(dot(d, d), 2500.0);
                 // Intensità che cala col quadrato della distanza, con un raggio di influenza di ~6 m.
                 float fall = clamp(1.0 - dist2 / 360000.0, 0.0, 1.0);
                 // Forma della luce della lampada (faretto, plafoniera, paralume…), come nei profili IES.
                 float beam = lightBeam(uLampAxis[i].w, dot(-normalize(d), uLampAxis[i].xyz));
-                vec3 rad = uLampColor[i] * uLamp[i].w * 40000.0 / dist2 * fall * fall * beam;
+                vec3 rad = uLampColor[i] * uLamp[i].w * 28000.0 / dist2 * fall * fall * beam;
                 color += shade(N, V, normalize(d), rad, albedo, rough, metal) * mix(1.0, ao, 0.6);
-                // Luce rimbalzata su pareti e soffitto: schiarisce un poco tutta la stanza, anche dove la lampada non arriva diretta.
-                color += albedo * (1.0 - metal) * uLampColor[i] * uLamp[i].w * 0.045 / (1.0 + dist2 / 250000.0) * ao;
+                // Luce rimbalzata su pareti, pavimento e soffitto: quasi uguale in tutta la stanza, così la luce è diffusa e
+                // arriva anche dove la lampada non illumina diretta (in una stanza vera è una buona parte di quella che si vede).
+                color += albedo * (1.0 - metal) * uLampColor[i] * uLamp[i].w * 0.065 / (1.0 + dist2 / 900000.0) * ao;
             }
             for (int i = 0; i < $MAX_WINDOWS; i++) {
                 if (i >= uWinCount) break;

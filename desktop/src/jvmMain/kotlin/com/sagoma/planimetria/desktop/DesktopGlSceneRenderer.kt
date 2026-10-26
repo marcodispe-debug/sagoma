@@ -64,6 +64,7 @@ class DesktopGlSceneRenderer(
     @Volatile private var released = false
     @Volatile private var hour = 11f
     @Volatile private var lamps = "auto"
+    @Volatile private var lampBrightness = 1f
     @Volatile private var sunAt: SunAngles = SunPath.simple(11f)
     @Volatile private var walking = false
     @Volatile private var eye = Vec3.Zero
@@ -402,7 +403,7 @@ class DesktopGlSceneRenderer(
         glUniform1i(u("uRoofMap"), 7)
         glUniformMatrix4fv(u("uRoofMvp"), false, roofMvp)
         glUniform1f(u("uRoofTexel"), 1f / ROOF_SIZE)
-        val lights = LitShaders.Lights(scene, d, eye, windowsAlways = true)
+        val lights = LitShaders.Lights(scene, d, eye, windowsAlways = true, brightness = lampBrightness)
         // Di notte l'occhio si abitua un poco: più esposizione solo se c'è qualche lampada accesa (così le
         // stanze illuminate si vedono bene); senza luci resta tutto buio.
         glUniform1f(u("uExposure"), 1.0f + (if (lights.lampCount > 0) 1.4f else 0.3f) * (1f - d.day))
@@ -714,6 +715,12 @@ class DesktopGlSceneRenderer(
         this.hour = hour
         this.lamps = lamps
         this.sunAt = sun
+        request()
+    }
+
+    override fun setLampBrightness(k: Float) {
+        if (k == lampBrightness) return
+        lampBrightness = k
         request()
     }
 

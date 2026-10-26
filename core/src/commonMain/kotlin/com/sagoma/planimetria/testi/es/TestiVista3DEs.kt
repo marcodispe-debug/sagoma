@@ -6,6 +6,7 @@ object TestiVista3DEs : TestiVista3D() {
     override val luciAccese: String get() = "💡 Luces encendidas"
     override val luciSpente: String get() = "💡 Luces apagadas"
     override val luciAuto: String get() = "💡 Luces: auto"
+    override fun luminositaLuci(pct: Int): String = "💡 Brillo de las luces: $pct%"
     override val vistaDallAlto: String get() = "🏠 Vista superior"
     override val cammina: String get() = "🚶 Caminar"
     override fun oraGiorno(h: Any?, p2: Any?): String = "Hora del día: $h:$p2"

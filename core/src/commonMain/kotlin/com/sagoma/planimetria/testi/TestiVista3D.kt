@@ -5,6 +5,7 @@ open class TestiVista3D {
     open val luciAccese: String get() = "💡 Luci accese"
     open val luciSpente: String get() = "💡 Luci spente"
     open val luciAuto: String get() = "💡 Luci: auto"
+    open fun luminositaLuci(pct: Int): String = "💡 Luminosità delle luci: $pct%"
     open val vistaDallAlto: String get() = "🏠 Vista dall'alto"
     open val cammina: String get() = "🚶 Cammina"
     open fun oraGiorno(h: Any?, p2: Any?): String = "Ora del giorno: $h:$p2"

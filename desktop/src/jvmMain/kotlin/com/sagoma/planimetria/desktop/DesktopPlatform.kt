@@ -68,6 +68,9 @@ class DesktopPlatform(
     // Mouse e schermo largo: qui la guida interattiva ha senso (e parte al primo avvio).
     override val interactiveGuide: Boolean get() = true
 
+    // Nel 3D ci si muove con WASD, frecce e mouse: il joystick sullo schermo non serve.
+    override val walkJoystick: Boolean get() = false
+
     // Schermo grande e scheda grafica del computer: materiali 2K (scaricati dal server; finché mancano, quelli 1K).
     override val materialResolution: MaterialResolution get() = MaterialResolution.K2
 
@@ -156,8 +159,12 @@ class DesktopPlatform(
 
     override fun createPdf(pages: List<PdfPage>, density: Density): ByteArray = SkiaImages.rasterPdf(pages, density)
 
-    override fun formatDate(epochMillis: Long, withTime: Boolean): String =
-        (if (withTime) DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT) else DateFormat.getDateInstance(DateFormat.SHORT)).format(Date(epochMillis))
+    // Date nella lingua dell'app, non in quella del sistema (app in italiano su un sistema inglese: «Oct 26, 2026»).
+    override fun formatDate(epochMillis: Long, withTime: Boolean): String {
+        val locale = java.util.Locale.forLanguageTag(T.lingua.codice)
+        val format = if (withTime) DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, locale) else DateFormat.getDateInstance(DateFormat.SHORT, locale)
+        return format.format(Date(epochMillis))
+    }
 
     override fun now(): Long = System.currentTimeMillis()
 

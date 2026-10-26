@@ -172,6 +172,13 @@ fun EditorScreen(
     if (showLanguage) LanguageDialog(onDismiss = { showLanguage = false })
     state.textDialogAt?.let { at -> NewTextDialog(at, vm) }
 
+    // Vista 3D: telecamera e superficie OpenGL restano le stesse passando da 2D a 3D e ritorno.
+    val view3dState = remember { View3DState() }
+    // Nord e città della casa: decidono il giro del sole nel 3D.
+    LaunchedEffect(state.building.site) { view3dState.site = state.building.site; view3dState.refresh() }
+    // Luminosità delle lampade scelta nel progetto: la vista 3D la ritrova a ogni apertura.
+    LaunchedEffect(state.building.lampBrightness) { view3dState.lampBrightness = state.building.lampBrightness.toFloat(); view3dState.refresh() }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -180,9 +187,18 @@ fun EditorScreen(
             // Scorciatoie da tastiera (§8). Dopo i campi di testo (onKeyEvent, non "preview"): dentro un campo
             // Ctrl+C, Ctrl+V, Ctrl+Z e Canc lavorano sul testo, non sugli oggetti della pianta.
             .onKeyEvent { e ->
+                // Nel 3D WASD e frecce muovono la vista anche se la tastiera è rimasta su un pulsante.
+                if (state.view3d && !e.isCtrlPressed && view3dState.onKey(e)) return@onKeyEvent true
                 if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 // Selezione multipla: Canc elimina gli oggetti selezionati, Esc svuota la selezione (poi esce).
                 if (!e.isCtrlPressed) return@onKeyEvent when {
+                    // WASD e frecce spostano la pianta (con Maiusc di più), come la vista 3D.
+                    !state.view3d && planPan(e.key) != null -> {
+                        val (dx, dy) = planPan(e.key)!!
+                        val step = if (e.isShiftPressed) 180f else 60f
+                        vm.pan(dx * step, dy * step)
+                        true
+                    }
                     // Canc: elimina ciò che è selezionato (gruppo, oggetto, muro → lato aperto, stanza con conferma).
                     !state.view3d && (e.key == Key.Delete || e.key == Key.Backspace) -> vm.deleteSelected()
                     state.pasting && e.key == Key.Escape -> { vm.stopPaste(); true }
@@ -221,10 +237,6 @@ fun EditorScreen(
         val wideWindow = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() } >= 900.dp
         // E la barra di stato si nasconde (riappare temporaneamente scorrendo dal bordo superiore).
         LaunchedEffect(compactHeight) { platform.setStatusBarHidden(compactHeight) }
-        // Vista 3D: telecamera e superficie OpenGL restano le stesse passando da 2D a 3D e ritorno.
-        val view3dState = remember { View3DState() }
-        // Nord e città della casa: decidono il giro del sole nel 3D.
-        LaunchedEffect(state.building.site) { view3dState.site = state.building.site; view3dState.refresh() }
         var openGuide by remember { mutableStateOf<Guide?>(null) }
         openGuide?.let { GuideDialog(it, onDismiss = { openGuide = null }, onOpen3d = { vm.setView3d(true) }) }
         // Guide passo passo che si fanno sulla pianta: avanzano da sole a ogni azione.
@@ -467,8 +479,11 @@ fun EditorScreen(
                     bottom = with(density) { coveredBottomPx.toDp() } + 8.dp,
                 )
             // Angolo in basso a destra: passaggio 2D/3D, e la legenda (2D) o Cammina / Vista dall'alto (3D).
+            // Telefono in orizzontale col pannello «Piantina e disegno» aperto: non c'è altezza per pannello e pulsanti insieme
+            // (la Legenda finiva fuori dallo schermo e «Vista 3D» sotto la bussola). Resta solo il pannello, che ha il suo «Chiudi».
+            val panelOnly = compactHeight && showVisibility && !state.view3d
             Column(cornerModifier, horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                LegendButton(
+                if (!panelOnly) LegendButton(
                     if (state.view3d) T.editor.pianta2d else T.editor.vista3d,
                     onClick = {
                         if (state.view3d && view3dState.walking) view3dState.stopWalking()
@@ -479,12 +494,14 @@ fun EditorScreen(
                 else {
                     // Mostra/nascondi e trasparenza di piantina e disegno, regolate dal vivo.
                     if (showVisibility) VisibilityPanel(state, vm, onLoadPlan = { showBackground = true }, onClose = { showVisibility = false })
-                    LegendButton(
-                        T.editor.piantinaDisegno, onClick = { showVisibility = !showVisibility },
-                        modifier = Modifier.guide(GuideTarget.PlanPanel, done = showVisibility),
-                    )
-                    PhaseLegend(state)
-                    LegendButton(T.editor.legenda, onClick = { showLegend = true })
+                    if (!panelOnly) {
+                        LegendButton(
+                            T.editor.piantinaDisegno, onClick = { showVisibility = !showVisibility },
+                            modifier = Modifier.guide(GuideTarget.PlanPanel, done = showVisibility),
+                        )
+                        PhaseLegend(state)
+                        LegendButton(T.editor.legenda, onClick = { showLegend = true })
+                    }
                 }
             }
             // Bussola in alto a destra sulla pianta, sotto le schede in alto: la N si gira trascinandola, il tocco apre "Nord e città".
@@ -502,11 +519,15 @@ fun EditorScreen(
                 if (wide || compactHeight) TimeOfDayPanel(
                     view3dState, Modifier.align(Alignment.TopStart).padding(12.dp), vertical = true,
                     length = (maxHeight - 120.dp - 16.dp - 24.dp - 110.dp).coerceIn(90.dp, 260.dp),
+                    onLampBrightness = { vm.setLampBrightness(it.toDouble()) },
                 )
-                else TimeOfDayPanel(view3dState, Modifier.align(Alignment.TopCenter).padding(12.dp).fillMaxWidth())
+                else TimeOfDayPanel(
+                    view3dState, Modifier.align(Alignment.TopCenter).padding(12.dp).fillMaxWidth(),
+                    onLampBrightness = { vm.setLampBrightness(it.toDouble()) },
+                )
             }
-            // Joystick per spostarsi: camminando e anche nella vista dall'alto (stessi comandi).
-            if (state.view3d) {
+            // Joystick per spostarsi: camminando e anche nella vista dall'alto (stessi comandi). Sul computer no: ci sono WASD e mouse.
+            if (state.view3d && platform.walkJoystick) {
                 WalkJoystick(
                     view3dState,
                     Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = with(density) { coveredBottomPx.toDp() } + 16.dp),
@@ -1018,10 +1039,10 @@ private fun MenuButton(
     fun close() { open = false; path = emptyList() }
     Box(modifier.guide(guide, done = open)) {
         if (filled) Button(enabled = enabled, onClick = { open = true }, modifier = Modifier.fillMaxWidth(), contentPadding = contentPadding) {
-            Text(if (arrow) "$label ▾" else label, maxLines = 1)
+            FitText(if (arrow) "$label ▾" else label)
         }
         else OutlinedButton(enabled = enabled, onClick = { open = true }, modifier = Modifier.fillMaxWidth(), contentPadding = contentPadding) {
-            Text(if (arrow) "$label ▾" else label, maxLines = 1)
+            FitText(if (arrow) "$label ▾" else label)
         }
         DropdownMenu(expanded = open, onDismissRequest = ::close) {
             val current = path.lastOrNull()
@@ -1148,4 +1169,16 @@ private fun RoomTabs(rooms: List<Room>, focusedId: Long?, onTap: (Long) -> Unit,
             }
         }
     }
+}
+
+/**
+ * Tasti che spostano la pianta: direzione in cui scorre il disegno (la vista va dalla parte opposta, come con le frecce
+ * di un gioco: W o ↑ guardano più in su). null = non è un tasto di movimento.
+ */
+private fun planPan(k: Key): Pair<Float, Float>? = when (k) {
+    Key.W, Key.DirectionUp -> 0f to 1f
+    Key.S, Key.DirectionDown -> 0f to -1f
+    Key.A, Key.DirectionLeft -> 1f to 0f
+    Key.D, Key.DirectionRight -> -1f to 0f
+    else -> null
 }

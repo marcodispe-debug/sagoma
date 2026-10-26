@@ -29,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.GuideField
+import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.editor.MergeRequest
 import com.sagoma.planimetria.editor.Selection
 import com.sagoma.planimetria.geometry.RoomMerge
@@ -241,11 +243,13 @@ private fun FreeWallPanel(sel: Selection.FreeWall, plan: FloorPlan, vm: EditorVi
     PhaseChoice(w.phase, PhaseLabels.wall) { vm.setFreeWallPhase(w.id, it) }
     val ceiling = Structure.ceilingAt(plan, w.mid, levelHeight)
     Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        NumberField(T.comuni.lunghezza, w.length, Modifier.weight(1f)) { v ->
+        NumberField(T.comuni.lunghezza, w.length, Modifier.weight(1f).guide(GuideTarget.Field(GuideField.FreeWallLength), value = formatCm(w.length))) { v ->
             // Si allunga o si accorcia dalla fine, tenendo ferma la partenza.
             if (v >= 10 && w.length > 1e-6) update { it.copy(end = it.start + (it.end - it.start).normalized() * v) }
         }
-        NumberField(T.comuni.spessore, w.thickness, Modifier.weight(1f)) { v -> if (v >= 3) update { it.copy(thickness = v) } }
+        NumberField(T.comuni.spessore, w.thickness, Modifier.weight(1f).guide(GuideTarget.Field(GuideField.FreeWallThickness), value = formatCm(w.thickness))) { v ->
+            if (v >= 3) update { it.copy(thickness = v) }
+        }
         NumberField(T.comuni.altezza, Structure.freeWallHeight(plan, w, levelHeight), Modifier.weight(1f)) { v ->
             update { it.copy(height = if (v >= ceiling - 0.5) null else v) }
         }
@@ -958,8 +962,17 @@ internal fun Choice(label: String, options: List<String>, selected: Int, modifie
                     icon = {}, // niente spunta: lo spazio serve al testo
                     contentPadding = ChoicePadding,
                 ) {
-                    // I nomi lunghi (es. "Tagliata a filo del pavimento") vanno a capo invece di essere tagliati.
-                    Text(opt, style = MaterialTheme.typography.labelMedium, maxLines = 2, textAlign = TextAlign.Center)
+                    // I nomi lunghi (es. "Tagliata a filo del solaio") vanno a capo invece di essere tagliati; se una parola da sola
+                    // non ci sta («Verso l'estern-o» con tre pulsanti) il carattere si rimpicciolisce un po'.
+                    val style = MaterialTheme.typography.labelMedium
+                    var scale by remember(opt) { mutableStateOf(1f) }
+                    Text(
+                        opt,
+                        style = style.copy(fontSize = style.fontSize * scale),
+                        maxLines = 2,
+                        textAlign = TextAlign.Center,
+                        onTextLayout = { if ((it.breaksWord() || it.hasVisualOverflow) && scale > 0.7f) scale -= 0.05f },
+                    )
                 }
             }
         }
@@ -985,8 +998,14 @@ private fun Stepper(label: String, value: String, onMinus: (() -> Unit)?, onPlus
 
 /** Azioni del riquadro (es. "Rimuovi"), allineate a destra: il titolo sta nella striscia "Info". */
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 internal fun PanelActions(actions: @Composable () -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+    // Se i comandi non stanno su una riga vanno a capo (arredo: «↻ 90°, Specchia, Duplica, Rimuovi» spezzava «Rimu-ovi»).
+    androidx.compose.foundation.layout.FlowRow(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
         actions()
     }
 }

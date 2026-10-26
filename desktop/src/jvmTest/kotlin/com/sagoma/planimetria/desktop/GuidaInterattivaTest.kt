@@ -40,7 +40,7 @@ import kotlin.test.assertTrue
 import kotlin.math.roundToInt
 
 /**
- * La guida interattiva dall'app vera, al primo avvio sul computer: un "utente" fa tutte e 7 le lezioni facendo solo quello che
+ * La guida interattiva dall'app vera, al primo avvio sul computer: un "utente" fa tutte le lezioni facendo solo quello che
  * la guida indica (il comando cerchiato in arancione, il campo con la misura da scrivere, il segno sulla pianta), senza mai
  * "Salta passo". Una foto per passo in desktop/build/guida/.
  */
@@ -57,7 +57,7 @@ class GuidaInterattivaTest {
         Thread.sleep(4)
     }
 
-    /** Il ViewModel del progetto con la guida in corso (dopo la lezione 6 la guida passa al secondo progetto di prova). */
+    /** Il ViewModel del progetto con la guida in corso (prima dell'ultima lezione la guida passa al secondo progetto di prova). */
     @Suppress("RestrictedApi")
     private fun vm(): EditorViewModel? = store.keys().mapNotNull { store[it] as? EditorViewModel }.firstOrNull { it.state.value.course != null }
 
@@ -227,6 +227,12 @@ class GuidaInterattivaTest {
                 val inner = first.rooms.single { it.type == r.type }.interior()
                 assertTrue(r.points.all { p -> inner.any { it.distanceTo(p + offset) < 3.0 } }, "${r.type} non è dove sta sulla piantina")
             }
+            // Il tramezzo della cabina armadio: al suo posto a mano (qualche centimetro), lunghezza e spessore esatti da Info.
+            val wall = first.freeWalls.single()
+            val t = GuidePlan.tramezzo
+            assertTrue(wall.start.distanceTo(t.start + offset) < 15.0 && wall.end.distanceTo(t.end + offset) < 15.0, "il tramezzo non è al suo posto: $wall")
+            assertEquals(t.length, wall.length, 0.5)
+            assertEquals(t.thickness, wall.thickness, 0.01)
             // Sopra la piantina: camera, bagno e soggiorno a L con le misure esatte scritte in Info.
             val second = repo.planStore(repo.list().first { it.name == T.corso.progettoProvaPlanimetria }.id).load()!!.floor.plan
             assertEquals(listOf(RoomType.Camera, RoomType.Bagno, RoomType.Soggiorno), second.rooms.map { it.type })

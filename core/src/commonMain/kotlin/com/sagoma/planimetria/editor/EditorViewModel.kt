@@ -311,8 +311,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             CourseStep.Snap, CourseStep.LivingInfo -> s.plan.rooms.lastOrNull { it.type == RoomType.Soggiorno }?.let { r ->
                 if (s.focusedRoomId != r.id || s.selection != null) _state.update { it.copy(focusedRoomId = r.id, selection = null) }
             }
-            // Trasparenza e ultima scheda: la tendina Info delle misure si chiude, così si vede la casa finita.
-            CourseStep.PlanFade, CourseStep.Finished -> if (s.infoExpanded) _state.update { it.copy(infoExpanded = false) }
+            // Il muro singolo selezionato: i pallini alle estremità e la sua scheda Info.
+            CourseStep.FreeWallEnd, CourseStep.FreeWallInfo -> s.plan.freeWalls.lastOrNull()?.let { w ->
+                if (s.selection != Selection.FreeWall(w.id)) _state.update { it.copy(focusedRoomId = null, selection = Selection.FreeWall(w.id)) }
+            }
+            // Trasparenza e ultima scheda (anche quella del tramezzo): la tendina Info si chiude, così si vede la casa.
+            CourseStep.FreeWallDone, CourseStep.PlanFade, CourseStep.Finished -> if (s.infoExpanded) _state.update { it.copy(infoExpanded = false) }
             else -> Unit
         }
         courseFocus = Course.focus(step, _state.value)?.also { b ->
@@ -500,6 +504,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         s.copy(building = s.building.copy(site = s.building.site.copy(northDeg = d)))
     }
 
+    /**
+     * Luminosità delle lampade della casa (1 = normale): si salva nel progetto, così il 3D la ritrova e i render la usano.
+     * Come il nord, non si annulla.
+     */
+    fun setLampBrightness(k: Double) = _state.update { s ->
+        val v = k.coerceIn(Building.MIN_LAMP_BRIGHTNESS, Building.MAX_LAMP_BRIGHTNESS)
+        if (v == s.building.lampBrightness) s else s.copy(building = s.building.copy(lampBrightness = v))
+    }
+
     /** Città della casa per il giro del sole (null = nessuna, vale Roma). Non si annulla. */
     fun setPlace(place: com.sagoma.planimetria.model.Place?) = _state.update { s ->
         s.copy(building = s.building.copy(site = s.building.site.copy(place = place)))
@@ -551,7 +564,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
                 Room(it.id, it.name, it.type, it.points, ceilingHeight = it.ceilingHeight, floorFinish = it.type.defaultFloor)
             } else emptyList()
             val level = if (below) b.level(0) - 1 else b.level(b.floors.lastIndex) + 1
-            val floor = Floor(b.nextFloorId, name.trim().ifBlank { Building.floorName(level) }, FloorPlan(rooms), levelHeight, autoLevel).synced()
+            // Il piano nuovo ha la stessa facciata di quello accanto: l'esterno di una casa è quasi sempre uguale.
+            val plan = FloorPlan(rooms, facade = from.plan.facade, facadeFinish = from.plan.facadeFinish)
+            val floor = Floor(b.nextFloorId, name.trim().ifBlank { Building.floorName(level) }, plan, levelHeight, autoLevel).synced()
             if (below) b.copy(floors = listOf(floor) + b.floors, current = 0, ground = b.groundIndex + 1)
             else b.copy(floors = b.floors + floor, current = b.floors.size)
         }
@@ -647,6 +662,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         commit { it.copy(freeWalls = it.freeWalls + wall) }
         _state.update { it.copy(focusedRoomId = null, selection = Selection.FreeWall(wall.id), pendingOpening = null, pendingFixture = null, infoExpanded = false) }
         showTip(Tip.FreeWall)
+        tutorialEvent(TutorialEvent.FreeWallAdded)
     }
 
     /**
@@ -674,7 +690,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     fun selectFreeWall(id: Long) = _state.update { it.copy(focusedRoomId = null, selection = Selection.FreeWall(id)) }
-    fun updateFreeWall(w: FreeWall) = commit { it.replace(w) }
+    fun updateFreeWall(w: FreeWall) {
+        commit { it.replace(w) }
+        tutorialEvent(TutorialEvent.FreeWallChanged)
+    }
 
     fun removeFreeWall(id: Long) {
         commit { it.copy(freeWalls = it.freeWalls.filter { w -> w.id != id }) }
@@ -1642,6 +1661,14 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     fun closeSelection() = _state.update { it.copy(selection = null) }
 
+    /**
+     * Deseleziona tutto (tasto destro del mouse sul computer): oggetto, stanza attiva, gruppo selezionato, e la porta, l'impianto
+     * o la copia che si stava per mettere. Il disegno dei muri, le quote e i testi in corso restano.
+     */
+    fun deselectAll() = _state.update {
+        it.copy(focusedRoomId = null, selection = null, multi = emptySet(), selectRect = null, pendingOpening = null, pendingFixture = null, pasting = false, pasteCursor = null)
+    }
+
     /** Punto da tenere visibile: l'oggetto selezionato o, senza selezione, l'etichetta della stanza a fuoco. */
     private fun focusAnchor(s: EditorUiState): Vec2? = when (val sel = s.selection) {
         is Selection.Wall -> s.plan.room(sel.roomId)?.takeIf { sel.index < it.wallCount }
@@ -2413,6 +2440,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             is DragTarget.Corner -> tutorialEvent(TutorialEvent.CornerDragged)
             is DragTarget.Opening -> tutorialEvent(TutorialEvent.OpeningDragged)
             is DragTarget.RoomLabel -> tutorialEvent(TutorialEvent.RoomMoved)
+            is DragTarget.FreeWallBody -> tutorialEvent(TutorialEvent.FreeWallMoved)
+            is DragTarget.FreeWallEnd -> tutorialEvent(TutorialEvent.FreeWallEndDragged)
             else -> Unit
         }
         dragTarget = null
@@ -2912,8 +2941,14 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         _state.update { s -> s.copy(wallDraw = s.wallDraw?.copy(cursor = null), snapGuides = emptyList()) }
     }
 
-    /** Finitura della facciata del piano. */
-    fun setFacadeFinish(finish: WallFinish) = commit { it.copy(facadeFinish = finish) }
+    /**
+     * Finitura della facciata: di solito è la stessa per tutta la casa, quindi vale per tutti i piani.
+     * Con `onlyThisFloor` cambia solo il piano corrente (l'eccezione, per esempio un piano rivestito in pietra).
+     */
+    fun setFacadeFinish(finish: WallFinish, onlyThisFloor: Boolean = false) {
+        if (onlyThisFloor) commit { it.copy(facadeFinish = finish) }
+        else commitBuilding { b -> b.copy(floors = b.floors.map { f -> f.copy(plan = f.plan.copy(facadeFinish = finish)) }) }
+    }
 
     /** Finitura di un muro singolo (i due lati). */
     fun setFreeWallFinish(id: Long, finish: WallFinish) = commit { plan ->

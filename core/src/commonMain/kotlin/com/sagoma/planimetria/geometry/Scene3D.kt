@@ -136,7 +136,27 @@ class Scene3D(
     val roofs: FloatArray = FloatArray(0),
     /** Quota del terreno (il pavimento del piano terra), se sotto ci sono interrati da coprire; null = sotto il piano più basso. */
     val groundLevel: Double? = null,
+    /**
+     * Scavo attorno a un piano interrato (in pianta): il terreno è più in alto del piano che si guarda, e il prato lascia qui
+     * un buco dove si vedono la terra tagliata e, in fondo, la casa. null = niente scavo.
+     */
+    val excavation: Bounds? = null,
 ) {
+    /** Prato attorno alla casa, `margin` cm oltre la pianta: un rettangolo, o quattro attorno allo [excavation]. */
+    fun lawn(margin: Double): List<Bounds> {
+        val b = bounds ?: return emptyList()
+        val h = excavation
+        val outer = Bounds(minOf(b.minX, h?.minX ?: b.minX) - margin, minOf(b.minY, h?.minY ?: b.minY) - margin,
+            maxOf(b.maxX, h?.maxX ?: b.maxX) + margin, maxOf(b.maxY, h?.maxY ?: b.maxY) + margin)
+        if (h == null) return listOf(outer)
+        return listOf(
+            Bounds(outer.minX, outer.minY, outer.maxX, h.minY),
+            Bounds(outer.minX, h.maxY, outer.maxX, outer.maxY),
+            Bounds(outer.minX, h.minY, h.minX, h.maxY),
+            Bounds(h.maxX, h.minY, outer.maxX, h.maxY),
+        )
+    }
+
     /**
      * Luce artificiale: `position` in cm; `direction` non nulla = faretto che punta lì; `lumens` flusso
      * luminoso tipico della lampada; `warm` luce calda (lampadine) o neutra (neon, LED).
@@ -156,13 +176,15 @@ class Scene3D(
          * luce di ogni lampada nella sua stanza; chi la lascia passare dai muri (Filament sul telefono) non la aggiunge.
          */
         val spill: Boolean = false,
+        /** Rettangoli della stanza ([LightZones]): la luce resta lì dentro anche in una stanza a L. null = tutto [room]. */
+        val zones: List<Bounds>? = null,
     ) {
         /** Asse attorno a cui si misura [profile]: dove punta il faretto, altrimenti [axis]. */
         val beamAxis: Vec3 get() = direction ?: axis
     }
 
     /** Stessa scena con altre luci: serve ad aggiornare solo le luci, senza ricostruire la geometria. */
-    fun withLights(newLights: List<SceneLight>) = Scene3D(opaque, transparent, picks, obstacles, bounds, furniture, textured, newLights, windows, roofs, groundLevel)
+    fun withLights(newLights: List<SceneLight>) = Scene3D(opaque, transparent, picks, obstacles, bounds, furniture, textured, newLights, windows, roofs, groundLevel, excavation)
 
     /** Apertura vetrata: centro in cm, normale verso l'interno della stanza, misure in cm. */
     data class SceneWindow(val center: Vec3, val inward: Vec3, val width: Double, val height: Double)
@@ -253,7 +275,10 @@ class Scene3D(
             below: List<Floor> = emptyList(),
             /** Piano di sopra (camminando): si vede dal vano scala, chiuso in alto dal suo solaio. */
             above: Floor? = null,
-            /** Quota del piano terra rispetto a questo piano, se tra quelli di sotto ci sono interrati ([Scene3D.groundLevel]). */
+            /**
+             * Quota del piano terra rispetto a questo piano, se l'edificio ha interrati ([Scene3D.groundLevel]): più in alto di 0 =
+             * questo piano è un interrato, e la casa si vede in fondo a uno scavo ([Scene3D.excavation]).
+             */
             groundLevel: Double? = null,
         ): Scene3D {
             // Quote dei pavimenti: il piano corrente a 0, quelli di sotto più in basso.
@@ -426,6 +451,14 @@ private class SceneBuilder(
     private val ceilingColor = Rgba(0.97f, 0.97f, 0.96f)
     /** Tetto piano sopra i piani di sotto (dove il piano di sopra non li copre): guaina grigio chiaro. */
     private val slabTop = Rgba(0.72f, 0.71f, 0.69f)
+
+    // Terreno tagliato attorno a un interrato ([excavate]): terra scura in superficie, argilla sotto, ghiaia sul fondo.
+    private val Topsoil = Rgba(0.33f, 0.25f, 0.17f)
+    private val Clay = Rgba(0.60f, 0.47f, 0.33f)
+    private val Gravel = Rgba(0.55f, 0.52f, 0.47f)
+    /** Distanza dello scavo dal filo esterno della casa e spessore della terra scura in superficie (cm). */
+    private val EXCAVATION_MARGIN = 80.0
+    private val TOPSOIL_DEPTH = 40.0
     /** Spessore del solaio visto di lato (fascia sotto il pavimento di sopra, bordi dei vani scala): cemento, più scuro dell'intonaco. */
     private val slabEdge = Rgba(0.60f, 0.59f, 0.57f)
     private val lightColor = Rgba(1f, 0.93f, 0.62f)
@@ -556,16 +589,55 @@ private class SceneBuilder(
                 }
             }
             // Luce delle lampade che passa dalle porte nelle stanze vicine (solo il piano corrente ha le luci).
-            if (current) lights += LightSpill.through(plan, lights.toList())
+            if (current) {
+                lights += LightSpill.through(plan, lights.toList())
+                // Stanze a L o a U: la luce resta nei rettangoli della stanza, non in tutto il suo riquadro.
+                val zones = plan.rooms.associate { Polygon.bounds(it.points) to LightZones.of(it.points) }
+                for (k in lights.indices) {
+                    val l = lights[k]
+                    val z = l.room?.let { zones[it] } ?: continue
+                    if (l.zones == null && z.size > 1) lights[k] = l.copy(zones = z)
+                }
+            }
             previous = level
         }
+        // Piano interrato: il terreno sta più in alto, la casa si vede in fondo a uno scavo.
+        val excavation = groundLevel?.takeIf { it > 1.0 }?.let { excavate(it) }
         // Inquadratura sul piano che si sta guardando (non su quello di sopra, che si vede solo dal vano scala).
         val top = levels.first { it.current }
         return Scene3D(
             opaque.toArray(), transparent.toArray(), picks, obstacles, Openings.planBounds(top.plan, top.levelHeight), placed,
             textured.mapValues { it.value.toArray() },
-            lights, windows, roofs.toArray(), groundLevel,
+            lights, windows, roofs.toArray(), groundLevel, excavation,
         )
+    }
+
+    /**
+     * Scavo attorno a un piano interrato: il terreno tagliato come in una sezione (terra scura in alto, argilla sotto) dalla
+     * quota del terreno `ground` fino sotto il piano più basso, poco oltre i muri, e la ghiaia sul fondo. Il prato (lo disegna
+     * il renderer) resta alla quota del terreno attorno al buco. Restituisce il buco in pianta.
+     */
+    private fun excavate(ground: Double): Bounds? {
+        val pts = levels.filter { it.base <= 0.0 }.flatMap { l -> l.plan.rooms.filterNot { it.outdoor }.flatMap { it.points } }
+        if (pts.isEmpty()) return null
+        val b = Polygon.bounds(pts)
+        val m = EXCAVATION_MARGIN
+        val hole = Bounds(b.minX - m, b.minY - m, b.maxX + m, b.maxY + m)
+        val bottom = levels.minOf { it.base } - 2.0
+        val topsoil = maxOf(bottom, ground - TOPSOIL_DEPTH)
+        current = false
+        val c = listOf(Vec2(hole.minX, hole.minY), Vec2(hole.maxX, hole.minY), Vec2(hole.maxX, hole.maxY), Vec2(hole.minX, hole.maxY))
+        val mid = Vec2((hole.minX + hole.maxX) / 2, (hole.minY + hole.maxY) / 2)
+        for (k in c.indices) {
+            val a = c[k]
+            val e = c[(k + 1) % c.size]
+            // Faccia rivolta verso la casa.
+            val inward = ((mid - (a + e) * 0.5).let { Vec3(it.x, 0.0, it.y) })
+            quad(a.at(bottom), e.at(bottom), e.at(topsoil), a.at(topsoil), inward, Clay, null)
+            quad(a.at(topsoil), e.at(topsoil), e.at(ground), a.at(ground), inward, Topsoil, null)
+        }
+        quad(c[0].at(bottom), c[1].at(bottom), c[2].at(bottom), c[3].at(bottom), Vec3.Up, Gravel, null)
+        return hole
     }
 
     /** Faccia superiore del solaio sopra una stanza di un piano di sotto: il tetto piano visto dall'alto. */
@@ -1448,10 +1520,10 @@ private class SceneBuilder(
                     // Listello in cima al rivestimento quando non arriva al soffitto.
                     if (abs(r.endInclusive - coverTop) < 0.01 && coverTop < h - 0.01) trim(finish, s, u, side, half, c0, c1, coverTop, pick)
                 }
-                // Battiscopa sulla faccia verso la stanza, dove il muro arriva a terra (non sotto le porte).
-                if (interior && r.start < 0.01 && pick == wallPick && r.endInclusive > SKIRTING && !(covered && finish.covering in NO_SKIRTING)) {
+                // Battiscopa sulla faccia verso la stanza, dove il muro arriva a terra: anche sotto le finestre, non sotto le porte.
+                if (interior && r.start < 0.01 && r.endInclusive > SKIRTING && !(covered && finish.covering in NO_SKIRTING)) {
                     val n = side * (half + 0.6)
-                    box(p0 + n, p1 + n, 0.6, 0.0, SKIRTING, skirting, pick)
+                    box(p0 + n, p1 + n, 0.6, 0.0, SKIRTING, skirting, wallPick)
                 }
                 // Chi cammina urta i tratti di muro all'altezza del corpo (non sopra una porta, non un davanzale basso).
                 if (r.start < 150 && r.endInclusive > 40) blocks = true

@@ -7,6 +7,7 @@ import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.GuidePlan
 import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.editor.Lesson
+import com.sagoma.planimetria.editor.ShapeChoice
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.ShapeDimensions
@@ -180,6 +181,58 @@ class CourseTest {
         vm.finishCourse(completed = false)
         assertNull(vm.step)
         assertTrue(TipStore.COURSE_DONE in tips.seen && TipStore.TUTORIAL_DONE in tips.seen)
+    }
+
+    @Test
+    fun `il muro singolo nasce nella camera e diventa il tramezzo della cabina armadio`() {
+        val vm = emptyProject()
+        vm.startCourse(Lesson.FreeWall)
+        assertEquals(CourseStep.FreeWallPick, vm.step)
+        assertTrue(vm.state.value.plan.freeWalls.isEmpty())
+        val camera = vm.room(RoomType.Camera)
+        assertTrue(Course.hints(CourseStep.FreeWallPick, vm.state.value).single().marks.isNotEmpty(), "prima si seleziona la camera")
+        vm.focusRoom(camera.id)
+        assertEquals(GuideTarget.Elements, Course.hints(CourseStep.FreeWallPick, vm.state.value).first().target)
+        vm.startAddRoom()
+        assertEquals(GuideTarget.Shape(ShapeChoice.FreeWall), Course.hints(CourseStep.FreeWallPick, vm.state.value).single().target)
+        vm.addFreeWall()
+        assertEquals(CourseStep.FreeWallMove, vm.step)
+        assertNull(vm.state.value.tip, "durante la guida niente mini guide")
+
+        // Nato dritto attraverso la camera, da un muro all'altro: si porta di lato, più o meno, fino al suo posto.
+        val w = vm.state.value.plan.freeWalls.single()
+        val inner = Polygon.bounds(camera.interior())
+        assertTrue(kotlin.math.abs(w.start.x - w.end.x) < 0.01 && w.start.y < w.end.y, "verticale, dall'alto in basso")
+        assertTrue(kotlin.math.abs(w.start.y - inner.minY) < 0.5 && kotlin.math.abs(w.end.y - inner.maxY) < 0.5, "da un muro all'altro")
+        val top = GuidePlan.tramezzo.start + vm.offset()
+        vm.beginDrag(DragTarget.FreeWallBody(w.id), w.mid)
+        vm.dragBy(DragTarget.FreeWallBody(w.id), Vec2(30.0, 0.0))
+        vm.endDrag()
+        assertEquals(CourseStep.FreeWallMove, vm.step, "non ancora al suo posto")
+        val w1 = vm.state.value.plan.freeWalls.single()
+        vm.beginDrag(DragTarget.FreeWallBody(w.id), w1.mid)
+        vm.dragBy(DragTarget.FreeWallBody(w.id), Vec2(top.x - w1.mid.x + 5.0, 0.0))
+        vm.endDrag()
+        assertEquals(CourseStep.FreeWallEnd, vm.step)
+
+        // L'estremità in basso trascinata in su: resta il passaggio; poi lunghezza e spessore esatti in Info.
+        val w2 = vm.state.value.plan.freeWalls.single()
+        val end = GuidePlan.tramezzo.end + vm.offset()
+        vm.beginDrag(DragTarget.FreeWallEnd(w.id, 1), w2.end)
+        vm.dragBy(DragTarget.FreeWallEnd(w.id, 1), Vec2(0.0, end.y - w2.end.y + 6.0))
+        vm.endDrag()
+        assertEquals(CourseStep.FreeWallInfo, vm.step)
+        val w3 = vm.state.value.plan.freeWalls.single()
+        vm.updateFreeWall(w3.copy(end = w3.start + (w3.end - w3.start).normalized() * GuidePlan.tramezzo.length))
+        assertEquals(CourseStep.FreeWallInfo, vm.step, "manca lo spessore")
+        vm.updateFreeWall(vm.state.value.plan.freeWalls.single().copy(thickness = GuidePlan.tramezzo.thickness))
+        assertEquals(CourseStep.FreeWallDone, vm.step)
+        val done = vm.state.value.plan.freeWalls.single()
+        assertTrue(done.start.distanceTo(top) < 6.0 && done.end.distanceTo(end) < 6.0, "il tramezzo è dove sta sulla piantina: $done")
+
+        // Dalla lezione dopo, la casa di prova ha già il tramezzo al suo posto.
+        vm.startCourse(Lesson.Elements)
+        assertEquals(listOf(GuidePlan.tramezzo.start to GuidePlan.tramezzo.end), vm.state.value.plan.freeWalls.map { it.start to it.end })
     }
 
     @Test

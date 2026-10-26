@@ -35,6 +35,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -45,7 +46,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.sagoma.planimetria.editor.GuideField
@@ -145,11 +148,22 @@ fun InfoSheet(
                     Box(Modifier.size(10.dp).background(dotColor, CircleShape))
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(
+                // Nome e misura su una riga; se non ci stanno (pannello stretto, lingue con parole lunghe) il nome può andare
+                // su due righe e la misura sotto, più piccola, invece di sparire nei puntini. Col telefono in orizzontale
+                // (poca altezza) resta solo il nome: i dettagli si leggono aprendo Info.
+                var twoLines by remember(title) { mutableStateOf(false) }
+                val lowWindow = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } < 500.dp
+                val head = title.substringBefore(" · ")
+                val rest = title.substringAfter(" · ", "")
+                if (twoLines) Column(Modifier.weight(1f)) {
+                    Text(head, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (rest.isNotEmpty() && !lowWindow) Text(rest, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                } else Text(
                     title,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { if (it.hasVisualOverflow) twoLines = true },
                     modifier = Modifier.weight(1f),
                 )
                 actions()
@@ -242,11 +256,16 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
                     onClick = { lastRoomTab = t },
                     modifier = Modifier.guide(GuideTarget.MeasuresTab.takeIf { t == RoomTab.Measures }, done = tab == RoomTab.Measures),
                 ) {
+                    // Se una parola non ci sta (pannello stretto col telefono in orizzontale: «Progett-o») il carattere si rimpicciolisce.
+                    val label = if (t == RoomTab.Photos && room.photos.isNotEmpty()) "${t.label} (${room.photos.size})" else t.label
+                    val style = MaterialTheme.typography.labelLarge
+                    var scale by remember(label) { mutableStateOf(1f) }
                     Text(
-                        if (t == RoomTab.Photos && room.photos.isNotEmpty()) "${t.label} (${room.photos.size})" else t.label,
-                        style = MaterialTheme.typography.labelLarge,
+                        label,
+                        style = style.copy(fontSize = style.fontSize * scale),
                         textAlign = TextAlign.Center,
                         maxLines = 2,
+                        onTextLayout = { if ((it.breaksWord() || it.hasVisualOverflow) && scale > 0.7f) scale -= 0.05f },
                         modifier = Modifier.padding(horizontal = 2.dp, vertical = 10.dp),
                     )
                 }
@@ -412,9 +431,22 @@ private fun FinishesTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
     if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS)) {
         MaterialPicker(T.schedaStanza.pavimentoFotografico, room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
     }
-    // Colore qualsiasi e rivestimenti. La facciata è una sola per tutto il piano: si cambia da qualunque stanza.
+    // Colore qualsiasi e rivestimenti. La facciata è una sola per tutta la casa: si cambia da qualunque stanza
+    // e vale per tutti i piani; con più piani si può fare un'eccezione per il piano corrente.
     if (!room.outdoor) FinishPicker(T.schedaStanza.paretiInterne, room.roomFinish, { vm.setRoomFinish(room.id, it) })
-    FinishPicker(T.schedaStanza.paretiEsterneFacciataPiano, plan.facadeOrPaint, { vm.setFacadeFinish(it) })
+    val floors = vm.state.collectAsState().value.fullBuilding.floors
+    val differs = floors.any { it.plan.facadeOrPaint != plan.facadeOrPaint }
+    var onlyThisFloor by remember(floors.size > 1, differs) { mutableStateOf(differs) }
+    val label = if (onlyThisFloor) T.schedaStanza.paretiEsterneSoloPiano else T.schedaStanza.paretiEsterneTuttaCasa
+    FinishPicker(label, plan.facadeOrPaint, { vm.setFacadeFinish(it, onlyThisFloor) })
+    if (floors.size > 1) Row(verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.Checkbox(checked = onlyThisFloor, onCheckedChange = { on ->
+            onlyThisFloor = on
+            // Tornando a "tutta la casa", gli altri piani prendono la facciata di questo.
+            if (!on && differs) vm.setFacadeFinish(plan.facadeOrPaint)
+        })
+        Text(T.schedaStanza.soloQuestoPiano, style = MaterialTheme.typography.bodyMedium)
+    }
 }
 
 /** Una riga dell'elenco: un tocco seleziona l'oggetto e ne apre il riquadro caratteristiche. */
@@ -427,8 +459,11 @@ private fun ItemRow(title: String, detail: String, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Text(detail, style = MaterialTheme.typography.bodySmall)
+            // Nome sopra e dettagli sotto: su una riga sola i dettagli lunghi schiacciavano il nome («Finest-ra 2 ante»).
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyMedium)
+                Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Text("  ›", style = MaterialTheme.typography.titleMedium)
         }
     }
