@@ -554,7 +554,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             val rooms = if (copyRooms) top.plan.rooms.map {
                 Room(it.id, it.name, it.type, it.points, ceilingHeight = it.ceilingHeight, floorFinish = it.type.defaultFloor)
             } else emptyList()
-            val floor = Floor(b.nextFloorId, name.trim().ifBlank { Building.floorName(b.floors.size) }, FloorPlan(rooms), levelHeight, autoLevel).synced()
+            // Il piano nuovo ha la stessa facciata di quello sotto: l'esterno di una casa è quasi sempre uguale.
+            val plan = FloorPlan(rooms, facade = top.plan.facade, facadeFinish = top.plan.facadeFinish)
+            val floor = Floor(b.nextFloorId, name.trim().ifBlank { Building.floorName(b.floors.size) }, plan, levelHeight, autoLevel).synced()
             b.copy(floors = b.floors + floor, current = b.floors.size)
         }
         if (!userAdjustedView) fitToView()
@@ -2900,8 +2902,14 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         _state.update { s -> s.copy(wallDraw = s.wallDraw?.copy(cursor = null), snapGuides = emptyList()) }
     }
 
-    /** Finitura della facciata del piano. */
-    fun setFacadeFinish(finish: WallFinish) = commit { it.copy(facadeFinish = finish) }
+    /**
+     * Finitura della facciata: di solito è la stessa per tutta la casa, quindi vale per tutti i piani.
+     * Con `onlyThisFloor` cambia solo il piano corrente (l'eccezione, per esempio un piano rivestito in pietra).
+     */
+    fun setFacadeFinish(finish: WallFinish, onlyThisFloor: Boolean = false) {
+        if (onlyThisFloor) commit { it.copy(facadeFinish = finish) }
+        else commitBuilding { b -> b.copy(floors = b.floors.map { f -> f.copy(plan = f.plan.copy(facadeFinish = finish)) }) }
+    }
 
     /** Finitura di un muro singolo (i due lati). */
     fun setFreeWallFinish(id: Long, finish: WallFinish) = commit { plan ->
