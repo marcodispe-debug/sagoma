@@ -272,6 +272,9 @@ private class FloatList {
     fun toArray() = data.copyOf(size)
 }
 
+/** Pavimenti più grandi di così (cm², 100 × 100 m) senza fughe disegnate. */
+private const val MAX_PATTERN_AREA = 1e8
+
 private class SceneBuilder(
     val levels: List<Level>,
     val focusedRoomId: Long?,
@@ -975,6 +978,9 @@ private class SceneBuilder(
         if (inner.size < 3) return
         val line = base.mix(Rgba(0f, 0f, 0f), 0.16f)
         val b = Polygon.bounds(inner)
+        // Stanza più grande di 100 × 100 m (di solito una misura scritta per sbaglio, es. in metri invece che in cm): le fughe
+        // non si vedrebbero e sarebbero milioni di pezzi, abbastanza da finire la memoria del telefono.
+        if (b.width * b.height > MAX_PATTERN_AREA) return
         val y = 0.15
         /** Tratti della retta (orizzontale se `horizontal`, a quota `c`) dentro la stanza e fuori dai vuoti. */
         fun inside(horizontal: Boolean, c: Double): List<Pair<Double, Double>> {
