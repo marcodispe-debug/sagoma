@@ -110,7 +110,7 @@ object TestiPannelliEn : TestiPannelli() {
     override val angoloCurva: String get() = "Angle"
     override val raddrizzaMuro: String get() = "Straighten"
     override val curvaSuggerimento: String get() = "Drag the dot in the middle of the wall to curve it, or type the bulge (how far the middle sticks out; negative = into the room). To curve only part of a wall, first add a corner where the curve starts and one where it ends."
-    override val spessoreDaUnPunto: String get() = "Different thickness from a point"
+    override val spessoreDaUnPunto: String get() = "Different thickness starting from a point"
     override val lunghezzaTratto: String get() = "Length of this part"
     override val scalinoSuggerimento: String get() = "The wall is in two straight parts with a step where the thickness changes. Type the thickness of each part: the face toward the room stays straight and the wall grows or shrinks only outward; move the step by dragging it (it slides along the wall) or by typing the length of the part."
     override val curvaMuroSingoloSuggerimento: String get() = "Drag the dot in the middle of the wall to curve it, or type the bulge (how far the middle sticks out; negative = the other way)."

@@ -110,7 +110,7 @@ object TestiPannelliEs : TestiPannelli() {
     override val angoloCurva: String get() = "Ángulo"
     override val raddrizzaMuro: String get() = "Enderezar"
     override val curvaSuggerimento: String get() = "Arrastra el punto en el centro del muro para curvarlo, o escribe la flecha (cuánto sobresale el centro; negativa = hacia dentro de la habitación). Para curvar solo un tramo, añade antes una esquina donde empieza la curva y otra donde termina."
-    override val spessoreDaUnPunto: String get() = "Espesor distinto desde un punto"
+    override val spessoreDaUnPunto: String get() = "Espesor distinto a partir de un punto"
     override val lunghezzaTratto: String get() = "Longitud del tramo"
     override val scalinoSuggerimento: String get() = "El muro está en dos tramos rectos con un escalón donde cambia el espesor. Escribe el espesor de cada tramo: la cara hacia la habitación queda recta y el muro engorda o adelgaza solo hacia fuera; mueve el escalón arrastrándolo (se desliza a lo largo del muro) o escribiendo la longitud del tramo."
     override val curvaMuroSingoloSuggerimento: String get() = "Arrastra el punto en el centro del muro para curvarlo, o escribe la flecha (cuánto sobresale el centro; negativa = hacia el otro lado)."

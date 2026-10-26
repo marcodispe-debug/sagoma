@@ -110,7 +110,7 @@ open class TestiPannelli {
     open val angoloCurva: String get() = "Angolo"
     open val raddrizzaMuro: String get() = "Raddrizza"
     open val curvaSuggerimento: String get() = "Trascina il pallino a metà muro per curvarlo, oppure scrivi la freccia (quanto sporge a metà; negativa = verso dentro la stanza). Per curvare solo un tratto, metti prima un angolo dove inizia la curva e uno dove finisce."
-    open val spessoreDaUnPunto: String get() = "Spessore diverso da un punto"
+    open val spessoreDaUnPunto: String get() = "Spessore diverso a partire da un punto"
     open val lunghezzaTratto: String get() = "Lunghezza del tratto"
     open val scalinoSuggerimento: String get() = "Il muro è in due tratti dritti con uno scalino dove cambia lo spessore. Scrivi lo spessore di ogni tratto: il filo verso la stanza resta dritto e il muro ingrossa o si assottiglia solo verso fuori; lo scalino si sposta trascinandolo (scorre lungo il muro) o scrivendo la lunghezza del tratto."
     open val curvaMuroSingoloSuggerimento: String get() = "Trascina il pallino a metà muro per curvarlo, oppure scrivi la freccia (quanto sporge a metà; negativa = dall'altra parte)."
