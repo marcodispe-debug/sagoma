@@ -216,32 +216,12 @@ object Stairs {
 
     /**
      * Spostamento di una scala trascinata: se un lato del suo ingombro arriva vicino alla faccia interna o
-     * esterna di un muro dritto (orizzontale o verticale), ci si accosta.
+     * esterna di un muro dritto (orizzontale o verticale), ci si accosta. Le facce sono quelle vere: con lo spessore
+     * del muro (prima sempre 15 cm: con un muro da 30 la scala finiva 7,5 cm dentro il muro), spostato di lato o
+     * singolo, come per colonne e travi ([Structure.wallSnap]).
      */
-    fun snapped(plan: FloorPlan, stair: Stair, rise: Double): Stair {
-        val b = layout(stair, rise).bounds
-        val half = Room.WALL_THICKNESS / 2
-        var bestDx: Double? = null
-        var bestDy: Double? = null
-        fun better(cur: Double?, v: Double) = if (abs(v) < SNAP && (cur == null || abs(v) < abs(cur))) v else cur
-        for (room in plan.rooms) for (i in 0 until room.wallCount) {
-            val a = room.wallStart(i)
-            val e = room.wallEnd(i)
-            if (abs(a.y - e.y) < 0.5 && minOf(a.x, e.x) < b.maxX && maxOf(a.x, e.x) > b.minX) {
-                for (f in listOf(a.y - half, a.y + half)) {
-                    bestDy = better(bestDy, f - b.minY)
-                    bestDy = better(bestDy, f - b.maxY)
-                }
-            }
-            if (abs(a.x - e.x) < 0.5 && minOf(a.y, e.y) < b.maxY && maxOf(a.y, e.y) > b.minY) {
-                for (f in listOf(a.x - half, a.x + half)) {
-                    bestDx = better(bestDx, f - b.minX)
-                    bestDx = better(bestDx, f - b.maxX)
-                }
-            }
-        }
-        return stair.copy(center = stair.center + Vec2(bestDx ?: 0.0, bestDy ?: 0.0))
-    }
+    fun snapped(plan: FloorPlan, stair: Stair, rise: Double): Stair =
+        stair.copy(center = stair.center + Structure.wallSnap(plan, layout(stair, rise).bounds, SNAP))
 
     /**
      * Tratti della ringhiera attorno al vano scala al piano di sopra: il contorno del vuoto, tranne
