@@ -65,16 +65,18 @@ object Takeoff {
 
     /**
      * Superfici (m²) della parete `i` al netto delle aperture, divise per finitura: il rivestimento fino
-     * alla sua altezza, la pittura sopra (o su tutta la parete se non c'è rivestimento).
+     * alla sua altezza, la pittura sopra (o su tutta la parete se non c'è rivestimento). `induced`: i varchi delle porte
+     * della stanza accanto sul muro in comune ([Openings.sharedGaps]), che bucano anche questa parete.
      */
-    fun wallParts(r: Room, i: Int, length: Double): List<Pair<String, Double>> {
+    fun wallParts(r: Room, i: Int, length: Double, induced: List<WallGap> = emptyList()): List<Pair<String, Double>> {
         val f = r.finishOf(i)
         val height = r.wallHeight(i)
         val openings = r.openings.filter { it.wallIndex == i }
+        val gaps = induced.filter { it.roomId == r.id && it.wallIndex == i }
         fun holesBetween(lo: Double, hi: Double) = openings.sumOf { o ->
             val bottom = if (o.kind.glazed) o.sillHeight else 0.0
             o.width * ((minOf(bottom + o.height, hi) - maxOf(bottom, lo)).coerceAtLeast(0.0))
-        }
+        } + gaps.sumOf { g -> g.a.distanceTo(g.b) * ((minOf(g.height, hi) - maxOf(0.0, lo)).coerceAtLeast(0.0)) }
         fun area(lo: Double, hi: Double) = ((length * (hi - lo) - holesBetween(lo, hi)) / 10_000.0).coerceAtLeast(0.0)
         val paint = paintName(f.argb)
         if (f.covering == Covering.None) return listOf(paint to area(0.0, height))
@@ -97,13 +99,15 @@ object Takeoff {
         val fixtures = LinkedHashMap<String, Pair<Int, MutableSet<String>>>()
         for (fl in building.floors) {
             val plan = fl.plan
+            // Porte sul muro in comune: il vano buca anche la parete della stanza accanto (che non ha la porta tra le sue).
+            val induced = Openings.sharedGaps(plan)
             for (r in plan.rooms) {
-                val line = roomLine(fl.name, plan, r)
+                val line = roomLine(fl.name, plan, r, induced)
                 lines += line
                 floorTot.add(line.floorFinish, line.floorArea)
                 if (!r.outdoor) {
                     val lengths = r.interiorLengths()
-                    for (i in 0 until r.wallCount) if (!r.isRemoved(i)) for ((name, area) in wallParts(r, i, lengths[i])) wallTot.add(name, area)
+                    for (i in 0 until r.wallCount) if (!r.isRemoved(i)) for ((name, area) in wallParts(r, i, lengths[i], induced)) wallTot.add(name, area)
                 }
                 for (f in r.fixtures) {
                     val e = fixtures.getOrPut(f.kind.label) { 0 to mutableSetOf() }
@@ -127,7 +131,7 @@ object Takeoff {
         )
     }
 
-    private fun roomLine(floor: String, plan: FloorPlan, r: Room): RoomLine {
+    private fun roomLine(floor: String, plan: FloorPlan, r: Room, induced: List<WallGap> = emptyList()): RoomLine {
         val area = r.interiorArea() / 10_000.0
         val lengths = r.interiorLengths()
         val perimeter = lengths.sum() / 100.0
@@ -137,8 +141,12 @@ object Takeoff {
         if (!r.outdoor) for (i in 0 until r.wallCount) if (!r.isRemoved(i)) wall += lengths[i] * r.wallHeight(i) / 10_000.0
         val openSides = (0 until r.wallCount).filter { r.isRemoved(it) }.sumOf { lengths[it] } / 100.0
         for (o in r.openings) holes += o.width * o.height / 10_000.0
-        // Il battiscopa si interrompe davanti a porte, porte-finestre e varchi (tutto ciò che arriva a terra).
-        val atFloor = r.openings.filter { !it.kind.glazed || it.sillHeight == 0.0 }.sumOf { it.width } / 100.0
+        // Varchi delle porte della stanza accanto sul muro in comune (sui muri eliminati non c'è parete da togliere).
+        val gaps = induced.filter { it.roomId == r.id && it.wallIndex < r.wallCount && !r.isRemoved(it.wallIndex) }
+        if (!r.outdoor) for (g in gaps) holes += g.a.distanceTo(g.b) * g.height / 10_000.0
+        // Il battiscopa si interrompe davanti a porte, porte-finestre e varchi (tutto ciò che arriva a terra), anche quelli
+        // delle porte della stanza accanto.
+        val atFloor = (r.openings.filter { !it.kind.glazed || it.sillHeight == 0.0 }.sumOf { it.width } + gaps.sumOf { it.a.distanceTo(it.b) }) / 100.0
         val doors = r.openings.count { !it.kind.glazed }
         val windows = r.openings.count { it.kind.glazed }
         val wallName = if (r.outdoor) "—" else (0 until r.wallCount).map { wallFinishName(r, it) }.distinct().joinToString(" / ")

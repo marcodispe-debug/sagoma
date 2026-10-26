@@ -11,7 +11,8 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** Varco disegnato su un muro: quello di un'apertura propria o quello indotto da una stanza confinante. */
-data class WallGap(val roomId: Long, val wallIndex: Int, val a: Vec2, val b: Vec2)
+/** Tratto `a`–`b` del muro `wallIndex` della stanza `roomId` senza muro; `height`: altezza del vano (varchi indotti da una porta). */
+data class WallGap(val roomId: Long, val wallIndex: Int, val a: Vec2, val b: Vec2, val height: Double = 0.0)
 
 object Openings {
 
@@ -184,7 +185,7 @@ object Openings {
                     val lo = max(min(ta, tb), 0.0)
                     val hi = min(max(ta, tb), len)
                     if (hi - lo < 1.0) continue // nessuna sovrapposizione lungo il muro
-                    gaps += WallGap(other.id, j, s + v * lo, s + v * hi)
+                    gaps += WallGap(other.id, j, s + v * lo, s + v * hi, o.height)
                 }
             }
         }
