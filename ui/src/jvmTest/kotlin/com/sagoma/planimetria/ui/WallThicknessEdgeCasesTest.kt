@@ -17,7 +17,6 @@ import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.persistence.PlanJson
 import com.sagoma.planimetria.persistence.PlanStore
-import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -128,7 +127,6 @@ class WallThicknessEdgeCasesTest {
         assertEquals(start, vm.room(1))
     }
 
-    @Ignore // DIFETTO: setRoomWallThickness non cambia il muro in comune per la stanza accanto (setWallThickness sì).
     @Test
     fun `cambiando lo spessore di tutta la stanza, il muro in comune cambia anche per la stanza accanto`() {
         // Come per il singolo muro: il muro tra camera e bagno è uno solo, le due stanze devono vederlo nello stesso posto.
