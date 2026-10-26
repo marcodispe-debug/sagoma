@@ -228,11 +228,11 @@ object PbrShaders {
                 float fall = clamp(1.0 - dist2 / 360000.0, 0.0, 1.0);
                 // Forma della luce della lampada (faretto, plafoniera, paralume…), come nei profili IES.
                 float beam = lightBeam(uLampAxis[i].w, dot(-normalize(d), uLampAxis[i].xyz));
-                vec3 rad = uLampColor[i] * uLamp[i].w * 34000.0 / dist2 * fall * fall * beam;
+                vec3 rad = uLampColor[i] * uLamp[i].w * 28000.0 / dist2 * fall * fall * beam;
                 color += shade(N, V, normalize(d), rad, albedo, rough, metal) * mix(1.0, ao, 0.6);
                 // Luce rimbalzata su pareti, pavimento e soffitto: quasi uguale in tutta la stanza, così la luce è diffusa e
                 // arriva anche dove la lampada non illumina diretta (in una stanza vera è una buona parte di quella che si vede).
-                color += albedo * (1.0 - metal) * uLampColor[i] * uLamp[i].w * 0.11 / (1.0 + dist2 / 900000.0) * ao;
+                color += albedo * (1.0 - metal) * uLampColor[i] * uLamp[i].w * 0.065 / (1.0 + dist2 / 900000.0) * ao;
             }
             for (int i = 0; i < $MAX_WINDOWS; i++) {
                 if (i >= uWinCount) break;

@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.sagoma.planimetria.assets.AssetPlanner
@@ -115,6 +116,8 @@ class View3DState {
     /** Ora del giorno (6:30 = 6.5) e luci della casa ("auto", "on", "off"). */
     var hour by mutableStateOf(11f)
     var lamps by mutableStateOf("auto")
+    /** Luminosità delle lampade della casa (cursore «Luminosità luci»): 1 = normale. */
+    var lampBrightness by mutableStateOf(1f)
     /** Cursore dell'ora aperto. */
     var timePanel by mutableStateOf(false)
     /** Giorno scelto per il sole (null = oggi). */
@@ -134,6 +137,7 @@ class View3DState {
     fun refresh() {
         tick = ++tickCounter
         renderer?.setDaylight(hour, lamps, sun)
+        renderer?.setLampBrightness(lampBrightness)
         renderer?.setCamera(camera.position, camera.position + camera.forward, camera.up, camera.fovY, camera.near, walking)
     }
 
@@ -718,6 +722,7 @@ fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: B
                 )
                 Text("0", style = MaterialTheme.typography.labelSmall)
                 SunDayButton(view, compact = true)
+                LampBrightness(view, compact = true)
                 TextButton(onClick = { view.timePanel = false }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(32.dp)) { Text("✕") }
             }
         }
@@ -740,8 +745,30 @@ fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: B
                 T.vista3D.soleSegueBussola,
                 style = MaterialTheme.typography.bodySmall,
             )
+            LampBrightness(view)
         }
     }
+}
+
+/**
+ * Luminosità delle lampade della casa, dal 25% al 200%: cursore nel pannello largo; in quello stretto e verticale il valore
+ * con − e + (un cursore lo allargherebbe).
+ */
+@Composable
+private fun LampBrightness(view: View3DState, compact: Boolean = false) {
+    if (view.lamps == "off") return
+    fun set(v: Float) { view.lampBrightness = ((v * 20).roundToInt() / 20f).coerceIn(0.25f, 2f); view.refresh() }
+    val pct = (view.lampBrightness * 100).roundToInt()
+    if (compact) {
+        Text("💡 $pct%", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+        Row {
+            TextButton(onClick = { set(view.lampBrightness - 0.1f) }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(32.dp).widthIn(min = 28.dp)) { Text("−") }
+            TextButton(onClick = { set(view.lampBrightness + 0.1f) }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(32.dp).widthIn(min = 28.dp)) { Text("+") }
+        }
+        return
+    }
+    Text(T.vista3D.luminositaLuci(pct), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 6.dp))
+    androidx.compose.material3.Slider(value = view.lampBrightness, onValueChange = { set(it) }, valueRange = 0.25f..2f)
 }
 
 /** Joystick per camminare: si trascina il pomello, la spinta è proporzionale allo spostamento. */

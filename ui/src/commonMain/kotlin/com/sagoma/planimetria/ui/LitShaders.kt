@@ -203,7 +203,7 @@ object LitShaders {
      * Uniform delle luci per la scena e l'ora: lampade (le più vicine a chi guarda, fino a [MAX_LAMPS]) e
      * finestre (fino a [MAX_WINDOWS]).
      */
-    class Lights(scene: Scene3D?, daylight: Daylight, viewer: Vec3, windowsAlways: Boolean = false) {
+    class Lights(scene: Scene3D?, daylight: Daylight, viewer: Vec3, windowsAlways: Boolean = false, brightness: Float = 1f) {
         val lamps = FloatArray(MAX_LAMPS * 4)
         val lampColors = FloatArray(MAX_LAMPS * 3)
         /**
@@ -223,7 +223,7 @@ object LitShaders {
                 for (l in scene.lights.sortedBy { (it.position - viewer).length }.take(MAX_LAMPS)) {
                     val i = lampCount++
                     // Una plafoniera da ~1000 lumen illumina bene una stanza a 2 m.
-                    val s = (l.lumens / 1000.0 * 0.9).toFloat()
+                    val s = (l.lumens / 1000.0 * 0.9).toFloat() * brightness
                     // I faretti puntano in basso: la luce si mette poco sotto, così arriva sul pavimento.
                     val p = l.direction?.let { l.position + it * 30.0 } ?: l.position
                     lamps[i * 4] = p.x.toFloat(); lamps[i * 4 + 1] = p.y.toFloat(); lamps[i * 4 + 2] = p.z.toFloat(); lamps[i * 4 + 3] = s

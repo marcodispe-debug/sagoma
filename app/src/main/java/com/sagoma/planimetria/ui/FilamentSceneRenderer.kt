@@ -253,6 +253,15 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
     private var sceneLights: List<Scene3D.SceneLight> = emptyList()
     private var sceneWindows: List<Scene3D.SceneWindow> = emptyList()
 
+    /** Luminosità delle lampade scelta col cursore (1 = normale). */
+    private var lampBrightness = 1f
+
+    override fun setLampBrightness(k: Float) {
+        if (k == lampBrightness) return
+        lampBrightness = k
+        if (lampsOnNow) { updateLamps(lampsOn = true); dirty = true }
+    }
+
     override fun setDaylight(hour: Float, lamps: String, sun: SunAngles) {
         if (hour == this.hour && lamps == lampsMode && sun == sunAt) return
         this.hour = hour
@@ -364,7 +373,7 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
                 else -> LightManager.Builder(LightManager.Type.POINT)
             }
             builder.color(r, g, b)
-                .intensity((l.lumens * LUMEN_SCALE).toFloat())
+                .intensity((l.lumens * LUMEN_SCALE * lampBrightness).toFloat())
                 .position((p.x * 0.01).toFloat(), (p.y * 0.01).toFloat(), (p.z * 0.01).toFloat())
                 .falloff(7f)
                 .castShadows(false)
