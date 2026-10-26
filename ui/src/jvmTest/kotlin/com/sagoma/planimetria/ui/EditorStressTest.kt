@@ -204,6 +204,38 @@ class EditorStressTest {
                     }
                 }
             },
+            "muri curvi, scalini, sottotetto, fasi" to {
+                clearModes()
+                anyRoom()?.let { r ->
+                    val i = rnd.nextInt(r.wallCount)
+                    when (rnd.nextInt(8)) {
+                        0, 1 -> vm.setWallBulge(r.id, i, rv(250.0))
+                        2 -> { vm.startWallStep(r.id, i); vm.setWallThickness(r.id, i + 1, rnd.nextDouble(5.0, 60.0)) }
+                        3 -> vm.setStepPartLength(r.id, i, rnd.nextDouble(10.0, 600.0))
+                        4 -> vm.setWallCutStart(r.id, i, rnd.nextDouble(0.0, 300.0))
+                        5 -> vm.setRoomWallThickness(r.id, rnd.nextDouble(5.0, 60.0))
+                        6 -> vm.setWallPhase(r.id, i, pick(com.sagoma.planimetria.model.Phase.entries)!!)
+                        else -> pick(plan().freeWalls)?.let { vm.setFreeWallBulge(it.id, rv(150.0)) }
+                    }
+                }
+            },
+            "unisci stanze, zone, ruota" to {
+                clearModes()
+                when (rnd.nextInt(4)) {
+                    0 -> anyRoom()?.let { r ->
+                        pick(plan().rooms.filter { it.id != r.id })?.let { o -> vm.mergeWall(com.sagoma.planimetria.editor.MergeRequest(r.id, rnd.nextInt(r.wallCount), o.id)) }
+                    }
+                    1 -> anyRoom(indoor = true)?.let { r ->
+                        vm.startExcludedZone(r.id)
+                        val c = Polygon.labelPoint(r.points)
+                        vm.drawWallsTap(c); vm.drawWallsTap(c + Vec2(rnd.nextDouble(20.0, 120.0), 0.0)); vm.drawWallsTap(c + Vec2(rnd.nextDouble(20.0, 120.0), rnd.nextDouble(20.0, 120.0)))
+                        vm.finishExcludedZone("Zona")
+                        vm.cancelDrawWalls()
+                    }
+                    2 -> pick(plan().furniture)?.let { vm.rotateFurniture(it.id) }
+                    else -> pick(plan().stairs)?.let { vm.rotateStair(it.id) }
+                }
+            },
             "stanza: tipo, nome, elimina" to {
                 clearModes()
                 anyRoom()?.let { r ->
@@ -277,6 +309,13 @@ class EditorStressTest {
             try {
                 action()
                 check(vm, step % 5 == 0)
+                // Annulla e poi Ripeti riportano esattamente a dov'eravamo.
+                if (rnd.nextInt(4) == 0 && vm.state.value.canUndo && vm.state.value.wallDraw == null) {
+                    val now = vm.state.value.fullBuilding
+                    vm.undo(); vm.redo()
+                    val back = vm.state.value.fullBuilding
+                    require(back.floors == now.floors) { "Annulla e Ripeti non riportano la casa com'era (piano ${now.current} → ${back.current})" }
+                }
             } catch (e: Throwable) {
                 val where = e.stackTrace.firstOrNull { it.className.startsWith("com.sagoma") }
                 val key = "${e::class.simpleName}: ${e.message?.take(160)} @ ${where?.fileName}:${where?.lineNumber}"
@@ -361,10 +400,17 @@ class EditorStressTest {
         }
         s.focusedRoomId?.let { require(p.room(it) != null) { "stanza attiva che non c'è" } }
         if (heavy) {
+            val t0 = System.nanoTime()
+            System.getenv("SAGOMA_STRESS_SLOW")?.let { dir -> File(dir, "ultimo.json").writeText(PlanJson.encode(b)) }
             val below = b.floors.take(b.current)
             Scene3D.build(p, s.focusedRoomId, null, ceilings = false, levelHeight = s.levelHeight, below = below)
             // Camminando: con il vano scala nel soffitto e il piano di sopra.
             Scene3D.build(p, s.focusedRoomId, null, ceilings = true, levelHeight = s.levelHeight, below = below, above = b.floors.getOrNull(b.current + 1))
+            // Un 3D che ci mette troppo è un blocco dell'app: si salva il progetto per rifarlo.
+            val seconds = (System.nanoTime() - t0) / 1e9
+            System.getenv("SAGOMA_STRESS_SLOW")?.let { dir ->
+                if (seconds > 5) File(dir, "lento-${"%.0f".format(seconds)}s-${System.nanoTime()}.json").writeText(PlanJson.encode(b))
+            }
             Collisions.of(p)
             Takeoff.of(b)
             p.rooms.filter { it.outdoor }.forEach { Parapets.segments(p, it) }
