@@ -251,7 +251,8 @@ fun Room.expandCurves(): ExpandedRoom {
                 if (o.wallIndex >= n) return@map o
                 val w = walls[o.wallIndex] ?: return@map o.copy(wallIndex = first[o.wallIndex])
                 // L'apertura ha il suo pezzo dritto, largo come lei: sta a metà di quel pezzo.
-                val k = w.openingPiece[o.id] ?: 0
+                // Un'apertura tutta sopra un'altra in fondo al muro non ha un pezzo suo: prende l'ultimo.
+                val k = (w.openingPiece[o.id] ?: 0).coerceAtMost(w.points.size - 2)
                 val len = w.points[k].distanceTo(w.points[k + 1])
                 o.copy(wallIndex = first[o.wallIndex] + k, position = len / 2, width = kotlin.math.min(o.width, len))
             },
