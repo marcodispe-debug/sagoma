@@ -62,7 +62,7 @@ fun SelectAllTextField(
             tfv = it
             if (it.text != value) onValueChange(it.text)
         },
-        label = { Text(label) },
+        label = { FitText(label) },
         singleLine = true,
         isError = isError,
         suffix = suffix?.let { { Text(it) } },

@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -102,7 +104,8 @@ fun FloorEditDialog(dialog: FloorDialog, building: Building, vm: EditorViewModel
         onDismissRequest = vm::closeFloorDialog,
         title = { Text(if (existing == null) T.piani.nuovoPiano else T.piani.modificaPiano) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Scorre: col telefono in orizzontale le spiegazioni sotto i campi venivano tagliate.
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SelectAllTextField(name, { name = it }, T.comuni.nome, Modifier.fillMaxWidth())
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = auto, onCheckedChange = { on ->

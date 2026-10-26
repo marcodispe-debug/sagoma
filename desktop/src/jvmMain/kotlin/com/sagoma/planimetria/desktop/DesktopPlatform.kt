@@ -156,8 +156,12 @@ class DesktopPlatform(
 
     override fun createPdf(pages: List<PdfPage>, density: Density): ByteArray = SkiaImages.rasterPdf(pages, density)
 
-    override fun formatDate(epochMillis: Long, withTime: Boolean): String =
-        (if (withTime) DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT) else DateFormat.getDateInstance(DateFormat.SHORT)).format(Date(epochMillis))
+    // Date nella lingua dell'app, non in quella del sistema (app in italiano su un sistema inglese: «Oct 26, 2026»).
+    override fun formatDate(epochMillis: Long, withTime: Boolean): String {
+        val locale = java.util.Locale.forLanguageTag(T.lingua.codice)
+        val format = if (withTime) DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, locale) else DateFormat.getDateInstance(DateFormat.SHORT, locale)
+        return format.format(Date(epochMillis))
+    }
 
     override fun now(): Long = System.currentTimeMillis()
 

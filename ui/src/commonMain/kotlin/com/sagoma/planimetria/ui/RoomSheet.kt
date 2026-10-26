@@ -145,11 +145,20 @@ fun InfoSheet(
                     Box(Modifier.size(10.dp).background(dotColor, CircleShape))
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(
+                // Nome e misura su una riga; se non ci stanno (pannello stretto, lingue con parole lunghe) il nome può andare
+                // su due righe e la misura sotto, più piccola, invece di sparire nei puntini.
+                var twoLines by remember(title) { mutableStateOf(false) }
+                val head = title.substringBefore(" · ")
+                val rest = title.substringAfter(" · ", "")
+                if (twoLines) Column(Modifier.weight(1f)) {
+                    Text(head, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (rest.isNotEmpty()) Text(rest, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                } else Text(
                     title,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { if (it.hasVisualOverflow) twoLines = true },
                     modifier = Modifier.weight(1f),
                 )
                 actions()
@@ -242,11 +251,16 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
                     onClick = { lastRoomTab = t },
                     modifier = Modifier.guide(GuideTarget.MeasuresTab.takeIf { t == RoomTab.Measures }, done = tab == RoomTab.Measures),
                 ) {
+                    // Se una parola non ci sta (pannello stretto col telefono in orizzontale: «Progett-o») il carattere si rimpicciolisce.
+                    val label = if (t == RoomTab.Photos && room.photos.isNotEmpty()) "${t.label} (${room.photos.size})" else t.label
+                    val style = MaterialTheme.typography.labelLarge
+                    var scale by remember(label) { mutableStateOf(1f) }
                     Text(
-                        if (t == RoomTab.Photos && room.photos.isNotEmpty()) "${t.label} (${room.photos.size})" else t.label,
-                        style = MaterialTheme.typography.labelLarge,
+                        label,
+                        style = style.copy(fontSize = style.fontSize * scale),
                         textAlign = TextAlign.Center,
                         maxLines = 2,
+                        onTextLayout = { if ((it.breaksWord() || it.hasVisualOverflow) && scale > 0.7f) scale -= 0.05f },
                         modifier = Modifier.padding(horizontal = 2.dp, vertical = 10.dp),
                     )
                 }
@@ -427,8 +441,11 @@ private fun ItemRow(title: String, detail: String, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Text(detail, style = MaterialTheme.typography.bodySmall)
+            // Nome sopra e dettagli sotto: su una riga sola i dettagli lunghi schiacciavano il nome («Finest-ra 2 ante»).
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyMedium)
+                Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Text("  ›", style = MaterialTheme.typography.titleMedium)
         }
     }

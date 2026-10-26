@@ -61,6 +61,8 @@ import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 private val DraftWall = Color(0xFF3A3F44)
 private val DraftPreview = Color(0xFF1D6FD1)
@@ -266,7 +268,7 @@ private fun WallDrawCloseDialog(vm: EditorViewModel, onPlan: Boolean) {
         onDismissRequest = vm::drawWallsResume,
         title = { Text(T.muroPerMuro.nuovaStanza) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(T.muroPerMuro.tipoStanza, style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (rt in RoomType.entries) FilterChip(
@@ -302,7 +304,7 @@ private fun ExcludedZoneCloseDialog(vm: EditorViewModel) {
         onDismissRequest = vm::drawWallsResume,
         title = { Text(T.muroPerMuro.zonaNonCalpestabile2) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (n in listOf(T.muroPerMuro.nonAccessibile, T.muroPerMuro.cavedio, T.muroPerMuro.pilastro, T.muroPerMuro.cannaFumaria)) {
                         FilterChip(selected = name == n, onClick = { name = n }, label = { Text(n) })
