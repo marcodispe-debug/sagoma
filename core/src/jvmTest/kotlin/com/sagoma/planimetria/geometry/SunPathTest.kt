@@ -90,6 +90,26 @@ class SunPathTest {
     }
 
     @Test
+    fun cittaNellaLinguaScelta() {
+        val londra = Places.search("londres", "es").first()
+        assertEquals("Londra", londra.name) // nel progetto resta il nome italiano
+        assertEquals("London", Places.displayName(londra, "en"))
+        assertEquals("Londres", Places.displayName(londra, "fr"))
+        assertEquals("Londra", Places.displayName(londra, "it"))
+        assertEquals("Múnich", Places.displayName(Places.search("monaco di baviera").first(), "es"))
+        // Si cerca anche col nome in un'altra lingua, e l'elenco è in ordine alfabetico nella lingua scelta.
+        assertEquals("Venezia", Places.search("venise", "en").first().name)
+        val names = Places.search("", "en").map { Places.displayName(it, "en") }
+        assertTrue(names.indexOf("London") < names.indexOf("Lucca") && names.indexOf("Munich") < names.indexOf("Naples"))
+        // Ogni traduzione ha le tre lingue e si riferisce a una città dell'elenco.
+        val all = Places.search("").map { it.name }.toSet()
+        for ((it, tr) in Places.translated) {
+            assertTrue(it in all, it)
+            assertEquals(3, tr.split('|').count { n -> n.isNotBlank() }, it)
+        }
+    }
+
+    @Test
     fun nordECittaSiSalvanoEIFileVecchiRestanoComeprima() {
         val site = HouseSite(northDeg = 37.0, place = Places.search("Torino").first())
         val b = Building.single(FloorPlan()).copy(site = site)

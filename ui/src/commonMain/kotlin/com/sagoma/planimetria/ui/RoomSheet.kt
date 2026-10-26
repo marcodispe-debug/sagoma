@@ -45,7 +45,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.sagoma.planimetria.editor.GuideField
@@ -146,13 +148,15 @@ fun InfoSheet(
                     Spacer(Modifier.width(8.dp))
                 }
                 // Nome e misura su una riga; se non ci stanno (pannello stretto, lingue con parole lunghe) il nome può andare
-                // su due righe e la misura sotto, più piccola, invece di sparire nei puntini.
+                // su due righe e la misura sotto, più piccola, invece di sparire nei puntini. Col telefono in orizzontale
+                // (poca altezza) resta solo il nome: i dettagli si leggono aprendo Info.
                 var twoLines by remember(title) { mutableStateOf(false) }
+                val lowWindow = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } < 500.dp
                 val head = title.substringBefore(" · ")
                 val rest = title.substringAfter(" · ", "")
                 if (twoLines) Column(Modifier.weight(1f)) {
                     Text(head, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (rest.isNotEmpty()) Text(rest, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (rest.isNotEmpty() && !lowWindow) Text(rest, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 } else Text(
                     title,
                     style = MaterialTheme.typography.titleSmall,
