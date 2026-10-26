@@ -25,6 +25,13 @@ object PlanJson {
     fun encode(building: Building): String =
         json.encodeToString(SavedDocument.serializer(), SavedDocument(VERSION, building = building))
 
+    /** Casa da dare ad altri (progetto esportato): senza la forma degli oggetti forniti dai professionisti. */
+    fun encodeForSharing(text: String): String = runCatching {
+        val b = decodeBuilding(text)
+        val shared = com.sagoma.planimetria.model.SuppliedObjects.withoutShapes(b)
+        if (shared === b) text else encode(shared)
+    }.getOrDefault(text)
+
     /** Casa a un solo piano. */
     fun encode(plan: FloorPlan): String = encode(Building.single(plan))
 

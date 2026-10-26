@@ -222,3 +222,6 @@ class StepWriter {
         fun bool(v: Boolean) = if (v) ".T." else ".F."
     }
 }
+
+/** Conta un oggetto saltato in più per `key` (`merge` c'è solo sulla JVM: così compila anche per il browser). */
+internal fun MutableMap<String, Int>.countOne(key: String) { this[key] = (this[key] ?: 0) + 1 }

@@ -220,7 +220,7 @@ internal class IfcReader(val f: StepFile) {
                 val hull = convexHull(pts.map { Vec2(it.x, it.y) }).map { V3(it.x, it.y, minZ) }
                 listOf(Solid(hull, V3(0.0, 0.0, maxZ - minZ)))
             }
-            else -> { skipped.merge("geometria ${e.type}", 1, Int::plus); emptyList() }
+            else -> { skipped.countOne("geometria ${e.type}"); emptyList() }
         }
     }
 
@@ -250,7 +250,7 @@ internal class IfcReader(val f: StepFile) {
                 val r = p.num(3) ?: 0.0
                 (0 until 24).map { k -> val a = k * 2 * kotlin.math.PI / 24; pos.apply(V3(cos(a) * r, sin(a) * r, 0.0)).let { q -> Vec2(q.x, q.y) } }
             }
-            else -> { skipped.merge("profilo ${p.type}", 1, Int::plus); emptyList() }
+            else -> { skipped.countOne("profilo ${p.type}"); emptyList() }
         }
     }
 
@@ -344,7 +344,7 @@ internal class IfcReader(val f: StepFile) {
             s to z * scale
         }.sortedBy { it.second }.ifEmpty { listOf(StepEntity(0, "IFCBUILDINGSTOREY", emptyList()) to 0.0) }
         val storeyOf = HashMap<Int, Int>()
-        fun assign(obj: Int, storeyId: Int) { storeyOf.putIfAbsent(obj, storeyId) }
+        fun assign(obj: Int, storeyId: Int) { if (obj !in storeyOf) storeyOf[obj] = storeyId }
         for (rel in f.ofType("IFCRELCONTAINEDINSPATIALSTRUCTURE")) rel.ref(5)?.let { s -> rel.refs(4).forEach { assign(it, s) } }
         // Stanze aggregate al piano (anche passando da IfcSpace o IfcZone intermedi).
         val aggregates = f.ofType("IFCRELAGGREGATES").associate { (it.ref(4) ?: -1) to it.refs(5) }
@@ -361,7 +361,7 @@ internal class IfcReader(val f: StepFile) {
         val known = IfcImport.WALLS + setOf("IFCSPACE", "IFCDOOR", "IFCWINDOW", "IFCOPENINGELEMENT", "IFCCOLUMN", "IFCBUILDINGSTOREY", "IFCBUILDING", "IFCSITE")
         for (e in f.entities.values) {
             if (e.type in known || e.ref(5) == null || f[e.ref(5)]?.type != "IFCLOCALPLACEMENT") continue
-            if (e.args.size >= 7 && f[e.ref(6)]?.type == "IFCPRODUCTDEFINITIONSHAPE") skipped.merge(e.type, 1, Int::plus)
+            if (e.args.size >= 7 && f[e.ref(6)]?.type == "IFCPRODUCTDEFINITIONSHAPE") skipped.countOne(e.type)
         }
 
         val floors = mutableListOf<Floor>()

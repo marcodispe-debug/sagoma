@@ -103,6 +103,33 @@ class IfcFurnitureTest {
     }
 
     @Test
+    fun ilProgettoEsportatoNonContieneLaFormaDellaCucina() {
+        val (house, obj) = kitchenHouse()
+        val dir = kotlin.io.path.createTempDirectory("sagoma").toFile()
+        try {
+            val repo = com.sagoma.planimetria.persistence.FileProjectRepository(dir)
+            val p = repo.create("Casa")
+            repo.planStore(p.id).save(house)
+            // Sul dispositivo la cucina resta.
+            assertEquals(obj, repo.planStore(p.id).load()!!.floor.plan.supplied.single())
+            val zip = String(assertNotNull(repo.export(p.id)).let { bytes ->
+                java.util.zip.ZipInputStream(bytes.inputStream()).use { z ->
+                    generateSequence { z.nextEntry }.filter { it.name == "file/planimetria.json" }.map { z.readBytes() }.single()
+                }
+            })
+            val shared = PlanJson.decodeBuilding(zip)
+            assertTrue(shared.floor.plan.supplied.isEmpty())
+            assertFalse("Pensile" in zip || "vertices" in zip)
+            // L'arredo resta: chi riceve il progetto vede l'ingombro.
+            assertEquals(house.floor.plan.furniture, shared.floor.plan.furniture)
+            // Nel 3D diventa la scatola grigia.
+            assertTrue(Scene3D.build(shared.floor.plan, null, null, ceilings = false).opaque.isNotEmpty())
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun laCucinaNonEsceMaiNellIfc() {
         val (house, _) = kitchenHouse()
         val text = IfcExport.export(house, "Casa", key = "k")

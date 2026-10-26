@@ -120,7 +120,7 @@ object IfcFurniture {
             for (p in products) {
                 val color = materialColor[p.id] ?: DEFAULT_COLOR
                 val tris = body(p, color)
-                if (tris.isEmpty()) { skipped.merge(p.type, 1, Int::plus); continue }
+                if (tris.isEmpty()) { skipped.countOne(p.type); continue }
                 elements += (p.str(2)?.takeIf { it.isNotBlank() } ?: p.type.removePrefix("IFC").lowercase()) to tris
             }
             val all = elements.flatMap { it.second }
@@ -235,7 +235,7 @@ object IfcFurniture {
                     val rep = f[map.ref(1)] ?: return
                     for (it in rep.refs(3)) item(f[it], inner, color, out)
                 }
-                else -> skipped.merge("geometria ${e.type}", 1, Int::plus)
+                else -> skipped.countOne("geometria ${e.type}")
             }
         }
 
@@ -262,7 +262,7 @@ object IfcFurniture {
                 val bounds = face.refs(0).mapNotNull { f[it] }
                 val outer = bounds.firstOrNull { it.type == "IFCFACEOUTERBOUND" } ?: bounds.firstOrNull() ?: continue
                 val loop = f[outer.ref(0)] ?: continue
-                if (loop.type != "IFCPOLYLOOP") { skipped.merge("contorno ${loop.type}", 1, Int::plus); continue }
+                if (loop.type != "IFCPOLYLOOP") { skipped.countOne("contorno ${loop.type}"); continue }
                 var pts = loop.refs(0).map { r.vec(it, V3(0.0, 0.0, 0.0)) }
                 if (outer.enum(1) == "F") pts = pts.reversed()
                 polygon(pts, tri)

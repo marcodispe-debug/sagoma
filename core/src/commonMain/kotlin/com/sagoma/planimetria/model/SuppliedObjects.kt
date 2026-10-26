@@ -7,7 +7,8 @@ import kotlinx.serialization.Serializable
  * programma (Winner esporta un IFC con i soli mobili). Sta nel piano ([FloorPlan.supplied]) e un arredo lo mette in casa con il
  * modello "fornito:<id>": si sposta, si gira e si specchia come gli altri arredi.
  *
- * Non entra mai nel catalogo e non esce mai da sagoma: nessuna esportazione (IFC, immagini a parte) ne contiene la forma.
+ * Non entra mai nel catalogo e non esce mai da sagoma: nessuna esportazione (IFC, progetto .sagoma; immagini a parte) ne
+ * contiene la forma.
  *
  * La forma è in coordinate locali, in mm, come i mobili generati ([com.sagoma.planimetria.geometry.KitchenGeometry]):
  * x lungo la larghezza (dal centro), y in alto dalla base, z dal retro (−depth/2) al davanti (+depth/2).
@@ -42,4 +43,12 @@ object SuppliedObjects {
     fun isModel(model: String): Boolean = model.startsWith(PREFIX)
     fun model(id: Long): String = "$PREFIX$id"
     fun idOf(model: String): Long? = if (isModel(model)) model.removePrefix(PREFIX).toLongOrNull() else null
+
+    /**
+     * La casa da dare a qualcun altro (progetto esportato): senza la forma degli oggetti forniti, che non si deve poter
+     * estrarre. Gli arredi restano: chi riceve il progetto vede la scatola grigia dell'ingombro.
+     */
+    fun withoutShapes(b: Building): Building =
+        if (b.floors.none { it.plan.supplied.isNotEmpty() }) b
+        else b.copy(floors = b.floors.map { f -> f.copy(plan = f.plan.copy(supplied = emptyList())) })
 }
