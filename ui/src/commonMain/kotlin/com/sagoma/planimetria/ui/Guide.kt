@@ -175,7 +175,7 @@ private fun Modifier.guideRing(): Modifier {
 
 /** Stesso numero, scritto con la virgola o il punto ("330", "330,0"). */
 private fun sameNumber(text: String?, expect: String): Boolean {
-    val a = text?.trim()?.replace(',', '.')?.toDoubleOrNull() ?: return false
+    val a = text?.let(::parseNumber) ?: return false
     val b = parseNumber(expect) ?: return false
     return kotlin.math.abs(a - b) < 0.01
 }
