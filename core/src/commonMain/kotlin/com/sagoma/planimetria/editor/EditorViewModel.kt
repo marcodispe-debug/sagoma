@@ -261,7 +261,43 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         publishCourse()
     }
 
-    /** "Avanti" o "Salta passo": passo successivo; dopo l'ultimo la guida finisce. */
+    /**
+     * "Salta passo": la guida fa il passo al posto dell'utente (la stanza creata, il muro trascinato, la taratura, …, con
+     * Annulla come se l'avesse fatto lui) e va avanti, così i passi dopo si possono fare. Se il passo dopo risulta già fatto,
+     * va avanti ancora.
+     */
+    fun skipCourseStep() {
+        val step = course.step ?: return
+        if (!Course.canSkip(step)) return
+        _state.update { it.copy(pendingOpening = null, pendingFixture = null) }
+        val room = Course.skippedRoom(step)
+        when {
+            room != null -> addRoomFromInterior(room.first, room.second, Room.DEFAULT_CEILING_HEIGHT, Room.WALL_THICKNESS)
+            // Il tramezzo nasce nella camera, come scegliendo «Muro singolo» con la camera selezionata.
+            step == CourseStep.FreeWallPick -> {
+                val camera = _state.value.plan.rooms.lastOrNull { it.type == RoomType.Camera }
+                _state.update { it.copy(focusedRoomId = camera?.id, selection = null) }
+                addFreeWall()
+            }
+            step == CourseStep.TraceStart -> startTracing()
+            step.lesson == Lesson.Elements -> cancelCreation()
+            else -> Course.skipped(step, _state.value)?.let { plan ->
+                commit { plan }
+                if (step == CourseStep.CalibA || step == CourseStep.CalibB || step == CourseStep.CalibValue) {
+                    _state.update { it.copy(underlayTool = null) }
+                    endTracing()
+                    tutorialEvent(TutorialEvent.Calibrated)
+                } else _state.update { it.copy(creation = null, creationIntent = null, wallDraw = null) }
+            }
+        }
+        if (course.step == step) course.skip()
+        while (course.step?.let { Course.ready(it, _state.value) } == true) course.next()
+        if (!course.active) return finishCourse()
+        prepareCourseStep()
+        publishCourse()
+    }
+
+    /** "Avanti": passo successivo; dopo l'ultimo la guida finisce. */
     fun nextCourseStep() {
         course.next()
         if (!course.active) return finishCourse()

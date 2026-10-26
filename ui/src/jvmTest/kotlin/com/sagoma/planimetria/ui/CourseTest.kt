@@ -244,4 +244,104 @@ class CourseTest {
         for (r in listOf(GuidePlan.studio, GuidePlan.soggiorno, GuidePlan.camera)) assertTrue(vm.inPlace(r))
         assertNull(vm.state.value.creation)
     }
+
+    /** «Salta passo» sul passo `step` (le schede da leggere con «Avanti»). */
+    private fun EditorViewModel.skip(step: CourseStep) {
+        assertEquals(step, this.step)
+        if (step.action) skipCourseStep() else nextCourseStep()
+    }
+
+    @Test
+    fun `saltando i passi la casa diventa quella che avrebbero fatto, e i passi dopo si possono fare`() {
+        val vm = emptyProject()
+        vm.startCourse(Lesson.Square)
+        vm.skip(CourseStep.Welcome)
+        vm.skip(CourseStep.SquarePick)
+        // Senza lo studio, il muro da trascinare non ci sarebbe: saltando la creazione lo studio nasce, e il passo dopo si fa a mano.
+        vm.skip(CourseStep.SquareMeasures)
+        assertEquals(CourseStep.SquareWall, vm.step)
+        assertNull(vm.state.value.creation, "la finestra delle forme si chiude")
+        val studio = vm.room(RoomType.Studio)
+        assertTrue(studio.interiorLengths().all { kotlin.math.abs(it - 330.0) < 0.5 })
+        val right = studio.points.indices.maxBy { (studio.points[it] + studio.points[(it + 1) % 4]).x }
+        vm.beginDrag(DragTarget.Wall(studio.id, right), (studio.points[right] + studio.points[(right + 1) % 4]) / 2.0)
+        vm.dragBy(DragTarget.Wall(studio.id, right), Vec2(68.0, 0.0))
+        vm.endDrag()
+        assertEquals(CourseStep.SquareInfo, vm.step)
+        vm.skip(CourseStep.SquareInfo)
+        // L'angolo saltato viene trascinato dalla guida: Annulla lo rimette dritto, come se l'avesse fatto l'utente.
+        vm.skip(CourseStep.SquareCorner)
+        assertEquals(CourseStep.SquareUndo, vm.step)
+        assertFalse(vm.state.value.plan.rooms.single().interiorLengths().all { kotlin.math.abs(it - 330.0) < 0.5 })
+        vm.undo()
+        assertEquals(CourseStep.SquareDone, vm.step)
+
+        // Tutto il resto saltato: ogni stanza nasce e va al suo posto, l'ingresso, il tramezzo, il balcone.
+        while (vm.step != CourseStep.ElementsDone) vm.skip(vm.step!!)
+        for (r in listOf(GuidePlan.studio, GuidePlan.soggiorno, GuidePlan.camera, GuidePlan.bagno, GuidePlan.ingresso)) {
+            assertTrue(vm.inPlace(r), "${r.type} non è al suo posto")
+        }
+        assertEquals(1, vm.state.value.plan.rooms.count { it.type == RoomType.Soggiorno }, "nessuna stanza doppia")
+        val w = vm.state.value.plan.freeWalls.single()
+        assertTrue(w.start.distanceTo(GuidePlan.tramezzo.start + vm.offset()) < 0.5 && w.end.distanceTo(GuidePlan.tramezzo.end + vm.offset()) < 0.5)
+        assertEquals(GuidePlan.tramezzo.thickness, w.thickness)
+        assertTrue(vm.state.value.plan.rooms.any { it.type == RoomType.Balcone })
+        assertNull(vm.state.value.wallDraw)
+    }
+
+    @Test
+    fun `saltando un passo a metà di una lezione si può fare il passo dopo`() {
+        val vm = emptyProject()
+        vm.startCourse(Lesson.LShape)
+        vm.skip(CourseStep.LPick)
+        vm.skip(CourseStep.LSide)
+        vm.skip(CourseStep.LMeasures)
+        assertEquals(CourseStep.Snap, vm.step)
+        assertTrue(vm.gap(RoomType.Soggiorno) > 90.0, "nasce staccato, come creato a mano")
+        vm.nextCourseStep()
+        vm.bringToPlace(RoomType.Soggiorno, GuidePlan.soggiorno)
+        assertEquals(CourseStep.LDone, vm.step)
+
+        // Il disegno dell'ingresso saltato a metà: l'ingresso c'è già, chiuso al suo posto.
+        vm.startCourse(Lesson.Walls)
+        vm.startAddRoom()
+        vm.startDrawWalls()
+        vm.drawWallsTap(Course.hints(CourseStep.WallsFirst, vm.state.value).single().marks.single().points.single())
+        vm.skip(CourseStep.WallsTyped)
+        assertEquals(CourseStep.WallsDone, vm.step)
+        assertTrue(vm.inPlace(GuidePlan.ingresso))
+        assertNull(vm.state.value.wallDraw)
+
+        // Il tramezzo saltato: nasce nella camera e il passo dopo (portarlo al suo posto) si fa a mano.
+        vm.startCourse(Lesson.FreeWall)
+        vm.skip(CourseStep.FreeWallPick)
+        assertEquals(CourseStep.FreeWallMove, vm.step)
+        assertEquals(1, vm.state.value.plan.freeWalls.size)
+    }
+
+    @Test
+    fun `sopra la planimetria saltando i passi la taratura e le stanze vengono come sulla piantina`() {
+        val vm = emptyProject()
+        vm.startCourse(Lesson.OverPlan)
+        assertFalse(Course.canSkip(CourseStep.TraceLoad), "senza la piantina il resto della lezione non si fa")
+        vm.skip(CourseStep.TraceStart)
+        assertEquals(CourseStep.TraceLoad, vm.step)
+        // La piantina della guida, grande la metà e non tarata, come la carica l'app.
+        vm.setUnderlay(com.sagoma.planimetria.model.Underlay("guida.png", GuidePlan.width / 2, GuidePlan.height / 2, origin = Vec2(-300.0, -200.0), cmPerPx = 3.7))
+        assertEquals(CourseStep.CalibA, vm.step)
+        vm.skip(CourseStep.CalibA)
+        assertEquals(CourseStep.PlanShape, vm.step)
+        val u = vm.state.value.plan.underlay!!
+        val a = GuidePlan.onUnderlay(u, GuidePlan.calibrationA)
+        val b = GuidePlan.onUnderlay(u, GuidePlan.calibrationB)
+        assertTrue(kotlin.math.abs(a.distanceTo(b) - GuidePlan.calibrationCm) < 0.5, "tarata: ${a.distanceTo(b)}")
+        assertTrue(vm.state.value.creation is com.sagoma.planimetria.editor.CreationStep.PickShape, "si torna alla scelta della stanza")
+
+        while (vm.step != CourseStep.Finished) vm.skip(vm.step!!)
+        fun onPlan(target: GuidePlan.Room): Boolean {
+            val inner = vm.room(target.type).interior()
+            return inner.size == target.points.size && target.points.all { p -> inner.any { it.distanceTo(GuidePlan.onUnderlay(u, p)) < 1.0 } }
+        }
+        for (r in listOf(GuidePlan.camera, GuidePlan.bagno, GuidePlan.soggiorno)) assertTrue(onPlan(r), "${r.type} non è sulla piantina")
+    }
 }

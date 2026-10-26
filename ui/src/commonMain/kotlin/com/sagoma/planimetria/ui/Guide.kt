@@ -419,7 +419,7 @@ private fun CourseBubble(course: CourseUi, hint: GuideHint?, vm: EditorViewModel
                     }
                     else -> if (step.action) {
                         TextButton(onClick = { vm.finishCourse(completed = false) }) { Text(T.comuni.esci, color = quiet) }
-                        TextButton(onClick = vm::nextCourseStep) { Text(T.editor.saltaPasso) }
+                        if (Course.canSkip(step)) TextButton(onClick = vm::skipCourseStep) { Text(T.editor.saltaPasso) }
                     } else {
                         TextButton(onClick = { vm.finishCourse(completed = false) }) { Text(T.comuni.esci, color = quiet) }
                         TextButton(onClick = vm::nextCourseStep) { Text(c.avanti) }
