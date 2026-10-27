@@ -239,4 +239,21 @@ class OpeningTypesTest {
         assertEquals(0xFF6B4A33, brown.shadingArgb)
         assertEquals(0xFF6B4A33, PlanJson.decode(PlanJson.encode(FloorPlan(listOf(room(brown))))).rooms[0].openings[0].shadingColor)
     }
+
+    @Test
+    fun `colore infisso qualsiasi - vince sul colore della lista, le persiane lo seguono, e si salva`() {
+        val w = Opening.default(1, OpeningKind.Window2, 0, 200.0)
+        assertTrue(w.defaultColor)
+        assertEquals(Finish.White.argb, w.frameArgb)
+        val red = w.copy(customColor = 0xFF8A2C2C, shading = Shading.Shutters)
+        assertFalse(red.defaultColor)
+        assertEquals(0xFF8A2C2C, red.frameArgb)
+        assertEquals(0xFF8A2C2C, red.shadingArgb, "persiane del colore dell'infisso, come con i colori della lista")
+        assertEquals(0xFF8A2C2C, PlanJson.decode(PlanJson.encode(FloorPlan(listOf(room(red))))).rooms[0].openings[0].customColor)
+        // Minimal: senza colore scelto antracite, con il colore scelto quello.
+        val minimal = w.copy(windowModel = WindowModel.Minimal)
+        val plain = Scene3D.build(FloorPlan(listOf(room(minimal))), null, null, ceilings = false)
+        val tinted = Scene3D.build(FloorPlan(listOf(room(minimal.copy(customColor = 0xFF8A2C2C)))), null, null, ceilings = false)
+        assertTrue(plain.opaque != tinted.opaque)
+    }
 }

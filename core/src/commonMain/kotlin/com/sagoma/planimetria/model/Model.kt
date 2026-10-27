@@ -163,6 +163,8 @@ data class Opening(
     val doorModel: DoorModel = DoorModel.Flush,
     /** Colore di anta e telaio; null = quello solito (rovere per le porte, bianco per gli infissi). */
     val color: Finish? = null,
+    /** Colore qualsiasi di anta e telaio (ARGB, come la pittura dei muri); vince su [color]. */
+    val customColor: Long? = null,
     /** Modello di finestre e balconi, e oscurante all'esterno. */
     val windowModel: WindowModel = WindowModel.Classic,
     val shading: Shading = Shading.None,
@@ -207,15 +209,21 @@ data class Opening(
     /** Colore effettivo di anta e telaio. */
     val finish: Finish get() = color ?: if (kind.glazed) Finish.White else Finish.Oak
 
+    /** Colore di anta e telaio (ARGB): quello libero se c'è, altrimenti quello di [finish]. */
+    val frameArgb: Long get() = customColor ?: finish.argb
+
+    /** Nessun colore scelto: restano i colori soliti del modello (es. minimal antracite, loft nero). */
+    val defaultColor: Boolean get() = color == null && customColor == null
+
     /**
      * Colore dell'oscurante (ARGB): quello scelto, oppure il solito: persiane verdi con l'infisso bianco e del colore
      * dell'infisso con gli altri, tapparella grigio chiaro, veneziana grigia, scuri interni del colore dell'infisso.
      */
     val shadingArgb: Long get() = shadingColor ?: when (shading) {
-        Shading.Shutters -> if (finish == Finish.White) SHUTTER_GREEN else finish.argb
+        Shading.Shutters -> if (frameArgb == Finish.White.argb) SHUTTER_GREEN else frameArgb
         Shading.RollerShutter -> ROLLER_GREY
         Shading.Venetian -> VENETIAN_GREY
-        Shading.InteriorShutters, Shading.None -> finish.argb
+        Shading.InteriorShutters, Shading.None -> frameArgb
     }
 
     /** Quota del fondo del varco: il davanzale per infissi e nicchie, terra per porte e varchi. */

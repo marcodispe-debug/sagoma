@@ -822,7 +822,7 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
     val room = plan.room(sel.roomId) ?: return
     val o = room.opening(sel.openingId) ?: return
     fun update(f: (Opening) -> Opening) = vm.updateOpening(room.id, f(o))
-    val color = Color(o.finish.argb)
+    val color = Color(o.frameArgb)
 
     val tabs = buildList {
         add(InfoTab("misure", T.schedaStanza.misure) {
@@ -964,9 +964,12 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                     }
                 }
             }
-            ColorPicker(if (o.kind.glazed) T.pannelli.coloreInfisso else T.comuni.colore, Finish.entries.map { it.label to it.argb }, o.finish.ordinal, { k ->
-                update { it.copy(color = Finish.entries[k]) }
-            })
+            // Come la pittura dei muri: i colori soliti degli infissi (legni, bianco, grigi) in testa, poi la tavolozza e il colore libero.
+            val finishes = Finish.entries
+            FreeColorPicker(if (o.kind.glazed) T.pannelli.coloreInfisso else T.comuni.colore, o.frameArgb, finishes.map { it.label to it.argb }) { c ->
+                val named = finishes.firstOrNull { it.argb == c }
+                update { it.copy(color = named, customColor = if (named == null) c else null) }
+            }
         })
         add(InfoTab("progetto", T.schedaStanza.progetto) {
             PhaseChoice(o.phase, PhaseLabels.opening) { vm.setOpeningPhase(room.id, o.id, it) }

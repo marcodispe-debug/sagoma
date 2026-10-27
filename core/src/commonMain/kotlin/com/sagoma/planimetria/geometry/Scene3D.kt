@@ -1995,7 +1995,7 @@ private class SceneBuilder(
         val transom = o.transomCm
         val side = o.sidelightCm
         if (transom <= 0 && side <= 0) return Triple(la, lb, top)
-        val frame = tint(Rgba.argb(o.finish.argb), pick)
+        val frame = tint(Rgba.argb(o.frameArgb), pick)
         val glassColor = tint(glass, pick).copy(a = glass.a)
         val lt = top - transom
         val f = 3.0
@@ -2021,7 +2021,7 @@ private class SceneBuilder(
      * con il disegno del suo modello su entrambe le facce e la maniglia verso l'estremità libera.
      */
     private fun doorLeaf(start: Vec2, dir: Vec2, length: Double, thick: Double, height: Double, o: Opening, pick: Pick, handleAtEnd: Boolean) {
-        val color = tint(Rgba.argb(o.finish.argb), pick)
+        val color = tint(Rgba.argb(o.frameArgb), pick)
         val relief = color.mix(Rgba(0f, 0f, 0f), 0.12f)
         val metal = tint(Rgba(0.62f, 0.64f, 0.66f), pick)
         fun part(from: Double, to: Double, y0: Double, y1: Double, hw: Double, c: Rgba) =
@@ -2071,7 +2071,7 @@ private class SceneBuilder(
 
     /** Coprifilo attorno alla porta, sulle due facce del muro, e rivestimento dello spessore del varco. */
     private fun casing(a: Vec2, b: Vec2, u: Vec2, n: Vec2, top: Double, o: Opening, pick: Pick) {
-        val color = tint(Rgba.argb(o.finish.argb), pick).mix(Rgba.White, 0.08f)
+        val color = tint(Rgba.argb(o.frameArgb), pick).mix(Rgba.White, 0.08f)
         val trim = 7.0
         for (side in listOf(1.0, -1.0)) {
             val off = n * (side * (half + 0.6))
@@ -2093,12 +2093,8 @@ private class SceneBuilder(
         val loft = o.windowModel == WindowModel.Loft
         val f = if (minimal || loft) 3.0 else 5.0
         val depth = if (minimal || loft) 3.0 else 4.0
-        val finish = when {
-            o.color != null -> o.finish
-            minimal -> Finish.Anthracite
-            else -> o.finish
-        }
-        val color = if (loft && o.color == null) tint(Rgba(0.1f, 0.1f, 0.11f), pick) else tint(Rgba.argb(finish.argb), pick)
+        val frameArgb = if (minimal && o.defaultColor) Finish.Anthracite.argb else o.frameArgb
+        val color = if (loft && o.defaultColor) tint(Rgba(0.1f, 0.1f, 0.11f), pick) else tint(Rgba.argb(frameArgb), pick)
         shading(a, b, u, n, bottom, top, o, pick)
         val w = a.distanceTo(b)
         val split = w * o.leafSplit
@@ -2201,7 +2197,7 @@ private class SceneBuilder(
         val w = a.distanceTo(b)
         val round = o.shape == WindowShape.Round
         val gap = Gap(0.0, w, bottom, top, if (round) PassageStyle.Square else PassageStyle.Arched, pick, round = round)
-        val color = tint(Rgba.argb((if (o.windowModel == WindowModel.Minimal && o.color == null) Finish.Anthracite else o.finish).argb), pick)
+        val color = tint(Rgba.argb(if (o.windowModel == WindowModel.Minimal && o.defaultColor) Finish.Anthracite.argb else o.frameArgb), pick)
         val glassColor = tint(glass, pick).copy(a = glass.a)
         val f = if (o.windowModel == WindowModel.Minimal) 3.0 else 5.0
         val depth = 3.5

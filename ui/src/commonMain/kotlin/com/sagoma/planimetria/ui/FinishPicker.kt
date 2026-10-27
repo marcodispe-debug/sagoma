@@ -250,13 +250,16 @@ private fun StopSlider(value: Double, stops: List<Double>, label: (Double) -> St
     )
 }
 
-/** Pallini della tavolozza estesa, con i colori recenti in testa e il pulsante per un colore qualsiasi. */
+/**
+ * Pallini della tavolozza estesa, con i colori recenti in testa e il pulsante per un colore qualsiasi.
+ * `first`: colori con il loro nome da mettere prima della tavolozza (es. i legni degli infissi).
+ */
 @Composable
-fun FreeColorPicker(label: String, argb: Long, onSelect: (Long) -> Unit) {
+fun FreeColorPicker(label: String, argb: Long, first: List<Pair<String, Long>> = emptyList(), onSelect: (Long) -> Unit) {
     var custom by remember { mutableStateOf(false) }
-    val colors = (RecentColors.list + ProPalette.colors.map { it.second }).distinct()
+    val colors = (RecentColors.list + first.map { it.second } + ProPalette.colors.map { it.second }).distinct()
     Column(Modifier.fillMaxWidth()) {
-        Text("$label: ${ProPalette.nameOf(argb)}", style = MaterialTheme.typography.labelMedium)
+        Text("$label: ${first.firstOrNull { it.second == argb }?.first ?: ProPalette.nameOf(argb)}", style = MaterialTheme.typography.labelMedium)
         ArrowLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(top = 6.dp, bottom = 2.dp, end = 8.dp)) {
             item {
                 // Arcobaleno: apre il selettore libero.
