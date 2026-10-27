@@ -195,6 +195,16 @@ android {
             ndk { abiFilters += "arm64-v8a" }
             matchingFallbacks += "debug"
         }
+        // Come «veloce», ma con il codice ridotto e ottimizzato da R8 (come sarà la versione per Google Play): app più piccola e
+        // più rapida. Da provare a parte (gradlew :app:installVeloceR8): se qualcosa non va, si rimette «veloce» sopra, i progetti
+        // restano.
+        create("veloceR8") {
+            initWith(getByName("veloce"))
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            matchingFallbacks += listOf("veloce", "debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
