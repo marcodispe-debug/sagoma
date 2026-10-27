@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.model.Covering
 import com.sagoma.planimetria.model.MaterialCatalog
+import com.sagoma.planimetria.model.MaterialLayout
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import com.sagoma.planimetria.model.ProPalette
@@ -80,6 +81,9 @@ fun FinishPicker(label: String, finish: WallFinish, onChange: (WallFinish) -> Un
                 else finish.copy(covering = Covering.Material, coveringArgb = null, material = id, coveringHeight = finish.coveringHeight.takeIf { finish.covering == Covering.Material }),
             )
         }
+        if (finish.covering == Covering.Material && finish.material != null) {
+            MaterialLayoutControls(finish.layout) { onChange(finish.copy(layout = it)) }
+        }
         if (finish.covering != Covering.None) {
             val full = finish.coverHeight == null
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
@@ -99,6 +103,34 @@ fun FinishPicker(label: String, finish: WallFinish, onChange: (WallFinish) -> Un
                 )
             }
         }
+    }
+}
+
+/**
+ * Verso e misura dei pezzi di un materiale fotografico (parquet nell'altro verso, doghe più larghe, posa in diagonale). Il
+ * valore si applica quando si lascia il cursore.
+ */
+@Composable
+fun MaterialLayoutControls(layout: MaterialLayout, onChange: (MaterialLayout) -> Unit) {
+    var rotation by remember(layout.rotation) { mutableStateOf(layout.rotation.toFloat()) }
+    var scale by remember(layout.scale) { mutableStateOf((layout.scale * 100).toFloat()) }
+    Column(Modifier.fillMaxWidth().padding(end = 8.dp)) {
+        Text(T.finiture.verso(rotation.roundToInt()), style = MaterialTheme.typography.labelMedium)
+        Slider(
+            value = rotation,
+            onValueChange = { rotation = (it / 5).roundToInt() * 5f },
+            onValueChangeFinished = { onChange(layout.copy(rotation = rotation.toDouble())) },
+            valueRange = 0f..180f,
+            steps = 35,
+        )
+        Text(T.finiture.misuraPezzi(scale.roundToInt()), style = MaterialTheme.typography.labelMedium)
+        Slider(
+            value = scale,
+            onValueChange = { scale = (it / 5).roundToInt() * 5f },
+            onValueChangeFinished = { onChange(layout.copy(scale = scale / 100.0)) },
+            valueRange = (MaterialLayout.MIN_SCALE * 100).toFloat()..(MaterialLayout.MAX_SCALE * 100).toFloat(),
+        )
+        if (layout != MaterialLayout()) TextButton(onClick = { onChange(MaterialLayout()) }) { Text(T.finiture.comeNelCatalogo) }
     }
 }
 

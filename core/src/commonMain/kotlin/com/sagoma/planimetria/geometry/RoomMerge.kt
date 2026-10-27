@@ -93,7 +93,7 @@ object RoomMerge {
         val shell = Room(
             room.id, room.name, room.type, points, room.ceilingHeight,
             floorFinish = room.floorFinish, wallPaint = room.wallPaint, wallFinish = room.wallFinish,
-            floorMaterial = room.floorMaterial, wallThickness = room.wallThickness,
+            floorMaterial = room.floorMaterial, floorLayout = room.floorLayout, wallThickness = room.wallThickness,
         )
         val openings = (room.openings.mapNotNull { remap(room, it, shell) } + other.openings.mapNotNull { remap(other, it, shell) })
         val fixtures = listOf(room, other).flatMap { r ->

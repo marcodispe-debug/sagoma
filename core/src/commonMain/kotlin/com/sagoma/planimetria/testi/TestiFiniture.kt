@@ -16,4 +16,7 @@ open class TestiFiniture {
     open val codiceEsC9d3bf: String get() = "Codice (es. C9D3BF)"
     open val usaQuestoColore: String get() = "Usa questo colore"
     open val nessuno: String get() = "Nessuno"
+    open fun verso(p1: Any?): String = "Verso: $p1°"
+    open fun misuraPezzi(p1: Any?): String = "Misura dei pezzi: $p1%"
+    open val comeNelCatalogo: String get() = "Come nel catalogo"
 }

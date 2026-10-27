@@ -17,4 +17,7 @@ object TestiFinitureEs : TestiFiniture() {
     override val codiceEsC9d3bf: String get() = "Código (ej. C9D3BF)"
     override val usaQuestoColore: String get() = "Usar este color"
     override val nessuno: String get() = "Ninguno"
+    override fun verso(p1: Any?): String = "Dirección: $p1°"
+    override fun misuraPezzi(p1: Any?): String = "Tamaño de las piezas: $p1 %"
+    override val comeNelCatalogo: String get() = "Como en el catálogo"
 }

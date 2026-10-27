@@ -2799,6 +2799,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         plan.replace(room.copy(floorMaterial = material))
     }
 
+    /** Verso e misura dei pezzi del pavimento fotografico della stanza. */
+    fun setFloorLayout(id: Long, layout: com.sagoma.planimetria.model.MaterialLayout) = commit { plan ->
+        val room = plan.room(id) ?: return@commit plan
+        if (room.floorLayout == layout) plan else plan.replace(room.copy(floorLayout = layout))
+    }
+
     // ---------- Pianta di sfondo ----------
 
     /** Nuova immagine di sfondo (o null per toglierla). */

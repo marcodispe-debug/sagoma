@@ -416,6 +416,7 @@ private fun FinishesTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
             TextButton(onClick = { vm.setRoomLook(room.id, floor = FloorFinish.RoomColor) }) { Text(T.schedaStanza.togli, color = MaterialTheme.colorScheme.error) }
         }
         MaterialPicker(T.schedaStanza.pavimento, room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
+        if (room.floorMaterial != null) MaterialLayoutControls(room.floorLayout) { vm.setFloorLayout(room.id, it) }
     } else {
         ModelPicker(T.schedaStanza.pavimento, FloorFinish.entries, room.floorFinish, { it.label }, { vm.setRoomLook(room.id, floor = it) }) {
             floorPreview(it, Color(room.type.argb))

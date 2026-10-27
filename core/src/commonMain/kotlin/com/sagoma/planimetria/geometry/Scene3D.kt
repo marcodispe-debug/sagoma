@@ -394,14 +394,17 @@ private class SceneBuilder(
     }
 
     /** Rettangolo con un materiale sulla faccia di un muro (stesse coordinate di [wallFace]). */
-    private fun texturedWallFace(material: String, s: Vec2, u: Vec2, side: Vec2, dist: Double, t0: Double, t1: Double, y0: Double, y1: Double) {
+    private fun texturedWallFace(
+        material: String, layout: com.sagoma.planimetria.model.MaterialLayout,
+        s: Vec2, u: Vec2, side: Vec2, dist: Double, t0: Double, t1: Double, y0: Double, y1: Double,
+    ) {
         if (t1 - t0 < 0.05 || y1 - y0 < 0.05) return
         val size = MaterialCatalog.item(material)?.size ?: 100.0
         val off = side * (dist + 0.1)
         val a = s + u * t0 + off
         val b = s + u * t1 + off
-        // La foto si ripete ogni `size` cm, dritta (v cresce verso il basso come nelle immagini).
-        fun uv(t: Double, y: Double) = Vec2(t / size, -y / size)
+        // La foto si ripete ogni `size` cm, dritta (v cresce verso il basso come nelle immagini), girata e ingrandita come scelto.
+        fun uv(t: Double, y: Double) = layout.uv(t, -y, size)
         val n = side.dir()
         texTri(material, a.at(y0), b.at(y0), b.at(y1), uv(t0, y0), uv(t1, y0), uv(t1, y1), n)
         texTri(material, a.at(y0), b.at(y1), a.at(y1), uv(t0, y0), uv(t1, y1), uv(t0, y1), n)
@@ -1018,9 +1021,9 @@ private class SceneBuilder(
             val pieces = if (holes.isEmpty()) listOf(t) else Clip.subtractAll(t, holes)
             for (p in pieces) for (k in 1 until p.size - 1) {
                 tri(p[0].at(0.0), p[k].at(0.0), p[k + 1].at(0.0), Vec3.Up, color, pick)
-                // Materiale fotografico appena sopra, ripetuto ogni `size` cm (coordinate della pianta).
+                // Materiale fotografico appena sopra, ripetuto ogni `size` cm (coordinate della pianta), girato e ingrandito come scelto.
                 if (material != null) {
-                    fun uv(q: Vec2) = Vec2(q.x / material.size, q.y / material.size)
+                    fun uv(q: Vec2) = room.floorLayout.uv(q.x, q.y, material.size)
                     texTri(material.id, p[0].at(0.03), p[k].at(0.03), p[k + 1].at(0.03), uv(p[0]), uv(p[k]), uv(p[k + 1]), Vec3.Up)
                 }
             }
@@ -1663,7 +1666,7 @@ private class SceneBuilder(
         fun shade(c: Rgba, k: Double) = if (k >= 0) c.mix(Rgba.White, k.toFloat()) else c.mix(Rgba(0f, 0f, 0f), (-k).toFloat())
         when (f.covering) {
             Covering.None -> Unit
-            Covering.Material -> f.material?.let { texturedWallFace(it, s, u, side, dist, t0, t1, y0, y1) }
+            Covering.Material -> f.material?.let { texturedWallFace(it, f.layout, s, u, side, dist, t0, t1, y0, y1) }
             Covering.Wallpaper -> {
                 // Righe verticali: una larga e una sottile ogni 16 cm.
                 for (k in columnsIn(16.0)) {

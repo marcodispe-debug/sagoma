@@ -314,6 +314,8 @@ data class Room(
     val wallFinishes: Map<Int, WallFinish> = emptyMap(),
     /** Pavimento con un materiale fotografico ([MaterialCatalog]); vince su [floorFinish] nel 3D. */
     val floorMaterial: String? = null,
+    /** Verso e misura dei pezzi di [floorMaterial]. */
+    val floorLayout: MaterialLayout = MaterialLayout(),
     /** Spessore dei muri della stanza (cm) e di singoli muri che fanno eccezione (portanti, tramezzi). */
     val wallThickness: Double = WALL_THICKNESS,
     val wallThicknesses: Map<Int, Double> = emptyMap(),

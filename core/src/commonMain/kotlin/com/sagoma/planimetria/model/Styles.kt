@@ -198,6 +198,8 @@ data class WallFinish(
     val coveringHeight: Double? = null,
     /** Con [Covering.Material]: il materiale della libreria ([MaterialCatalog]). */
     val material: String? = null,
+    /** Con [Covering.Material]: verso e misura dei pezzi. */
+    val layout: MaterialLayout = MaterialLayout(),
 ) {
     val coverArgb: Long get() = coveringArgb ?: (if (covering == Covering.Material) material?.let { MaterialCatalog.item(it)?.argb } else null) ?: covering.defaultArgb
     /** Fin dove arriva il rivestimento (null = tutta la parete). */
@@ -208,6 +210,28 @@ data class WallFinish(
         const val FULL_HEIGHT = 1000.0
 
         fun of(paint: WallPaint) = WallFinish(paint.argb)
+    }
+}
+
+/**
+ * Posa di un materiale fotografico ([MaterialCatalog]) su un pavimento o su una parete: `rotation` gira i pezzi (gradi: 90 =
+ * doghe nell'altro verso, 45 = in diagonale), `scale` li ingrandisce rispetto alla foto del catalogo (1,5 = doghe o
+ * piastrelle più grandi del 50%).
+ */
+@Serializable
+data class MaterialLayout(val rotation: Double = 0.0, val scale: Double = 1.0) {
+    /** Coordinate nella foto del punto (`x`, `y`) cm del pavimento o della parete, con la foto che si ripete ogni `size` cm. */
+    fun uv(x: Double, y: Double, size: Double): Vec2 {
+        val r = rotation * kotlin.math.PI / 180
+        val c = kotlin.math.cos(r)
+        val s = kotlin.math.sin(r)
+        val k = size * scale.coerceIn(MIN_SCALE, MAX_SCALE)
+        return Vec2((x * c + y * s) / k, (y * c - x * s) / k)
+    }
+
+    companion object {
+        const val MIN_SCALE = 0.25
+        const val MAX_SCALE = 3.0
     }
 }
 
