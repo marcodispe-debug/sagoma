@@ -13,6 +13,13 @@ import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.model.DoorModel
+import com.sagoma.planimetria.model.Finish
+import com.sagoma.planimetria.model.FramePosition
+import com.sagoma.planimetria.model.PassageStyle
+import com.sagoma.planimetria.model.SashType
+import com.sagoma.planimetria.model.Shading
+import com.sagoma.planimetria.model.WindowModel
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -287,7 +294,75 @@ internal class IfcReader(val f: StepFile) {
         val length get() = a.distanceTo(b)
     }
 
-    class Hole(val id: Int, val kind: OpeningKind?, val isDoor: Boolean, val filled: Boolean, val wall: WallLine?, val center: Vec2, val width: Double, val sill: Double, val height: Double, val phase: Phase)
+    class Hole(
+        val id: Int, val kind: OpeningKind?, val isDoor: Boolean, val filled: Boolean, val wall: WallLine?, val center: Vec2, val width: Double,
+        val sill: Double, val height: Double, val phase: Phase,
+        /** Incavo che non passa il muro (IfcOpeningElement .RECESS.): una nicchia. */
+        val recess: Boolean = false,
+        /** Da che parte della mezzeria sta il vano (per la nicchia: verso la sua stanza). */
+        val offset: Vec2 = Vec2.Zero,
+        /** Porte: modo di aprirsi dell'IFC (IfcDoorTypeOperationEnum), dalla porta o dal suo tipo. */
+        val doorOperation: String? = null,
+        /** Finestre: modo di aprirsi di ogni anta (IfcWindowPanelOperationEnum), dal tipo della finestra. */
+        val panelOperations: List<String> = emptyList(),
+    )
+
+    /** Tipo (IfcDoorType, IfcWindowType o gli stili dell'IFC2x3) di ogni porta o finestra. */
+    val typeOf: Map<Int, StepEntity> = buildMap {
+        for (rel in f.ofType("IFCRELDEFINESBYTYPE")) { val t = f[rel.ref(5)] ?: continue; for (o in rel.refs(4)) put(o, t) }
+    }
+
+    fun doorOperation(door: StepEntity): String? {
+        door.enum(11)?.takeIf { it != "NOTDEFINED" && it != "USERDEFINED" }?.let { return it }
+        val t = typeOf[door.id] ?: return null
+        return when (t.type) { "IFCDOORTYPE" -> t.enum(10); "IFCDOORSTYLE" -> t.enum(8); else -> null }
+    }
+
+    fun panelOperations(window: StepEntity): List<String> {
+        val t = typeOf[window.id] ?: return emptyList()
+        return t.refs(5).mapNotNull { f[it] }.filter { it.type == "IFCWINDOWPANELPROPERTIES" }.mapNotNull { it.enum(4) }
+    }
+
+    /** Aspetto dell'apertura scritto da sagoma (proprietà "Sagoma"), o quello che si deduce dai nomi standard dell'IFC. */
+    fun looks(h: Hole, base: Opening): Opening {
+        fun b(name: String) = (prop(h.id, IfcExport.PSET, name) as? StepValue.Enum)?.name == "T"
+        fun <E : Enum<E>> e(name: String, values: List<E>): E? = propStr(h.id, IfcExport.PSET, name)?.let { v -> values.firstOrNull { it.name == v } }
+        var o = base.copy(
+            style = e("Style", PassageStyle.entries) ?: base.style,
+            slideOnWall = b("SlideOnWall"), folding = b("Folding"), frameless = b("Frameless"), unequalLeaves = b("UnequalLeaves"),
+            sash = e("Sash", SashType.entries) ?: base.sash,
+            windowModel = e("WindowModel", WindowModel.entries) ?: base.windowModel,
+            doorModel = e("DoorModel", DoorModel.entries) ?: base.doorModel,
+            shading = e("Shading", Shading.entries) ?: base.shading,
+            frame = e("Frame", FramePosition.entries) ?: base.frame,
+            color = e("Color", Finish.entries),
+            splay = propNum(h.id, IfcExport.PSET, "Splay")?.let { it * scale } ?: 0.0,
+            splayRounded = b("SplayRounded"), entrance = b("Entrance"),
+        )
+        if (h.kind != null) return o
+        // File non uscito da sagoma: il modo di aprirsi dai nomi dell'IFC.
+        h.doorOperation?.let { op ->
+            when {
+                op.startsWith("SLIDING_TO_") -> o = o.copy(sliding = true, hingeLeft = op.endsWith("LEFT"))
+                op == "DOUBLE_DOOR_SLIDING" -> o = o.copy(sliding = true)
+                op.startsWith("FOLDING_TO_") -> o = o.copy(folding = true, hingeLeft = op.endsWith("LEFT"))
+                op == "DOUBLE_DOOR_FOLDING" -> o = o.copy(folding = true)
+                op == "SINGLE_SWING_LEFT" -> o = o.copy(hingeLeft = true)
+                op == "SINGLE_SWING_RIGHT" -> o = o.copy(hingeLeft = false)
+            }
+        }
+        val ops = h.panelOperations
+        if (ops.isNotEmpty()) {
+            when {
+                ops.all { it == "SLIDINGHORIZONTAL" } -> o = o.copy(sliding = true)
+                ops.all { it == "FIXEDCASEMENT" } -> o = o.copy(sash = SashType.Fixed)
+                ops.any { it == "BOTTOMHUNG" } -> o = o.copy(sash = SashType.Hopper)
+                ops.any { it.startsWith("TILTANDTURN") } -> o = o.copy(sash = SashType.TiltTurn)
+            }
+            if (ops.size == 1) ops[0].takeIf { it.endsWith("HAND") }?.let { o = o.copy(hingeLeft = it.endsWith("LEFTHAND")) }
+        }
+        return o
+    }
 
     fun phaseOf(id: Int, common: String): Phase = when (propStr(id, common, "Status")?.uppercase()) {
         "NEW" -> Phase.New
@@ -459,7 +534,7 @@ internal class IfcReader(val f: StepFile) {
             val freeOpenings = HashMap<Long, MutableList<Opening>>()
             for (h in holes) {
                 val kind = h.kind ?: when {
-                    !h.filled -> if (h.sill < 5) OpeningKind.Passage else continue
+                    !h.filled -> if (h.recess) OpeningKind.Niche else if (h.sill < 5) OpeningKind.Passage else continue
                     h.isDoor -> if (h.width > 110) OpeningKind.Door2 else OpeningKind.Door
                     h.sill < 10 -> if (h.width > 120) OpeningKind.Balcony2 else OpeningKind.Balcony1
                     else -> if (h.width > 100) OpeningKind.Window2 else OpeningKind.Window1
@@ -472,16 +547,20 @@ internal class IfcReader(val f: StepFile) {
                 }.filter { (r, i, d) ->
                     val u = (r.wallEnd(i) - r.wallStart(i)).normalized()
                     d <= r.thicknessOf(i) / 2 + 3 && (dir == null || abs(u.cross(dir)) < 0.05)
-                }.minByOrNull { (r, _, d) -> d + if (r.id == wantedRoom) -1000.0 else if (r.type.outdoor) 50.0 else 0.0 }
+                }.minByOrNull { (r, i, d) ->
+                    // La nicchia va alla stanza dalla cui parte è scavata.
+                    val wrongSide = kind == OpeningKind.Niche && (r.outwardOf(i) dot h.offset) > 0.5
+                    d + (if (r.id == wantedRoom) -1000.0 else if (r.type.outdoor) 50.0 else 0.0) + (if (wrongSide) 500.0 else 0.0)
+                }
                 val opening = { wallIndex: Int, position: Double ->
-                    Opening(
+                    looks(h, Opening(
                         id = propNum(h.id, IfcExport.PSET, "OpeningId")?.toLong() ?: openingId++, kind = kind, wallIndex = wallIndex,
                         position = position, width = h.width, height = h.height, sillHeight = if (kind.hasSill) h.sill else 0.0,
                         hingeLeft = (prop(h.id, IfcExport.PSET, "HingeLeft") as? StepValue.Enum)?.name != "F",
                         opensInward = (prop(h.id, IfcExport.PSET, "OpensInward") as? StepValue.Enum)?.name != "F",
                         sliding = (prop(h.id, IfcExport.PSET, "Sliding") as? StepValue.Enum)?.name == "T",
                         phase = h.phase,
-                    )
+                    ))
                 }
                 if (target != null) {
                     val (r, i, _) = target
@@ -493,7 +572,7 @@ internal class IfcReader(val f: StepFile) {
                     freeOpenings.getOrPut(fwId) { mutableListOf() } += opening(0, (h.center - fw.start) dot (fw.end - fw.start).normalized())
                 }
                 when {
-                    kind == OpeningKind.Passage -> nPassages++
+                    kind == OpeningKind.Passage || kind == OpeningKind.Niche -> nPassages++
                     h.isDoor || !kind.glazed -> nDoors++
                     else -> nWindows++
                 }
@@ -552,7 +631,12 @@ internal class IfcReader(val f: StepFile) {
         val kind = propStr(product.id, IfcExport.PSET, "Kind")?.let { k -> OpeningKind.entries.firstOrNull { it.name == k } }
         if (kind != null) fromSagoma = true
         val common = if (isDoor) "Pset_DoorCommon" else "Pset_WindowCommon"
-        return Hole(product.id, kind, isDoor, filled, wall, center, width, sill, height, phaseOf(product.id, common))
+        return Hole(
+            product.id, kind, isDoor, filled, wall, center, width, sill, height, phaseOf(product.id, common),
+            recess = !filled && product.enum(8) == "RECESS", offset = center2 - center,
+            doorOperation = if (isDoor) doorOperation(product) else null,
+            panelOperations = if (product.type == "IFCWINDOW") panelOperations(product) else emptyList(),
+        )
     }
 
     /**

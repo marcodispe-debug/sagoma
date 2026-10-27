@@ -21,6 +21,7 @@ import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.model.Room
+import com.sagoma.planimetria.model.SashType
 import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
 import kotlin.math.acos
@@ -170,6 +171,7 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
             storey
         }
         w.add("IFCRELAGGREGATES", newGuid(), NULL, NULL, NULL, house, list(storeys))
+        writeWindowTypes(project)
 
         val header = listOf(
             "FILE_DESCRIPTION(('ViewDefinition [ReferenceView_V1.2]'),'2;1');",
@@ -420,50 +422,154 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
         val sill = if (o.kind.hasSill) o.sillHeight else 0.0
         val top = sill + o.height
         val rect = listOf(Vec2(t0, sill), Vec2(t1, sill), Vec2(t1, top), Vec2(t0, top)).map { Vec2(it.x * 10, it.y * 10) }
+        // Varchi ad arco: la cima del vano segue l'arco (la stessa curva del 3D), a fettine dritte.
+        val arch = if (o.kind == OpeningKind.Passage && o.style.arched) o.style else null
+        val outline = if (arch == null) rect else buildList {
+            add(Vec2(t0, sill)); add(Vec2(t1, sill))
+            for (k in ARCH_SLICES downTo 0) {
+                val t = t0 + (t1 - t0) * k / ARCH_SLICES
+                add(Vec2(t, Openings.archTop(arch, t0, t1, sill, top, t)))
+            }
+        }.map { Vec2(it.x * 10, it.y * 10) }.let(::simplify)
         val half = p.thickness / 2 * 10
         val openingPlacement = local(p.placement, axis3(origin3))
-        val cutter = extrusion(rect, axis3(point(0.0, half + 10, 0.0), dir(0.0, -1.0, 0.0), xDir), p.thickness * 10 + 20)
+        val niche = o.kind == OpeningKind.Niche
+        val cutter = if (niche) {
+            // Nicchia: scava solo dalla faccia verso la stanza fino alla mezzeria del muro (come nel 3D), non passa di là.
+            // Dall'altra parte del muro il sistema del profilo si gira anche lungo il muro, così la Y resta in alto.
+            val side = nicheSide(p, room, o)
+            extrusion(outline.map { Vec2(it.x * side, it.y) }, axis3(point(0.0, side * (half + 10), 0.0), dir(0.0, -side, 0.0), dir(side, 0.0, 0.0)), half + 10)
+        } else {
+            extrusion(outline, axis3(point(0.0, half + 10, 0.0), dir(0.0, -1.0, 0.0), xDir), p.thickness * 10 + 20)
+        }
         val baseKey = "opening/${floor.id}/${room.id}/${o.id}"
         val opening = w.add(
-            "IFCOPENINGELEMENT", guid(baseKey), NULL, "'Apertura'", NULL, NULL, openingPlacement,
-            shape(bodyRep(listOf(cutter))), NULL, ".OPENING.",
+            "IFCOPENINGELEMENT", guid(baseKey), NULL, if (niche) "'Nicchia'" else "'Apertura'", NULL, NULL, openingPlacement,
+            shape(bodyRep(listOf(cutter))), NULL, if (niche) ".RECESS." else ".OPENING.",
         )
         w.add("IFCRELVOIDSELEMENT", newGuid(), NULL, NULL, NULL, p.ref, opening)
         // Ricorda chi è: tipo, ante, verso, misure scelte in sagoma (così al ritorno nulla si perde se non è stato toccato).
         val sagoma = listOf(
             "RoomId" to int(room.id), "OpeningId" to int(o.id), "Kind" to label(o.kind.name),
             "Sliding" to bool(o.sliding), "HingeLeft" to bool(o.hingeLeft), "OpensInward" to bool(o.opensInward),
-        )
-        if (o.kind == OpeningKind.Passage) {
-            props(IfcExport.PSET, listOf(opening), sagoma)
+        ) + looks(o)
+        if (!o.kind.hasLeaves) {
+            props(IfcExport.PSET, listOf(opening), sagoma + if (niche) listOf("SillHeight" to length(sill)) else emptyList())
             return null
         }
         val panel = extrusion(rect, axis3(point(0.0, 25.0, 0.0), dir(0.0, -1.0, 0.0), xDir), 50.0)
         val fillPlacement = local(openingPlacement, axis3(origin3))
         val widthMm = num((t1 - t0) * 10)
         val heightMm = num(o.height * 10)
-        val fill = if (o.kind.glazed && o.kind != OpeningKind.Balcony1 && o.kind != OpeningKind.Balcony2) {
-            w.add(
+        val isWindow = o.kind.glazed && o.kind != OpeningKind.Balcony1 && o.kind != OpeningKind.Balcony2
+        val fill = if (isWindow) {
+            val partitioning = if (o.kind.leaves == 2) "DOUBLE_PANEL_VERTICAL" else "SINGLE_PANEL"
+            val window = w.add(
                 "IFCWINDOW", guid("$baseKey/fill"), NULL, str(o.kind.label), NULL, NULL, fillPlacement, shape(bodyRep(listOf(panel))), NULL,
-                heightMm, widthMm, ".WINDOW.", if (o.kind.leaves == 2) ".DOUBLE_PANEL_VERTICAL." else ".SINGLE_PANEL.", NULL,
+                heightMm, widthMm, ".WINDOW.", ".$partitioning.", NULL,
             )
+            // Come si aprono le ante: nell'IFC4 sta nel tipo della finestra (IfcWindowType con IfcWindowPanelProperties).
+            windowTypes.getOrPut(partitioning to panelOperations(o)) { mutableListOf() } += window
+            window
         } else {
-            val operation = when {
-                o.sliding -> if (o.kind.leaves == 2) ".DOUBLE_DOOR_SLIDING." else ".SLIDING_TO_LEFT."
-                o.kind.leaves == 2 -> ".DOUBLE_DOOR_SINGLE_SWING."
-                o.hingeLeft -> ".SINGLE_SWING_LEFT."
-                else -> ".SINGLE_SWING_RIGHT."
-            }
             w.add(
                 "IFCDOOR", guid("$baseKey/fill"), NULL, str(o.kind.label), NULL, NULL, fillPlacement, shape(bodyRep(listOf(panel))), NULL,
-                heightMm, widthMm, ".DOOR.", operation, NULL,
+                heightMm, widthMm, ".DOOR.", ".${doorOperation(o)}.", NULL,
             )
         }
         w.add("IFCRELFILLSELEMENT", newGuid(), NULL, NULL, NULL, opening, fill)
         props(IfcExport.PSET, listOf(fill), sagoma + listOf("SillHeight" to length(sill)))
-        val common = if (o.kind.glazed && o.kind != OpeningKind.Balcony1 && o.kind != OpeningKind.Balcony2) "Pset_WindowCommon" else "Pset_DoorCommon"
+        val common = if (isWindow) "Pset_WindowCommon" else "Pset_DoorCommon"
         props(common, listOf(fill), listOf("IsExternal" to bool(p.external), "Status" to status(o.phase)))
         return fill
+    }
+
+    /** Da che parte del pezzo di muro (asse Y locale, +1 o -1) sta la stanza della nicchia. */
+    fun nicheSide(p: WallPiece, room: Room, o: Opening): Double {
+        val inward = room.outwardOf(o.wallIndex) * -1.0
+        val ifcInward = Vec2(inward.x, -inward.y)
+        val ifcU = IfcExport.toIfc(p.b) - IfcExport.toIfc(p.a)
+        return if (ifcInward.x * -ifcU.y + ifcInward.y * ifcU.x >= 0) 1.0 else -1.0
+    }
+
+    /**
+     * Aspetto scelto in sagoma (forma dell'arco, modo di aprirsi, modello, colore…): solo quello diverso dal solito, così
+     * al ritorno si ritrova uguale anche se la stanza è stata spostata o cambiata.
+     */
+    fun looks(o: Opening): List<Pair<String, String>> {
+        val d = Opening(0, o.kind, 0, 0.0, width = 0.0, height = 0.0)
+        return buildList {
+            if (o.style != d.style) add("Style" to label(o.style.name))
+            if (o.slideOnWall) add("SlideOnWall" to bool(true))
+            if (o.folding) add("Folding" to bool(true))
+            if (o.frameless) add("Frameless" to bool(true))
+            if (o.unequalLeaves) add("UnequalLeaves" to bool(true))
+            if (o.sash != d.sash) add("Sash" to label(o.sash.name))
+            if (o.windowModel != d.windowModel) add("WindowModel" to label(o.windowModel.name))
+            if (o.doorModel != d.doorModel) add("DoorModel" to label(o.doorModel.name))
+            if (o.shading != d.shading) add("Shading" to label(o.shading.name))
+            if (o.frame != d.frame) add("Frame" to label(o.frame.name))
+            o.color?.let { add("Color" to label(it.name)) }
+            if (o.splay != 0.0) add("Splay" to length(o.splay))
+            if (o.splayRounded) add("SplayRounded" to bool(true))
+            if (o.entrance) add("Entrance" to bool(true))
+        }
+    }
+
+    /** Modo di aprirsi della porta (anche dei balconi, che nel file sono porte) con i nomi dell'IFC4. */
+    fun doorOperation(o: Opening): String {
+        val side = if (o.hingeLeft) "LEFT" else "RIGHT"
+        val two = o.kind.leaves == 2
+        return when {
+            o.sliding -> if (two) "DOUBLE_DOOR_SLIDING" else "SLIDING_TO_$side"
+            o.folds -> if (two) "DOUBLE_DOOR_FOLDING" else "FOLDING_TO_$side"
+            o.fixed -> "NOTDEFINED"
+            two -> "DOUBLE_DOOR_SINGLE_SWING"
+            else -> "SINGLE_SWING_$side"
+        }
+    }
+
+    /** Modo di aprirsi di ogni anta della finestra, da sinistra, con i nomi dell'IFC4 (IfcWindowPanelOperationEnum). */
+    fun panelOperations(o: Opening): List<String> {
+        fun hand(left: Boolean) = if (left) "LEFTHAND" else "RIGHTHAND"
+        val leaves = if (o.kind.leaves == 2) listOf(true, false) else listOf(o.hingeLeft)
+        return leaves.map { left ->
+            when {
+                o.sliding -> "SLIDINGHORIZONTAL"
+                o.sash == SashType.Fixed -> "FIXEDCASEMENT"
+                o.sash == SashType.Hopper -> "BOTTOMHUNG"
+                o.sash == SashType.TiltTurn -> "TILTANDTURN${hand(left)}"
+                else -> "SIDEHUNG${hand(left)}"
+            }
+        }
+    }
+
+    /** Finestre raggruppate per tipo: (suddivisione, modo di aprirsi delle ante) → finestre. */
+    val windowTypes = LinkedHashMap<Pair<String, List<String>>, MutableList<String>>()
+
+    /** Un IfcWindowType per ogni modo di aprirsi, con le sue ante, dichiarato nel progetto. */
+    fun writeWindowTypes(project: String) {
+        if (windowTypes.isEmpty()) return
+        val types = windowTypes.entries.map { (k, windows) ->
+            val (partitioning, ops) = k
+            val positions = if (ops.size == 2) listOf("LEFT", "RIGHT") else listOf("MIDDLE")
+            val panels = ops.mapIndexed { i, op ->
+                w.add("IFCWINDOWPANELPROPERTIES", guid("windowtype/$partitioning/${ops.joinToString("+")}/panel/$i"), NULL, NULL, NULL, ".$op.", ".${positions[i]}.", NULL, NULL, NULL)
+            }
+            val name = str("Finestra " + ops.joinToString(" + ") { it.lowercase() })
+            val type = w.add(
+                "IFCWINDOWTYPE", guid("windowtype/$partitioning/${ops.joinToString("+")}"), NULL, name, NULL, NULL, list(panels), NULL, NULL, NULL,
+                ".WINDOW.", ".$partitioning.", StepWriter.bool(false), NULL,
+            )
+            w.add("IFCRELDEFINESBYTYPE", newGuid(), NULL, NULL, NULL, list(windows), type)
+            type
+        }
+        w.add("IFCRELDECLARES", newGuid(), NULL, NULL, NULL, project, list(types))
+    }
+
+    companion object {
+        /** Fettine dritte per la cima dei varchi ad arco (come nel 3D). */
+        const val ARCH_SLICES = 32
     }
 }
 
