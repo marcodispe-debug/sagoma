@@ -64,6 +64,30 @@ import kotlin.math.roundToLong
 private val GridColor = Color(0xFFE9ECEF)
 internal val PlanBackgroundColor = Color(0xFFF8F9FA)
 
+/** L'oggetto selezionato come bersaglio da trascinare (non i muri, che stanno sotto a tutto e non si scelgono dall'elenco). */
+internal fun selectedDragTarget(sel: Selection?): DragTarget? = when (sel) {
+    is Selection.Opening -> DragTarget.Opening(sel.roomId, sel.openingId)
+    is Selection.Fixture -> DragTarget.Fixture(sel.roomId, sel.fixtureId)
+    is Selection.Stair -> DragTarget.Stair(sel.stairId)
+    is Selection.Column -> DragTarget.Column(sel.columnId)
+    is Selection.Beam -> DragTarget.BeamBody(sel.beamId)
+    is Selection.FreeWall -> DragTarget.FreeWallBody(sel.wallId)
+    is Selection.Furniture -> DragTarget.FurnitureBody(sel.furnitureId)
+    else -> null
+}
+
+/**
+ * Oggetti sovrapposti (la plafoniera sopra il letto): se sotto il dito c'è anche l'oggetto selezionato, magari scelto
+ * dall'elenco, si trascina quello e non il primo della pila. Maniglie e angoli restano come sono.
+ */
+internal fun preferSelected(hit: DragTarget, selected: DragTarget?, under: () -> List<DragTarget>): DragTarget {
+    if (selected == null || selected == hit) return hit
+    val body = hit is DragTarget.FurnitureBody || hit is DragTarget.Fixture || hit is DragTarget.Opening || hit is DragTarget.Wall ||
+        hit is DragTarget.Column || hit is DragTarget.BeamBody || hit is DragTarget.Stair || hit is DragTarget.FreeWallBody ||
+        hit is DragTarget.RoomLabel || hit is DragTarget.RoomInterior
+    return if (body && selected in under()) selected else hit
+}
+
 @Composable
 fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = Modifier, onPointerDown: () -> Unit = {}) {
     val pointerDown by rememberUpdatedState(onPointerDown)
@@ -363,7 +387,8 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                     val moveUnderlay = tool == UnderlayTool.Move && currentState.plan.underlay != null
                     // Disegno dei muri, quote e testi: i tocchi mettono i punti, i trascinamenti spostano la vista.
                     val drawing = currentState.wallDraw != null || currentState.dimensionDraw != null || currentState.textPlacing
-                    val target = if (tool != null || drawing) DragTarget.Background else hitTest(down.position)
+                    val target = if (tool != null || drawing) DragTarget.Background
+                    else preferSelected(hitTest(down.position), selectedDragTarget(currentState.selection)) { hitAll(down.position) }
                     val startCam = currentState.camera
                     var dragging = false
                     var multiTouch = false
