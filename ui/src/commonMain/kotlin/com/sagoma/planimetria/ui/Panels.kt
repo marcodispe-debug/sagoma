@@ -702,6 +702,8 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel,
                 { vm.setWallFinish(room.id, sel.index, it) },
             )
             if (own) TextButton(onClick = { vm.setWallFinish(room.id, sel.index, null) }) { Text(T.pannelli.altreParetiStanza) }
+            // Lato esterno: la facciata di tutta la casa (prima stava nella scheda della stanza).
+            if (!room.outdoor) FacadeFinishSection(plan, vm)
         },
         // Forma: angoli, curva (anche trascinando il pallino a metà muro) e taglio del sottotetto.
         InfoTab("forma", T.schedaStanza.schedaForma) {
@@ -1002,12 +1004,12 @@ private fun NumberField(
 ) {
     var text by remember(value) { mutableStateOf(formatCm(value)) }
     val valid = { v: Double -> allowNegative || (if (allowZero) v >= 0 else v > 0) }
-    val parsed = text.replace(',', '.').toDoubleOrNull()?.takeIf(valid)
+    val parsed = parseNumber(text)?.takeIf(valid)
     SelectAllTextField(
         value = text,
         onValueChange = {
             text = it
-            it.replace(',', '.').toDoubleOrNull()?.takeIf(valid)?.let(onValue)
+            parseNumber(it)?.takeIf(valid)?.let(onValue)
         },
         label = label,
         numeric = true,

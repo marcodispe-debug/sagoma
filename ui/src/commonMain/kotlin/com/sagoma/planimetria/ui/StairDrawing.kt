@@ -57,7 +57,7 @@ internal fun DrawScope.drawFloorBelow(below: FloorPlan?, cam: Camera) {
 /** Scale del piano (simbolo completo) e, dal piano di sotto, il vuoto delle scale che arrivano qui. */
 internal fun DrawScope.drawStairs(state: EditorUiState, measurer: TextMeasurer) {
     val cam = state.camera
-    val walls = state.plan.rooms.flatMap { r -> (0 until r.wallCount).map { r.wallStart(it) to r.wallEnd(it) } }
+    val walls = com.sagoma.planimetria.geometry.Structure.wallLines(state.plan)
     val selectedWell = (state.selection as? Selection.StairWell)?.stairId
     state.planBelow?.let { below ->
         for (s in below.stairs) drawStairArrival(s, state.levelHeightBelow, cam, measurer, walls, s.id == selectedWell)
@@ -96,7 +96,7 @@ internal fun DrawScope.drawStairArrival(
     rise: Double,
     cam: Camera,
     measurer: TextMeasurer,
-    walls: List<Pair<Vec2, Vec2>> = emptyList(),
+    walls: List<com.sagoma.planimetria.geometry.Structure.WallLine> = emptyList(),
     selected: Boolean = false,
 ) {
     val l = Stairs.layout(s, rise)
@@ -122,7 +122,7 @@ internal fun DrawScope.drawStairArrival(
     // Ringhiera sul bordo del vuoto: doppia linea (metallo, legno) o azzurra (vetro).
     if (s.wellRailing != StairRailing.None) {
         val w = (8 * cam.scale).toFloat().coerceIn(3.dp.toPx(), 7.dp.toPx())
-        for ((a, b) in Stairs.wellRailingRuns(s, rise, walls)) {
+        for ((a, b) in Stairs.wellRailingRunsAlong(s, rise, walls)) {
             val color = when (s.wellRailing) {
                 StairRailing.Glass -> Color(0xFF0B7285)
                 StairRailing.Wood -> Color(0xFF8A5E3B)

@@ -12,6 +12,13 @@ import kotlin.math.roundToInt
 
 // Funzioni di appoggio in Kotlin puro che sostituiscono quelle di Android (colori HSV, misure dello schermo).
 
+/**
+ * Nome di un file da salvare a partire dal nome di un progetto: restano lettere (anche accentate), cifre, spazi, «_» e «-».
+ * Prima restavano solo le lettere senza accento: «Casa di Nicolò» diventava «Casa di Nicol».
+ */
+fun fileNameOf(name: String, fallback: String): String =
+    name.filter { it.isLetterOrDigit() || it == ' ' || it == '_' || it == '-' }.trim().ifEmpty { fallback }
+
 /** Colore ARGB → tonalità (0–360), saturazione e luminosità (0–1), come `android.graphics.Color.colorToHSV`. */
 fun colorToHsv(argb: Int, out: FloatArray) {
     val r = ((argb shr 16) and 0xFF) / 255f

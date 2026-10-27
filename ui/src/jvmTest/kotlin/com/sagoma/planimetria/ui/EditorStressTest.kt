@@ -54,7 +54,10 @@ class EditorStressTest {
         // Di solito 30 sessioni; per una prova lunga: variabile d'ambiente SAGOMA_STRESS=numero di sessioni.
         val sessions = System.getenv("SAGOMA_STRESS")?.toIntOrNull() ?: 30
         val steps = if (sessions > 30) 500 else 300
-        for (seed in 1..sessions) runSession(seed, steps, problems)
+        // Per rifare solo alcune sessioni (quelle di un problema trovato): SAGOMA_STRESS_SEEDS=53,242 (con 500 passi).
+        val only = System.getenv("SAGOMA_STRESS_SEEDS")?.split(',')?.mapNotNull { it.trim().toIntOrNull() }.orEmpty()
+        if (only.isNotEmpty()) for (seed in only) runSession(seed, 500, problems)
+        else for (seed in 1..sessions) runSession(seed, steps, problems)
         println("Prova di resistenza: $sessions sessioni × $steps passi; in media alla fine ${"%.1f".format(totals.values.sum().toDouble() / sessions)} oggetti per sessione: $totals")
         if (problems.isNotEmpty()) {
             fail("Problemi trovati (${problems.size}):\n" + problems.entries.joinToString("\n\n") { (k, v) -> "$k\n$v" })
@@ -64,7 +67,10 @@ class EditorStressTest {
     private fun runSession(seed: Int, steps: Int, problems: MutableMap<String, String>) {
         val rnd = Random(seed)
         val start = Room(1, "Soggiorno", RoomType.Soggiorno, RoomFactory.rectangle(500.0, 400.0))
-        val vm = EditorViewModel(Store(Building.single(FloorPlan(listOf(start)))))
+        // Per partire da progetti salvati (anche rovinati) invece che da una stanza: SAGOMA_STRESS_START=cartella di .json.
+        val startFiles = System.getenv("SAGOMA_STRESS_START")?.let { File(it).listFiles { f -> f.name.endsWith(".json") }?.sortedBy { it.name } }.orEmpty()
+        val first = startFiles.takeIf { it.isNotEmpty() }?.let { runCatching { PlanJson.decodeBuilding(it[seed % it.size].readText()) }.getOrNull() }
+        val vm = EditorViewModel(Store(first ?: Building.single(FloorPlan(listOf(start)))))
         vm.setViewport(1200f, 800f, 24f)
         val log = ArrayList<String>()
 
@@ -201,6 +207,38 @@ class EditorStressTest {
                     }
                 }
             },
+            "muri curvi, scalini, sottotetto, fasi" to {
+                clearModes()
+                anyRoom()?.let { r ->
+                    val i = rnd.nextInt(r.wallCount)
+                    when (rnd.nextInt(8)) {
+                        0, 1 -> vm.setWallBulge(r.id, i, rv(250.0))
+                        2 -> { vm.startWallStep(r.id, i); vm.setWallThickness(r.id, i + 1, rnd.nextDouble(5.0, 60.0)) }
+                        3 -> vm.setStepPartLength(r.id, i, rnd.nextDouble(10.0, 600.0))
+                        4 -> vm.setWallCutStart(r.id, i, rnd.nextDouble(0.0, 300.0))
+                        5 -> vm.setRoomWallThickness(r.id, rnd.nextDouble(5.0, 60.0))
+                        6 -> vm.setWallPhase(r.id, i, pick(com.sagoma.planimetria.model.Phase.entries)!!)
+                        else -> pick(plan().freeWalls)?.let { vm.setFreeWallBulge(it.id, rv(150.0)) }
+                    }
+                }
+            },
+            "unisci stanze, zone, ruota" to {
+                clearModes()
+                when (rnd.nextInt(4)) {
+                    0 -> anyRoom()?.let { r ->
+                        pick(plan().rooms.filter { it.id != r.id })?.let { o -> vm.mergeWall(com.sagoma.planimetria.editor.MergeRequest(r.id, rnd.nextInt(r.wallCount), o.id)) }
+                    }
+                    1 -> anyRoom(indoor = true)?.let { r ->
+                        vm.startExcludedZone(r.id)
+                        val c = Polygon.labelPoint(r.points)
+                        vm.drawWallsTap(c); vm.drawWallsTap(c + Vec2(rnd.nextDouble(20.0, 120.0), 0.0)); vm.drawWallsTap(c + Vec2(rnd.nextDouble(20.0, 120.0), rnd.nextDouble(20.0, 120.0)))
+                        vm.finishExcludedZone("Zona")
+                        vm.cancelDrawWalls()
+                    }
+                    2 -> pick(plan().furniture)?.let { vm.rotateFurniture(it.id) }
+                    else -> pick(plan().stairs)?.let { vm.rotateStair(it.id) }
+                }
+            },
             "stanza: tipo, nome, elimina" to {
                 clearModes()
                 anyRoom()?.let { r ->
@@ -271,9 +309,17 @@ class EditorStressTest {
         for (step in 1..steps) {
             val (name, action) = actions[rnd.nextInt(actions.size)]
             log += name
+            val before = vm.state.value.fullBuilding
             try {
                 action()
                 check(vm, step % 5 == 0)
+                // Annulla e poi Ripeti riportano esattamente a dov'eravamo.
+                if (rnd.nextInt(4) == 0 && vm.state.value.canUndo && vm.state.value.wallDraw == null) {
+                    val now = vm.state.value.fullBuilding
+                    vm.undo(); vm.redo()
+                    val back = vm.state.value.fullBuilding
+                    require(back.floors == now.floors) { "Annulla e Ripeti non riportano la casa com'era (piano ${now.current} → ${back.current})" }
+                }
             } catch (e: Throwable) {
                 val where = e.stackTrace.firstOrNull { it.className.startsWith("com.sagoma") }
                 val key = "${e::class.simpleName}: ${e.message?.take(160)} @ ${where?.fileName}:${where?.lineNumber}"
@@ -281,6 +327,8 @@ class EditorStressTest {
                     problems[key] = "  sessione $seed, passo $step («$name»); ultimi passi: ${log.takeLast(6).joinToString(" → ")}\n  " +
                         e.stackTrace.filter { it.className.startsWith("com.sagoma") }.take(6).joinToString("\n  ")
                 }
+                // Per capire cosa è successo: SAGOMA_STRESS_DUMP=cartella riceve la casa prima del passo che si è rotto.
+                System.getenv("SAGOMA_STRESS_DUMP")?.let { dir -> File(dir, "sessione-$seed-passo-$step.json").writeText(PlanJson.encode(before)); File(dir, "dopo-$seed-$step.json").writeText(PlanJson.encode(vm.state.value.fullBuilding)) }
                 return // la sessione non prosegue da uno stato rotto
             }
         }
@@ -358,10 +406,17 @@ class EditorStressTest {
         }
         s.focusedRoomId?.let { require(p.room(it) != null) { "stanza attiva che non c'è" } }
         if (heavy) {
+            val t0 = System.nanoTime()
+            System.getenv("SAGOMA_STRESS_SLOW")?.let { dir -> File(dir, "ultimo.json").writeText(PlanJson.encode(b)) }
             val below = b.floors.take(b.current)
             Scene3D.build(p, s.focusedRoomId, null, ceilings = false, levelHeight = s.levelHeight, below = below)
             // Camminando: con il vano scala nel soffitto e il piano di sopra.
             Scene3D.build(p, s.focusedRoomId, null, ceilings = true, levelHeight = s.levelHeight, below = below, above = b.floors.getOrNull(b.current + 1))
+            // Un 3D che ci mette troppo è un blocco dell'app: si salva il progetto per rifarlo.
+            val seconds = (System.nanoTime() - t0) / 1e9
+            System.getenv("SAGOMA_STRESS_SLOW")?.let { dir ->
+                if (seconds > 5) File(dir, "lento-${"%.0f".format(seconds)}s-${System.nanoTime()}.json").writeText(PlanJson.encode(b))
+            }
             Collisions.of(p)
             Takeoff.of(b)
             p.rooms.filter { it.outdoor }.forEach { Parapets.segments(p, it) }

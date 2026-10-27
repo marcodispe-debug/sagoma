@@ -95,7 +95,7 @@ internal fun DimensionPanel(sel: Selection.Dimension, plan: FloorPlan, vm: Edito
     Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SelectAllTextField(
             value = off,
-            onValueChange = { off = it; it.replace(',', '.').toDoubleOrNull()?.let { v -> vm.updateDimension(d.copy(offset = if (d.offset < 0) -v else v)) } },
+            onValueChange = { off = it; parseNumber(it)?.let { v -> vm.updateDimension(d.copy(offset = if (d.offset < 0) -v else v)) } },
             label = T.note.distanzaLineaCm,
             numeric = true,
             modifier = Modifier.weight(1f),

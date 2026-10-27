@@ -15,8 +15,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Checkbox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -31,18 +36,37 @@ import com.sagoma.planimetria.testi.T
 internal fun fmt2(v: Double) = com.sagoma.planimetria.geometry.formatDecimal(v, 2)
 
 /**
+ * Scelta dell'utente: togliere o no le zone non calpestabili dai m² del pavimento. Vale per il computo a schermo, il CSV
+ * e il foglio del computo nella tavola PDF, così i numeri coincidono; resta finché l'app è aperta.
+ */
+internal object TakeoffChoice {
+    var withoutZones by mutableStateOf(true)
+}
+
+/** Casella «Pavimento senza le zone non calpestabili», mostrata solo se in casa ce n'è almeno una. */
+@Composable
+internal fun ExcludedZonesChoice(building: com.sagoma.planimetria.model.Building) {
+    if (!Takeoff.hasExcludedZones(building)) return
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = TakeoffChoice.withoutZones, onCheckedChange = { TakeoffChoice.withoutZones = it })
+        Text(T.computo.togliZoneNonCalpestabili)
+    }
+}
+
+/**
  * Computo metrico e lista degli arredi di tutta la casa: pavimenti, pareti al netto delle aperture,
  * battiscopa, totali per materiale; si esporta in CSV (Excel, LibreOffice) o si condivide come testo.
  */
 @Composable
 fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Unit) {
     val platform = LocalPlatform.current
-    val res = remember(state.fullBuilding) { Takeoff.of(state.fullBuilding) }
+    val withoutZones = TakeoffChoice.withoutZones
+    val res = remember(state.fullBuilding, withoutZones) { Takeoff.of(state.fullBuilding, withoutZones) }
     val title = info?.name ?: T.computo.progetto
     fun exportCsv() {
         // BOM: Excel riconosce così l'UTF-8 (accenti e m²).
         val bytes = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) + Takeoff.csv(res).encodeToByteArray()
-        val name = "computo-${title.replace(Regex("[^A-Za-z0-9 _-]"), "")}-${isoDate(platform.now())}.csv"
+        val name = "computo-${fileNameOf(title, "")}-${isoDate(platform.now())}.csv"
         platform.saveFile(name, "text/csv", bytes) { ok -> platform.toast(if (ok) T.computo.computoEsportato else T.computo.esportazioneNonRiuscita) }
     }
 
@@ -52,6 +76,7 @@ fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Uni
         text = {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (res.rooms.isEmpty()) Text(T.computo.nonSonoAncoraStanze)
+                ExcludedZonesChoice(state.fullBuilding)
                 Section(T.computo.stanze)
                 Column(Modifier.horizontalScroll(rememberScrollState())) {
                     TableRow(listOf(T.computo.stanza, T.computo.pavM2, T.computo.paretiM2, T.computo.battiscM, T.computo.pavimento), header = true)
@@ -78,7 +103,7 @@ fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Uni
         },
         confirmButton = {
             Row {
-                TextButton(onClick = { platform.shareText(T.computo.computo(title), Takeoff.csv(res).replace(';', '\t')) }) { Text(T.computo.condividi) }
+                TextButton(onClick = { platform.shareText(T.computo.computo(title), Takeoff.csv(res, sep = '\t')) }) { Text(T.computo.condividi) }
                 TextButton(onClick = { exportCsv() }) { Text(T.computo.esportaCsv) }
             }
         },

@@ -321,6 +321,12 @@ private class FloatList {
     fun toArray() = data.copyOf(size)
 }
 
+/** Montanti al massimo in una ringhiera di balcone (con 12 cm di passo: 240 m). */
+private const val MAX_RAILING_POSTS = 2000
+
+/** Pavimenti più grandi di così (cm², 100 × 100 m) senza fughe disegnate. */
+private const val MAX_PATTERN_AREA = 1e8
+
 private class SceneBuilder(
     val levels: List<Level>,
     val focusedRoomId: Long?,
@@ -456,6 +462,10 @@ private class SceneBuilder(
     // Piano in costruzione: pianta, quota del pavimento, se è quello che si modifica (solo lui si tocca).
     private var plan = FloorPlan()
     private var expanded = ExpandedPlan(FloorPlan(), emptyMap())
+    /** Ingombro di ogni stanza di [plan] (stesso ordine): scarta subito le stanze lontane dal muro che si disegna. */
+    private var roomBounds = emptyList<Bounds>()
+    /** Aperture di ogni stanza di [plan] (stesso ordine) con i loro estremi sul muro. */
+    private var openingSpans = emptyList<List<Pair<Opening, Pair<Vec2, Vec2>>>>()
     private var base = 0.0
     private var current = true
     /** Ingombro delle scale del piano di sotto: il vuoto nel pavimento di questo piano. */
@@ -512,6 +522,8 @@ private class SceneBuilder(
         var previous: Level? = null
         for (level in levels) {
             plan = level.plan
+            roomBounds = plan.rooms.map { if (it.points.isEmpty()) Bounds(0.0, 0.0, -1.0, -1.0) else Polygon.bounds(it.points) }
+            openingSpans = plan.rooms.map { r -> r.openings.filter { it.wallIndex < r.wallCount }.map { it to Openings.span(r, it) } }
             expanded = level.expanded
             base = level.base
             current = level.current
@@ -615,9 +627,9 @@ private class SceneBuilder(
             }
             // Ringhiere attorno ai vani delle scale che salgono dal piano di sotto.
             previous?.let { p ->
-                val walls = plan.rooms.flatMap { r -> (0 until r.wallCount).map { r.wallStart(it) to r.wallEnd(it) } }
+                val walls = Structure.wallLines(plan)
                 for (s in p.plan.stairs) if (s.wellRailing != StairRailing.None) {
-                    for ((a, b) in Stairs.wellRailingRuns(s, p.levelHeight, walls)) {
+                    for ((a, b) in Stairs.wellRailingRunsAlong(s, p.levelHeight, walls)) {
                         wellRail(a, b, s.wellRailing, Pick.StairWell(s.id))
                         if (current) obstacles += Obstacle(a, b)
                     }
@@ -627,7 +639,8 @@ private class SceneBuilder(
             if (current) {
                 lights += LightSpill.through(plan, lights.toList())
                 // Stanze a L o a U: la luce resta nei rettangoli della stanza, non in tutto il suo riquadro.
-                val zones = plan.rooms.associate { Polygon.bounds(it.points) to LightZones.of(it.points) }
+                // Una stanza senza punti (file rovinato) non ha riquadro: si salta, altrimenti il 3D non si apre.
+                val zones = plan.rooms.filter { it.points.size >= 3 }.associate { Polygon.bounds(it.points) to LightZones.of(it.points) }
                 for (k in lights.indices) {
                     val l = lights[k]
                     val z = l.room?.let { zones[it] } ?: continue
@@ -789,7 +802,12 @@ private class SceneBuilder(
             }
             return 90.0 + rise * (along / run).coerceIn(0.0, 1.0) * (steps.last().top / rise)
         }
-        val walls = plan.rooms.flatMap { r -> (0 until r.wallCount).map { r.wallStart(it) to r.wallEnd(it) } }
+        // Solo i muri vicini alla scala (quelli lontani non possono toccarne i bordi): con tante stanze era il grosso del tempo.
+        val stairArea = steps.flatMap { it.polygon }.takeIf { it.isNotEmpty() }?.let(Polygon::bounds)
+        val margin = half + 4
+        val walls = plan.rooms.flatMap { r -> (0 until r.wallCount).map { r.wallStart(it) to r.wallEnd(it) } }.filter { (c, d) ->
+            stairArea == null || min(c.x, d.x) <= stairArea.maxX + margin && max(c.x, d.x) >= stairArea.minX - margin && min(c.y, d.y) <= stairArea.maxY + margin && max(c.y, d.y) >= stairArea.minY - margin
+        }
         val first = steps.first().polygon
         val last = steps.last().polygon
         fun edgesOf(poly: List<Vec2>) = poly.indices.map { poly[it] to poly[(it + 1) % poly.size] }
@@ -1134,6 +1152,9 @@ private class SceneBuilder(
         if (inner.size < 3) return
         val line = base.mix(Rgba(0f, 0f, 0f), 0.16f)
         val b = Polygon.bounds(inner)
+        // Stanza più grande di 100 × 100 m (di solito una misura scritta per sbaglio, es. in metri invece che in cm): le fughe
+        // non si vedrebbero e sarebbero milioni di pezzi, abbastanza da finire la memoria del telefono.
+        if (b.width * b.height > MAX_PATTERN_AREA) return
         val y = 0.15
         /** Tratti della retta (orizzontale se `horizontal`, a quota `c`) dentro la stanza e fuori dai vuoti. */
         fun inside(horizontal: Boolean, c: Double): List<Pair<Double, Double>> {
@@ -1406,7 +1427,14 @@ private class SceneBuilder(
             }
         }
         val others = plan.rooms.filter { it.id != room.id && !it.outdoor }
-        /** Un'altra stanza tocca questo punto (con un suo muro): lì la casa continua, non è uno spigolo esterno. */
+        // Per i muri in comune solo le stanze vicine: con centinaia di stanze (e muri curvi fatti a pezzi) confrontare ogni
+        // muro con tutti gli altri rendeva il 3D lentissimo. Più in là della tolleranza dei muri in comune non si toccano.
+        val reach = Openings.SHARED_WALL_TOLERANCE_CM + 1
+        val near = plan.rooms.filterIndexed { k, it ->
+            it.id != room.id && !it.outdoor && roomBounds[k].let { b ->
+                b.minX - reach <= max(s.x, e.x) && b.maxX + reach >= min(s.x, e.x) && b.minY - reach <= max(s.y, e.y) && b.maxY + reach >= min(s.y, e.y)
+            }
+        }
         fun touched(p: Vec2) = others.any { o -> (0 until o.wallCount).any { j -> Polygon.distanceToSegment(p, o.wallStart(j), o.wallEnd(j)) < 1.0 } }
         /**
          * Angolo `p` della casa dove il muro esterno continua in un'altra stanza, girando (es. il muro del bagno, storto, e
@@ -1448,7 +1476,7 @@ private class SceneBuilder(
         val contacts = mutableListOf<ClosedFloatingPointRange<Double>>()
         val hiddenInterior = mutableListOf<ClosedFloatingPointRange<Double>>()
         val area = Polygon.area(room.points)
-        for (o in others) for (j in 0 until o.wallCount) {
+        for (o in near) for (j in 0 until o.wallCount) {
             // Un muro eliminato dell'altra stanza non copre la faccia: da quella parte il muro si vede intero.
             if (o.isRemoved(j) || !Dimensions.inContact(s, e, o.wallStart(j), o.wallEnd(j))) continue
             val t1 = ((o.wallStart(j) - s) dot u).coerceIn(0.0, len)
@@ -1470,11 +1498,12 @@ private class SceneBuilder(
         // Varchi: aperture di questa stanza sul muro e aperture delle stanze confinanti sullo stesso muro.
         val gaps = mutableListOf<Gap>()
         for (o in room.openings) if (o.wallIndex == i) gaps += gapOf(room, o, s, u, ::ownTop)
-        for (other in plan.rooms) {
+        for ((k, other) in plan.rooms.withIndex()) {
             if (other.id == room.id) continue
-            for (o in other.openings) {
-                if (o.wallIndex >= other.wallCount) continue
-                val (a, b) = Openings.span(other, o)
+            for ((o, span) in openingSpans[k]) {
+                val (a, b) = span
+                if (min(a.x, b.x) > max(s.x, e.x) + reach || max(a.x, b.x) < min(s.x, e.x) - reach ||
+                    min(a.y, b.y) > max(s.y, e.y) + reach || max(a.y, b.y) < min(s.y, e.y) - reach) continue
                 if (Dimensions.inContact(s, e, a, b)) gaps += gapOf(other, o, s, u, ::ownTop)
             }
         }
@@ -1827,11 +1856,14 @@ private class SceneBuilder(
                 val len = p0.distanceTo(p1)
                 if (len < 1e-6) return
                 val u = (p1 - p0) / len
-                var t = 6.0
+                // Montanti ogni 12 cm; su una ringhiera lunghissima (una misura scritta per sbaglio, es. in metri invece che in
+                // cm) più radi, altrimenti milioni di montanti finivano la memoria.
+                val step = max(12.0, len / MAX_RAILING_POSTS)
+                var t = step / 2
                 while (t < len) {
                     val c = p0 + u * t
-                    box(c - u * 0.8, c + u * 0.8, 0.8, 7.0, h - 5, metal, pick) // montanti ogni 12 cm
-                    t += 12.0
+                    box(c - u * 0.8, c + u * 0.8, 0.8, 7.0, h - 5, metal, pick)
+                    t += step
                 }
             }
             Parapet.Glass -> {

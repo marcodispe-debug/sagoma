@@ -10,8 +10,11 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-/** Varco disegnato su un muro: quello di un'apertura propria o quello indotto da una stanza confinante. */
-data class WallGap(val roomId: Long, val wallIndex: Int, val a: Vec2, val b: Vec2)
+/**
+ * Varco disegnato su un muro: quello di un'apertura propria o quello indotto da una stanza confinante. Tratto `a`–`b` del
+ * muro `wallIndex` della stanza `roomId`; `height`: altezza del vano (varchi indotti da una porta).
+ */
+data class WallGap(val roomId: Long, val wallIndex: Int, val a: Vec2, val b: Vec2, val height: Double = 0.0)
 
 object Openings {
 
@@ -101,7 +104,8 @@ object Openings {
     fun alongPerimeter(room: Room, p: Vec2, width: Double): Pair<Int, Double>? {
         // Muro singolo ([com.sagoma.planimetria.model.FreeWall.host]): le aperture restano sul suo unico muro.
         val j = (0 until if (room.id < 0) 1 else room.wallCount)
-            .filter { room.wallLength(it) >= width }
+            // Mai su un muro eliminato (lato aperto): lì non c'è muro in cui fare il vano.
+            .filter { room.wallLength(it) >= width && !room.isRemoved(it) }
             .minByOrNull { Polygon.distanceToSegment(p, room.wallStart(it), room.wallEnd(it)) } ?: return null
         return j to clampPosition(room.wallLength(j), width, projectOnWall(room, j, p))
     }
@@ -183,7 +187,7 @@ object Openings {
                     val lo = max(min(ta, tb), 0.0)
                     val hi = min(max(ta, tb), len)
                     if (hi - lo < 1.0) continue // nessuna sovrapposizione lungo il muro
-                    gaps += WallGap(other.id, j, s + v * lo, s + v * hi)
+                    gaps += WallGap(other.id, j, s + v * lo, s + v * hi, o.height)
                 }
             }
         }

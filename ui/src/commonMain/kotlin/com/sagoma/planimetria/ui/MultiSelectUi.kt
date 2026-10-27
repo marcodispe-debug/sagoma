@@ -166,8 +166,8 @@ private fun OffsetDialog(title: String, withCount: Boolean, initial: Double = 0.
     var dx by remember { mutableStateOf(formatCm(initial)) }
     var dy by remember { mutableStateOf("0") }
     var count by remember { mutableStateOf("3") }
-    val x = dx.replace(',', '.').toDoubleOrNull()
-    val y = dy.replace(',', '.').toDoubleOrNull()
+    val x = parseNumber(dx)
+    val y = parseNumber(dy)
     val c = count.toIntOrNull()
     AlertDialog(
         onDismissRequest = onDismiss,
