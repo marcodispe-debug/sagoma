@@ -337,6 +337,8 @@ internal class IfcReader(val f: StepFile) {
             shading = e("Shading", Shading.entries) ?: base.shading,
             frame = e("Frame", FramePosition.entries) ?: base.frame,
             color = e("Color", Finish.entries),
+            customColor = propNum(h.id, IfcExport.PSET, "CustomColor")?.toLong(),
+            shadingColor = propNum(h.id, IfcExport.PSET, "ShadingColor")?.toLong(),
             splay = propNum(h.id, IfcExport.PSET, "Splay")?.let { it * scale } ?: 0.0,
             splayRounded = b("SplayRounded"), entrance = b("Entrance"),
             pivot = b("Pivot"),

@@ -182,11 +182,11 @@ class IfcOpeningTypesTest {
         Opening(7, OpeningKind.Door, 1, 300.0, 120.0, 240.0, transom = 40.0, sidelight = 30.0),
         Opening(8, OpeningKind.Balcony2, 2, 200.0, 240.0, 240.0, leafCount = 4),
         Opening(9, OpeningKind.Balcony2, 2, 550.0, 200.0, 240.0, sliding = true, liftSlide = true),
-        Opening(10, OpeningKind.Window1, 2, 720.0, 60.0, 120.0, sillHeight = 90.0, shading = Shading.InteriorShutters),
+        Opening(10, OpeningKind.Window1, 2, 720.0, 60.0, 120.0, sillHeight = 90.0, shading = Shading.InteriorShutters, customColor = 0xFF2E5E4E, shadingColor = 0xFF8B2E2E),
     )
     private val big = Room(3, "Salone", RoomType.Soggiorno, rect(0.0, 0.0, 800.0, 500.0), wallThickness = 30.0, openings = group2)
 
-    private fun look2(o: Opening) = look(o) + listOf(o.pivot, o.transom.toInt(), o.sidelight.toInt(), o.leafCount, o.liftSlide, o.windowShape, o.shading, o.doorModel)
+    private fun look2(o: Opening) = look(o) + listOf(o.pivot, o.transom.toInt(), o.sidelight.toInt(), o.leafCount, o.liftSlide, o.windowShape, o.shading, o.doorModel, o.customColor, o.shadingColor)
 
     @Test
     fun `secondo gruppo - nomi standard e andata e ritorno`() {

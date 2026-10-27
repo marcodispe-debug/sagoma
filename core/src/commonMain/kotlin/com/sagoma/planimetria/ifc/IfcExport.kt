@@ -527,6 +527,8 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
             if (o.shading != d.shading) add("Shading" to label(o.shading.name))
             if (o.frame != d.frame) add("Frame" to label(o.frame.name))
             o.color?.let { add("Color" to label(it.name)) }
+            o.customColor?.let { add("CustomColor" to int(it)) }
+            o.shadingColor?.let { add("ShadingColor" to int(it)) }
             if (o.splay != 0.0) add("Splay" to length(o.splay))
             if (o.splayRounded) add("SplayRounded" to bool(true))
             if (o.entrance) add("Entrance" to bool(true))
