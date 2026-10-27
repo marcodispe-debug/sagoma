@@ -702,6 +702,8 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel,
                 { vm.setWallFinish(room.id, sel.index, it) },
             )
             if (own) TextButton(onClick = { vm.setWallFinish(room.id, sel.index, null) }) { Text(T.pannelli.altreParetiStanza) }
+            // Lato esterno: la facciata di tutta la casa (prima stava nella scheda della stanza).
+            if (!room.outdoor) FacadeFinishSection(plan, vm)
         },
         // Forma: angoli, curva (anche trascinando il pallino a metà muro) e taglio del sottotetto.
         InfoTab("forma", T.schedaStanza.schedaForma) {
