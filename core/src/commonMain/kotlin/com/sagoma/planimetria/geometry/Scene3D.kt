@@ -105,6 +105,9 @@ data class Rgba(val r: Float, val g: Float, val b: Float, val a: Float = 1f) {
 /** Coseno dell'angolo (30°) sotto cui due muri di fila si considerano quasi dritti (vedi `nearlyStraightJoin`). */
 private val NEARLY_STRAIGHT_COS = cos(PI / 6)
 
+/** Di quanto il muro sotto il vano di una porta resta sotto il pavimento (cm), con un piano sotto. */
+private const val THRESHOLD_SINK = 0.5
+
 /**
  * Scena 3D costruita dalla pianta: triangoli opachi e trasparenti (vetri) pronti per la GPU, triangoli
  * "toccabili" con ciò a cui appartengono, e i tratti di muro che bloccano chi cammina.
@@ -1527,7 +1530,9 @@ private class SceneBuilder(
             // Fasce verticali piene: tutta l'altezza meno i varchi che coprono questo tratto.
             // Ai piani superiori il muro scende anche nello spessore del solaio, fino al muro di sotto.
             var ranges = listOf(wallBottom..h)
-            for (g in covering) ranges = ranges.flatMap { cut(it, g.bottom..g.topAt(mid)) }
+            // Sotto una porta il pezzo nello spessore del solaio resta mezzo cm sotto il pavimento: alla stessa quota le due facce
+            // sfarfallerebbero sulla soglia.
+            for (g in covering) ranges = ranges.flatMap { cut(it, (if (g.bottom < 0.01) g.bottom - THRESHOLD_SINK else g.bottom)..g.topAt(mid)) }
             // Con un rivestimento fino a una certa altezza, il muro si divide in parte rivestita e parte dipinta.
             if (finish.covering != Covering.None) ranges = ranges.flatMap { r ->
                 if (coverTop > r.start + 0.05 && coverTop < r.endInclusive - 0.05) listOf(r.start..coverTop, coverTop..r.endInclusive) else listOf(r)
