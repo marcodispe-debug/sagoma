@@ -947,7 +947,11 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                     windowPreview(it, Shading.None, color)
                 }
                 ModelPicker(T.pannelli.oscuranti, Shading.entries, o.shading, { it.label }, { v -> update { it.copy(shading = v) } }) {
-                    windowPreview(o.windowModel, it, color)
+                    windowPreview(o.windowModel, it, color, Color(o.copy(shading = it).shadingArgb))
+                }
+                // Colore dell'oscurante: senza scelta resta quello solito (es. persiane verdi con l'infisso bianco).
+                if (o.shading != Shading.None) {
+                    FreeColorPicker(T.pannelli.coloreOscurante, o.shadingArgb) { c -> update { it.copy(shadingColor = c) } }
                 }
             } else {
                 ModelPicker(T.comuni.modello, DoorModel.entries, o.doorModel, { it.label }, { v -> update { it.copy(doorModel = v) } }) {

@@ -228,4 +228,15 @@ class OpeningTypesTest {
         val plan = FloorPlan(listOf(room(*openings.toTypedArray())))
         assertEquals(openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
     }
+
+    @Test
+    fun `colore degli oscuranti - il solito finche non si sceglie, poi uno qualsiasi, e si salva`() {
+        val w = Opening.default(1, OpeningKind.Window2, 0, 200.0)
+        assertEquals(Opening.SHUTTER_GREEN, w.copy(shading = Shading.Shutters).shadingArgb, "persiane verdi con l'infisso bianco")
+        assertEquals(Finish.Walnut.argb, w.copy(shading = Shading.Shutters, color = Finish.Walnut).shadingArgb)
+        assertEquals(Opening.VENETIAN_GREY, w.copy(shading = Shading.Venetian).shadingArgb)
+        val brown = w.copy(shading = Shading.Venetian, shadingColor = 0xFF6B4A33)
+        assertEquals(0xFF6B4A33, brown.shadingArgb)
+        assertEquals(0xFF6B4A33, PlanJson.decode(PlanJson.encode(FloorPlan(listOf(room(brown))))).rooms[0].openings[0].shadingColor)
+    }
 }

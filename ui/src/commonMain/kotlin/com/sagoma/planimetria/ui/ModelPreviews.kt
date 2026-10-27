@@ -32,7 +32,6 @@ private val Ink = Color(0xFF3A3F44)
 private val GlassBlue = Color(0xFFBFDCEB)
 private val WallBack = Color(0xFFE9E6E0)
 private val Metal = Color(0xFF4A4E53)
-private val ShutterGreen = Color(0xFF46704F)
 
 /** Stesso colore, più scuro (`k` < 1) o più chiaro (`k` > 1). */
 internal fun Color.shade(k: Float): Color =
@@ -93,7 +92,7 @@ internal fun DrawScope.doorPreview(model: DoorModel, color: Color) {
 
 // ---------- Finestre ----------
 
-internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color: Color) {
+internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color: Color, shadingColor: Color = color) {
     box(0.0f, 0.0f, 1f, 1f, WallBack)
     val l = 0.3f
     val r = 0.7f
@@ -101,7 +100,7 @@ internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color
     val b = 0.86f
     // Persiane aperte ai lati.
     if (shading == Shading.Shutters) {
-        val sc = if (color.red > 0.9f && color.green > 0.9f) ShutterGreen else color
+        val sc = shadingColor
         for ((a, z) in listOf(0.1f to l, r to 0.9f)) {
             box(a, t, z, b, sc)
             var y = t + 0.05f
@@ -131,18 +130,18 @@ internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color
         for (y in listOf(t + (b - t) / 3, t + 2 * (b - t) / 3)) drawLine(fc, px(l, y), px(r, y), 2f * density)
     }
     if (shading == Shading.RollerShutter) {
-        box(l - 0.03f, t - 0.1f, r + 0.03f, t, Color(0xFF8D9095))
-        box(l, t, r, t + (b - t) * 0.4f, Color(0xFFB9BBBE))
+        box(l - 0.03f, t - 0.1f, r + 0.03f, t, shadingColor.shade(0.8f))
+        box(l, t, r, t + (b - t) * 0.4f, shadingColor)
         var y = t + 0.04f
-        while (y < t + (b - t) * 0.4f) { drawLine(Color(0xFF8D9095), px(l, y), px(r, y), 1f * density); y += 0.05f }
+        while (y < t + (b - t) * 0.4f) { drawLine(shadingColor.shade(0.8f), px(l, y), px(r, y), 1f * density); y += 0.05f }
     }
     if (shading == Shading.Venetian) {
-        box(l - 0.02f, t - 0.06f, r + 0.02f, t, Color(0xFF6B6F75))
+        box(l - 0.02f, t - 0.06f, r + 0.02f, t, shadingColor.shade(0.8f))
         var y = t + 0.03f
-        while (y < t + (b - t) * 0.66f) { drawLine(Color(0xFF8D9095), px(l, y), px(r, y), 2.2f * density); y += 0.045f }
+        while (y < t + (b - t) * 0.66f) { drawLine(shadingColor, px(l, y), px(r, y), 2.2f * density); y += 0.045f }
     }
     if (shading == Shading.InteriorShutters) {
-        val sc = color.shade(0.92f)
+        val sc = shadingColor.shade(0.92f)
         for ((a, z) in listOf(0.08f to l, r to 0.92f)) {
             box(a, t, z, b, sc)
             box(a + 0.03f, t + 0.06f, z - 0.03f, 0.5f, sc.shade(0.8f), 1.2f * density)

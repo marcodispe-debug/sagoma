@@ -2339,7 +2339,7 @@ private class SceneBuilder(
         when (o.shading) {
             Shading.None -> Unit
             Shading.Shutters -> {
-                val c = tint(Rgba.argb(if (o.finish == Finish.White) 0xFF46704F else o.finish.argb), pick)
+                val c = tint(Rgba.argb(o.shadingArgb), pick)
                 val slat = c.mix(Rgba(0f, 0f, 0f), 0.18f)
                 val leaves = if (o.kind.leaves == 2 || w > 90) 2 else 1
                 val lw = w / leaves
@@ -2353,7 +2353,7 @@ private class SceneBuilder(
                 }
             }
             Shading.RollerShutter -> {
-                val c = tint(Rgba(0.78f, 0.79f, 0.80f), pick)
+                val c = tint(Rgba.argb(o.shadingArgb), pick)
                 val line = c.mix(Rgba(0f, 0f, 0f), 0.2f)
                 val low = top - (top - bottom) / 3
                 box(a + out, b + out, 1.2, low, top, c, pick)
@@ -2365,7 +2365,7 @@ private class SceneBuilder(
             }
             Shading.Venetian -> {
                 // Lamelle inclinate ogni 7 cm, abbassate per due terzi, con le guide ai lati e il pacco in alto.
-                val c = tint(Rgba(0.55f, 0.57f, 0.6f), pick)
+                val c = tint(Rgba.argb(o.shadingArgb), pick)
                 val guide = c.mix(Rgba(0f, 0f, 0f), 0.25f)
                 val low = top - (top - bottom) * 2 / 3
                 var y = low
@@ -2380,7 +2380,7 @@ private class SceneBuilder(
             }
             Shading.InteriorShutters -> {
                 // Scuri interni: ante piene di legno (colore dell'infisso), aperte sulla faccia del muro verso la stanza.
-                val c = tint(Rgba.argb(o.finish.argb), pick).mix(Rgba(0f, 0f, 0f), 0.05f)
+                val c = tint(Rgba.argb(o.shadingArgb), pick).mix(Rgba(0f, 0f, 0f), 0.05f)
                 val relief = c.mix(Rgba(0f, 0f, 0f), 0.12f)
                 val inner = n * (half + 1.6)
                 val leaves = if (o.leaves >= 2 || w > 90) 2 else 1

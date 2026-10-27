@@ -159,6 +159,7 @@ object TestiPannelliFr : TestiPannelli() {
     override val portaInterna: String get() = "Intérieure"
     override val ingresso: String get() = "Entrée"
     override val coloreInfisso: String get() = "Couleur de la menuiserie"
+    override val coloreOscurante: String get() = "Couleur des occultants"
     override val lampadarioSoffittoTrascinaloSpostarlo: String get() = "Lustre au plafond : faites-le glisser pour le déplacer."
     override val direzione: String get() = "Direction"
     override val inclinazione: String get() = "Inclinaison"

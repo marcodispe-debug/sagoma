@@ -166,6 +166,8 @@ data class Opening(
     /** Modello di finestre e balconi, e oscurante all'esterno. */
     val windowModel: WindowModel = WindowModel.Classic,
     val shading: Shading = Shading.None,
+    /** Colore dell'oscurante (ARGB, qualsiasi come la pittura dei muri); null = quello solito ([shadingArgb]). */
+    val shadingColor: Long? = null,
     /** Finestre e balconi: infisso a metà muro, a filo esterno o a filo interno. */
     val frame: FramePosition = FramePosition.Center,
     /**
@@ -204,6 +206,17 @@ data class Opening(
 ) {
     /** Colore effettivo di anta e telaio. */
     val finish: Finish get() = color ?: if (kind.glazed) Finish.White else Finish.Oak
+
+    /**
+     * Colore dell'oscurante (ARGB): quello scelto, oppure il solito: persiane verdi con l'infisso bianco e del colore
+     * dell'infisso con gli altri, tapparella grigio chiaro, veneziana grigia, scuri interni del colore dell'infisso.
+     */
+    val shadingArgb: Long get() = shadingColor ?: when (shading) {
+        Shading.Shutters -> if (finish == Finish.White) SHUTTER_GREEN else finish.argb
+        Shading.RollerShutter -> ROLLER_GREY
+        Shading.Venetian -> VENETIAN_GREY
+        Shading.InteriorShutters, Shading.None -> finish.argb
+    }
 
     /** Quota del fondo del varco: il davanzale per infissi e nicchie, terra per porte e varchi. */
     val bottom: Double get() = if (kind.hasSill) sillHeight else 0.0
@@ -248,6 +261,11 @@ data class Opening(
     val leafSplit: Double get() = if (!unequal) 0.5 else if (hingeLeft) 2.0 / 3 else 1.0 / 3
 
     companion object {
+        /** Colori soliti degli oscuranti: persiane verdi, tapparella grigio chiaro, veneziana grigia. */
+        const val SHUTTER_GREEN = 0xFF46704F
+        const val ROLLER_GREY = 0xFFC7C9CC
+        const val VENETIAN_GREY = 0xFF8C9199
+
         fun default(id: Long, kind: OpeningKind, wallIndex: Int, position: Double) = when (kind) {
             OpeningKind.Door -> Opening(id, kind, wallIndex, position, width = 80.0, height = 210.0)
             OpeningKind.Door2 -> Opening(id, kind, wallIndex, position, width = 120.0, height = 210.0)

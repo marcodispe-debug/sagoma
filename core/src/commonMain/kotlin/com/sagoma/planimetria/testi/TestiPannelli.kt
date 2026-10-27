@@ -159,6 +159,7 @@ open class TestiPannelli {
     open val portaInterna: String get() = "Interna"
     open val ingresso: String get() = "Ingresso"
     open val coloreInfisso: String get() = "Colore infisso"
+    open val coloreOscurante: String get() = "Colore oscuranti"
     open val lampadarioSoffittoTrascinaloSpostarlo: String get() = "Lampadario a soffitto: trascinalo per spostarlo."
     open val direzione: String get() = "Direzione"
     open val inclinazione: String get() = "Inclinazione"
