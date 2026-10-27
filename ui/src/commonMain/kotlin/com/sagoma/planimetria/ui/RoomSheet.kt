@@ -416,7 +416,16 @@ private fun FinishesTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
             TextButton(onClick = { vm.setRoomLook(room.id, floor = FloorFinish.RoomColor) }) { Text(T.schedaStanza.togli, color = MaterialTheme.colorScheme.error) }
         }
         MaterialPicker(T.schedaStanza.pavimento, room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
-        if (room.floorMaterial != null) MaterialLayoutControls(room.floorLayout) { vm.setFloorLayout(room.id, it) }
+        if (room.floorMaterial != null) {
+            MaterialLayoutControls(room.floorLayout, room.floorMaterial) { vm.setFloorLayout(room.id, it) }
+            // Quanti pezzi servono con la posa a pezzi.
+            val count = remember(room) { com.sagoma.planimetria.geometry.LayingPieces.count(room) }
+            if (count != null) Text(
+                T.finiture.pezziServono(count.total, count.whole, count.cut, com.sagoma.planimetria.geometry.formatDecimal(count.area, 2)),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(end = 8.dp, bottom = 4.dp),
+            )
+        }
     } else {
         ModelPicker(T.schedaStanza.pavimento, FloorFinish.entries, room.floorFinish, { it.label }, { vm.setRoomLook(room.id, floor = it) }) {
             floorPreview(it, Color(room.type.argb))

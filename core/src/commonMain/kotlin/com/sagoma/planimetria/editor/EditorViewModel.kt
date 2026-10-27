@@ -9,6 +9,7 @@ import com.sagoma.planimetria.geometry.inLineCorners
 import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.interiorLengths
 import com.sagoma.planimetria.model.withAutoNames
+import com.sagoma.planimetria.model.MaterialPieces
 import com.sagoma.planimetria.model.Furniture
 import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.geometry.Fixtures
@@ -2793,10 +2794,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         )
     }
 
-    /** Pavimento con un materiale fotografico (null = la finitura normale). */
+    /** Pavimento con un materiale fotografico (null = la finitura normale); la posa a pezzi si adatta al nuovo materiale. */
     fun setFloorMaterial(id: Long, material: String?) = commit { plan ->
         val room = plan.room(id) ?: return@commit plan
-        plan.replace(room.copy(floorMaterial = material))
+        plan.replace(room.copy(floorMaterial = material, floorLayout = MaterialPieces.relay(room.floorLayout, room.floorMaterial, material)))
     }
 
     /** Verso e misura dei pezzi del pavimento fotografico della stanza. */

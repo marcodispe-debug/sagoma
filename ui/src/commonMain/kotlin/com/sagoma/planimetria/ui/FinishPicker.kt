@@ -37,7 +37,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.model.Covering
 import com.sagoma.planimetria.model.MaterialCatalog
+import com.sagoma.planimetria.model.Laying
+import com.sagoma.planimetria.model.LayingPattern
+import com.sagoma.planimetria.model.LayingStart
 import com.sagoma.planimetria.model.MaterialLayout
+import com.sagoma.planimetria.model.MaterialPieces
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import com.sagoma.planimetria.model.ProPalette
@@ -78,11 +82,15 @@ fun FinishPicker(label: String, finish: WallFinish, onChange: (WallFinish) -> Un
         MaterialPicker(T.finiture.materiale, finish.material.takeIf { finish.covering == Covering.Material }, forFloor = false, allowNone = true) { id ->
             onChange(
                 if (id == null) finish.copy(covering = Covering.None, coveringArgb = null, coveringHeight = null, material = null)
-                else finish.copy(covering = Covering.Material, coveringArgb = null, material = id, coveringHeight = finish.coveringHeight.takeIf { finish.covering == Covering.Material }),
+                else finish.copy(
+                    covering = Covering.Material, coveringArgb = null, material = id,
+                    coveringHeight = finish.coveringHeight.takeIf { finish.covering == Covering.Material },
+                    layout = MaterialPieces.relay(finish.layout, finish.material, id),
+                ),
             )
         }
         if (finish.covering == Covering.Material && finish.material != null) {
-            MaterialLayoutControls(finish.layout) { onChange(finish.copy(layout = it)) }
+            MaterialLayoutControls(finish.layout, finish.material) { onChange(finish.copy(layout = it)) }
         }
         if (finish.covering != Covering.None) {
             val full = finish.coverHeight == null
@@ -107,15 +115,26 @@ fun FinishPicker(label: String, finish: WallFinish, onChange: (WallFinish) -> Un
 }
 
 /**
- * Verso e misura dei pezzi di un materiale fotografico (parquet nell'altro verso, doghe più larghe, posa in diagonale). Il
- * valore si applica quando si lascia il cursore.
+ * Verso e misura dei pezzi di un materiale fotografico (parquet nell'altro verso, doghe più larghe, posa in diagonale) e,
+ * se la foto lo permette, la posa a pezzi: schema, misure dei pezzi, fuga e suo colore, punto di partenza. I cursori si
+ * applicano quando si lasciano.
  */
 @Composable
-fun MaterialLayoutControls(layout: MaterialLayout, onChange: (MaterialLayout) -> Unit) {
+fun MaterialLayoutControls(layout: MaterialLayout, material: String?, onChange: (MaterialLayout) -> Unit) {
     var rotation by remember(layout.rotation) { mutableStateOf(layout.rotation.toFloat()) }
     var scale by remember(layout.scale) { mutableStateOf((layout.scale * 100).toFloat()) }
+    val item = MaterialCatalog.item(material)
+    val canLay = MaterialPieces.canLay(material)
+    val laying = layout.laying?.takeIf { canLay }
     Column(Modifier.fillMaxWidth().padding(end = 8.dp)) {
-        Text(T.finiture.verso(rotation.roundToInt()), style = MaterialTheme.typography.labelMedium)
+        if (item != null) {
+            if (canLay) {
+                Choice(T.finiture.posa, listOf(T.finiture.comeNellaFoto, T.finiture.aPezzi), if (laying == null) 0 else 1) { i ->
+                    onChange(layout.copy(laying = if (i == 0) null else MaterialPieces.defaultLaying(item)))
+                }
+            } else Text(T.finiture.fotoGiaPosata, style = MaterialTheme.typography.bodySmall)
+        }
+        Text(T.finiture.verso(rotation.roundToInt()), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 6.dp))
         Slider(
             value = rotation,
             onValueChange = { rotation = (it / 5).roundToInt() * 5f },
@@ -123,15 +142,112 @@ fun MaterialLayoutControls(layout: MaterialLayout, onChange: (MaterialLayout) ->
             valueRange = 0f..180f,
             steps = 35,
         )
-        Text(T.finiture.misuraPezzi(scale.roundToInt()), style = MaterialTheme.typography.labelMedium)
-        Slider(
-            value = scale,
-            onValueChange = { scale = (it / 5).roundToInt() * 5f },
-            onValueChangeFinished = { onChange(layout.copy(scale = scale / 100.0)) },
-            valueRange = (MaterialLayout.MIN_SCALE * 100).toFloat()..(MaterialLayout.MAX_SCALE * 100).toFloat(),
-        )
+        if (laying != null && item != null) {
+            LayingControls(laying, item) { onChange(layout.copy(laying = it)) }
+        } else {
+            Text(T.finiture.misuraPezzi(scale.roundToInt()), style = MaterialTheme.typography.labelMedium)
+            Slider(
+                value = scale,
+                onValueChange = { scale = (it / 5).roundToInt() * 5f },
+                onValueChangeFinished = { onChange(layout.copy(scale = scale / 100.0)) },
+                valueRange = (MaterialLayout.MIN_SCALE * 100).toFloat()..(MaterialLayout.MAX_SCALE * 100).toFloat(),
+            )
+        }
         if (layout != MaterialLayout()) TextButton(onClick = { onChange(MaterialLayout()) }) { Text(T.finiture.comeNelCatalogo) }
     }
+}
+
+/** Lati dei pezzi (cm) che si possono scegliere: i formati più comuni di piastrelle, listoni e lastre. */
+private val PIECE_SIDES = listOf(
+    2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 7.0, 7.5, 8.0, 9.0, 10.0, 12.0, 12.5, 14.0, 15.0, 18.0, 20.0, 22.5, 25.0, 30.0, 33.0, 40.0,
+    45.0, 50.0, 60.0, 75.0, 80.0, 90.0, 100.0, 120.0, 150.0, 160.0, 180.0, 200.0, 240.0, 280.0, 300.0,
+)
+
+/** Larghezze della fuga (mm). */
+private val JOINTS_MM = listOf(0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 15.0, 20.0)
+
+/** Colori della fuga più usati: bianco, grigi, antracite, nero, sabbia, beige, tortora, marrone. */
+private val JOINT_COLORS = listOf(
+    0xFFF4F2EE, 0xFFD3D0CA, 0xFFA7A49E, 0xFF8C8984, 0xFF4A4946, 0xFF1E1E1E, 0xFFD8C8A8, 0xFFC5B392, 0xFF9C8E7E, 0xFF6E5139,
+)
+
+/** Numero con al più un decimale, senza «,0». */
+private fun short(v: Double): String =
+    if (kotlin.math.abs(v - v.roundToInt()) < 0.05) v.roundToInt().toString() else com.sagoma.planimetria.geometry.formatDecimal(v, 1)
+
+/** Schema, misure dei pezzi, fuga e partenza della posa a pezzi. */
+@Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+private fun LayingControls(laying: Laying, item: MaterialCatalog.Item, onChange: (Laying) -> Unit) {
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (p in LayingPattern.entries) {
+            androidx.compose.material3.FilterChip(selected = laying.pattern == p, onClick = { onChange(laying.copy(pattern = p)) }, label = { Text(p.label) })
+        }
+    }
+    StopSlider(laying.width, PIECE_SIDES, { T.finiture.larghezzaPezzo(short(it)) }) { w ->
+        onChange(laying.copy(width = w, length = maxOf(w, laying.length)))
+    }
+    StopSlider(laying.length, PIECE_SIDES, { T.finiture.lunghezzaPezzo(short(it)) }) { l ->
+        onChange(laying.copy(length = l, width = minOf(l, laying.width)))
+    }
+    StopSlider(laying.joint * 10, JOINTS_MM, { T.finiture.fuga(short(it)) }) { onChange(laying.copy(joint = it / 10)) }
+    // Colore della fuga: quello della foto (se ha le fughe), i colori più usati, quello scelto e uno qualsiasi.
+    val photo = (MaterialPieces.of(item.id) as? MaterialPieces.Pieces)?.groutArgb
+    val base = listOfNotNull(photo) + JOINT_COLORS
+    // Un colore scelto fuori dalla tavolozza va in testa, così si vede subito quale è.
+    val colors = ((if (laying.jointArgb in base) base else listOf(laying.jointArgb) + base) + RecentColors.list).distinct()
+    var custom by remember { mutableStateOf(false) }
+    Text(T.finiture.coloreFuga, style = MaterialTheme.typography.labelMedium)
+    ArrowLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(top = 6.dp, bottom = 2.dp, end = 8.dp)) {
+        item {
+            Box(
+                Modifier
+                    .size(30.dp)
+                    .border(1.dp, Color(0x33000000), CircleShape)
+                    .padding(2.dp)
+                    .background(Brush.sweepGradient(listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red)), CircleShape)
+                    .clickable { custom = true },
+            )
+        }
+        items(colors) { c ->
+            val isSelected = c == laying.jointArgb
+            Box(
+                Modifier
+                    .size(30.dp)
+                    .border(if (isSelected) 3.dp else 1.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color(0x33000000), CircleShape)
+                    .padding(if (isSelected) 5.dp else 2.dp)
+                    .background(Color(c), CircleShape)
+                    .clickable { onChange(laying.copy(jointArgb = c)) },
+            )
+        }
+    }
+    if (custom) CustomColorDialog(laying.jointArgb, onDismiss = { custom = false }) {
+        custom = false
+        RecentColors.add(it)
+        onChange(laying.copy(jointArgb = it))
+    }
+    Choice(
+        T.finiture.partenza, listOf(T.finiture.dalCentro, T.finiture.daUnAngolo), LayingStart.entries.indexOf(laying.start),
+        Modifier.padding(top = 6.dp),
+    ) { onChange(laying.copy(start = LayingStart.entries[it])) }
+}
+
+/**
+ * Cursore sui valori `stops`: mostra il valore scelto (anche se non è tra quelli, come le misure prese dalla foto) finché non
+ * lo si sposta, e lo applica quando lo si lascia.
+ */
+@Composable
+private fun StopSlider(value: Double, stops: List<Double>, label: (Double) -> String, onChange: (Double) -> Unit) {
+    val nearest = stops.indices.minBy { kotlin.math.abs(stops[it] - value) }
+    var index by remember(value) { mutableStateOf<Int?>(null) }
+    Text(label(index?.let { stops[it] } ?: value), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
+    Slider(
+        value = (index ?: nearest).toFloat(),
+        onValueChange = { index = it.roundToInt().coerceIn(0, stops.lastIndex) },
+        onValueChangeFinished = { index?.let { onChange(stops[it]) } },
+        valueRange = 0f..stops.lastIndex.toFloat(),
+        steps = stops.size - 2,
+    )
 }
 
 /** Pallini della tavolozza estesa, con i colori recenti in testa e il pulsante per un colore qualsiasi. */
