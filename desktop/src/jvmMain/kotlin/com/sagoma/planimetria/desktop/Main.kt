@@ -132,7 +132,13 @@ private fun app(remote: RemoteAssets?) = application(exitProcessOnExit = false) 
         }
     }
     CompositionLocalProvider(LocalWindowExceptionHandlerFactory provides onWindowError) {
-        Window(onCloseRequest = ::exitApplication, title = "Sagoma", state = rememberWindowState(size = DpSize(1400.dp, 900.dp))) {
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "Sagoma",
+            state = rememberWindowState(size = DpSize(1400.dp, 900.dp)),
+            // Tasti che nessun elemento ha usato (la tastiera era rimasta su niente): all'editor, così WASD non si blocca.
+            onKeyEvent = { platform.unhandledKeys?.invoke(it) == true },
+        ) {
             platform.frame = window
             Box(Modifier.fillMaxSize()) {
                 SagomaApp(platform)
