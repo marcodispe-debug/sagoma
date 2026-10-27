@@ -35,12 +35,16 @@ if (catalogoRemoto) {
 }
 
 /**
- * Quello che resta nell'app quando il catalogo è sul server: elenchi, miniature, viste dall'alto e le due luci ambiente che il 3D
- * usa (giorno e tramonto, vedi FilamentSceneRenderer). La luce "interno" non la usa nessuno: resta sul server (9 MB in meno).
+ * Quello che resta nell'app quando il catalogo è sul server: elenchi, miniature e viste dall'alto. Le due luci ambiente che il 3D
+ * usa (giorno e tramonto, vedi FilamentSceneRenderer) le aggiunge [LuceTelefono], già pronte. La luce "interno" non la usa
+ * nessuno: resta sul server.
  */
 val catalogoLeggero = listOf(
-    "furniture/catalog.json", "furniture/*.png", "materials/materials.json", "materials/*_thumb.jpg", "env/giorno.ibl", "env/tramonto.ibl",
+    "furniture/catalog.json", "furniture/*.png", "materials/materials.json", "materials/*_thumb.jpg",
 )
+
+/** Le luci ambiente che l'app porta con sé (assets/env/<nome>.ibl). */
+val luciTelefono = listOf("giorno", "tramonto")
 
 /** Copia nella cartella generata la parte leggera del catalogo (i modelli e le mappe dei materiali restano sul server). */
 abstract class CatalogoLeggero @Inject constructor(private val fs: FileSystemOperations) : DefaultTask() {
@@ -73,6 +77,45 @@ val catalogoLeggeroTask = tasks.register<CatalogoLeggero>("catalogoLeggero") {
     patterns.set(catalogoLeggero)
     files.from(catalogoRoot.asFileTree.matching { include(catalogoLeggero) })
     output.set(layout.buildDirectory.dir("generated/catalogo-leggero"))
+}
+
+/**
+ * Luci ambiente già pronte per il telefono (tools/furniture/PrefilterEnv.java): cubo da 256 px invece di 512 e tutti i livelli
+ * dei riflessi già calcolati, nel formato della texture. Così aprendo il 3D l'app non li calcola più sul processore (prima lo
+ * faceva Filament sul thread principale) e i file sono più piccoli (2 MB invece di 9,4 l'uno). Stesso percorso del catalogo:
+ * se manca, l'app usa quello del server (versione 1) e lo prefiltra lei come prima.
+ */
+abstract class LuceTelefono @Inject constructor(private val exec: ExecOperations) : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract val sources: ConfigurableFileCollection
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val tool: RegularFileProperty
+
+    @get:Input
+    abstract val java: Property<String>
+
+    @get:OutputDirectory
+    abstract val output: DirectoryProperty
+
+    @TaskAction
+    fun write() {
+        val dir = output.get().dir("env").asFile
+        dir.deleteRecursively()
+        dir.mkdirs()
+        for (f in sources.files) {
+            exec.exec { commandLine(java.get(), tool.get().asFile.path, f.path, File(dir, f.name).path, "256") }
+        }
+    }
+}
+
+val luceTelefonoTask = tasks.register<LuceTelefono>("luceTelefono") {
+    sources.from(luciTelefono.map { catalogoRoot.file("env/$it.ibl") })
+    tool.set(rootProject.layout.projectDirectory.file("tools/furniture/PrefilterEnv.java"))
+    java.set(File(System.getProperty("java.home"), "bin/java").path)
+    output.set(layout.buildDirectory.dir("generated/luce-telefono"))
 }
 
 /**
@@ -185,6 +228,7 @@ if (catalogoRemoto) {
         onVariants { variant ->
             variant.sources.assets?.addGeneratedSourceDirectory(catalogoLeggeroTask, CatalogoLeggero::output)
             variant.sources.assets?.addGeneratedSourceDirectory(catalogoManifestTask, ManifestoCatalogo::output)
+            variant.sources.assets?.addGeneratedSourceDirectory(luceTelefonoTask, LuceTelefono::output)
         }
     }
 }

@@ -442,12 +442,16 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
      * e un sole coerente con la foto (a mezzogiorno alto e bianco, al tramonto basso e arancio).
      */
 
-    /** Legge assets/env/<name>.ibl (preparato con tools/furniture/PackEnv.java). */
+    /**
+     * Legge assets/env/<name>.ibl. Versione 2 (tools/furniture/PrefilterEnv.java, quella dentro l'app): tutti i livelli dei
+     * riflessi già pronti nel formato della texture, si caricano e basta. Versione 1 (tools/furniture/PackEnv.java, quella del
+     * server): solo il cubo nitido, e i livelli ruvidi li calcola Filament sul processore (costa qualche centinaio di ms).
+     */
     private fun loadEnv(name: String): Env? = runCatching {
         val bytes = assets.peek(AssetPaths.environment(name)) ?: error("${AssetPaths.environment(name)} non trovato")
         val bb = ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
         check(bb.get().toInt() == 'S'.code && bb.get().toInt() == 'I'.code && bb.get().toInt() == 'B'.code && bb.get().toInt() == 'L'.code)
-        bb.int // versione
+        val version = bb.int
         val size = bb.int
         val levels = bb.int
         val sh = FloatArray(27) { bb.float }
@@ -456,18 +460,33 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
             .sampler(Texture.Sampler.SAMPLER_CUBEMAP)
             .format(Texture.InternalFormat.R11F_G11F_B10F)
             .build(engine)
-        // Si usa il cubo nitido (livello 0: 6 facce RGB half float); i livelli sempre più ruvidi dei
-        // riflessi li calcola Filament sulla scheda grafica.
-        val face = size * size * 6
-        val data = ByteBuffer.allocateDirect(face * 6).order(java.nio.ByteOrder.nativeOrder())
-        data.put(bytes, bb.position(), face * 6)
-        data.flip()
-        tex.generatePrefilterMipmap(
-            engine,
-            Texture.PixelBufferDescriptor(data, Texture.Format.RGB, Texture.Type.HALF),
-            IntArray(6) { it * face },
-            Texture.PrefilterOptions(),
-        )
+        if (version >= 2) {
+            // Per ogni livello le 6 facce una dopo l'altra, 4 byte a pixel (R11F_G11F_B10F): come le vuole la texture.
+            var at = bb.position()
+            for (level in 0 until levels) {
+                val dim = maxOf(1, size shr level)
+                val n = dim * dim * 6 * 4
+                val data = ByteBuffer.allocateDirect(n).order(java.nio.ByteOrder.nativeOrder())
+                data.put(bytes, at, n)
+                data.flip()
+                tex.setImage(engine, level, 0, 0, 0, dim, dim, 6,
+                    Texture.PixelBufferDescriptor(data, Texture.Format.RGB, Texture.Type.UINT_10F_11F_11F_REV))
+                at += n
+            }
+        } else {
+            // Si usa il cubo nitido (livello 0: 6 facce RGB half float); i livelli sempre più ruvidi dei
+            // riflessi li calcola Filament.
+            val face = size * size * 6
+            val data = ByteBuffer.allocateDirect(face * 6).order(java.nio.ByteOrder.nativeOrder())
+            data.put(bytes, bb.position(), face * 6)
+            data.flip()
+            tex.generatePrefilterMipmap(
+                engine,
+                Texture.PixelBufferDescriptor(data, Texture.Format.RGB, Texture.Type.HALF),
+                IntArray(6) { it * face },
+                Texture.PrefilterOptions(),
+            )
+        }
         // All'aperto il cielo della foto fa da sfondo; dentro casa resta il cielo chiaro uniforme.
         val sky = if (name == "interno") null else Skybox.Builder().environment(tex).build(engine)
         Env(tex, sh, sky)
