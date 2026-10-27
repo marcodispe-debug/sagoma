@@ -148,6 +148,8 @@ class Scene3D(
      * un buco dove si vedono la terra tagliata e, in fondo, la casa. null = niente scavo.
      */
     val excavation: Bounds? = null,
+    /** Stanze del piano corrente (non quelle all'aperto): per la luce del giorno e l'esposizione di chi ci cammina dentro. */
+    val rooms: List<SceneRoom> = emptyList(),
 ) {
     /** Prato attorno alla casa, `margin` cm oltre la pianta: un rettangolo, o quattro attorno allo [excavation]. */
     fun lawn(margin: Double): List<Bounds> {
@@ -191,10 +193,20 @@ class Scene3D(
     }
 
     /** Stessa scena con altre luci: serve ad aggiornare solo le luci, senza ricostruire la geometria. */
-    fun withLights(newLights: List<SceneLight>) = Scene3D(opaque, transparent, picks, obstacles, bounds, furniture, textured, newLights, windows, roofs, groundLevel, excavation)
+    fun withLights(newLights: List<SceneLight>) = Scene3D(opaque, transparent, picks, obstacles, bounds, furniture, textured, newLights, windows, roofs, groundLevel, excavation, rooms)
 
-    /** Apertura vetrata: centro in cm, normale verso l'interno della stanza, misure in cm. */
-    data class SceneWindow(val center: Vec3, val inward: Vec3, val width: Double, val height: Double)
+    /**
+     * Apertura vetrata: centro in cm, normale verso l'interno della stanza, misure in cm. `zones`: rettangoli della stanza in
+     * pianta ([LightZones], vuoto se fuori da ogni stanza), dove resta la luce del sole che entra e rimbalza; `surface`: cm² di
+     * pavimento, soffitto e pareti della stanza, su cui quella luce si sparpaglia; `floor` e `ceiling`: quote (cm) del suo pavimento
+     * e del suo soffitto.
+     */
+    data class SceneWindow(
+        val center: Vec3, val inward: Vec3, val width: Double, val height: Double,
+        val zones: List<Bounds> = emptyList(), val surface: Double = 0.0, val floor: Double = 0.0, val ceiling: Double = 0.0,
+    )
+    /** Stanza: rettangoli in pianta ([LightZones]) e quote (cm) del pavimento e del soffitto. */
+    data class SceneRoom(val zones: List<Bounds>, val floor: Double, val ceiling: Double)
     class PickTri(val a: Vec3, val b: Vec3, val c: Vec3, val pick: Pick)
 
     /**
@@ -335,6 +347,7 @@ private class SceneBuilder(
     private val textured = HashMap<String, FloatList>()
     private val lights = mutableListOf<Scene3D.SceneLight>()
     private val windows = mutableListOf<Scene3D.SceneWindow>()
+    private val rooms = mutableListOf<Scene3D.SceneRoom>()
     private val roofs = FloatList()
 
     /** Triangolo con un materiale fotografico: `uv` sono le coordinate della foto nei tre vertici. */
@@ -625,6 +638,18 @@ private class SceneBuilder(
             }
             // Luce delle lampade che passa dalle porte nelle stanze vicine (solo il piano corrente ha le luci).
             if (current) {
+                for (room in plan.rooms) if (!room.outdoor) rooms += Scene3D.SceneRoom(LightZones.of(room.points), base, base + room.ceilingHeight)
+                // Finestre: la stanza in cui entra la loro luce (appena dentro, verso l'interno).
+                for (k in windows.indices) {
+                    val w = windows[k]
+                    val inside = Vec2(w.center.x + w.inward.x * 30, w.center.z + w.inward.z * 30)
+                    val room = plan.rooms.firstOrNull { !it.outdoor && Polygon.contains(it.points, inside) } ?: continue
+                    val perimeter = room.points.indices.sumOf { room.points[it].distanceTo(room.points[(it + 1) % room.points.size]) }
+                    windows[k] = w.copy(
+                        zones = LightZones.of(room.points), surface = 2 * Polygon.area(room.points) + perimeter * room.ceilingHeight,
+                        floor = base, ceiling = base + room.ceilingHeight,
+                    )
+                }
                 lights += LightSpill.through(plan, lights.toList())
                 // Stanze a L o a U: la luce resta nei rettangoli della stanza, non in tutto il suo riquadro.
                 val zones = plan.rooms.associate { Polygon.bounds(it.points) to LightZones.of(it.points) }
@@ -643,7 +668,7 @@ private class SceneBuilder(
         return Scene3D(
             opaque.toArray(), transparent.toArray(), picks, obstacles, Openings.planBounds(top.plan, top.levelHeight), placed,
             textured.mapValues { it.value.toArray() },
-            lights, windows, roofs.toArray(), groundLevel, excavation,
+            lights, windows, roofs.toArray(), groundLevel, excavation, rooms,
         )
     }
 

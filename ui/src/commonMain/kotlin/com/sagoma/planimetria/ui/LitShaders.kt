@@ -6,6 +6,7 @@ import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.SunAngles
 import com.sagoma.planimetria.geometry.SunPath
 import com.sagoma.planimetria.geometry.Vec3
+import kotlin.math.PI
 
 /**
  * Luce del giorno all'ora scelta, con gli stessi calcoli del renderer Filament di Android. Il sole sta dove dice
@@ -217,6 +218,47 @@ object LitShaders {
         val windows = FloatArray(MAX_WINDOWS * 4)
         val windowDirs = FloatArray(MAX_WINDOWS * 4)
         var windowCount = 0
+        /**
+         * Per lo shader fotorealistico: le finestre (fino a [MAX_WINDOWS], le più vicine a chi guarda) come rettangoli di cielo che
+         * illuminano la loro stanza, molto vicino a loro e poco lontano, più la luce che entra e rimbalza su pareti, pavimento e soffitto
+         * (uguale in tutta la stanza). Centro sul vetro (x, y, z) e larghezza, in cm.
+         */
+        val skyWindows = FloatArray(MAX_WINDOWS * 4)
+        /** Verso l'interno (x, y, z, orizzontale) e altezza, in cm. */
+        val skyWindowAxes = FloatArray(MAX_WINDOWS * 4)
+        /**
+         * Quote del pavimento e del soffitto della stanza, e quanto la luce che entra si sparpaglia in tutta la stanza: cm² di finestra
+         * per cm² di pareti, pavimento e soffitto (con i rimbalzi: in media pareti, pavimento e soffitto rimandano metà della luce, quindi
+         * ogni raggio rimbalza circa due volte).
+         */
+        val skyRooms = FloatArray(MAX_WINDOWS * 4)
+        /** Rettangoli della stanza in pianta, come [lampBoxes]: la luce delle finestre non passa i muri. */
+        val skyBoxes = FloatArray(MAX_WINDOWS * LightZones.MAX * 4)
+        /**
+         * Sole che entra dalla finestra: dove arriva fa una macchia chiara, sul pavimento o, se va oltre, sulla parete di fronte, che
+         * rimanda nella stanza una luce calda, forte vicino alla macchia e poi sparpagliata. x, y, z della macchia e cm² di sole che
+         * entrano (la finestra per quanto il sole le sta di fronte; 0: niente sole).
+         */
+        val sunPatches = FloatArray(MAX_WINDOWS * 4)
+        /** Verso cui la macchia rimanda la luce, e la luce sparpagliata in tutta la stanza (come in [skyRooms]). */
+        val sunPatchNormals = FloatArray(MAX_WINDOWS * 4)
+        /** Punto appena fuori dalla finestra, verso il sole: se lì c'è ombra il sole non entra. Poi la grandezza della macchia (cm²). */
+        val sunGates = FloatArray(MAX_WINDOWS * 4)
+        var skyWindowCount = 0
+        /**
+         * Luce nella stanza di chi guarda, per l'esposizione (come l'esposimetro di una macchina fotografica): cm² delle sue finestre per
+         * cm² di pareti, pavimento e soffitto (come in [skyRooms]); lo stesso per il sole che entra (come in [sunPatchNormals]); luce
+         * media delle sue lampade accese, nella stessa unità della luce delle lampade nello shader. Tutto 0 fuori casa ([meterIndoor]
+         * falso) o in una stanza senza finestre né lampade.
+         */
+        var meterIndoor = false
+            private set
+        var meterWindows = 0.0
+            private set
+        var meterSun = 0.0
+            private set
+        var meterLamps = 0.0
+            private set
 
         init {
             if (scene != null && daylight.lampsOn) {
@@ -236,6 +278,7 @@ object LitShaders {
                     // Gli angoli della stanza sono in mezzeria dei muri: poco oltre ci sono le facce interne (illuminate),
                     // mentre le facce esterne restano fuori (buie).
                     val zones = l.zones ?: listOfNotNull(l.room)
+                    meterLamp(zones, s, viewer)
                     val m = 3.0
                     for (z in 0 until LightZones.MAX) {
                         val o = (i * LightZones.MAX + z) * 4
@@ -263,6 +306,81 @@ object LitShaders {
                     windowDirs[i * 4 + 3] = 1.3f * area * daylight.day
                 }
             }
+            val here = scene?.rooms?.firstOrNull { viewer.y in it.floor..it.ceiling && it.zones.any { b -> b.holds(viewer) } }
+            meterIndoor = here != null
+            if (scene != null && daylight.day > 0.02f) {
+                for (w in scene.windows.filter { it.zones.isNotEmpty() && it.surface > 0 }.sortedBy { (it.center - viewer).length }.take(MAX_WINDOWS)) {
+                    skyWindow(w, skyWindowCount++, daylight)
+                }
+                if (here != null) for (w in scene.windows) if (w.surface > 0 && w.zones == here.zones && w.floor == here.floor) {
+                    meterWindows += w.width * w.height / w.surface
+                    val facing = -(daylight.toSun dot Vec3(w.inward.x, 0.0, w.inward.z).normalized())
+                    if (daylight.elevation > 0.5 && facing > 0.02) meterSun += w.width * w.height * facing / w.surface
+                }
+            }
+        }
+
+        private fun Bounds.holds(p: Vec3) = p.x >= minX && p.x <= maxX && p.z >= minY && p.z <= maxY
+
+        /**
+         * Lampada di intensità `s` (vedi [lamps]) nei rettangoli `zones`: se chi guarda è lì, la sua luce media nella stanza. Nello shader
+         * illumina con s × 28000 / distanza² in tutte le direzioni, più la luce rimbalzata (s × 0,065 × π); con pareti, pavimento e
+         * soffitto che rimandano metà della luce, quella che arriva diretta conta due volte.
+         */
+        private fun meterLamp(zones: List<Bounds>, s: Float, viewer: Vec3) {
+            if (zones.none { it.holds(viewer) }) return
+            val area = zones.sumOf { it.width * it.height }
+            val perimeter = zones.sumOf { 2 * (it.width + it.height) }
+            val surface = 2 * area + perimeter * 270.0
+            meterLamps += s * (2 * 4 * PI * 28000.0 / surface + 0.065 * PI)
+        }
+
+        private fun skyWindow(w: Scene3D.SceneWindow, i: Int, daylight: Daylight) {
+            val inward = Vec3(w.inward.x, 0.0, w.inward.z).normalized()
+            val o = i * 4
+            skyWindows[o] = w.center.x.toFloat(); skyWindows[o + 1] = w.center.y.toFloat(); skyWindows[o + 2] = w.center.z.toFloat()
+            skyWindows[o + 3] = w.width.toFloat()
+            skyWindowAxes[o] = inward.x.toFloat(); skyWindowAxes[o + 1] = 0f; skyWindowAxes[o + 2] = inward.z.toFloat()
+            skyWindowAxes[o + 3] = w.height.toFloat()
+            skyRooms[o] = (w.floor - 2).toFloat(); skyRooms[o + 1] = (w.ceiling + 2).toFloat()
+            skyRooms[o + 2] = (w.width * w.height / w.surface).toFloat()
+            val m = 3.0
+            for (z in 0 until LightZones.MAX) {
+                val k = (i * LightZones.MAX + z) * 4
+                val b = w.zones.getOrNull(z)
+                if (b == null) {
+                    skyBoxes[k] = 1e7f; skyBoxes[k + 1] = 1e7f; skyBoxes[k + 2] = -1e7f; skyBoxes[k + 3] = -1e7f
+                } else {
+                    skyBoxes[k] = (b.minX - m).toFloat(); skyBoxes[k + 1] = (b.minY - m).toFloat()
+                    skyBoxes[k + 2] = (b.maxX + m).toFloat(); skyBoxes[k + 3] = (b.maxY + m).toFloat()
+                }
+            }
+            // Sole che entra.
+            val toSun = daylight.toSun
+            val facing = -(toSun dot inward)
+            if (daylight.elevation <= 0.5 || facing < 0.02 || toSun.y <= 0.01) return
+            fun inside(p: Vec3) = w.zones.any { it.holds(p) }
+            // Il raggio di sole che passa dal centro della finestra: dove tocca il pavimento, o prima la parete di fronte.
+            val c = w.center
+            val floorT = (c.y - w.floor) / toSun.y
+            var t = floorT
+            var normal = Vec3.Up
+            var receiver = toSun.y
+            if (!inside(c - toSun * floorT)) {
+                val step = floorT / 64
+                t = (63 downTo 1).map { it * step }.firstOrNull { inside(c - toSun * it) } ?: return
+                normal = Vec3(toSun.x, 0.0, toSun.z).normalized()
+                receiver = normal dot toSun
+            }
+            val p = c - toSun * t
+            val sun = w.width * w.height * facing
+            sunPatches[o] = p.x.toFloat(); sunPatches[o + 1] = p.y.toFloat(); sunPatches[o + 2] = p.z.toFloat(); sunPatches[o + 3] = sun.toFloat()
+            sunPatchNormals[o] = normal.x.toFloat(); sunPatchNormals[o + 1] = normal.y.toFloat(); sunPatchNormals[o + 2] = normal.z.toFloat()
+            sunPatchNormals[o + 3] = (sun / w.surface).toFloat()
+            val gate = c + toSun * 40.0
+            sunGates[o] = gate.x.toFloat(); sunGates[o + 1] = gate.y.toFloat(); sunGates[o + 2] = gate.z.toFloat()
+            // Più la macchia è grande, meno la sua luce si concentra vicino a lei.
+            sunGates[o + 3] = (sun / maxOf(receiver, 0.2) * 0.3).coerceIn(400.0, 40000.0).toFloat()
         }
     }
 }

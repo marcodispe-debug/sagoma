@@ -37,6 +37,7 @@ import org.lwjgl.opengl.GL30.*
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -408,10 +409,32 @@ class DesktopGlSceneRenderer(
         val ground = floatArrayOf(toLinear(g[0]), toLinear(g[1]), toLinear(g[2])).map { (it * 0.45f + 0.12f) * skyK * 0.45f }
         glUniform3f(u("uSky"), sky[0], sky[1], sky[2])
         glUniform3f(u("uGround"), ground[0], ground[1], ground[2])
+        val lights = LitShaders.Lights(scene, d, eye, windowsAlways = true, brightness = lampBrightness)
+        // Di notte l'occhio si abitua un poco: più esposizione solo se c'è qualche lampada accesa (così le
+        // stanze illuminate si vedono bene); senza luci resta tutto buio.
+        val exposure = 1.0f + (if (lights.lampCount > 0) 1.4f else 0.3f) * (1f - d.day)
+        glUniform1f(u("uExposure"), exposure)
         // Dentro casa (sotto i soffitti, anche nella vista dall'alto dove il tetto non si vede): il cielo entra
         // solo dalle finestre, la luce diffusa è quella che rimbalza su pavimento, pareti e soffitto, quasi
         // bianca e un poco calda. Di notte la danno solo le lampade, stanza per stanza.
-        val kIn = skyK * 0.55f
+        var kIn = skyK * 0.55f
+        var exposureIn = exposure
+        // Il cielo che si vede da una finestra: metà cielo, metà terreno e case intorno, un po' meno attraverso il vetro.
+        val winK = skyK * 0.62f
+        if (walking) {
+            // Camminando, di giorno, come in una foto d'interni: dentro casa arriva molta meno luce che fuori (quella delle finestre, più
+            // forte vicino a loro, e quella del sole che entra), e l'esposizione si regola sulla stanza in cui si è, come l'esposimetro
+            // di una macchina fotografica: luce del cielo dalle finestre, metà di quella del sole (una stanza al sole resta più luminosa)
+            // e le lampade. Quando sono le lampade a fare quasi tutta la luce (di notte, o accese di giorno) resta come prima, così
+            // la loro luminosità si regola sempre con il cursore.
+            val room = 2 * PI * winK * lights.meterWindows + 0.5 * d.sun[1] * sunK * 0.32 * lights.meterSun + lights.meterLamps +
+                PI * kIn * INDOOR_AMBIENT
+            val metered = if (lights.meterIndoor) (EXPOSURE_TARGET / room.toFloat()).coerceIn(1f, MAX_BOOST) else OUTSIDE_BOOST
+            val boost = 1f + (metered - 1f) * d.day
+            kIn *= maxOf(INDOOR_AMBIENT, 1f / (boost * boost))
+            exposureIn = exposure * boost
+        }
+        glUniform1f(u("uExposureIn"), exposureIn)
         glUniform3f(u("uInSky"), 1.0f * kIn, 0.975f * kIn, 0.94f * kIn)
         glUniform3f(u("uInGround"), 0.95f * kIn * 0.75f, 0.86f * kIn * 0.75f, 0.74f * kIn * 0.75f)
         glActiveTexture(GL_TEXTURE7)
@@ -420,10 +443,6 @@ class DesktopGlSceneRenderer(
         glUniformMatrix4fv(u("uRoofMvp"), false, roofMvp)
         glUniform1f(u("uRoofTexel"), 1f / ROOF_SIZE)
         glUniform1f(u("uRoofDepthCm"), (ROOF_FAR - 1.0).toFloat())
-        val lights = LitShaders.Lights(scene, d, eye, windowsAlways = true, brightness = lampBrightness)
-        // Di notte l'occhio si abitua un poco: più esposizione solo se c'è qualche lampada accesa (così le
-        // stanze illuminate si vedono bene); senza luci resta tutto buio.
-        glUniform1f(u("uExposure"), 1.0f + (if (lights.lampCount > 0) 1.4f else 0.3f) * (1f - d.day))
         glUniform1i(u("uAlbedoTex"), 0)
         glUniform1i(u("uNormalTex"), 1)
         glUniform1i(u("uOrmTex"), 2)
@@ -442,10 +461,18 @@ class DesktopGlSceneRenderer(
         glUniform3fv(u("uLampColor"), lights.lampColors)
         glUniform4fv(u("uLampBox"), lights.lampBoxes)
         glUniform4fv(u("uLampAxis"), lights.lampAxes)
-        glUniform1i(u("uWinCount"), lights.windowCount)
-        glUniform4fv(u("uWin"), lights.windows)
-        glUniform4fv(u("uWinDir"), lights.windowDirs)
-        glUniform3f(u("uWinColor"), d.windowColor[0], d.windowColor[1], d.windowColor[2])
+        // Finestre: rettangoli di cielo che illuminano la loro stanza.
+        glUniform1i(u("uWinCount"), lights.skyWindowCount)
+        glUniform4fv(u("uWin"), lights.skyWindows)
+        glUniform4fv(u("uWinAxis"), lights.skyWindowAxes)
+        glUniform4fv(u("uWinRoom"), lights.skyRooms)
+        glUniform4fv(u("uWinBox"), lights.skyBoxes)
+        glUniform3f(u("uWinSky"), d.windowColor[0] * winK, d.windowColor[1] * winK, d.windowColor[2] * winK)
+        // Sole che entra dalle finestre e rimbalza dalla macchia chiara sul pavimento (di solito legno o cotto: luce calda).
+        glUniform4fv(u("uSunPatch"), lights.sunPatches)
+        glUniform4fv(u("uSunPatchN"), lights.sunPatchNormals)
+        glUniform4fv(u("uSunGate"), lights.sunGates)
+        glUniform3f(u("uBounce"), d.sun[0] * sunK * 0.40f, d.sun[1] * sunK * 0.32f, d.sun[2] * sunK * 0.24f)
     }
 
     private fun bindTex(unit: Int, tex: Int) {
@@ -772,6 +799,15 @@ class DesktopGlSceneRenderer(
     }
 
     private companion object {
+        /**
+         * Camminando di giorno: luce diffusa che resta uguale in tutta la casa (quella che arriva da altre stanze, da porte e corridoi),
+         * rispetto a prima; luce media di una stanza ben esposta; quanto si può alzare l'esposizione dentro casa (una stanza senza
+         * finestre resta un po' più scura); dentro casa guardando da fuori (si vede più scuro, come dal giardino).
+         */
+        const val INDOOR_AMBIENT = 0.06f
+        const val EXPOSURE_TARGET = 1.8f
+        const val MAX_BOOST = 24f
+        const val OUTSIDE_BOOST = 3f
         const val SHADOW_SIZE = 4096
         const val ROOF_SIZE = 2048
         /** Profondità della vista dall'alto dei soffitti (cm): da 50 m sopra fino a 50 m sotto. */

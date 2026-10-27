@@ -99,15 +99,28 @@ object PbrShaders {
         uniform float uShadowBias;
         uniform float uShadowSoft;
         uniform float uExposure;
+        // Esposizione dentro casa: come una foto d'interni ben fatta, dentro e fuori si vedono bene tutti e due anche se fuori c'è
+        // molta più luce.
+        uniform float uExposureIn;
         uniform int uLampCount;
         uniform vec4 uLamp[$MAX_LAMPS];
         uniform vec3 uLampColor[$MAX_LAMPS];
         uniform vec4 uLampBox[${MAX_LAMPS * LightZones.MAX}];
         uniform vec4 uLampAxis[$MAX_LAMPS];
+        // Finestre: rettangoli di cielo che illuminano la loro stanza, e il sole che entra (vedi LitShaders.Lights.skyWindows).
         uniform int uWinCount;
         uniform vec4 uWin[$MAX_WINDOWS];
-        uniform vec4 uWinDir[$MAX_WINDOWS];
-        uniform vec3 uWinColor;
+        uniform vec4 uWinAxis[$MAX_WINDOWS];
+        uniform vec4 uWinRoom[$MAX_WINDOWS];
+        uniform vec4 uWinBox[${MAX_WINDOWS * LightZones.MAX}];
+        // Luce del cielo che si vede da una finestra (colore × forza).
+        uniform vec3 uWinSky;
+        uniform mat4 uLightMvp;
+        uniform vec4 uSunPatch[$MAX_WINDOWS];
+        uniform vec4 uSunPatchN[$MAX_WINDOWS];
+        uniform vec4 uSunGate[$MAX_WINDOWS];
+        // Luce rimbalzata dalla macchia di sole (sole × colore del pavimento).
+        uniform vec3 uBounce;
 
         varying vec3 vPos;
         varying vec3 vNormal;
@@ -153,6 +166,27 @@ object PbrShaders {
         }
 
         /**
+         * Un lato del rettangolo di una finestra visto dal punto (direzioni unitarie verso i due vertici): la sua parte della luce che
+         * arriva da tutto il rettangolo (legge di Lambert per un poligono, con θ/sin θ approssimato come in "Real-Time Polygonal-Light
+         * Shading with Linearly Transformed Cosines", Heitz e altri, 2016).
+         */
+        vec3 edgeLight(vec3 a, vec3 b) {
+            float x = dot(a, b);
+            float y = abs(x);
+            float v = (0.8543985 + (0.4965155 + 0.0145206 * y) * y) / (3.4175940 + (4.1616724 + y) * y);
+            float k = x > 0.0 ? v : 0.5 * inversesqrt(max(1.0 - x * x, 1e-7)) - v;
+            return cross(a, b) * k;
+        }
+
+        /** Il sole arriva nel punto `p` (niente ombra nella mappa del sole)? */
+        bool sunReaches(vec3 p) {
+            vec4 c = uLightMvp * vec4(p, 1.0);
+            vec3 q = c.xyz / c.w * 0.5 + 0.5;
+            if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0 || q.z > 1.0) return true;
+            return q.z - uShadowBias <= texture2D(uShadowMap, q.xy).r;
+        }
+
+        /**
          * Quanto il punto è dentro casa (0–1): c'è un soffitto sopra di lui nella mappa dei soffitti vista
          * dall'alto. Bordo morbido su 4 campioni. Vale anche nella vista dall'alto, dove il tetto non si disegna.
          */
@@ -190,6 +224,24 @@ object PbrShaders {
             vec3 spec = D * G * F / (4.0 * ndv * ndl + 0.0001);
             vec3 diff = (1.0 - F) * (1.0 - metal) * albedo / PI;
             return (diff + spec) * radiance * ndl;
+        }
+
+        /** Solo il riflesso lucido di [shade] (per le finestre: la loro luce diffusa si calcola a parte). */
+        vec3 glossy(vec3 N, vec3 V, vec3 L, vec3 radiance, vec3 albedo, float rough, float metal) {
+            float ndl = max(dot(N, L), 0.0);
+            if (ndl <= 0.0) return vec3(0.0);
+            vec3 H = normalize(V + L);
+            float ndv = max(dot(N, V), 0.001);
+            float ndh = max(dot(N, H), 0.0);
+            float a = rough * rough;
+            float a2 = a * a;
+            float d = ndh * ndh * (a2 - 1.0) + 1.0;
+            float D = a2 / (PI * d * d);
+            float k = (rough + 1.0) * (rough + 1.0) / 8.0;
+            float G = (ndv / (ndv * (1.0 - k) + k)) * (ndl / (ndl * (1.0 - k) + k));
+            vec3 F0 = mix(vec3(0.04), albedo, metal);
+            vec3 F = F0 + (1.0 - F0) * pow(1.0 - max(dot(V, H), 0.0), 5.0);
+            return D * G * F / (4.0 * ndv * ndl + 0.0001) * radiance * ndl;
         }
 
         vec3 aces(vec3 x) {
@@ -274,16 +326,46 @@ object PbrShaders {
             }
             for (int i = 0; i < $MAX_WINDOWS; i++) {
                 if (i >= uWinCount) break;
-                vec3 d = uWin[i].xyz - vPos;
-                float dist2 = max(dot(d, d), 900.0);
-                vec3 inward = normalize(vec3(uWinDir[i].x, 0.0, uWinDir[i].z));
-                vec3 toPoint = normalize(vec3(-d.x, 0.0, -d.z) + vec3(0.0001, 0.0, 0.0));
-                float front = clamp(dot(toPoint, inward) * 1.2 + 0.55, 0.0, 1.0);
-                // Solo dentro casa: la luce della finestra non esce sul prato.
-                vec3 rad = uWinColor * uWinDir[i].w * front * 60000.0 / (dist2 + 30000.0) * inside;
-                // Luce morbida (cielo che entra): anche le superfici di lato la ricevono un poco.
-                vec3 L = normalize(d);
-                color += (shade(N, V, L, rad, albedo, max(rough, 0.5), metal) + albedo * (1.0 - metal) * rad * 0.08) * ao;
+                // Solo nella stanza della finestra (né oltre i muri, né ai piani sopra e sotto).
+                vec4 room = uWinRoom[i];
+                if (vPos.y < room.x || vPos.y > room.y) continue;
+                bool inRoom = false;
+                for (int z = 0; z < ${LightZones.MAX}; z++) {
+                    vec4 box = uWinBox[i * ${LightZones.MAX} + z];
+                    if (vPos.x >= box.x && vPos.x <= box.z && vPos.z >= box.y && vPos.z <= box.w) inRoom = true;
+                }
+                if (!inRoom) continue;
+                // Luce del cielo entrata e rimbalzata: uguale in tutta la stanza.
+                vec3 diffuse = uWinSky * room.z;
+                vec3 c = uWin[i].xyz;
+                vec3 inward = uWinAxis[i].xyz;
+                if (dot(vPos - c, inward) > 0.5) {
+                    // Cielo visto dalla finestra: un rettangolo luminoso, quindi molta luce vicino e poca lontano, e di sbieco meno.
+                    vec3 side = vec3(-inward.z, 0.0, inward.x) * (uWin[i].w * 0.5);
+                    vec3 up = vec3(0.0, uWinAxis[i].w * 0.5, 0.0);
+                    vec3 p0 = normalize(c - side - up - vPos);
+                    vec3 p1 = normalize(c + side - up - vPos);
+                    vec3 p2 = normalize(c + side + up - vPos);
+                    vec3 p3 = normalize(c - side + up - vPos);
+                    vec3 f = edgeLight(p0, p1) + edgeLight(p1, p2) + edgeLight(p2, p3) + edgeLight(p3, p0);
+                    if (dot(f, c - vPos) < 0.0) f = -f;
+                    float ff = max(dot(f, N), 0.0) / (2.0 * PI);
+                    diffuse += uWinSky * ff;
+                    // Riflesso della finestra sulle superfici lisce (pavimenti lucidi, vetri, metalli).
+                    vec3 L = normalize(c - vPos);
+                    float ndl = max(dot(N, L), 0.0);
+                    if (ndl > 0.0) color += glossy(N, V, L, uWinSky * PI * ff / max(ndl, 0.05), albedo, max(rough, 0.3), metal) * ao;
+                }
+                color += albedo * (1.0 - metal) * diffuse * ao;
+                // Sole che entra dalla finestra, se fuori c'è sole: la macchia chiara è come una lampada larga e piatta che guarda nella
+                // stanza (più morbida quanto è grande), poi la sua luce si sparpaglia.
+                if (uSunPatch[i].w > 0.0 && sunReaches(uSunGate[i].xyz)) {
+                    vec3 d = uSunPatch[i].xyz - vPos;
+                    float dist2 = dot(d, d) + uSunGate[i].w;
+                    vec3 Ls = d * inversesqrt(dist2);
+                    float near = uSunPatch[i].w * max(-dot(Ls, uSunPatchN[i].xyz), 0.0) * max(dot(N, Ls), 0.0) / (PI * dist2);
+                    color += albedo * (1.0 - metal) / PI * uBounce * (near * mix(1.0, ao, 0.6) + uSunPatchN[i].w * ao);
+                }
             }
             // Cielo e terreno: luce diffusa dall'alto e dal basso, e riflessi (più nitidi sulle superfici lisce).
             float up = N.y * 0.5 + 0.5;
@@ -301,7 +383,7 @@ object PbrShaders {
             if (uHasEmissiveTex > 0.5) emissive *= toLinear(texture2D(uEmissiveTex, vUv).rgb);
             color += emissive;
 
-            vec3 mapped = aces(color * uExposure);
+            vec3 mapped = aces(color * mix(uExposure, uExposureIn, inside));
             gl_FragColor = vec4(pow(mapped, vec3(1.0 / 2.2)), base.a);
         }
     """
