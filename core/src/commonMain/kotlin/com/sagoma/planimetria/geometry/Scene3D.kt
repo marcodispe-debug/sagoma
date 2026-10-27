@@ -272,6 +272,9 @@ private class FloatList {
     fun toArray() = data.copyOf(size)
 }
 
+/** Montanti al massimo in una ringhiera di balcone (con 12 cm di passo: 240 m). */
+private const val MAX_RAILING_POSTS = 2000
+
 /** Pavimenti più grandi di così (cm², 100 × 100 m) senza fughe disegnate. */
 private const val MAX_PATTERN_AREA = 1e8
 
@@ -1648,11 +1651,14 @@ private class SceneBuilder(
                 val len = p0.distanceTo(p1)
                 if (len < 1e-6) return
                 val u = (p1 - p0) / len
-                var t = 6.0
+                // Montanti ogni 12 cm; su una ringhiera lunghissima (una misura scritta per sbaglio, es. in metri invece che in
+                // cm) più radi, altrimenti milioni di montanti finivano la memoria.
+                val step = max(12.0, len / MAX_RAILING_POSTS)
+                var t = step / 2
                 while (t < len) {
                     val c = p0 + u * t
-                    box(c - u * 0.8, c + u * 0.8, 0.8, 7.0, h - 5, metal, pick) // montanti ogni 12 cm
-                    t += 12.0
+                    box(c - u * 0.8, c + u * 0.8, 0.8, 7.0, h - 5, metal, pick)
+                    t += step
                 }
             }
             Parapet.Glass -> {
