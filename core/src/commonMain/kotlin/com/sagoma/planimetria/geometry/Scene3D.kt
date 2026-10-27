@@ -382,6 +382,10 @@ private class SceneBuilder(
     // Piano in costruzione: pianta, quota del pavimento, se è quello che si modifica (solo lui si tocca).
     private var plan = FloorPlan()
     private var expanded = ExpandedPlan(FloorPlan(), emptyMap())
+    /** Ingombro di ogni stanza di [plan] (stesso ordine): scarta subito le stanze lontane dal muro che si disegna. */
+    private var roomBounds = emptyList<Bounds>()
+    /** Aperture di ogni stanza di [plan] (stesso ordine) con i loro estremi sul muro. */
+    private var openingSpans = emptyList<List<Pair<Opening, Pair<Vec2, Vec2>>>>()
     private var base = 0.0
     private var current = true
     /** Ingombro delle scale del piano di sotto: il vuoto nel pavimento di questo piano. */
@@ -430,6 +434,8 @@ private class SceneBuilder(
         var previous: Level? = null
         for (level in levels) {
             plan = level.plan
+            roomBounds = plan.rooms.map { if (it.points.isEmpty()) Bounds(0.0, 0.0, -1.0, -1.0) else Polygon.bounds(it.points) }
+            openingSpans = plan.rooms.map { r -> r.openings.filter { it.wallIndex < r.wallCount }.map { it to Openings.span(r, it) } }
             expanded = level.expanded
             base = level.base
             current = level.current
@@ -665,7 +671,12 @@ private class SceneBuilder(
             }
             return 90.0 + rise * (along / run).coerceIn(0.0, 1.0) * (steps.last().top / rise)
         }
-        val walls = plan.rooms.flatMap { r -> (0 until r.wallCount).map { r.wallStart(it) to r.wallEnd(it) } }
+        // Solo i muri vicini alla scala (quelli lontani non possono toccarne i bordi): con tante stanze era il grosso del tempo.
+        val stairArea = steps.flatMap { it.polygon }.takeIf { it.isNotEmpty() }?.let(Polygon::bounds)
+        val margin = half + 4
+        val walls = plan.rooms.flatMap { r -> (0 until r.wallCount).map { r.wallStart(it) to r.wallEnd(it) } }.filter { (c, d) ->
+            stairArea == null || min(c.x, d.x) <= stairArea.maxX + margin && max(c.x, d.x) >= stairArea.minX - margin && min(c.y, d.y) <= stairArea.maxY + margin && max(c.y, d.y) >= stairArea.minY - margin
+        }
         val first = steps.first().polygon
         val last = steps.last().polygon
         fun edgesOf(poly: List<Vec2>) = poly.indices.map { poly[it] to poly[(it + 1) % poly.size] }
@@ -1253,7 +1264,14 @@ private class SceneBuilder(
             }
         }
         val others = plan.rooms.filter { it.id != room.id && !it.outdoor }
-        /** Un'altra stanza tocca questo punto (con un suo muro): lì la casa continua, non è uno spigolo esterno. */
+        // Per i muri in comune solo le stanze vicine: con centinaia di stanze (e muri curvi fatti a pezzi) confrontare ogni
+        // muro con tutti gli altri rendeva il 3D lentissimo. Più in là della tolleranza dei muri in comune non si toccano.
+        val reach = Openings.SHARED_WALL_TOLERANCE_CM + 1
+        val near = plan.rooms.filterIndexed { k, it ->
+            it.id != room.id && !it.outdoor && roomBounds[k].let { b ->
+                b.minX - reach <= max(s.x, e.x) && b.maxX + reach >= min(s.x, e.x) && b.minY - reach <= max(s.y, e.y) && b.maxY + reach >= min(s.y, e.y)
+            }
+        }
         fun touched(p: Vec2) = others.any { o -> (0 until o.wallCount).any { j -> Polygon.distanceToSegment(p, o.wallStart(j), o.wallEnd(j)) < 1.0 } }
 
         // Tratti del muro in comune con altre stanze (non all'aperto). Conta da che parte sta l'altra stanza:
@@ -1263,7 +1281,7 @@ private class SceneBuilder(
         val contacts = mutableListOf<ClosedFloatingPointRange<Double>>()
         val hiddenInterior = mutableListOf<ClosedFloatingPointRange<Double>>()
         val area = Polygon.area(room.points)
-        for (o in others) for (j in 0 until o.wallCount) {
+        for (o in near) for (j in 0 until o.wallCount) {
             // Un muro eliminato dell'altra stanza non copre la faccia: da quella parte il muro si vede intero.
             if (o.isRemoved(j) || !Dimensions.inContact(s, e, o.wallStart(j), o.wallEnd(j))) continue
             val t1 = ((o.wallStart(j) - s) dot u).coerceIn(0.0, len)
@@ -1285,11 +1303,12 @@ private class SceneBuilder(
         // Varchi: aperture di questa stanza sul muro e aperture delle stanze confinanti sullo stesso muro.
         val gaps = mutableListOf<Gap>()
         for (o in room.openings) if (o.wallIndex == i) gaps += gapOf(room, o, s, u, ::ownTop)
-        for (other in plan.rooms) {
+        for ((k, other) in plan.rooms.withIndex()) {
             if (other.id == room.id) continue
-            for (o in other.openings) {
-                if (o.wallIndex >= other.wallCount) continue
-                val (a, b) = Openings.span(other, o)
+            for ((o, span) in openingSpans[k]) {
+                val (a, b) = span
+                if (min(a.x, b.x) > max(s.x, e.x) + reach || max(a.x, b.x) < min(s.x, e.x) - reach ||
+                    min(a.y, b.y) > max(s.y, e.y) + reach || max(a.y, b.y) < min(s.y, e.y) - reach) continue
                 if (Dimensions.inContact(s, e, a, b)) gaps += gapOf(other, o, s, u, ::ownTop)
             }
         }
