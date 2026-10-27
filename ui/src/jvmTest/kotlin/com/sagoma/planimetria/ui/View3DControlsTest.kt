@@ -66,6 +66,30 @@ class View3DControlsTest {
     }
 
     @Test
+    fun `A e D spostano di lato senza girare lo sguardo, dall'alto e camminando`() {
+        val v = View3DState()
+        val yaw = v.camera.yaw
+        val t = v.camera.target
+        val ahead = Vec3(v.camera.forward.x, 0.0, v.camera.forward.z).normalized()
+        v.keys += Key.D
+        v.step(0.5)
+        assertEquals(yaw, v.camera.yaw, 1e-9)
+        val moved = v.camera.target - t
+        assertTrue(moved.length > 100.0)
+        assertEquals(0.0, moved.dot(ahead), 1e-6) // di lato, non avanti
+        v.keys.clear()
+        v.camera.mode = com.sagoma.planimetria.geometry.Camera3D.Mode.Walk
+        v.camera.eye = Vec3(0.0, 160.0, 0.0)
+        v.camera.walkYaw = 0.0
+        v.startWalkingForTest()
+        v.keys += Key.A
+        v.step(1.0)
+        assertEquals(0.0, v.camera.walkYaw, 1e-9)
+        assertEquals(-170.0, v.camera.eye.x, 1e-6) // a sinistra = verso −x con yaw 0
+        assertEquals(0.0, v.camera.eye.z, 1e-6)
+    }
+
+    @Test
     fun `il tasto destro sposta la vista parallela al pavimento`() {
         val v = View3DState()
         val t = v.camera.target
