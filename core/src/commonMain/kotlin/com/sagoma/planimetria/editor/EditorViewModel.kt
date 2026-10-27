@@ -56,6 +56,7 @@ import com.sagoma.planimetria.model.Stair
 import com.sagoma.planimetria.model.StairKind
 import com.sagoma.planimetria.model.LOrientation
 import com.sagoma.planimetria.model.Opening
+import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Parapet
 import com.sagoma.planimetria.model.FloorFinish
 import com.sagoma.planimetria.model.WallPaint
@@ -2188,8 +2189,11 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val pending = _state.value.pendingOpening ?: return
         val plan = _state.value.plan
         val room = plan.room(roomId) ?: return
-        val base = Opening.default(plan.nextOpeningId, pending.kind, wallIndex, 0.0)
-            .copy(style = pending.style, sliding = pending.sliding)
+        // La nicchia scava una faccia del muro di una stanza: sul muro singolo (due facce uguali) non si mette.
+        if (pending.kind == OpeningKind.Niche && room.id < 0) return
+        val base = pending.preset.apply(
+            Opening.default(plan.nextOpeningId, pending.kind, wallIndex, 0.0).copy(style = pending.style, sliding = pending.sliding),
+        )
         val pos = Openings.clampPosition(room.wallLength(wallIndex), base.width, Openings.projectOnWall(room, wallIndex, at))
         val opening = base.copy(position = pos)
         commit { it.replace(room.copy(openings = room.openings + opening)) }

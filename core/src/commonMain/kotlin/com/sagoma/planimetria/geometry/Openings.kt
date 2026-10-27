@@ -4,11 +4,13 @@ import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.FramePosition
+import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 /**
  * Varco disegnato su un muro: quello di un'apertura propria o quello indotto da una stanza confinante. Tratto `a`–`b` del
@@ -17,9 +19,45 @@ import kotlin.math.min
 data class WallGap(val roomId: Long, val wallIndex: Int, val a: Vec2, val b: Vec2, val height: Double = 0.0)
 
 object Openings {
+    /** Perno della porta a bilico: a un quinto della larghezza dal lato del cardine. */
+    const val PIVOT_AT = 0.2
+
 
     /** Distanza massima tra due muri paralleli per considerarli a contatto (§5). */
     const val SHARED_WALL_TOLERANCE_CM = 12.0
+
+    /**
+     * Bordo superiore di un varco largo da `t0` a `t1` (cm lungo il muro), con il fondo a `bottom` e la cima a `top`,
+     * nel punto `t`: dritto, ad arco tondo, ribassato o a sesto acuto. Lo usano il 3D e l'IFC, così la forma è la stessa.
+     */
+    fun archTop(style: PassageStyle, t0: Double, t1: Double, bottom: Double, top: Double, t: Double): Double {
+        if (!style.arched) return top
+        val c = (t1 - t0) / 2
+        if (c < 1e-6) return top
+        val x = (t - (t0 + t1) / 2).coerceIn(-c, c)
+        val h = top - bottom
+        return when (style) {
+            PassageStyle.Segmental -> {
+                // Pezzo di cerchio che passa per le due imposte e sale di `rise` al centro.
+                val rise = min(c * 0.36, h * 0.25)
+                val r = (c * c + rise * rise) / (2 * rise)
+                top - rise + (sqrt(max(0.0, r * r - x * x)) - (r - rise))
+            }
+            PassageStyle.Pointed -> {
+                // Sesto acuto equilatero (ogni arco ha il centro sull'imposta opposta), schiacciato se il varco è basso.
+                val full = c * sqrt(3.0)
+                val rise = min(full, h * 0.45)
+                val ax = abs(x)
+                val y = sqrt(max(0.0, 4 * c * c - (ax + c) * (ax + c)))
+                top - rise + rise * (y / full)
+            }
+            else -> {
+                val rise = min(c, h * 0.3)
+                val k = x / c
+                top - rise + rise * sqrt(1 - k * k)
+            }
+        }
+    }
 
     /** Centro dell'apertura limitato al muro, così l'apertura non ne esce mai (anche dopo averlo accorciato). */
     fun clampPosition(wallLength: Double, width: Double, position: Double): Double =

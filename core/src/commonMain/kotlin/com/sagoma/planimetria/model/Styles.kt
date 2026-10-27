@@ -15,6 +15,8 @@ enum class DoorModel {
     Glazed,
     Planks,
     Modern,
+    /** Blindata: anta spessa con le bugne, serratura e spioncino. */
+    Armored,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
@@ -40,10 +42,39 @@ enum class WindowModel {
     Classic,
     Minimal,
     English,
+    /** Vetrata stile loft: profili neri sottili e vetro diviso a riquadri. */
+    Loft,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.windowModel(this)
+}
+
+/** Come si apre l'anta di finestre e balconi (quando non sono scorrevoli). */
+enum class SashType {
+    Casement,
+    TiltTurn,
+    Hopper,
+    Fixed,
+    /** A bilico: gira su un perno orizzontale a metà altezza. */
+    Pivot,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.sashType(this)
+}
+
+/** Forma di finestre e balconi. Si possono aggiungere forme, non rinominarle (finiscono nel file). */
+enum class WindowShape {
+    Rectangle,
+    /** Con la cima ad arco tondo. */
+    Arched,
+    /** Tonda (oblò): il diametro è la larghezza. Solo finestre. */
+    Round,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.windowShape(this)
 }
 
 /** Dove sta l'infisso di finestre e balconi nello spessore del muro. */
@@ -57,11 +88,15 @@ enum class FramePosition {
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.framePosition(this)
 }
 
-/** Oscuranti di finestre e balconi, all'esterno. */
+/** Oscuranti di finestre e balconi: all'esterno, tranne gli scuri interni. */
 enum class Shading {
     None,
     Shutters,
     RollerShutter,
+    /** Veneziana esterna (frangisole a lamelle orientabili), abbassata per due terzi. */
+    Venetian,
+    /** Scuri interni: ante di legno sulla faccia del muro verso la stanza, aperte ai lati della finestra. */
+    InteriorShutters,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */

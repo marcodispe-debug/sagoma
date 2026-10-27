@@ -37,6 +37,7 @@ import com.sagoma.planimetria.model.Fixture
 import com.sagoma.planimetria.model.Mount
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.editor.OpeningPreset
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.PassageStyle
@@ -174,8 +175,9 @@ private fun opening(
     kind: OpeningKind,
     sliding: Boolean = false,
     style: PassageStyle = PassageStyle.Square,
+    preset: OpeningPreset = OpeningPreset.None,
 ): DrawScope.(TextMeasurer) -> Unit = { m ->
-    val o = Opening.default(1, kind, 0, 100.0).copy(sliding = sliding, style = style)
+    val o = preset.apply(Opening.default(1, kind, 0, 100.0).copy(sliding = sliding, style = style)).copy(position = 100.0)
     drawSample(sampleRoom(openings = listOf(o)), m, TopWall)
 }
 
@@ -252,8 +254,12 @@ private val legendSections: List<LegendSection> by lazy {
                 LegendItem(T.legenda.portaAd1Anta, T.legenda.arcoIndicaVersoApertura, opening(OpeningKind.Door)),
                 LegendItem(T.legenda.porta2Ante, T.legenda.dueAnteApronoCentro, opening(OpeningKind.Door2)),
                 LegendItem(T.legenda.portaScorrevole, T.legenda.antaNelloSpessoreMuro, opening(OpeningKind.Door, sliding = true)),
+                LegendItem(T.editor.portaScorrevoleEsterna, T.legenda.antaSulMuro, opening(OpeningKind.Door, preset = OpeningPreset.WallSlide)),
+                LegendItem(T.editor.portaALibro, T.legenda.pannelliPiegati, opening(OpeningKind.Door, preset = OpeningPreset.Folding)),
+                LegendItem(T.editor.portaABilico, T.legenda.pernoAnta, opening(OpeningKind.Door, preset = OpeningPreset.Pivot)),
                 LegendItem(T.legenda.aperturaSquadrata, T.legenda.varcoMuroSenzaPorta, opening(OpeningKind.Passage)),
                 LegendItem(T.legenda.aperturaAdArco, T.legenda.varcoSenzaPortaArco, opening(OpeningKind.Passage, style = PassageStyle.Arched)),
+                LegendItem(OpeningKind.Niche.label, T.legenda.nicchiaMezzoMuro, opening(OpeningKind.Niche)),
             ),
         ),
         LegendSection(
@@ -262,6 +268,9 @@ private val legendSections: List<LegendSection> by lazy {
                 LegendItem(T.legenda.finestraAd1Anta, T.legenda.vetroMuroAntaApre, opening(OpeningKind.Window1)),
                 LegendItem(T.legenda.finestra2Ante, T.legenda.dueAnteApronoCentro, opening(OpeningKind.Window2)),
                 LegendItem(T.legenda.finestraScorrevole, T.legenda.anteSovrapposteScorrono, opening(OpeningKind.Window2, sliding = true)),
+                LegendItem(T.editor.finestraFissa, T.legenda.vetroFisso, opening(OpeningKind.Window1, preset = OpeningPreset.Fixed)),
+                LegendItem(T.editor.finestraVasistas, T.legenda.vasistasRibalta, opening(OpeningKind.Window1, preset = OpeningPreset.Hopper)),
+                LegendItem(T.editor.finestraBilico, T.legenda.perniOrizzontale, opening(OpeningKind.Window1, preset = OpeningPreset.PivotSash)),
                 LegendItem(T.legenda.balconeAd1Anta, T.legenda.portaFinestraFinoTerra, opening(OpeningKind.Balcony1)),
                 LegendItem(T.legenda.balcone2Ante, T.legenda.portaFinestraDueAnte, opening(OpeningKind.Balcony2)),
                 LegendItem(T.legenda.balconeScorrevole, T.legenda.portaFinestraAnteScorrevoli, opening(OpeningKind.Balcony2, sliding = true)),

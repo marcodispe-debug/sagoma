@@ -2,6 +2,7 @@ package com.sagoma.planimetria.model
 
 import com.sagoma.planimetria.testi.T
 import kotlinx.serialization.Serializable
+import kotlin.math.max
 import kotlin.math.hypot
 
 /** Punto/vettore in coordinate mondo, espresse in centimetri. L'asse y cresce verso il basso (come lo schermo). */
@@ -100,21 +101,36 @@ enum class OpeningKind(val leaves: Int, val glazed: Boolean) {
 
     /** Non più offerta: resta solo per leggere i file vecchi, dove viene convertita in [Balcony1]. */
     FrenchDoor(leaves = 1, glazed = true),
-    Passage(leaves = 0, glazed = false);
+    Passage(leaves = 0, glazed = false),
+
+    /** Nicchia: incavo nella faccia del muro verso la stanza, profondo mezzo muro, che non passa dall'altra parte. */
+    Niche(leaves = 0, glazed = false);
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.openingKind(this)
 
-    /** Infissi vetrati: hanno l'altezza da terra (davanzale; 0 per i balconi). */
-    val hasSill get() = glazed
+    /** Infissi vetrati e nicchie: hanno l'altezza da terra (davanzale; 0 per i balconi). */
+    val hasSill get() = glazed || this == Niche
+    /** Infissi apribili verso fuori: finestre (non i balconi), per il vasistas. */
+    val isWindow get() = this == Window1 || this == Window2
     /** Porte e aperture senza porta collegano due stanze: creano un varco anche nella stanza confinante. */
     val createsSharedGap get() = this == Door || this == Door2 || this == Passage
     /** Porte, finestre e balconi hanno ante: possono essere a battente o scorrevoli. */
     val hasLeaves get() = leaves > 0
 }
 
+/** Forma della cima del varco senza porta. Si possono aggiungere forme, non rinominarle (finiscono nel file). */
 enum class PassageStyle {
-    Square, Arched;
+    /** Dritta. */
+    Square,
+    /** Arco tondo (a tutto sesto quando il varco è abbastanza alto). */
+    Arched,
+    /** Arco ribassato: un pezzo di cerchio, più schiacciato. */
+    Segmental,
+    /** Arco a sesto acuto: due archi che si incontrano a punta. */
+    Pointed;
+
+    val arched: Boolean get() = this != Square
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.passageStyle(this)
@@ -147,9 +163,13 @@ data class Opening(
     val doorModel: DoorModel = DoorModel.Flush,
     /** Colore di anta e telaio; null = quello solito (rovere per le porte, bianco per gli infissi). */
     val color: Finish? = null,
+    /** Colore qualsiasi di anta e telaio (ARGB, come la pittura dei muri); vince su [color]. */
+    val customColor: Long? = null,
     /** Modello di finestre e balconi, e oscurante all'esterno. */
     val windowModel: WindowModel = WindowModel.Classic,
     val shading: Shading = Shading.None,
+    /** Colore dell'oscurante (ARGB, qualsiasi come la pittura dei muri); null = quello solito ([shadingArgb]). */
+    val shadingColor: Long? = null,
     /** Finestre e balconi: infisso a metà muro, a filo esterno o a filo interno. */
     val frame: FramePosition = FramePosition.Center,
     /**
@@ -163,16 +183,97 @@ data class Opening(
     val entrance: Boolean = false,
     /** Stato di fatto / progetto: [Phase.New] = apertura da realizzare, [Phase.Demolish] = da chiudere (tamponare). */
     val phase: Phase = Phase.Existing,
+    /** Porte scorrevoli: anta che scorre sulla faccia del muro (binario a vista) invece che dentro il muro (a scomparsa). */
+    val slideOnWall: Boolean = false,
+    /** Porte: a libro (anta divisa in due pannelli che si piegano) invece che a battente. */
+    val folding: Boolean = false,
+    /** Porte a battente: filo muro, senza coprifilo né cornice. */
+    val frameless: Boolean = false,
+    /** Due ante disuguali (2/3 e 1/3): l'anta grande sta dal lato di [hingeLeft]. */
+    val unequalLeaves: Boolean = false,
+    /** Finestre e balconi non scorrevoli: a battente, anta-ribalta, vasistas o fissi. */
+    val sash: SashType = SashType.Casement,
+    /** Porta a bilico: l'anta gira su un perno a un quinto della larghezza, dal lato di [hingeLeft]. */
+    val pivot: Boolean = false,
+    /** Porte a un'anta: sopraluce, cioè vetro fisso alto tanti cm sopra l'anta (dentro l'altezza dell'apertura). */
+    val transom: Double = 0.0,
+    /** Porte a un'anta: vetro fisso largo tanti cm di fianco all'anta, dal lato opposto al cardine (dentro la larghezza). */
+    val sidelight: Double = 0.0,
+    /** Finestre e balconi a 2 ante: 3 o 4 ante invece di 2 (0 = quelle del tipo). */
+    val leafCount: Int = 0,
+    /** Balconi e finestre scorrevoli: alzante scorrevole (un'anta fissa e una che scorre, telaio più robusto). */
+    val liftSlide: Boolean = false,
+    /** Finestre e balconi: rettangolari, ad arco o (solo finestre) tonde. */
+    val windowShape: WindowShape = WindowShape.Rectangle,
 ) {
     /** Colore effettivo di anta e telaio. */
     val finish: Finish get() = color ?: if (kind.glazed) Finish.White else Finish.Oak
 
-    /** Ante a battente: hanno l'arco di apertura e un verso (interno/esterno). */
-    val swings: Boolean get() = kind.hasLeaves && !sliding
-    /** Cardine (battente) o verso di scorrimento (scorrevole): solo con un'anta. */
-    val hasSideChoice: Boolean get() = kind.leaves == 1
+    /** Colore di anta e telaio (ARGB): quello libero se c'è, altrimenti quello di [finish]. */
+    val frameArgb: Long get() = customColor ?: finish.argb
+
+    /** Nessun colore scelto: restano i colori soliti del modello (es. minimal antracite, loft nero). */
+    val defaultColor: Boolean get() = color == null && customColor == null
+
+    /**
+     * Colore dell'oscurante (ARGB): quello scelto, oppure il solito: persiane verdi con l'infisso bianco e del colore
+     * dell'infisso con gli altri, tapparella grigio chiaro, veneziana grigia, scuri interni del colore dell'infisso.
+     */
+    val shadingArgb: Long get() = shadingColor ?: when (shading) {
+        Shading.Shutters -> if (frameArgb == Finish.White.argb) SHUTTER_GREEN else frameArgb
+        Shading.RollerShutter -> ROLLER_GREY
+        Shading.Venetian -> VENETIAN_GREY
+        Shading.InteriorShutters, Shading.None -> frameArgb
+    }
+
+    /** Quota del fondo del varco: il davanzale per infissi e nicchie, terra per porte e varchi. */
+    val bottom: Double get() = if (kind.hasSill) sillHeight else 0.0
+    /** Infisso che non si apre (vetro fisso). */
+    val fixed: Boolean get() = kind.glazed && !sliding && sash == SashType.Fixed
+    /** Vasistas: l'anta si apre ribaltandosi in cima, senza arco in pianta. */
+    val hopper: Boolean get() = kind.glazed && !sliding && sash == SashType.Hopper
+    /** Porta a libro. */
+    val folds: Boolean get() = folding && !kind.glazed && kind.hasLeaves && !sliding
+    /** Forma effettiva: ad arco o tonda solo per finestre e balconi non scorrevoli (tonda solo le finestre). */
+    val shape: WindowShape get() = when {
+        !kind.glazed || sliding -> WindowShape.Rectangle
+        windowShape == WindowShape.Round && !kind.isWindow -> WindowShape.Rectangle
+        else -> windowShape
+    }
+    /** Numero di ante: quelle del tipo, o 3-4 per finestre e balconi a 2 ante. */
+    val leaves: Int get() = if (kind.glazed && kind.leaves == 2 && leafCount in 3..4) leafCount else kind.leaves
+    /** Finestra a bilico: l'anta gira su un perno orizzontale a metà altezza. */
+    val pivotSash: Boolean get() = kind.glazed && !sliding && sash == SashType.Pivot
+    /** Alzante scorrevole. */
+    val lifts: Boolean get() = liftSlide && sliding && kind.glazed
+    /** Sopraluce e vetro di fianco valgono per la porta a un'anta a battente o a bilico. */
+    val hasDoorGlazing: Boolean get() = kind == OpeningKind.Door && !sliding && !folding
+    /** Sopraluce effettivo (cm), lasciando all'anta almeno 150 cm. */
+    val transomCm: Double get() = if (hasDoorGlazing) transom.coerceIn(0.0, max(0.0, height - 150.0)) else 0.0
+    /** Vetro di fianco effettivo (cm), lasciando all'anta almeno 50 cm. */
+    val sidelightCm: Double get() = if (hasDoorGlazing) sidelight.coerceIn(0.0, max(0.0, width - 50.0)) else 0.0
+    /** Tratto del varco occupato dall'anta, da 0 (inizio `a`) a 1: senza vetro di fianco tutto il varco. */
+    val leafRange: ClosedFloatingPointRange<Double> get() {
+        val g = if (width > 0) sidelightCm / width else 0.0
+        return if (hingeLeft) 0.0..(1 - g) else g..1.0
+    }
+    /** Porta a bilico (un'anta, a battente). */
+    val pivots: Boolean get() = pivot && !kind.glazed && kind.leaves == 1 && !sliding && !folding
+    /** Ante a battente: hanno l'arco di apertura e un verso (interno/esterno). Anche la porta a libro e l'anta-ribalta. */
+    val swings: Boolean get() = kind.hasLeaves && !sliding && !fixed && !hopper && !pivotSash
+    /** Ante disuguali: solo con due ante a battente. */
+    val unequal: Boolean get() = unequalLeaves && leaves == 2 && swings && !folds
+    /** Cardine (battente) o verso di scorrimento (scorrevole) con un'anta; con due ante disuguali, il lato dell'anta grande. */
+    val hasSideChoice: Boolean get() = (kind.leaves == 1 && (swings || sliding)) || unequal
+    /** Dove si incontrano le due ante, da 0 (inizio `a` del varco) a 1: a metà, o a 2/3 dal lato dell'anta grande. */
+    val leafSplit: Double get() = if (!unequal) 0.5 else if (hingeLeft) 2.0 / 3 else 1.0 / 3
 
     companion object {
+        /** Colori soliti degli oscuranti: persiane verdi, tapparella grigio chiaro, veneziana grigia. */
+        const val SHUTTER_GREEN = 0xFF46704F
+        const val ROLLER_GREY = 0xFFC7C9CC
+        const val VENETIAN_GREY = 0xFF8C9199
+
         fun default(id: Long, kind: OpeningKind, wallIndex: Int, position: Double) = when (kind) {
             OpeningKind.Door -> Opening(id, kind, wallIndex, position, width = 80.0, height = 210.0)
             OpeningKind.Door2 -> Opening(id, kind, wallIndex, position, width = 120.0, height = 210.0)
@@ -182,6 +283,7 @@ data class Opening(
             OpeningKind.Balcony2 -> Opening(id, kind, wallIndex, position, width = 120.0, height = 240.0)
             OpeningKind.FrenchDoor -> Opening(id, kind, wallIndex, position, width = 90.0, height = 220.0)
             OpeningKind.Passage -> Opening(id, kind, wallIndex, position, width = 80.0, height = 210.0)
+            OpeningKind.Niche -> Opening(id, kind, wallIndex, position, width = 60.0, height = 80.0, sillHeight = 100.0)
         }
     }
 }

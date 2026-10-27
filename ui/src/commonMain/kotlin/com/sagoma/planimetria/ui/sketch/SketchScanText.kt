@@ -246,6 +246,7 @@ class SketchScanTextIt(private val lengths: LengthFormat = MetricLengthFormat(SE
         OpeningKind.Balcony2 -> "Balcone a 2 ante"
         OpeningKind.FrenchDoor -> "Porta-finestra"
         OpeningKind.Passage -> "Apertura senza porta"
+        OpeningKind.Niche -> "Nicchia"
     }
     override fun trackingIssue(i: TrackingIssue) = when (i) {
         TrackingIssue.LOW_LIGHT -> "C'è poca luce: accendi le luci della stanza."

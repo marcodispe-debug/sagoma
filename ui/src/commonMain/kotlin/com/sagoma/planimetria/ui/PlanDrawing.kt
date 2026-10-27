@@ -186,7 +186,16 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
             clipPath(clip) { drawPath(wallRing(r, cam), if (r.id == state.focusedRoomId) WallFocusedColor else WallColor) }
         }
     }
-    val gaps = rooms.flatMap { r -> r.openings.filter { it.wallIndex < r.wallCount }.map { Openings.span(r, it) to (r.thicknessOf(it.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f) } } +
+    // Nicchie: si scava solo la metà del muro verso la stanza (dalla faccia alla mezzeria), col colore della stanza.
+    for (r in rooms) for (o in r.openings) {
+        if (o.wallIndex >= r.wallCount || o.kind != OpeningKind.Niche) continue
+        val (a, b) = Openings.span(r, o)
+        val off = Openings.inwardNormal(r, o.wallIndex) * (r.thicknessOf(o.wallIndex) / 4)
+        val px = (r.thicknessOf(o.wallIndex) / 2 * cam.scale).toFloat().coerceAtLeast(1f)
+        drawLine(background, cam.o(a + off), cam.o(b + off), strokeWidth = px, cap = StrokeCap.Butt)
+        drawLine(fill(r), cam.o(a + off), cam.o(b + off), strokeWidth = px, cap = StrokeCap.Butt)
+    }
+    val gaps = rooms.flatMap { r -> r.openings.filter { it.wallIndex < r.wallCount && it.kind != OpeningKind.Niche }.map { Openings.span(r, it) to (r.thicknessOf(it.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f) } } +
         // Varco indotto sul muro della stanza accanto: largo quanto il suo muro (non di più, o intacca i muri vicini).
         Openings.sharedGaps(plan).map { g -> (g.a to g.b) to (plan.room(g.roomId)!!.thicknessOf(g.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f) }
     for ((ab, px) in gaps) clearGap(ab.first, ab.second, px)
@@ -737,8 +746,16 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
     val thin = 1.2.dp.toPx()
     val color = when {
         o.kind.glazed -> WindowColor // infissi: finestre e balconi
-        o.kind == OpeningKind.Passage -> PassageColor
+        o.kind == OpeningKind.Passage || o.kind == OpeningKind.Niche -> PassageColor
         else -> DoorColor
+    }
+    // Nicchia: fondo alla mezzeria e fianchi fino alla faccia verso la stanza, tratteggiati se sta sopra il piano di taglio.
+    if (o.kind == OpeningKind.Niche) {
+        val effect = if (o.sillHeight > 0) PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())) else null
+        drawLine(color, cam.o(a), cam.o(b), strokeWidth = thin, pathEffect = effect)
+        drawLine(color, cam.o(a), cam.o(a + n * half), strokeWidth = thin, pathEffect = effect)
+        drawLine(color, cam.o(b), cam.o(b + n * half), strokeWidth = thin, pathEffect = effect)
+        return
     }
     // Stipiti: tacche sottili attraverso lo spessore del muro ai due bordi del varco; con lo sguincio, dalla
     // mezzeria alla faccia interna sono inclinate.
@@ -766,23 +783,95 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
         drawSliding(o, a, b, n, color, line, cam, room.thicknessOf(o.wallIndex))
         return
     }
+    // Vetro fisso e vasistas: il vetro nel muro, senza arco; il vasistas ha in più l'anta che si ribalta verso la stanza.
+    if (o.fixed || o.hopper || o.pivotSash) {
+        val f = n * frame
+        val g = n * minOf(1.5, half)
+        if (frame == 0.0) {
+            drawLine(color, cam.o(a - g), cam.o(b - g), strokeWidth = thin)
+            drawLine(color, cam.o(a + g), cam.o(b + g), strokeWidth = thin)
+        }
+        // A bilico: metà anta va verso la stanza e metà verso fuori.
+        if (o.pivotSash) {
+            val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
+            val reach = minOf(o.height * 0.25, 20.0)
+            for (side in listOf(1.0, -1.0)) {
+                val tilt = n * (side * (half + reach))
+                drawLine(color, cam.o(a + f + n * (side * half)), cam.o(a + f + tilt), strokeWidth = thin, pathEffect = dash)
+                drawLine(color, cam.o(b + f + n * (side * half)), cam.o(b + f + tilt), strokeWidth = thin, pathEffect = dash)
+                drawLine(color, cam.o(a + f + tilt), cam.o(b + f + tilt), strokeWidth = thin, pathEffect = dash)
+            }
+        }
+        if (o.hopper) {
+            val tilt = n * (half + minOf(o.height * 0.25, 20.0))
+            val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
+            drawLine(color, cam.o(a + f + n * half), cam.o(a + f + tilt), strokeWidth = thin, pathEffect = dash)
+            drawLine(color, cam.o(b + f + n * half), cam.o(b + f + tilt), strokeWidth = thin, pathEffect = dash)
+            drawLine(color, cam.o(a + f + tilt), cam.o(b + f + tilt), strokeWidth = thin, pathEffect = dash)
+        }
+        return
+    }
 
     val swing = if (o.opensInward) n else n * -1.0
     // Le ante partono dalla faccia del muro verso cui si aprono, o dall'infisso se non sta a metà muro.
     val base = if (frame != 0.0) n * frame else swing * half
+    if (o.folds) {
+        // Porta a libro: pannelli piegati a V verso il lato di apertura.
+        if (o.kind.leaves == 2) {
+            val mid = (a + b) / 2.0
+            drawFold(a + base, mid + base, swing, color, line, cam)
+            drawFold(b + base, mid + base, swing, color, line, cam)
+        } else if (o.hingeLeft) drawFold(a + base, b + base, swing, color, line, cam)
+        else drawFold(b + base, a + base, swing, color, line, cam)
+        return
+    }
+    // Vetro di fianco della porta: vetro fisso nel muro (linea doppia); l'anta occupa il resto del varco.
+    val lr = o.leafRange
+    val la = a + (b - a) * lr.start
+    val lb = a + (b - a) * lr.endInclusive
+    if (o.sidelightCm > 0) {
+        val (g0, g1) = if (o.hingeLeft) lb to b else a to la
+        val g = n * minOf(1.5, half)
+        drawLine(WindowColor, cam.o(g0 - g), cam.o(g1 - g), strokeWidth = thin)
+        drawLine(WindowColor, cam.o(g0 + g), cam.o(g1 + g), strokeWidth = thin)
+        drawLine(color, cam.o((if (o.hingeLeft) lb else la) - n * half), cam.o((if (o.hingeLeft) lb else la) + n * half), strokeWidth = thin)
+    }
+    if (o.pivots) {
+        // Porta a bilico: l'anta aperta attraversa il varco sul perno; due archi, uno grande e uno piccolo dall'altra parte.
+        val w = la.distanceTo(lb)
+        val dir = if (o.hingeLeft) u else u * -1.0
+        val axis = (if (o.hingeLeft) la else lb) + dir * (w * Openings.PIVOT_AT) + base - swing * half
+        val big = w * (1 - Openings.PIVOT_AT)
+        val small = w * Openings.PIVOT_AT
+        drawLine(color, cam.o(axis - swing * small), cam.o(axis + swing * big), strokeWidth = line, cap = StrokeCap.Round)
+        drawPivotArc(axis, dir, swing, big, color, line, cam)
+        drawPivotArc(axis, dir * -1.0, swing * -1.0, small, color, line, cam)
+        drawCircle(color, 2.dp.toPx(), cam.o(axis))
+        return
+    }
+    if (o.leaves > 2) {
+        // Tre o quattro ante: quelle della metà sinistra incernierate a sinistra, le altre a destra.
+        for (k in 0 until o.leaves) {
+            val p0 = a + (b - a) * (k.toDouble() / o.leaves)
+            val p1 = a + (b - a) * ((k + 1).toDouble() / o.leaves)
+            if (k * 2 < o.leaves) drawLeaf(p0 + base, p1 + base, swing, color, line, cam) else drawLeaf(p1 + base, p0 + base, swing, color, line, cam)
+        }
+        return
+    }
     when (o.kind.leaves) {
         1 -> {
-            val hinge = if (o.hingeLeft) a else b
-            val free = if (o.hingeLeft) b else a
+            val hinge = if (o.hingeLeft) la else lb
+            val free = if (o.hingeLeft) lb else la
             drawLeaf(hinge + base, free + base, swing, color, line, cam)
         }
         2 -> {
-            // Due ante, ciascuna incernierata sul proprio lato esterno, che si aprono verso il centro.
-            val mid = (a + b) / 2.0
+            // Due ante, ciascuna incernierata sul proprio lato esterno, che si aprono verso il centro (o verso il
+            // punto d'incontro, con le ante disuguali).
+            val mid = a + (b - a) * o.leafSplit
             drawLeaf(a + base, mid + base, swing, color, line, cam)
             drawLeaf(b + base, mid + base, swing, color, line, cam)
         }
-        else -> if (o.style == PassageStyle.Arched) {
+        else -> if (o.style.arched) {
             val mid = (a + b) / 2.0
             val ctrl = mid + n * (a.distanceTo(b) * 0.35)
             val path = Path().apply {
@@ -795,6 +884,30 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
     }
 }
 
+/** Arco tratteggiato di raggio `r` attorno al perno `axis`, dalla posizione chiusa (verso `along`) a quella aperta (verso `swing`). */
+private fun DrawScope.drawPivotArc(axis: Vec2, along: Vec2, swing: Vec2, r: Double, color: Color, width: Float, cam: Camera) {
+    val arc = Path()
+    for (k in 0..24) {
+        val t = PI / 2 * k / 24
+        val p = cam.o(axis + along * (cos(t) * r) + swing * (sin(t) * r))
+        if (k == 0) arc.moveTo(p.x, p.y) else arc.lineTo(p.x, p.y)
+    }
+    drawPath(arc, color, style = Stroke(width = width / 2, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))))
+}
+
+/** Porta a libro: dal cardine due pannelli aperti a V (a 60°) che arrivano a metà del varco, più il tratteggio della corsa. */
+private fun DrawScope.drawFold(hinge: Vec2, closedTip: Vec2, swing: Vec2, color: Color, width: Float, cam: Camera) {
+    val r = hinge.distanceTo(closedTip)
+    if (r < 1e-6) return
+    val e1 = (closedTip - hinge) / r
+    val p = r / 2
+    val knee = hinge + e1 * (p * 0.5) + swing * (p * sin(PI / 3))
+    val end = hinge + e1 * p
+    drawLine(color, cam.o(hinge), cam.o(knee), strokeWidth = width, cap = StrokeCap.Round)
+    drawLine(color, cam.o(knee), cam.o(end), strokeWidth = width, cap = StrokeCap.Round)
+    drawLine(color.copy(alpha = 0.5f), cam.o(end), cam.o(closedTip), strokeWidth = width / 2, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx())))
+}
+
 /**
  * Ante scorrevoli: linee parallele al muro dentro il suo spessore, con una freccia per il verso.
  * - 1 anta: l'anta chiude tutto il varco e scorre verso il lato scelto; il tratteggio oltre lo
@@ -805,7 +918,8 @@ private fun DrawScope.drawSliding(o: Opening, a: Vec2, b: Vec2, n: Vec2, color: 
     val w = a.distanceTo(b)
     if (w < 1e-6) return
     val u = (b - a) / w
-    val off = n * (thickness / 4)
+    // A scomparsa l'anta corre dentro il muro; esterna, appena fuori dalla faccia verso la stanza.
+    val off = if (o.slideOnWall) n * (thickness / 2 + 3) else n * (thickness / 4)
     val dash = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx()))
     if (o.kind.leaves == 1) {
         val towardA = o.hingeLeft // "sinistra" guardando dall'interno = estremo a
@@ -813,13 +927,26 @@ private fun DrawScope.drawSliding(o: Opening, a: Vec2, b: Vec2, n: Vec2, color: 
         val (s, e) = if (towardA) (a - u * w) to a else b to (b + u * w)
         drawLine(color.copy(alpha = 0.5f), cam.o(s + off), cam.o(e + off), strokeWidth = width / 2, pathEffect = dash)
         drawArrow((a + b) / 2.0 + off, if (towardA) u * -1.0 else u, color, cam)
+    } else if (o.leaves > 2) {
+        // Tre o quattro ante sfalsate una sì e una no; scorrono verso il centro.
+        val n2 = o.leaves
+        val overlap = w * 0.08 / (n2 - 1)
+        for (k in 0 until n2) {
+            val o2 = if (k % 2 == 0) off else off * -1.0
+            val x0 = maxOf(0.0, w * k / n2 - if (k > 0) overlap else 0.0)
+            val x1 = minOf(w, w * (k + 1) / n2 + if (k < n2 - 1) overlap else 0.0)
+            drawLine(color, cam.o(a + u * x0 + o2), cam.o(a + u * x1 + o2), strokeWidth = width, cap = StrokeCap.Round)
+            drawArrow(a + u * ((x0 + x1) / 2) + o2, if (k * 2 < n2) u else u * -1.0, color, cam)
+        }
     } else {
         val mid = (a + b) / 2.0
         val overlap = u * (w * 0.08)
         drawLine(color, cam.o(a + off), cam.o(mid + overlap + off), strokeWidth = width, cap = StrokeCap.Round)
-        drawLine(color, cam.o(mid - overlap - off), cam.o(b - off), strokeWidth = width, cap = StrokeCap.Round)
-        drawArrow((a + mid) / 2.0 + off, u, color, cam)
-        drawArrow((mid + b) / 2.0 - off, u * -1.0, color, cam)
+        val off2 = if (o.slideOnWall) off + n * 3.0 else off * -1.0
+        drawLine(color, cam.o(mid - overlap + off2), cam.o(b + off2), strokeWidth = width, cap = StrokeCap.Round)
+        // Alzante: un'anta fissa (dal lato del cardine) e una che scorre.
+        if (!o.lifts || !o.hingeLeft) drawArrow((a + mid) / 2.0 + off, u, color, cam)
+        if (!o.lifts || o.hingeLeft) drawArrow((mid + b) / 2.0 + off2, u * -1.0, color, cam)
     }
 }
 

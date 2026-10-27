@@ -27,7 +27,9 @@ import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.StairRailing
 import com.sagoma.planimetria.model.StairStructure
 import com.sagoma.planimetria.model.WallPaint
+import com.sagoma.planimetria.model.SashType
 import com.sagoma.planimetria.model.WindowModel
+import com.sagoma.planimetria.model.WindowShape
 import com.sagoma.planimetria.persistence.LanguageChoice
 import com.sagoma.planimetria.persistence.ThemeChoice
 import com.sagoma.planimetria.testi.Nomi
@@ -39,6 +41,7 @@ object NomiFr : Nomi() {
         DoorModel.Glazed -> "Vitrée"
         DoorModel.Planks -> "À lames"
         DoorModel.Modern -> "Moderne"
+        DoorModel.Armored -> "Blindée"
     }
 
     override fun finish(v: Finish): String = when (v) {
@@ -50,10 +53,25 @@ object NomiFr : Nomi() {
         Finish.Anthracite -> "Anthracite"
     }
 
+    override fun windowShape(v: WindowShape): String = when (v) {
+        WindowShape.Rectangle -> "Rectangulaire"
+        WindowShape.Arched -> "Cintrée"
+        WindowShape.Round -> "Ronde"
+    }
+
+    override fun sashType(v: SashType): String = when (v) {
+        SashType.Casement -> "Battant"
+        SashType.TiltTurn -> "Oscillo-battant"
+        SashType.Hopper -> "Soufflet"
+        SashType.Fixed -> "Fixe"
+        SashType.Pivot -> "Basculante"
+    }
+
     override fun windowModel(v: WindowModel): String = when (v) {
         WindowModel.Classic -> "Classique"
         WindowModel.Minimal -> "Minimaliste"
         WindowModel.English -> "Ouverture extérieure"
+        WindowModel.Loft -> "Atelier"
     }
 
     override fun framePosition(v: FramePosition): String = when (v) {
@@ -66,6 +84,8 @@ object NomiFr : Nomi() {
         Shading.None -> "Aucune"
         Shading.Shutters -> "Volets"
         Shading.RollerShutter -> "Volet roulant"
+        Shading.Venetian -> "Brise-soleil orientable"
+        Shading.InteriorShutters -> "Volets intérieurs"
     }
 
     override fun stairStructure(v: StairStructure): String = when (v) {
@@ -161,11 +181,14 @@ object NomiFr : Nomi() {
         OpeningKind.Balcony2 -> "Porte-fenêtre double"
         OpeningKind.FrenchDoor -> "Porte-fenêtre"
         OpeningKind.Passage -> "Baie sans porte"
+        OpeningKind.Niche -> "Niche"
     }
 
     override fun passageStyle(v: PassageStyle): String = when (v) {
         PassageStyle.Square -> "Carrée"
         PassageStyle.Arched -> "En arc"
+        PassageStyle.Segmental -> "En arc surbaissé"
+        PassageStyle.Pointed -> "En arc brisé"
     }
 
     override fun fixtureKind(v: FixtureKind): String = when (v) {

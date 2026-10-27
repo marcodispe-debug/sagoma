@@ -3,6 +3,7 @@ package com.sagoma.planimetria.geometry
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Mount
+import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
 
@@ -36,8 +37,9 @@ object Collisions {
         for (o in room.openings) {
             if (o.wallIndex >= room.wallCount) continue
             val (a, b) = Openings.span(room, o)
-            val top = (if (o.kind.glazed) o.sillHeight else 0.0) + o.height
-            val wall = lowestTop(plan, room, o.wallIndex, a, b, bothSides = true)
+            val top = o.bottom + o.height
+            // La nicchia sta su una sola faccia, come gli impianti.
+            val wall = lowestTop(plan, room, o.wallIndex, a, b, bothSides = o.kind != OpeningKind.Niche)
             if (top > wall + TOLERANCE) out += WallCollision(room.id, o.wallIndex, openingId = o.id, point = (a + b) / 2.0, objectTop = top, wallTop = wall)
         }
         for (f in room.fixtures) {
