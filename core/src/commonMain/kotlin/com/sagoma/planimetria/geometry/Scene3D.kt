@@ -1330,32 +1330,7 @@ private class SceneBuilder(
                 val x = (t - (t0 + t1) / 2).coerceIn(-c, c)
                 return bottom + c + sqrt(max(0.0, c * c - x * x))
             }
-            if (!arched) return top
-            val c = (t1 - t0) / 2
-            if (c < 1e-6) return top
-            val x = (t - (t0 + t1) / 2).coerceIn(-c, c)
-            val h = top - bottom
-            return when (arch) {
-                PassageStyle.Segmental -> {
-                    // Pezzo di cerchio che passa per le due imposte e sale di `rise` al centro.
-                    val rise = min(c * 0.36, h * 0.25)
-                    val r = (c * c + rise * rise) / (2 * rise)
-                    top - rise + (sqrt(max(0.0, r * r - x * x)) - (r - rise))
-                }
-                PassageStyle.Pointed -> {
-                    // Sesto acuto equilatero (ogni arco ha il centro sull'imposta opposta), schiacciato se il varco è basso.
-                    val full = c * sqrt(3.0)
-                    val rise = min(full, h * 0.45)
-                    val ax = abs(x)
-                    val y = sqrt(max(0.0, 4 * c * c - (ax + c) * (ax + c)))
-                    top - rise + rise * (y / full)
-                }
-                else -> {
-                    val rise = min(c, h * 0.3)
-                    val k = x / c
-                    top - rise + rise * sqrt(1 - k * k)
-                }
-            }
+            return Openings.archTop(arch, t0, t1, bottom, top, t)
         }
     }
 
