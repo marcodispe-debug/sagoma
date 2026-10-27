@@ -17,6 +17,8 @@ import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.geometry.Bounds
 import com.sagoma.planimetria.geometry.Openings
+import com.sagoma.planimetria.geometry.expandCurves
+import com.sagoma.planimetria.geometry.exterior
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import kotlin.math.ceil
@@ -46,8 +48,13 @@ object PlanExport {
         watermark: Boolean = false,
     ): ImageBitmap? {
         fun shown(l: com.sagoma.planimetria.model.Layer) = layers.visible(l)
-        val b = contentBounds(plan) ?: return null
-        val margin = MARGIN_DP * density.density
+        // Con le quote: il disegno fino al filo esterno dei muri e, attorno, il posto per le due file di quote esterne.
+        val chains = shown(com.sagoma.planimetria.model.Layer.WallLengths)
+        val b = contentBounds(plan)?.let { b0 ->
+            val faces = plan.rooms.filter { !it.outdoor && it.wallCount >= 3 }.flatMap { it.exterior() }
+            if (chains && faces.isNotEmpty()) b0.union(com.sagoma.planimetria.geometry.Polygon.bounds(faces)) else b0
+        } ?: return null
+        val margin = (MARGIN_DP + if (chains) ChainLayout.SPACE.value else 0f) * density.density
         val contentW = max(b.width, 1.0)
         val contentH = max(b.height, 1.0)
         val scale = min(
@@ -77,7 +84,12 @@ object PlanExport {
             if (shown(com.sagoma.planimetria.model.Layer.Furniture)) drawFurniture(plan.furniture, cam, null)
             if (shown(com.sagoma.planimetria.model.Layer.Structure)) drawStructures(plan, cam, measurer)
             val labels = measureRoomLabels(plan, measurer) { true }
-            if (shown(com.sagoma.planimetria.model.Layer.WallLengths)) drawWallDimensions(plan, cam, measurer, avoid = labels.map { it.rect(cam, labelPad) })
+            val outside = com.sagoma.planimetria.geometry.ExteriorChains.of(plan)
+            if (shown(com.sagoma.planimetria.model.Layer.WallLengths)) {
+                drawWallDimensions(plan, cam, measurer, avoid = labels.map { it.rect(cam, labelPad) }, skip = { id, i -> (id to i) in outside.covered })
+                drawExteriorChains(outside, cam, measurer)
+                drawOpeningSizes(plan.expandCurves().plan, outside, cam, measurer, Color.White)
+            }
             drawWallCuts(state)
             drawRoomLabels(labels, cam, labelPad) { true }
             if (shown(com.sagoma.planimetria.model.Layer.Fixtures)) drawAllFixtures(state)

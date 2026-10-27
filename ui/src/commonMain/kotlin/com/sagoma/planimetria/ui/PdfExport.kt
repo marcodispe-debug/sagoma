@@ -44,7 +44,7 @@ import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.Takeoff
-import com.sagoma.planimetria.geometry.exterior
+import com.sagoma.planimetria.geometry.expandCurves
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
@@ -72,7 +72,7 @@ object PdfExport {
     private const val MARGIN = 28f        // cornice (≈ 1 cm)
     private const val BLOCK_W = 250f      // cartiglio
     private const val BLOCK_H = 96f
-    private const val DIM_SPACE = 44f     // spazio per le quote esterne attorno alla pianta
+    private const val DIM_SPACE = 56f     // spazio per le quote esterne attorno alla pianta (le due file di [ChainLayout], oltre il filo dei muri)
     /** Punti per dp nei disegni della pianta: testi e tratti un po' più fini che sullo schermo. */
     val drawDensity = Density(0.62f, 1f)
 
@@ -80,7 +80,7 @@ object PdfExport {
     data class Options(val paper: Paper, val scale: Int?, val allFloors: Boolean, val takeoff: Boolean, val watermark: Boolean = false)
 
     /** Riquadro utile per la pianta nella pagina (sopra al cartiglio). */
-    private fun drawArea(p: Paper) = floatArrayOf(MARGIN + DIM_SPACE, MARGIN + DIM_SPACE, p.w - MARGIN - 12f, p.h - MARGIN - BLOCK_H - 16f)
+    private fun drawArea(p: Paper) = floatArrayOf(MARGIN + DIM_SPACE, MARGIN + DIM_SPACE, p.w - MARGIN - DIM_SPACE, p.h - MARGIN - BLOCK_H - DIM_SPACE)
 
     /** La scala più grande tra quelle normali in cui la pianta ci sta. */
     fun autoScale(plan: FloorPlan, paper: Paper): Int {
@@ -136,13 +136,16 @@ object PdfExport {
             if (shown(com.sagoma.planimetria.model.Layer.Structure)) drawStructures(plan, cam, measurer)
             val pad = 8.dp.toPx()
             val labels = measureRoomLabels(plan, measurer) { true }
-            if (shown(com.sagoma.planimetria.model.Layer.WallLengths)) drawWallDimensions(plan, cam, measurer, avoid = labels.map { it.rect(cam, pad) })
+            val outside = com.sagoma.planimetria.geometry.ExteriorChains.of(plan)
+            if (shown(com.sagoma.planimetria.model.Layer.WallLengths)) {
+                drawWallDimensions(plan, cam, measurer, avoid = labels.map { it.rect(cam, pad) }, skip = { id, i -> (id to i) in outside.covered })
+            }
             drawWallCuts(state)
             drawRoomLabels(labels, cam, pad) { true }
             if (shown(com.sagoma.planimetria.model.Layer.Fixtures)) drawAllFixtures(state)
             if (shown(com.sagoma.planimetria.model.Layer.WallLengths)) {
-                drawOpeningSizes(plan, cam, measurer)
-                drawOverallDimensions(plan, cam, measurer)
+                drawOpeningSizes(plan.expandCurves().plan, outside, cam, measurer, Color.White)
+                drawExteriorChains(outside, cam, measurer)
             }
             // Quote manuali e testi del disegno.
             drawNotes(
@@ -157,83 +160,6 @@ object PdfExport {
 
     // ---------------------------------------------------------------------------------------------------
     // Quote
-
-    private val DimColor = Color(0xFF1D3557)
-
-    /** Larghezza × altezza (e davanzale) di ogni porta e finestra, vicino all'apertura, verso l'interno. */
-    private fun DrawScope.drawOpeningSizes(plan: FloorPlan, cam: Camera, measurer: TextMeasurer) {
-        val style = TextStyle(fontSize = 9.sp, color = Color(0xFF6C4A1E))
-        for (r in plan.rooms) for (o in r.openings) {
-            val (p0, p1) = Openings.span(r, o)
-            val n = Openings.inwardNormal(r, o.wallIndex)
-            val mid = (p0 + p1) / 2.0 + n * (r.thicknessOf(o.wallIndex) / 2 + 14 / cam.scale)
-            val txt = "${formatCmShort(o.width)}×${formatCmShort(o.height)}" + if (o.kind.hasSill && o.sillHeight > 0) " h${formatCmShort(o.sillHeight)}" else ""
-            val t = measurer.measure(txt, style)
-            val at = Offset(cam.toScreenX(mid.x), cam.toScreenY(mid.y))
-            drawRect(Color.White.copy(alpha = 0.85f), at - Offset(t.size.width / 2f + 1, t.size.height / 2f), Size(t.size.width + 2f, t.size.height.toFloat()))
-            drawText(t, topLeft = at - Offset(t.size.width / 2f, t.size.height / 2f))
-        }
-    }
-
-    /**
-     * Quote esterne: sopra e a sinistra della pianta, una catena progressiva tra gli spigoli esterni dei
-     * muri e, più fuori, la misura totale.
-     */
-    private fun DrawScope.drawOverallDimensions(plan: FloorPlan, cam: Camera, measurer: TextMeasurer) {
-        val pts = plan.rooms.flatMap { it.exterior() }
-        if (pts.isEmpty()) return
-        val minX = pts.minOf { it.x }; val maxX = pts.maxOf { it.x }
-        val minY = pts.minOf { it.y }; val maxY = pts.maxOf { it.y }
-        val xs = stops(pts.map { it.x })
-        val ys = stops(pts.map { it.y })
-        val gap1 = 16.dp.toPx()
-        val gap2 = 30.dp.toPx()
-        val top = cam.toScreenY(minY)
-        dimChain(xs.map { cam.toScreenX(it) }, xs, top - gap1, horizontal = true, measurer)
-        dimChain(listOf(cam.toScreenX(minX), cam.toScreenX(maxX)), listOf(minX, maxX), top - gap2, horizontal = true, measurer)
-        val left = cam.toScreenX(minX)
-        dimChain(ys.map { cam.toScreenY(it) }, ys, left - gap1, horizontal = false, measurer)
-        dimChain(listOf(cam.toScreenY(minY), cam.toScreenY(maxY)), listOf(minY, maxY), left - gap2, horizontal = false, measurer)
-    }
-
-    /** Coordinate distinte (tolleranza 2 cm) in ordine. */
-    private fun stops(v: List<Double>): List<Double> {
-        val out = mutableListOf<Double>()
-        for (x in v.sorted()) if (out.isEmpty() || x - out.last() > 2.0) out += x
-        return out
-    }
-
-    /** Linea di quota con trattini obliqui agli estremi e la misura di ogni tratto. */
-    private fun DrawScope.dimChain(screen: List<Float>, world: List<Double>, at: Float, horizontal: Boolean, measurer: TextMeasurer) {
-        if (screen.size < 2) return
-        val stroke = 0.6.dp.toPx()
-        val tick = 4.dp.toPx()
-        val style = TextStyle(fontSize = 11.sp, color = DimColor)
-        fun p(s: Float) = if (horizontal) Offset(s, at) else Offset(at, s)
-        drawLine(DimColor, p(screen.first()), p(screen.last()), strokeWidth = stroke)
-        for (s in screen) {
-            val c = p(s)
-            drawLine(DimColor, c + Offset(-tick / 2, tick / 2), c + Offset(tick / 2, -tick / 2), strokeWidth = stroke * 1.6f)
-            // Linea di richiamo verso la pianta
-            val ext = if (horizontal) Offset(0f, 6.dp.toPx()) else Offset(6.dp.toPx(), 0f)
-            drawLine(DimColor.copy(alpha = 0.5f), c - ext / 3f, c + ext, strokeWidth = stroke * 0.7f)
-        }
-        for (i in 0 until screen.size - 1) {
-            val len = world[i + 1] - world[i]
-            val t = measurer.measure(if (com.sagoma.planimetria.model.PlanUnits.unit == com.sagoma.planimetria.model.LengthUnit.Meters) com.sagoma.planimetria.model.PlanUnits.format(len) else formatCmShort(len), style)
-            val mid = (screen[i] + screen[i + 1]) / 2
-            if (abs(screen[i + 1] - screen[i]) < t.size.width * 0.8f) continue // troppo corto per scriverci
-            if (horizontal) {
-                drawText(t, topLeft = Offset(mid - t.size.width / 2f, at - t.size.height - 1f))
-            } else {
-                rotate(-90f, pivot = Offset(at, mid)) {
-                    drawText(t, topLeft = Offset(at - t.size.width / 2f, mid - t.size.height - 1f))
-                }
-            }
-        }
-    }
-
-    private fun formatCmShort(cm: Double): String = cm.roundToInt().toString()
 
     // ---------------------------------------------------------------------------------------------------
     // Cornice, cartiglio, scala grafica. Misure in punti della pagina.

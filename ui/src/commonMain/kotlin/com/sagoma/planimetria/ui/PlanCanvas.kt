@@ -56,6 +56,8 @@ import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Layer
 import com.sagoma.planimetria.geometry.PhaseView
 import com.sagoma.planimetria.geometry.Phases
+import com.sagoma.planimetria.geometry.ExteriorChains
+import com.sagoma.planimetria.geometry.expandCurves
 import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
 import kotlin.math.pow
@@ -107,6 +109,11 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
     val labels = remember(state.plan, state.focusedRoomId) {
         measureRoomLabels(state.plan, measurer) { it.id == state.focusedRoomId }
     }
+
+    // Quote esterne a catena e muri che danno fuori, sulla pianta come appare (stato di fatto / progetto).
+    val shownPlan = remember(state.plan, state.phaseView) { if (state.phaseView == PhaseView.Compare) state.plan else Phases.view(state.plan, state.phaseView) }
+    val outside = remember(shownPlan) { ExteriorChains.of(shownPlan) }
+    val shownExpanded = remember(shownPlan) { shownPlan.expandCurves().plan }
 
     val underlayImage = rememberUnderlayImage(state.plan.underlay)
     val currentState by rememberUpdatedState(state)
@@ -323,7 +330,9 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         modifier
             // La pianta (e i campi sui muri) non deve mai disegnare sopra barre e schede quando la vista scorre.
             .clipToBounds()
-            .onSizeChanged { vm.setViewport(it.width.toFloat(), it.height.toFloat(), with(density) { 24.dp.toPx() }) }
+            // Margine attorno alla pianta inquadrata: quanto basta per le quote esterne (sullo schermo stretto del telefono un
+            // po' meno, per non rimpicciolire troppo la pianta).
+            .onSizeChanged { vm.setViewport(it.width.toFloat(), it.height.toFloat(), with(density) { (if (it.width.toDp() >= 700.dp) ChainLayout.SPACE else 48.dp).toPx() }) }
             // Rotellina del mouse (§11).
             .pointerInput(Unit) {
                 awaitPointerEventScope {
@@ -505,7 +514,16 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
             if (layers.visible(Layer.Structure)) drawStairs(state, measurer)
             if (layers.visible(Layer.Furniture)) drawFurniture(state.plan.furniture, state.camera, (state.selection as? Selection.Furniture)?.furnitureId)
             // Quote dei muri (solo lettura: le lunghezze si cambiano dalla tendina Info della stanza).
-            if (layers.visible(Layer.WallLengths)) drawWallDimensions(state.plan, state.camera, measurer, avoid = labels.map { it.rect(state.camera, labelPadPx) })
+            // Quote: fuori dalla casa a catena; dentro solo quelle che fuori non si leggono. Le scritte crescono un poco con lo zoom.
+            val dimScale = dimensionTextScale(state.camera, density.density)
+            if (layers.visible(Layer.WallLengths)) {
+                drawExteriorChains(outside, state.camera, measurer, dimScale)
+                drawWallDimensions(
+                    state.plan, state.camera, measurer, avoid = labels.map { it.rect(state.camera, labelPadPx) },
+                    skip = { id, i -> (id to i) in outside.covered }, textScale = dimScale,
+                )
+                drawOpeningSizes(shownExpanded, outside, state.camera, measurer, PlanBackgroundColor, dimScale)
+            }
             drawWallCuts(state)
             drawRoomLabels(labels, state.camera, labelPadPx) { it.id == state.focusedRoomId }
             // Sopra le etichette: una colonna appena messa sta proprio al centro della stanza.
