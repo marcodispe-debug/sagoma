@@ -81,7 +81,7 @@ object PlanExport {
             drawPlan(state, measurer, background = Color.White)
             // Solo i livelli visibili.
             if (shown(com.sagoma.planimetria.model.Layer.Structure)) for (s in plan.stairs) drawStair(s, levelHeight, cam, measurer, selected = false)
-            if (shown(com.sagoma.planimetria.model.Layer.Furniture)) drawFurniture(plan.furniture, cam, null)
+            if (shown(com.sagoma.planimetria.model.Layer.Furniture)) drawFurniture(plan.furniture, cam, null, plan.supplied)
             if (shown(com.sagoma.planimetria.model.Layer.Structure)) drawStructures(plan, cam, measurer)
             val labels = measureRoomLabels(plan, measurer) { true }
             val outside = com.sagoma.planimetria.geometry.ExteriorChains.of(plan)

@@ -21,13 +21,15 @@ import com.sagoma.planimetria.geometry.Furnishings
 import com.sagoma.planimetria.model.Furniture
 import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.model.FurnitureSymbol
+import com.sagoma.planimetria.model.SuppliedObject
+import com.sagoma.planimetria.model.SuppliedObjects
 
 private val FurnitureFill = Color(0xFFFFFFFF)
 private val FurnitureLine = Color(0xFF6B7178)
 private val FurnitureSelected = Color(0xFF1971C2)
 
 /** Arredi del piano: sotto muri e strutture, i tappeti per primi. */
-internal fun DrawScope.drawFurniture(items: List<Furniture>, cam: Camera, selectedId: Long?) {
+internal fun DrawScope.drawFurniture(items: List<Furniture>, cam: Camera, selectedId: Long?, supplied: List<SuppliedObject> = emptyList()) {
     for (f in items.sortedBy { if (it.height < 3) 0 else 1 }) {
         val sel = f.id == selectedId
         val symbol = FurnitureCatalog.item(f.model)?.symbolKind ?: FurnitureSymbol.Cabinet
@@ -64,7 +66,9 @@ internal fun DrawScope.drawFurniture(items: List<Furniture>, cam: Camera, select
                     }
                 } else {
                     val kitchen = com.sagoma.planimetria.model.KitchenModules.parse(f.model)
+                    val obj = if (SuppliedObjects.isModel(f.model)) supplied.firstOrNull { SuppliedObjects.model(it.id) == f.model } else null
                     if (kitchen != null) kitchenPlanSymbol(kitchen, w, d, if (sel) FurnitureSelected else FurnitureLine, sel)
+                    else if (obj != null) suppliedPlanSymbol(obj, w, d, if (sel) FurnitureSelected else FurnitureLine, sel)
                     else furnitureSymbol(symbol, w, d, if (sel) FurnitureSelected else FurnitureLine, sel)
                 }
             }
@@ -78,6 +82,31 @@ internal fun DrawScope.drawFurniture(items: List<Furniture>, cam: Camera, select
             drawCircle(Color.White, 10.dp.toPx(), ho)
             drawCircle(FurnitureSelected, 8.dp.toPx(), ho)
             drawCircle(Color.White, 3.dp.toPx(), ho)
+        }
+    }
+}
+
+/**
+ * Oggetto fornito (la cucina del negozio) in pianta, largo `w` e profondo `d` (px): ogni suo mobile con il suo ingombro, come
+ * nei disegni degli architetti: pieni quelli a terra, tratteggiati quelli appesi (pensili, cappe), con la croce le colonne.
+ */
+internal fun DrawScope.suppliedPlanSymbol(obj: SuppliedObject, w: Float, d: Float, line: Color, selected: Boolean) {
+    val sw = 1.2.dp.toPx()
+    val kx = w / (obj.width * 10).toFloat().coerceAtLeast(1f)
+    val kz = d / (obj.depth * 10).toFloat().coerceAtLeast(1f)
+    val fill = if (selected) FurnitureSelected.copy(alpha = 0.12f) else FurnitureFill
+    val dash = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 3.dp.toPx()))
+    // Prima quelli a terra, poi quelli appesi sopra.
+    for (e in obj.elements.sortedBy { if (it.y0 > 1000) 1 else 0 }) {
+        val o = Offset(e.x0 * kx, e.z0 * kz)
+        val size = Size((e.x1 - e.x0) * kx, (e.z1 - e.z0) * kz)
+        if (size.width < 0.5f || size.height < 0.5f) continue
+        if (e.y0 > 1000) {
+            drawRect(line, o, size, style = Stroke(sw, pathEffect = dash))
+        } else {
+            drawRect(fill, o, size)
+            drawRect(line, o, size, style = Stroke(sw))
+            if (e.y1 > 1500) drawLine(line.copy(alpha = 0.7f), o, Offset(o.x + size.width, o.y + size.height), sw)
         }
     }
 }
