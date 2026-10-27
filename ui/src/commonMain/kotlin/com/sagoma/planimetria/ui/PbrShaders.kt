@@ -426,6 +426,7 @@ object PbrShaders {
     fun aoFragment(header: String) = header + """
         uniform sampler2D uDepthTex;
         uniform mat4 uViewProjAo;
+        uniform vec2 uUvScale;
         uniform float uNear;
         uniform float uFar;
         uniform float uDoubleSided;
@@ -458,7 +459,7 @@ object PbrShaders {
                 vec4 c = uViewProjAo * vec4(P + dir * len, 1.0);
                 vec2 uv = c.xy / c.w * 0.5 + 0.5;
                 if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) continue;
-                float sceneZ = linearDepth(texture2D(uDepthTex, uv).r);
+                float sceneZ = linearDepth(texture2D(uDepthTex, uv * uUvScale).r);
                 float sampleZ = c.w;
                 float range = smoothstep(0.0, 1.0, len * 1.5 / max(abs(sampleZ - sceneZ), 0.001));
                 occ += (sceneZ < sampleZ - 1.0 - sampleZ * 0.002 ? 1.0 : 0.0) * range;
@@ -501,25 +502,30 @@ object PbrShaders {
 
     /**
      * Ultimo passaggio sull'immagine finita (con la fusione GL_ONE, GL_SRC_ALPHA): aggiunge l'alone delle luci forti e scurisce appena
-     * gli angoli, come l'obiettivo di una macchina fotografica.
+     * gli angoli, come l'obiettivo di una macchina fotografica. `uBloomScale` porta un pixel dell'immagine nella texture dell'alone.
      */
     fun finishFragment(header: String) = header + """
         uniform sampler2D uBloom;
         uniform vec2 uViewport;
+        uniform vec2 uBloomScale;
         uniform float uBloomStrength;
         void main() {
             vec2 uv = gl_FragCoord.xy / uViewport;
             vec2 c = (uv - 0.5) * vec2(uViewport.x / uViewport.y, 1.0);
             float vignette = 1.0 - 0.10 * smoothstep(0.35, 1.0, length(c));
-            gl_FragColor = vec4(texture2D(uBloom, uv).rgb * uBloomStrength, vignette);
+            gl_FragColor = vec4(texture2D(uBloom, gl_FragCoord.xy * uBloomScale).rgb * uBloomStrength, vignette);
         }
     """
 
-    /** Sfumatura 4×4 dell'occlusione che rispetta i bordi (non passa tra oggetti a profondità diverse). */
+    /**
+     * Sfumatura 4×4 dell'occlusione che rispetta i bordi (non passa tra oggetti a profondità diverse). `uUvMax`: fin dove arriva
+     * l'immagine nella texture (oltre restano pezzi di immagini più grandi di prima).
+     */
     fun blurFragment(header: String) = header + """
         uniform sampler2D uAoRaw;
         uniform sampler2D uDepthTex;
         uniform vec2 uViewport;
+        uniform vec2 uUvMax;
         uniform float uNear;
         uniform float uFar;
         float linearDepth(float z) { float n = z * 2.0 - 1.0; return 2.0 * uNear * uFar / (uFar + uNear - n * (uFar - uNear)); }
@@ -530,10 +536,10 @@ object PbrShaders {
             float sum = 0.0;
             float wsum = 0.0;
             for (int x = -2; x <= 1; x++) for (int y = -2; y <= 1; y++) {
-                vec2 o = vec2(float(x), float(y)) * px;
-                float z = linearDepth(texture2D(uDepthTex, uv + o).r);
+                vec2 q = min(uv + vec2(float(x), float(y)) * px, uUvMax);
+                float z = linearDepth(texture2D(uDepthTex, q).r);
                 float w = 1.0 / (1.0 + abs(z - z0) / (1.0 + z0 * 0.01));
-                sum += texture2D(uAoRaw, uv + o).r * w;
+                sum += texture2D(uAoRaw, q).r * w;
                 wsum += w;
             }
             float ao = sum / max(wsum, 0.0001);
@@ -544,7 +550,7 @@ object PbrShaders {
     /**
      * Cielo dietro la casa (al posto di un colore unico): più azzurro in alto e più chiaro e velato all'orizzonte, il bagliore
      * attorno al sole, qualche nuvola leggera e, in fondo, una fila di alberi e colline lontane sopra il prato. Così dalle
-     * finestre si vede un paesaggio. Si disegna per primo, su tutto lo schermo, in colori già pronti (sRGB).
+     * finestre si vede un paesaggio. Si disegna dopo il pieno, solo dove non c'è altro davanti, in colori già pronti (sRGB).
      */
     fun skyVertex(header: String) = header + """
         uniform vec3 uRight;
