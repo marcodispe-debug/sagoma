@@ -132,7 +132,8 @@ object Takeoff {
     }
 
     private fun roomLine(floor: String, plan: FloorPlan, r: Room, induced: List<WallGap> = emptyList()): RoomLine {
-        val area = r.interiorArea() / 10_000.0
+        // Gli stessi m² scritti sulla pianta: senza le zone non calpestabili, dove il pavimento non si posa.
+        val area = r.usableArea() / 10_000.0
         val lengths = r.interiorLengths()
         val perimeter = lengths.sum() / 100.0
         var wall = 0.0
