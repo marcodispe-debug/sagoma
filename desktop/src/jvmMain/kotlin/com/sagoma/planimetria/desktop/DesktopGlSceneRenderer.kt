@@ -37,7 +37,6 @@ import org.lwjgl.opengl.GL30.*
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -58,9 +57,8 @@ class DesktopGlSceneRenderer(
 ) : SceneRenderer {
     /** Tutto l'OpenGL gira su questo thread (il contesto è legato a lui). */
     private val gl = Executors.newSingleThreadExecutor { Thread(it, "Sagoma 3D").apply { isDaemon = true } }
+    /** Un disegno è chiesto e non ancora cominciato ([queued]). */
     private val scheduled = AtomicBoolean(false)
-    /** Disegni chiesti e non ancora finiti ([drawing]). */
-    private val inFlight = AtomicInteger(0)
     @Volatile private var pendingScene: Scene3D? = null
     @Volatile private var scene: Scene3D? = null
     @Volatile private var size = IntSize.Zero
@@ -171,10 +169,9 @@ class DesktopGlSceneRenderer(
     private fun request() {
         if (released || size.width <= 0 || size.height <= 0) return
         if (scheduled.compareAndSet(false, true)) {
-            inFlight.incrementAndGet()
             gl.execute {
                 scheduled.set(false)
-                try { runCatching { renderFrame() }.onFailure { it.printStackTrace() } } finally { inFlight.decrementAndGet() }
+                runCatching { renderFrame() }.onFailure { it.printStackTrace() }
             }
         }
     }
@@ -192,32 +189,45 @@ class DesktopGlSceneRenderer(
         val lightMvp = sunMatrix(d)
         roofMvp = roofMatrix()
 
-        // 0. Soffitti visti dall'alto: ciò che sta sotto è dentro casa (anche se il tetto non si disegna).
-        glBindFramebuffer(GL_FRAMEBUFFER, roofFbo)
-        glViewport(0, 0, ROOF_SIZE, ROOF_SIZE)
         glEnable(GL_DEPTH_TEST)
         glDepthMask(true)
         glDisable(GL_BLEND)
         glDisable(GL_CULL_FACE)
-        glClear(GL_DEPTH_BUFFER_BIT)
         glUseProgram(depthProgram)
         val modelLoc = glGetUniformLocation(depthProgram, "uModel")
-        glUniformMatrix4fv(modelLoc, false, IDENTITY)
-        glUniformMatrix4fv(glGetUniformLocation(depthProgram, "uLightMvp"), false, roofMvp)
-        drawArrays(depthProgram, roofVbo, roofCount, Format.SCENE)
+        // Mappa dei soffitti e ombre del sole dipendono dalla scena, dal sole e dagli arredi arrivati, non dalla telecamera: si
+        // rifanno solo quando cambia uno di questi. Muovendosi (camminata, WASD, mouse) non si ridisegna ogni volta tutta la casa
+        // dall'alto e dal sole (4096 × 4096): più immagini al secondo.
+        val furnitureReady = scene?.furniture?.count { res.model(it.model) != null } ?: 0
+        if (uploads != depthMapsUploads || furnitureReady != depthMapsFurniture ||
+            !lightMvp.contentEquals(depthMapsSun) || !roofMvp.contentEquals(depthMapsRoof)
+        ) {
+            depthMapsUploads = uploads
+            depthMapsFurniture = furnitureReady
+            depthMapsSun = lightMvp
+            depthMapsRoof = roofMvp
 
-        // 1. Ombre: profondità dal sole (solo il pieno: il sole passa dai vetri e dalle parti trasparenti).
-        // Anche i soffitti fanno ombra: dentro casa il sole entra solo da finestre e porte.
-        glBindFramebuffer(GL_FRAMEBUFFER, shadowFbo)
-        glViewport(0, 0, SHADOW_SIZE, SHADOW_SIZE)
-        glClear(GL_DEPTH_BUFFER_BIT)
-        glUniformMatrix4fv(glGetUniformLocation(depthProgram, "uLightMvp"), false, lightMvp)
-        drawArrays(depthProgram, roofVbo, roofCount, Format.SCENE)
-        drawArrays(depthProgram, opaqueVbo, opaqueCount, Format.SCENE)
-        for ((vbo, n) in textured.values) drawArrays(depthProgram, vbo, n, Format.TEXTURED)
-        forEachFurniturePart(opaqueOnly = true) { part, m ->
-            glUniformMatrix4fv(modelLoc, false, m)
-            drawElements(depthProgram, part)
+            // 0. Soffitti visti dall'alto: ciò che sta sotto è dentro casa (anche se il tetto non si disegna).
+            glBindFramebuffer(GL_FRAMEBUFFER, roofFbo)
+            glViewport(0, 0, ROOF_SIZE, ROOF_SIZE)
+            glClear(GL_DEPTH_BUFFER_BIT)
+            glUniformMatrix4fv(modelLoc, false, IDENTITY)
+            glUniformMatrix4fv(glGetUniformLocation(depthProgram, "uLightMvp"), false, roofMvp)
+            drawArrays(depthProgram, roofVbo, roofCount, Format.SCENE)
+
+            // 1. Ombre: profondità dal sole (solo il pieno: il sole passa dai vetri e dalle parti trasparenti).
+            // Anche i soffitti fanno ombra: dentro casa il sole entra solo da finestre e porte.
+            glBindFramebuffer(GL_FRAMEBUFFER, shadowFbo)
+            glViewport(0, 0, SHADOW_SIZE, SHADOW_SIZE)
+            glClear(GL_DEPTH_BUFFER_BIT)
+            glUniformMatrix4fv(glGetUniformLocation(depthProgram, "uLightMvp"), false, lightMvp)
+            drawArrays(depthProgram, roofVbo, roofCount, Format.SCENE)
+            drawArrays(depthProgram, opaqueVbo, opaqueCount, Format.SCENE)
+            for ((vbo, n) in textured.values) drawArrays(depthProgram, vbo, n, Format.TEXTURED)
+            forEachFurniturePart(opaqueOnly = true) { part, m ->
+                glUniformMatrix4fv(modelLoc, false, m)
+                drawElements(depthProgram, part)
+            }
         }
 
         // Y capovolta: OpenGL legge le righe dal basso, l'immagine le vuole dall'alto.
@@ -565,6 +575,14 @@ class DesktopGlSceneRenderer(
 
     private var roofMvp = IDENTITY
 
+    /** Scene caricate sulla scheda grafica (cambia a ogni [upload]). */
+    private var uploads = 0
+    /** Con cosa sono state disegnate l'ultima volta mappa dei soffitti e ombre: se non cambia niente restano quelle. */
+    private var depthMapsUploads = -1
+    private var depthMapsFurniture = -1
+    private var depthMapsSun: FloatArray? = null
+    private var depthMapsRoof: FloatArray? = null
+
     /** Vista dall'alto, dritta verso il basso, di tutta la casa (per la mappa dei soffitti). */
     private fun roofMatrix(): FloatArray {
         val b = scene?.bounds
@@ -635,6 +653,7 @@ class DesktopGlSceneRenderer(
 
     /** Scena sulla GPU: pieno con il prato attorno, trasparenze, superfici fotografiche. */
     private fun upload(s: Scene3D) {
+        uploads++
         val opaque = s.opaque + LitShaders.ground(s)
         glBindBuffer(GL_ARRAY_BUFFER, opaqueVbo)
         glBufferData(GL_ARRAY_BUFFER, opaque, GL_STATIC_DRAW)
@@ -724,7 +743,7 @@ class DesktopGlSceneRenderer(
         request()
     }
 
-    override val drawing: Boolean get() = inFlight.get() > 0
+    override val queued: Boolean get() = scheduled.get()
 
     override fun setLampBrightness(k: Float) {
         if (k == lampBrightness) return
