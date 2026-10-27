@@ -407,8 +407,10 @@ private class SceneBuilder(
         material: String, layout: MaterialLayout,
         s: Vec2, u: Vec2, side: Vec2, dist: Double, t0: Double, t1: Double, y0: Double, y1: Double,
         wallLength: Double, seed: Int,
+        /** Bordo basso e alto a `t1`, se il riquadro è inclinato (sopra un arco, sotto un oblò, sotto un soffitto in pendenza). */
+        y0End: Double = y0, y1End: Double = y1,
     ) {
-        if (t1 - t0 < 0.05 || y1 - y0 < 0.05) return
+        if (t1 - t0 < 0.05 || (y1 - y0 < 0.05 && y1End - y0End < 0.05)) return
         val size = MaterialCatalog.item(material)?.size ?: 100.0
         val off = side * (dist + 0.1)
         val n = side.dir()
@@ -416,7 +418,7 @@ private class SceneBuilder(
         fun at(q: Vec2) = (s + u * q.x + off).at(-q.y)
         val laying = layout.laying?.takeIf { MaterialPieces.canLay(material) }?.let { LayingPieces.normalized(it) }
         if (laying != null) {
-            val rect = listOf(Vec2(t0, -y1), Vec2(t1, -y1), Vec2(t1, -y0), Vec2(t0, -y0))
+            val rect = listOf(Vec2(t0, -y1), Vec2(t1, -y1End), Vec2(t1, -y0End), Vec2(t0, -y0))
             // La fuga di ogni pezzo sta dal lato verso terra: spostando la partenza di una fuga la prima fila poggia a terra.
             val anchor = Vec2(if (laying.start == LayingStart.Centro) wallLength / 2 else 0.0, laying.joint)
             val pieces = LayingPieces.cover(laying, layout.rotation, anchor, rect)
@@ -435,8 +437,8 @@ private class SceneBuilder(
         val b = s + u * t1 + off
         // La foto si ripete ogni `size` cm, dritta (v cresce verso il basso come nelle immagini), girata e ingrandita come scelto.
         fun uv(t: Double, y: Double) = layout.uv(t, -y, size)
-        texTri(material, a.at(y0), b.at(y0), b.at(y1), uv(t0, y0), uv(t1, y0), uv(t1, y1), n)
-        texTri(material, a.at(y0), b.at(y1), a.at(y1), uv(t0, y0), uv(t1, y1), uv(t0, y1), n)
+        texTri(material, a.at(y0), b.at(y0End), b.at(y1End), uv(t0, y0), uv(t1, y0End), uv(t1, y1End), n)
+        texTri(material, a.at(y0), b.at(y1End), a.at(y1), uv(t0, y0), uv(t1, y1End), uv(t0, y1), n)
     }
 
     /** Solido invisibile (solo per il tocco) sul contorno `poly`, da `y0` a `y1`. */
@@ -1663,8 +1665,12 @@ private class SceneBuilder(
                 } else if (atTop && sloped) prism(p0 + off, p1 + off, hw, r.start, topFn(c0), topFn(c1), color, pick, topColor)
                 else box(p0 + off, p1 + off, hw, r.start, r.endInclusive, color, pick, top = topColor)
                 if (covered) {
-                    val limit = if (atTop && sloped) min(topFn(c0), topFn(c1)) else r.endInclusive
-                    coveringPattern(finish, s, u, side, half, c0, c1, max(r.start, 0.0), limit, pick, len, (room.id * 31 + i).toInt())
+                    // Il rivestimento segue i bordi inclinati della fettina: l'arco sotto, l'oblò o il soffitto in pendenza sopra.
+                    val b0 = max(arch?.topAt(c0) ?: r.start, 0.0)
+                    val b1 = max(arch?.topAt(c1) ?: r.start, 0.0)
+                    val top0 = under?.bottomAt(c0) ?: if (atTop && sloped) topFn(c0) else r.endInclusive
+                    val top1 = under?.bottomAt(c1) ?: if (atTop && sloped) topFn(c1) else r.endInclusive
+                    coveringPattern(finish, s, u, side, half, c0, c1, b0, top0, pick, len, (room.id * 31 + i).toInt(), b1, top1)
                     // Listello in cima al rivestimento quando non arriva al soffitto.
                     if (abs(r.endInclusive - coverTop) < 0.01 && coverTop < h - 0.01) trim(finish, s, u, side, half, c0, c1, coverTop, pick)
                 }
@@ -1761,7 +1767,13 @@ private class SceneBuilder(
     private fun coveringPattern(
         f: WallFinish, s: Vec2, u: Vec2, side: Vec2, dist: Double, t0: Double, t1: Double, y0: Double, y1: Double, pick: Pick,
         wallLength: Double, seed: Int,
+        /** Bordo basso e alto a `t1` (riquadro inclinato): il materiale li segue, i disegni di prima restano nel riquadro dritto. */
+        y0End: Double = y0, y1End: Double = y1,
     ) {
+        if (f.covering == Covering.Material) {
+            f.material?.let { texturedWallFace(it, f.layout, s, u, side, dist, t0, t1, y0, y1, wallLength, seed, y0End, y1End) }
+            return
+        }
         if (t1 - t0 < 0.05 || y1 - y0 < 0.05) return
         val cover = Rgba.argb(f.coverArgb)
         /** Riquadro tagliato sul riquadro da disegnare. */
@@ -1772,7 +1784,7 @@ private class SceneBuilder(
         fun shade(c: Rgba, k: Double) = if (k >= 0) c.mix(Rgba.White, k.toFloat()) else c.mix(Rgba(0f, 0f, 0f), (-k).toFloat())
         when (f.covering) {
             Covering.None -> Unit
-            Covering.Material -> f.material?.let { texturedWallFace(it, f.layout, s, u, side, dist, t0, t1, y0, y1, wallLength, seed) }
+            Covering.Material -> Unit
             Covering.Wallpaper -> {
                 // Righe verticali: una larga e una sottile ogni 16 cm.
                 for (k in columnsIn(16.0)) {
