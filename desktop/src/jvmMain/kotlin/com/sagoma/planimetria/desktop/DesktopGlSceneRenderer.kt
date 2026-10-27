@@ -37,6 +37,7 @@ import org.lwjgl.opengl.GL30.*
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -58,6 +59,8 @@ class DesktopGlSceneRenderer(
     /** Tutto l'OpenGL gira su questo thread (il contesto è legato a lui). */
     private val gl = Executors.newSingleThreadExecutor { Thread(it, "Sagoma 3D").apply { isDaemon = true } }
     private val scheduled = AtomicBoolean(false)
+    /** Disegni chiesti e non ancora finiti ([drawing]). */
+    private val inFlight = AtomicInteger(0)
     @Volatile private var pendingScene: Scene3D? = null
     @Volatile private var scene: Scene3D? = null
     @Volatile private var size = IntSize.Zero
@@ -167,9 +170,12 @@ class DesktopGlSceneRenderer(
     /** Chiede un nuovo disegno (più richieste ravvicinate diventano un solo disegno). */
     private fun request() {
         if (released || size.width <= 0 || size.height <= 0) return
-        if (scheduled.compareAndSet(false, true)) gl.execute {
-            scheduled.set(false)
-            runCatching { renderFrame() }.onFailure { it.printStackTrace() }
+        if (scheduled.compareAndSet(false, true)) {
+            inFlight.incrementAndGet()
+            gl.execute {
+                scheduled.set(false)
+                try { runCatching { renderFrame() }.onFailure { it.printStackTrace() } } finally { inFlight.decrementAndGet() }
+            }
         }
     }
 
@@ -717,6 +723,8 @@ class DesktopGlSceneRenderer(
         this.sunAt = sun
         request()
     }
+
+    override val drawing: Boolean get() = inFlight.get() > 0
 
     override fun setLampBrightness(k: Float) {
         if (k == lampBrightness) return

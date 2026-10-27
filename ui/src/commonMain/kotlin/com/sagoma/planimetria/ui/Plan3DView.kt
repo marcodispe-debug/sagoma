@@ -100,6 +100,11 @@ private val MOVE_KEYS = setOf(
 /** Attesa prima di controllare i file della scena: più arrivi vicini diventano una sola ricarica. */
 private const val ASSET_RELOAD_DELAY_MS = 300L
 
+/** Dall'alto, con WASD e frecce: frazione della distanza della telecamera percorsa in un secondo. */
+private const val ORBIT_SPEED = 0.4
+/** Secondi per arrivare alla velocità piena muovendosi dall'alto. */
+private const val EASE_S = 0.3
+
 class View3DState {
     val camera = Camera3D()
     /** Renderer della superficie visibile (null quando la vista 3D è chiusa). */
@@ -268,6 +273,12 @@ class View3DState {
     /** C'è qualcosa che muove la telecamera a ogni fotogramma (tasti tenuti o joystick). */
     val moving: Boolean get() = keys.any { it in MOVE_KEYS } || joystick != Offset.Zero
 
+    /** Il renderer sta ancora disegnando l'ultima immagine: il passo dopo aspetta (vedi [SceneRenderer.drawing]). */
+    val drawing: Boolean get() = renderer?.drawing == true
+
+    /** Da quanto (s) ci si sposta dall'alto senza fermarsi: si parte piano e si arriva alla velocità piena in [EASE_S]. */
+    private var orbitMoving = 0.0
+
     /** Un fotogramma di movimento, `dt` secondi dopo il precedente. */
     fun step(dt: Double) {
         fun held(a: Key, b: Key? = null, c: Key? = null) = a in keys || (b != null && b in keys) || (c != null && c in keys)
@@ -290,7 +301,9 @@ class View3DState {
         } else {
             // Stessi comandi della camminata: avanti/indietro e di lato si sposta la vista sul pavimento
             // (più veloce quanto più si è lontani), ← → girano, PagSu/PagGiù alzano o abbassano lo sguardo.
-            val speed = camera.distance * 0.6 * dt * fast
+            // Si parte piano e si accelera: un salto subito alla velocità piena si vede come uno scatto (a metà del passo).
+            val ease = (0.3 + 0.7 * ((orbitMoving + dt / 2) / EASE_S)).coerceAtMost(1.0)
+            val speed = camera.distance * ORBIT_SPEED * dt * fast * ease
             var ahead = joystick.y.toDouble()
             var side = joystick.x.toDouble()
             if (held(Key.DirectionUp, Key.W)) ahead += 1.0
@@ -304,7 +317,8 @@ class View3DState {
             if (ahead != 0.0 || side != 0.0) {
                 val flatAhead = Vec3(camera.forward.x, 0.0, camera.forward.z).normalized()
                 camera.target = camera.target + flatAhead * (ahead * speed) + flatRight * (side * speed)
-            }
+                orbitMoving += dt
+            } else orbitMoving = 0.0
         }
         if (held(Key.Plus, Key.Equals, Key.NumPadAdd)) zoomContinuous(dt)
         if (held(Key.Minus, Key.NumPadSubtract)) zoomContinuous(-dt)
@@ -466,11 +480,17 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
         snapshotFlow { view.moving }.collectLatest { moving ->
             if (!moving) return@collectLatest
             var last = 0L
+            // Tempo passato dall'ultimo passo: finché il renderer disegna l'immagine di prima si aspetta, poi un passo solo per
+            // tutto il tempo trascorso. Ogni immagine si sposta quanto il tempo vero tra un'immagine e l'altra: niente scatti.
+            var pending = 0.0
             while (true) {
                 withFrameNanos { now ->
-                    val dt = if (last == 0L) 0.0 else ((now - last) / 1e9).coerceAtMost(0.1)
+                    if (last != 0L) pending = (pending + (now - last) / 1e9).coerceAtMost(0.1)
                     last = now
-                    if (dt > 0) view.step(dt)
+                    if (pending > 0 && !view.drawing) {
+                        view.step(pending)
+                        pending = 0.0
+                    }
                 }
             }
         }

@@ -90,6 +90,28 @@ class View3DControlsTest {
     }
 
     @Test
+    fun `dall'alto si parte piano e in tre decimi di secondo si va alla velocità piena`() {
+        val v = View3DState()
+        v.keys += Key.W
+        val steps = (1..30).map {
+            val t = v.camera.target
+            v.step(1.0 / 60)
+            (v.camera.target - t).length
+        }
+        val full = v.camera.distance * 0.4 / 60
+        assertTrue(steps.first() < full * 0.4, "primo passo ${steps.first()} su $full")
+        assertTrue(steps.zipWithNext().all { (a, b) -> b >= a - 1e-9 }, "accelera senza strappi: $steps")
+        assertEquals(full, steps.last(), 1e-9)
+        // Fermi e si riparte: di nuovo piano.
+        v.keys.clear()
+        v.step(1.0 / 60)
+        v.keys += Key.W
+        val t = v.camera.target
+        v.step(1.0 / 60)
+        assertTrue((v.camera.target - t).length < full * 0.4)
+    }
+
+    @Test
     fun `il tasto destro sposta la vista parallela al pavimento`() {
         val v = View3DState()
         val t = v.camera.target
