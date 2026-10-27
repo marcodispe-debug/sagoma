@@ -121,6 +121,9 @@ object PbrShaders {
         uniform vec4 uSunGate[$MAX_WINDOWS];
         // Luce rimbalzata dalla macchia di sole (sole × colore del pavimento).
         uniform vec3 uBounce;
+        // Vetri (finestre, porte, parapetti): quasi trasparenti, si vede soprattutto il riflesso. Chi guarda è dentro casa?
+        uniform float uGlass;
+        uniform float uEyeInside;
 
         varying vec3 vPos;
         varying vec3 vNormal;
@@ -248,6 +251,18 @@ object PbrShaders {
             return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
         }
 
+        /**
+         * Da luce a colore dello schermo, come una pellicola (ACES): contrasto morbido, le luci forti si comprimono invece di bruciarsi.
+         * Le luci molto forti (sole che entra in casa, vicino alle lampade) tengono un po' del loro colore, come in una foto, invece di
+         * diventare macchie bianche piatte.
+         */
+        vec3 toneMap(vec3 x) {
+            vec3 a = aces(x);
+            float m = max(max(x.r, x.g), x.b);
+            vec3 h = x * (aces(vec3(m)).r / max(m, 1e-4));
+            return mix(a, h, smoothstep(0.6, 2.5, m) * 0.45);
+        }
+
         void main() {
             vec4 base = uBaseColor;
             if (uUseVertexColor > 0.5) base *= vec4(toLinear(vColor.rgb), vColor.a);
@@ -292,9 +307,17 @@ object PbrShaders {
             rough = clamp(rough, 0.06, 1.0);
             vec3 albedo = base.rgb;
             vec3 V = normalize(uEye - vPos);
+            if (uGlass > 0.5) {
+                // Ogni lastra ha due facce sovrapposte, una per lato: si disegna solo quella verso chi guarda (con due strati il vetro
+                // sembrava lattiginoso). Il colore del vetro è solo una velatura.
+                if (dot(N, V) < 0.0) discard;
+                albedo *= 0.08;
+                rough = 0.05;
+            }
 
             vec3 color = vec3(0.0);
-            float inside = indoor();
+            // Un vetro sta sul confine: dentro o fuori a seconda di dove è chi guarda (riflette la stanza o il cielo).
+            float inside = uGlass > 0.5 ? uEyeInside : indoor();
             // Occlusione ambientale: toglie luce diffusa (cielo, finestre, un poco le lampade) negli angoli.
             // (Calcolata in un passaggio a parte e sfumata, senza granulosità.)
             float ssao = uUseAo > 0.5 ? texture2D(uAoTex, gl_FragCoord.xy / uViewport).r : 1.0;
@@ -383,7 +406,14 @@ object PbrShaders {
             if (uHasEmissiveTex > 0.5) emissive *= toLinear(texture2D(uEmissiveTex, vUv).rgb);
             color += emissive;
 
-            vec3 mapped = aces(color * mix(uExposure, uExposureIn, inside));
+            vec3 mapped = toneMap(color * mix(uExposure, uExposureIn, inside));
+            if (uGlass > 0.5) {
+                // Vetro: riflette poco guardando dritto e molto di sbieco (Fresnel), il resto lascia passare quello che c'è dietro
+                // (colore già moltiplicato per la copertura).
+                float fres = 0.04 + 0.96 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+                gl_FragColor = vec4(pow(mapped, vec3(1.0 / 2.2)), clamp(fres + 0.08, 0.0, 1.0));
+                return;
+            }
             gl_FragColor = vec4(pow(mapped, vec3(1.0 / 2.2)), base.a);
         }
     """
@@ -444,6 +474,47 @@ object PbrShaders {
         void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
     """
 
+    /**
+     * Alone delle luci forti (finestre di giorno viste da dentro, sole che entra, lampade), come in una foto: le parti quasi bianche
+     * dell'immagine rimpicciolita, sfumate in orizzontale (`uDir` = (1/larghezza, 0), con `uThreshold` = 1 prende solo le parti
+     * chiare) e poi in verticale.
+     */
+    fun bloomFragment(header: String) = header + """
+        uniform sampler2D uSrc;
+        uniform vec2 uViewport;
+        uniform vec2 uDir;
+        uniform float uThreshold;
+        vec3 bright(vec3 c) {
+            float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            return uThreshold > 0.5 ? c * smoothstep(0.86, 1.0, l) : c;
+        }
+        void main() {
+            vec2 uv = gl_FragCoord.xy / uViewport;
+            vec3 sum = bright(texture2D(uSrc, uv).rgb) * 0.2;
+            sum += (bright(texture2D(uSrc, uv + uDir * 1.5).rgb) + bright(texture2D(uSrc, uv - uDir * 1.5).rgb)) * 0.18;
+            sum += (bright(texture2D(uSrc, uv + uDir * 3.5).rgb) + bright(texture2D(uSrc, uv - uDir * 3.5).rgb)) * 0.13;
+            sum += (bright(texture2D(uSrc, uv + uDir * 5.5).rgb) + bright(texture2D(uSrc, uv - uDir * 5.5).rgb)) * 0.07;
+            sum += (bright(texture2D(uSrc, uv + uDir * 7.5).rgb) + bright(texture2D(uSrc, uv - uDir * 7.5).rgb)) * 0.02;
+            gl_FragColor = vec4(sum, 1.0);
+        }
+    """
+
+    /**
+     * Ultimo passaggio sull'immagine finita (con la fusione GL_ONE, GL_SRC_ALPHA): aggiunge l'alone delle luci forti e scurisce appena
+     * gli angoli, come l'obiettivo di una macchina fotografica.
+     */
+    fun finishFragment(header: String) = header + """
+        uniform sampler2D uBloom;
+        uniform vec2 uViewport;
+        uniform float uBloomStrength;
+        void main() {
+            vec2 uv = gl_FragCoord.xy / uViewport;
+            vec2 c = (uv - 0.5) * vec2(uViewport.x / uViewport.y, 1.0);
+            float vignette = 1.0 - 0.10 * smoothstep(0.35, 1.0, length(c));
+            gl_FragColor = vec4(texture2D(uBloom, uv).rgb * uBloomStrength, vignette);
+        }
+    """
+
     /** Sfumatura 4×4 dell'occlusione che rispetta i bordi (non passa tra oggetti a profondità diverse). */
     fun blurFragment(header: String) = header + """
         uniform sampler2D uAoRaw;
@@ -467,6 +538,76 @@ object PbrShaders {
             }
             float ao = sum / max(wsum, 0.0001);
             gl_FragColor = vec4(ao, ao, ao, 1.0);
+        }
+    """
+
+    /**
+     * Cielo dietro la casa (al posto di un colore unico): più azzurro in alto e più chiaro e velato all'orizzonte, il bagliore
+     * attorno al sole, qualche nuvola leggera e, in fondo, una fila di alberi e colline lontane sopra il prato. Così dalle
+     * finestre si vede un paesaggio. Si disegna per primo, su tutto lo schermo, in colori già pronti (sRGB).
+     */
+    fun skyVertex(header: String) = header + """
+        uniform vec3 uRight;
+        uniform vec3 uUp;
+        uniform vec3 uForward;
+        attribute vec2 aPos;
+        varying vec3 vDir;
+        void main() {
+            // Direzione di vista di ogni angolo dello schermo (l'immagine è capovolta: in alto sullo schermo è y = -1).
+            vDir = uForward + uRight * aPos.x - uUp * aPos.y;
+            gl_Position = vec4(aPos, 0.9999, 1.0);
+        }
+    """
+
+    fun skyFragment(header: String) = header + """
+        uniform vec3 uHorizon;
+        uniform vec3 uZenith;
+        uniform vec3 uToSun;
+        uniform vec3 uSunGlow;
+        uniform vec3 uTrees;
+        uniform vec3 uFarGround;
+        uniform float uClouds;
+        varying vec3 vDir;
+
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float noise(vec2 p) {
+            vec2 i = floor(p); vec2 f = fract(p);
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+        }
+        float fbm(vec2 p) {
+            float s = 0.0; float a = 0.5;
+            for (int i = 0; i < 5; i++) { s += noise(p) * a; p = p * 2.03 + 17.0; a *= 0.5; }
+            return s;
+        }
+
+        void main() {
+            vec3 d = normalize(vDir);
+            float e = d.y;
+            float az = atan(d.z, d.x);
+            // Cielo: dall'orizzonte velato all'azzurro più pieno in alto.
+            vec3 c = mix(uHorizon, uZenith, pow(clamp(e, 0.0, 1.0), 0.55));
+            // Nuvole leggere su un piano alto, più rade verso l'orizzonte.
+            if (e > 0.02) {
+                vec2 p = d.xz / e * 0.35;
+                float n = fbm(p + vec2(3.1, 7.7));
+                float k = smoothstep(0.52, 0.78, n) * smoothstep(0.02, 0.25, e) * uClouds;
+                vec3 cloud = mix(uHorizon, vec3(1.0), 0.55) + uSunGlow * 0.25;
+                c = mix(c, cloud, k * 0.75);
+            }
+            // Bagliore attorno al sole.
+            float s = max(dot(d, uToSun), 0.0);
+            c += uSunGlow * (pow(s, 800.0) * 1.2 + pow(s, 24.0) * 0.25 + pow(s, 4.0) * 0.08);
+            // Colline e alberi lontani: una fila irregolare appena sopra l'orizzonte, velata dalla foschia.
+            float hills = 0.012 + 0.018 * fbm(vec2(az * 2.2, 1.3));
+            float trees = hills + 0.010 * fbm(vec2(az * 60.0, 4.1)) + 0.006 * noise(vec2(az * 260.0, 9.0));
+            if (e < trees) {
+                float haze = 0.35 + 0.25 * smoothstep(0.0, trees, e);
+                c = mix(uTrees * (0.8 + 0.4 * noise(vec2(az * 140.0, 2.0))), uHorizon, haze);
+            }
+            // Sotto l'orizzonte, oltre il prato: campagna lontana, velata.
+            if (e < 0.0) c = mix(uFarGround, uHorizon, 0.45 * exp(e * 40.0));
+            gl_FragColor = vec4(c, 1.0);
         }
     """
 

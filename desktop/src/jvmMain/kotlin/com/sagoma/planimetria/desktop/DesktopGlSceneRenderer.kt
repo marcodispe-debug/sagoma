@@ -43,6 +43,7 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.pow
 import kotlin.math.sin
+import kotlin.math.tan
 
 /**
  * Vista 3D sul computer, fotorealistica: OpenGL (LWJGL) disegna fuori schermo con materiali fisici (PBR),
@@ -101,6 +102,14 @@ class DesktopGlSceneRenderer(
     private var depthTex = 0
     private var aoProgram = 0
     private var blurProgram = 0
+    private var skyProgram = 0
+    private var bloomProgram = 0
+    private var finishProgram = 0
+    /** Alone delle luci forti: immagine rimpicciolita a un quarto, sfumata due volte (andata e ritorno tra A e B). */
+    private var bloomFboA = 0
+    private var bloomTexA = 0
+    private var bloomFboB = 0
+    private var bloomTexB = 0
     private var aoRawFbo = 0
     private var aoRawTex = 0
     private var aoDepthRb = 0
@@ -123,6 +132,9 @@ class DesktopGlSceneRenderer(
             depthProgram = link(PbrShaders.depthVertex(SimpleShaders.DESKTOP_HEADER), PbrShaders.depthFragment(SimpleShaders.DESKTOP_HEADER))
             aoProgram = link(PbrShaders.vertex(SimpleShaders.DESKTOP_HEADER), PbrShaders.aoFragment(SimpleShaders.DESKTOP_HEADER))
             blurProgram = link(PbrShaders.screenVertex(SimpleShaders.DESKTOP_HEADER), PbrShaders.blurFragment(SimpleShaders.DESKTOP_HEADER))
+            skyProgram = link(PbrShaders.skyVertex(SimpleShaders.DESKTOP_HEADER), PbrShaders.skyFragment(SimpleShaders.DESKTOP_HEADER))
+            bloomProgram = link(PbrShaders.screenVertex(SimpleShaders.DESKTOP_HEADER), PbrShaders.bloomFragment(SimpleShaders.DESKTOP_HEADER))
+            finishProgram = link(PbrShaders.screenVertex(SimpleShaders.DESKTOP_HEADER), PbrShaders.finishFragment(SimpleShaders.DESKTOP_HEADER))
             screenVbo = glGenBuffers()
             glBindBuffer(GL_ARRAY_BUFFER, screenVbo)
             glBufferData(GL_ARRAY_BUFFER, floatArrayOf(-1f, -1f, 3f, -1f, -1f, 3f), GL_STATIC_DRAW)
@@ -256,6 +268,7 @@ class DesktopGlSceneRenderer(
         val sky = d.sky
         glClearColor(sky[0], sky[1], sky[2], 1f)
         glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+        drawSky(d, s)
         glUseProgram(program)
         // L'immagine capovolta inverte il verso dei triangoli: "davanti" diventa orario.
         glFrontFace(GL_CW)
@@ -281,14 +294,18 @@ class DesktopGlSceneRenderer(
             glUniformMatrix4fv(u("uModel"), false, m)
             drawElements(program, part)
         }
-        // Trasparenti: vetri della scena e parti trasparenti degli arredi, senza nascondere ciò che sta dietro.
+        // Trasparenti: vetri della scena e parti trasparenti degli arredi, senza nascondere ciò che sta dietro. I vetri danno il
+        // colore già moltiplicato per la loro copertura (vedi uGlass nello shader).
         glEnable(GL_BLEND)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
         glDepthMask(false)
         glUniform1f(u("uUseAo"), 0f)
         setMaterial(useVertexColor = true, roughness = 0.08f, metallic = 0f)
+        glUniform1f(u("uGlass"), 1f)
         glUniformMatrix4fv(u("uModel"), false, IDENTITY)
         drawArrays(program, transparentVbo, transparentCount, Format.SCENE)
+        glUniform1f(u("uGlass"), 0f)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         forEachFurniturePart(opaqueOnly = false, blendOnly = true) { part, m ->
             setFurnitureMaterial(part)
             glUniformMatrix4fv(u("uModel"), false, m)
@@ -302,6 +319,7 @@ class DesktopGlSceneRenderer(
         glBindFramebuffer(GL_READ_FRAMEBUFFER, fboMsaa)
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fboResolve)
         glBlitFramebuffer(0, 0, s.width, s.height, 0, 0, s.width, s.height, GL_COLOR_BUFFER_BIT, GL_NEAREST)
+        finish(s)
         glBindFramebuffer(GL_FRAMEBUFFER, fboResolve)
         val buf = pixels!!
         buf.clear()
@@ -366,6 +384,54 @@ class DesktopGlSceneRenderer(
         glVertexAttribPointer(aPos, 2, GL_FLOAT, false, 8, 0L)
         glDrawArrays(GL_TRIANGLES, 0, 3)
         glEnable(GL_DEPTH_TEST)
+    }
+
+    /**
+     * Come in una foto: alone attorno alle luci forti (finestre di giorno viste da dentro, sole che entra, lampade) e angoli appena
+     * più scuri, sull'immagine finita in [fboResolve].
+     */
+    private fun finish(s: IntSize) {
+        val q = IntSize(maxOf(1, s.width / 4), maxOf(1, s.height / 4))
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, fboResolve)
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, bloomFboA)
+        glBlitFramebuffer(0, 0, s.width, s.height, 0, 0, q.width, q.height, GL_COLOR_BUFFER_BIT, GL_LINEAR)
+        glDisable(GL_DEPTH_TEST)
+        glDepthMask(false)
+        glViewport(0, 0, q.width, q.height)
+        glUseProgram(bloomProgram)
+        fun ub(name: String) = glGetUniformLocation(bloomProgram, name)
+        glUniform1i(ub("uSrc"), 0)
+        glUniform2f(ub("uViewport"), q.width.toFloat(), q.height.toFloat())
+        glActiveTexture(GL_TEXTURE0)
+        for ((target, source, horizontal) in listOf(Triple(bloomFboB, bloomTexA, true), Triple(bloomFboA, bloomTexB, false))) {
+            glBindFramebuffer(GL_FRAMEBUFFER, target)
+            glBindTexture(GL_TEXTURE_2D, source)
+            glUniform2f(ub("uDir"), if (horizontal) 1f / q.width else 0f, if (horizontal) 0f else 1f / q.height)
+            glUniform1f(ub("uThreshold"), if (horizontal) 1f else 0f)
+            screenTriangle(bloomProgram)
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, fboResolve)
+        glViewport(0, 0, s.width, s.height)
+        glUseProgram(finishProgram)
+        glBindTexture(GL_TEXTURE_2D, bloomTexA)
+        glUniform1i(glGetUniformLocation(finishProgram, "uBloom"), 0)
+        glUniform2f(glGetUniformLocation(finishProgram, "uViewport"), s.width.toFloat(), s.height.toFloat())
+        glUniform1f(glGetUniformLocation(finishProgram, "uBloomStrength"), 0.3f)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_ONE, GL_SRC_ALPHA)
+        screenTriangle(finishProgram)
+        glDisable(GL_BLEND)
+        glDepthMask(true)
+        glEnable(GL_DEPTH_TEST)
+    }
+
+    /** Triangolo che copre tutto lo schermo, con il programma `prog` (attributo aPos). */
+    private fun screenTriangle(prog: Int) {
+        glBindBuffer(GL_ARRAY_BUFFER, screenVbo)
+        val aPos = glGetAttribLocation(prog, "aPos")
+        glEnableVertexAttribArray(aPos)
+        glVertexAttribPointer(aPos, 2, GL_FLOAT, false, 8, 0L)
+        glDrawArrays(GL_TRIANGLES, 0, 3)
     }
 
     /** Texture di colore delle misure della vista (per l'occlusione ambientale), con il suo framebuffer. */
@@ -435,6 +501,8 @@ class DesktopGlSceneRenderer(
             exposureIn = exposure * boost
         }
         glUniform1f(u("uExposureIn"), exposureIn)
+        glUniform1f(u("uEyeInside"), if (lights.meterIndoor) 1f else 0f)
+        glUniform1f(u("uGlass"), 0f)
         glUniform3f(u("uInSky"), 1.0f * kIn, 0.975f * kIn, 0.94f * kIn)
         glUniform3f(u("uInGround"), 0.95f * kIn * 0.75f, 0.86f * kIn * 0.75f, 0.74f * kIn * 0.75f)
         glActiveTexture(GL_TEXTURE7)
@@ -473,6 +541,44 @@ class DesktopGlSceneRenderer(
         glUniform4fv(u("uSunPatchN"), lights.sunPatchNormals)
         glUniform4fv(u("uSunGate"), lights.sunGates)
         glUniform3f(u("uBounce"), d.sun[0] * sunK * 0.40f, d.sun[1] * sunK * 0.32f, d.sun[2] * sunK * 0.24f)
+    }
+
+    /**
+     * Cielo su tutto lo schermo, prima della scena: azzurro più pieno in alto, velato all'orizzonte, il bagliore del sole, nuvole
+     * leggere e in fondo alberi e colline lontane (vedi [PbrShaders.skyFragment]). Colori già pronti per lo schermo (sRGB).
+     */
+    private fun drawSky(d: Daylight, s: IntSize) {
+        glDisable(GL_DEPTH_TEST)
+        glDepthMask(false)
+        glUseProgram(skyProgram)
+        fun us(name: String) = glGetUniformLocation(skyProgram, name)
+        // Direzioni della telecamera dalla sua matrice (righe: destra, alto, indietro), allungate fino ai bordi dell'immagine.
+        val v = camera.view
+        val ty = tan(Math.toRadians(camera.fovY / 2)).toFloat()
+        val tx = ty * s.width / s.height
+        glUniform3f(us("uRight"), v[0] * tx, v[4] * tx, v[8] * tx)
+        glUniform3f(us("uUp"), v[1] * ty, v[5] * ty, v[9] * ty)
+        glUniform3f(us("uForward"), -v[2], -v[6], -v[10])
+        val h = d.sky
+        glUniform3f(us("uHorizon"), h[0], h[1], h[2])
+        // In alto il cielo è più azzurro e più scuro; di notte blu scurissimo, al tramonto un po' meno saturo.
+        val day = d.day
+        val zenith = floatArrayOf(0.36f, 0.56f, 0.88f).mapIndexed { i, c ->
+            val dayC = c + (floatArrayOf(0.42f, 0.50f, 0.72f)[i] - c) * d.low
+            floatArrayOf(0.01f, 0.018f, 0.05f)[i] + (dayC - floatArrayOf(0.01f, 0.018f, 0.05f)[i]) * day
+        }
+        glUniform3f(us("uZenith"), zenith[0], zenith[1], zenith[2])
+        glUniform3f(us("uToSun"), d.toSun.x.toFloat(), d.toSun.y.toFloat(), d.toSun.z.toFloat())
+        val glow = if (d.elevation > -3) day else 0f
+        glUniform3f(us("uSunGlow"), glow, glow * (0.92f - 0.30f * d.low), glow * (0.80f - 0.45f * d.low))
+        val k = 0.10f + 0.90f * day
+        glUniform3f(us("uTrees"), 0.17f * k, 0.29f * k, 0.15f * k)
+        // Come il prato in lontananza (che finisce 40 m oltre la casa), un po' velato.
+        glUniform3f(us("uFarGround"), 0.68f * k, 0.75f * k, 0.53f * k)
+        glUniform1f(us("uClouds"), day)
+        screenTriangle(skyProgram)
+        glDepthMask(true)
+        glEnable(GL_DEPTH_TEST)
     }
 
     private fun bindTex(unit: Int, tex: Int) {
@@ -686,6 +792,18 @@ class DesktopGlSceneRenderer(
         }
         colorTarget(s, withDepth = true).let { (fb, t) -> aoRawFbo = fb; aoRawTex = t }
         colorTarget(s, withDepth = false).let { (fb, t) -> aoFbo = fb; aoTex = t }
+        if (bloomFboA != 0) {
+            glDeleteFramebuffers(bloomFboA); glDeleteFramebuffers(bloomFboB)
+            glDeleteTextures(bloomTexA); glDeleteTextures(bloomTexB)
+        }
+        val q = IntSize(maxOf(1, s.width / 4), maxOf(1, s.height / 4))
+        colorTarget(q, withDepth = false).let { (fb, t) -> bloomFboA = fb; bloomTexA = t }
+        colorTarget(q, withDepth = false).let { (fb, t) -> bloomFboB = fb; bloomTexB = t }
+        for (t in listOf(bloomTexA, bloomTexB)) {
+            glBindTexture(GL_TEXTURE_2D, t)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        }
         fboSize = s
     }
 
