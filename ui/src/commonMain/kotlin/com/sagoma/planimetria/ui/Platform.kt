@@ -62,6 +62,16 @@ interface Platform {
     /** Guida interattiva (le lezioni sul progetto di prova): pensata per mouse e schermo largo, c'è solo sul computer. */
     val interactiveGuide: Boolean get() = false
 
+    /**
+     * Tasti che nessun elemento dell'app ha usato: la finestra del computer li passa qui, l'editor li prende lo stesso. Serve
+     * quando la tastiera è rimasta su niente o fuori dall'editor (pulsante sparito, menu chiuso, Invio nel nome di una
+     * stanza): senza, WASD, frecce e scorciatoie non andavano più finché non si toccava la pianta. Dove la finestra non
+     * li passa (telefono, browser) resta senza effetto.
+     */
+    var unhandledKeys: ((androidx.compose.ui.input.key.KeyEvent) -> Boolean)?
+        get() = null
+        set(_) {}
+
     /** Joystick sullo schermo per muoversi nel 3D: serve dove non ci sono tastiera e mouse; sul computer non c'è (WASD, frecce, mouse). */
     val walkJoystick: Boolean get() = true
 

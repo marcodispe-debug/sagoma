@@ -82,6 +82,9 @@ class DesktopPlatform(
     /** Messaggio breve mostrato in basso dalla finestra principale. */
     var message by mutableStateOf<String?>(null)
 
+    /** Tasti che nessuno ha usato, passati dalla finestra principale (`Window(onKeyEvent)`). */
+    override var unhandledKeys: ((androidx.compose.ui.input.key.KeyEvent) -> Boolean)? = null
+
     override fun toast(message: String) {
         this.message = message
     }

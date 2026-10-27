@@ -41,10 +41,11 @@ interface SceneRenderer {
     /** Luminosità di tutte le lampade della casa: 1 = quella normale (0,25…2). */
     fun setLampBrightness(k: Float) {}
     /**
-     * Sta ancora disegnando l'immagine chiesta per ultima (i renderer che disegnano a parte, fuori dal fotogramma dello schermo).
-     * Chi muove la telecamera aspetta che finisca: così ogni immagine fa un passo pari al tempo passato, senza scatti.
+     * C'è un'immagine chiesta che il renderer non ha ancora cominciato (i renderer che disegnano a parte, fuori dal fotogramma
+     * dello schermo). Chi muove la telecamera aspetta che cominci: così ogni immagine fa un passo solo, pari al tempo passato
+     * (senza scatti), e intanto il renderer finisce quella di prima (nessun fotogramma perso ad aspettare).
      */
-    val drawing: Boolean get() = false
+    val queued: Boolean get() = false
     fun onPause() {}
     fun onResume() {}
     /** La superficie non serve più: libera la memoria della scheda grafica. */

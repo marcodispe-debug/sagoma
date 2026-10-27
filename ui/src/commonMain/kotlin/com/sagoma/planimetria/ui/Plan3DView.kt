@@ -273,8 +273,8 @@ class View3DState {
     /** C'è qualcosa che muove la telecamera a ogni fotogramma (tasti tenuti o joystick). */
     val moving: Boolean get() = keys.any { it in MOVE_KEYS } || joystick != Offset.Zero
 
-    /** Il renderer sta ancora disegnando l'ultima immagine: il passo dopo aspetta (vedi [SceneRenderer.drawing]). */
-    val drawing: Boolean get() = renderer?.drawing == true
+    /** Il renderer non ha ancora cominciato l'immagine chiesta per ultima: il passo dopo aspetta (vedi [SceneRenderer.queued]). */
+    val queued: Boolean get() = renderer?.queued == true
 
     /** Da quanto (s) ci si sposta dall'alto senza fermarsi: si parte piano e si arriva alla velocità piena in [EASE_S]. */
     private var orbitMoving = 0.0
@@ -480,14 +480,15 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
         snapshotFlow { view.moving }.collectLatest { moving ->
             if (!moving) return@collectLatest
             var last = 0L
-            // Tempo passato dall'ultimo passo: finché il renderer disegna l'immagine di prima si aspetta, poi un passo solo per
-            // tutto il tempo trascorso. Ogni immagine si sposta quanto il tempo vero tra un'immagine e l'altra: niente scatti.
+            // Tempo passato dall'ultimo passo: finché il renderer non ha cominciato l'immagine chiesta si aspetta, poi un passo solo
+            // per tutto il tempo trascorso. Ogni immagine si sposta quanto il tempo vero tra un'immagine e l'altra (niente scatti), e
+            // il passo dopo si prepara mentre il renderer finisce quella di prima: appena finita parte la nuova, senza attese.
             var pending = 0.0
             while (true) {
                 withFrameNanos { now ->
                     if (last != 0L) pending = (pending + (now - last) / 1e9).coerceAtMost(0.1)
                     last = now
-                    if (pending > 0 && !view.drawing) {
+                    if (pending > 0 && !view.queued) {
                         view.step(pending)
                         pending = 0.0
                     }

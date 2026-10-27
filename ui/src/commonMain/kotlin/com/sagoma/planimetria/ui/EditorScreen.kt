@@ -60,6 +60,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -186,7 +187,13 @@ fun EditorScreen(
     LaunchedEffect(state.building.lampBrightness) { view3dState.lampBrightness = state.building.lampBrightness.toFloat(); view3dState.refresh() }
     // WASD e frecce tenuti premuti nella pianta: scorre in modo continuo, a ogni fotogramma (come nel 3D).
     val planKeys = remember { PlanKeyPan() }
-    LaunchedEffect(state.view3d) { planKeys.keys.clear() }
+    // Passando tra pianta e 3D, o se la finestra perde la tastiera (altro programma, Alt+Tab) mentre un tasto è giù, il suo
+    // «lasciato» non arriva più: senza dimenticarlo la vista continuerebbe da sola, o il tasto opposto sembrerebbe bloccato.
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    LaunchedEffect(state.view3d, windowFocused) {
+        planKeys.keys.clear()
+        view3dState.keys.clear()
+    }
     LaunchedEffect(planKeys) {
         snapshotFlow { planKeys.moving }.collectLatest { moving ->
             if (!moving) return@collectLatest
@@ -202,52 +209,74 @@ fun EditorScreen(
         }
     }
 
+    // Scorciatoie da tastiera (§8). Dopo i campi di testo (onKeyEvent, non "preview"): dentro un campo
+    // Ctrl+C, Ctrl+V, Ctrl+Z e Canc lavorano sul testo, non sugli oggetti della pianta.
+    val handleKey: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = handleKey@{ e ->
+        // Un tasto lasciato conta sempre, anche con Ctrl giù (W lasciato dopo aver premuto Ctrl+Z): se no resta «tenuto».
+        val move = e.type == KeyEventType.KeyUp || !e.isCtrlPressed
+        // Nel 3D WASD e frecce muovono la vista anche se la tastiera è rimasta su un pulsante.
+        if (state.view3d && move && view3dState.onKey(e)) return@handleKey true
+        // WASD e frecce spostano la pianta (con Maiusc di più), come la vista 3D.
+        if (!state.view3d && move && planKeys.onKey(e)) return@handleKey true
+        if (e.type != KeyEventType.KeyDown) return@handleKey false
+        // Selezione multipla: Canc elimina gli oggetti selezionati, Esc svuota la selezione (poi esce).
+        if (!e.isCtrlPressed) return@handleKey when {
+            // Canc: elimina ciò che è selezionato (gruppo, oggetto, muro → lato aperto, stanza con conferma).
+            !state.view3d && (e.key == Key.Delete || e.key == Key.Backspace) -> vm.deleteSelected()
+            state.pasting && e.key == Key.Escape -> { vm.stopPaste(); true }
+            state.dimensionDraw != null && e.key == Key.Escape -> { vm.cancelDimension(); true }
+            state.textPlacing && e.key == Key.Escape -> { vm.cancelText(); true }
+            state.selectMode && e.key == Key.Escape -> { if (state.multi.isEmpty()) vm.toggleSelectMode() else vm.clearMulti(); true }
+            else -> false
+        }
+        when {
+            e.key == Key.A && !state.view3d -> { vm.selectAll(); true }
+            // Copia e incolla come nei programmi del computer: Ctrl+C copia l'oggetto selezionato (con un
+            // messaggio), Ctrl+V incolla subito dove c'è il mouse (o accanto all'originale).
+            e.key == Key.C && !state.view3d -> {
+                if (vm.copy()) vm.state.value.clipboard?.let { platform.toast(T.editor.copiatoCtrlVIncollare(clipLabel(it))) }
+                else platform.toast(T.editor.selezionaPrimaQualcosaCopiare)
+                true
+            }
+            e.key == Key.V && !state.view3d -> {
+                if (!vm.pasteNow()) platform.toast(if (state.clipboard == null) T.editor.nienteIncollareCopiaPrima else T.editor.quiNonPuoIncollare)
+                true
+            }
+            // Ctrl+D: duplica l'oggetto selezionato (come il pulsante "⧉ Duplica" nella scheda Info).
+            e.key == Key.D && !state.view3d -> vm.duplicateSelected()
+            e.key == Key.Z && e.isShiftPressed -> { vm.redo(); true }
+            e.key == Key.Z -> { vm.undo(); true }
+            e.key == Key.Y -> { vm.redo(); true }
+            else -> false
+        }
+    }
+    // Tasti che nessuno ha usato perché la tastiera è rimasta su niente o fuori dall'editor (pulsante sparito, menu chiuso,
+    // Invio nel nome della stanza): la finestra li passa qui e valgono lo stesso. Un tasto premuto che l'editor usa gli
+    // riporta anche la tastiera; quelli lasciati no, per non toglierla a un campo di testo fuori dall'editor.
+    val currentHandleKey by rememberUpdatedState(handleKey)
+    var editorHasFocus by remember { mutableStateOf(false) }
+    DisposableEffect(platform) {
+        platform.unhandledKeys = fallback@{ e ->
+            // Con la tastiera nell'editor il tasto è già passato da handleKey.
+            if (editorHasFocus) return@fallback false
+            val used = currentHandleKey(e)
+            if (used && e.type == KeyEventType.KeyDown) keyFocus.requestFocusSafely()
+            used
+        }
+        onDispose { platform.unhandledKeys = null }
+    }
+
     Column(
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
             .safeDrawingPadding()
-            // Scorciatoie da tastiera (§8). Dopo i campi di testo (onKeyEvent, non "preview"): dentro un campo
-            // Ctrl+C, Ctrl+V, Ctrl+Z e Canc lavorano sul testo, non sugli oggetti della pianta.
-            .onKeyEvent { e ->
-                // Nel 3D WASD e frecce muovono la vista anche se la tastiera è rimasta su un pulsante.
-                if (state.view3d && !e.isCtrlPressed && view3dState.onKey(e)) return@onKeyEvent true
-                // WASD e frecce spostano la pianta (con Maiusc di più), come la vista 3D.
-                if (!state.view3d && !e.isCtrlPressed && planKeys.onKey(e)) return@onKeyEvent true
-                if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
-                // Selezione multipla: Canc elimina gli oggetti selezionati, Esc svuota la selezione (poi esce).
-                if (!e.isCtrlPressed) return@onKeyEvent when {
-                    // Canc: elimina ciò che è selezionato (gruppo, oggetto, muro → lato aperto, stanza con conferma).
-                    !state.view3d && (e.key == Key.Delete || e.key == Key.Backspace) -> vm.deleteSelected()
-                    state.pasting && e.key == Key.Escape -> { vm.stopPaste(); true }
-                    state.dimensionDraw != null && e.key == Key.Escape -> { vm.cancelDimension(); true }
-                    state.textPlacing && e.key == Key.Escape -> { vm.cancelText(); true }
-                    state.selectMode && e.key == Key.Escape -> { if (state.multi.isEmpty()) vm.toggleSelectMode() else vm.clearMulti(); true }
-                    else -> false
-                }
-                when {
-                    e.key == Key.A && !state.view3d -> { vm.selectAll(); true }
-                    // Copia e incolla come nei programmi del computer: Ctrl+C copia l'oggetto selezionato (con un
-                    // messaggio), Ctrl+V incolla subito dove c'è il mouse (o accanto all'originale).
-                    e.key == Key.C && !state.view3d -> {
-                        if (vm.copy()) vm.state.value.clipboard?.let { platform.toast(T.editor.copiatoCtrlVIncollare(clipLabel(it))) }
-                        else platform.toast(T.editor.selezionaPrimaQualcosaCopiare)
-                        true
-                    }
-                    e.key == Key.V && !state.view3d -> {
-                        if (!vm.pasteNow()) platform.toast(if (state.clipboard == null) T.editor.nienteIncollareCopiaPrima else T.editor.quiNonPuoIncollare)
-                        true
-                    }
-                    // Ctrl+D: duplica l'oggetto selezionato (come il pulsante "⧉ Duplica" nella scheda Info).
-                    e.key == Key.D && !state.view3d -> vm.duplicateSelected()
-                    e.key == Key.Z && e.isShiftPressed -> { vm.redo(); true }
-                    e.key == Key.Z -> { vm.undo(); true }
-                    e.key == Key.Y -> { vm.redo(); true }
-                    else -> false
-                }
-            }
+            .onKeyEvent(handleKey)
             // Tasti tenuti premuti mentre la tastiera va altrove (campo di testo, altra finestra): la pianta si ferma.
-            .onFocusChanged { if (!it.hasFocus) planKeys.keys.clear() }
+            .onFocusChanged {
+                editorHasFocus = it.hasFocus
+                if (!it.hasFocus) planKeys.keys.clear()
+            }
             .focusRequester(keyFocus)
             .focusable(),
     ) {
