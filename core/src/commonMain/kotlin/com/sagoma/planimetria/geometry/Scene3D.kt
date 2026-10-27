@@ -1952,21 +1952,61 @@ private class SceneBuilder(
                     fold(b, u * -1.0, w / 2)
                 } else if (o.hingeLeft) fold(a, u, w) else fold(b, u * -1.0, w)
             }
+            o.pivots -> {
+                // Porta a bilico: aperta a 90°, attraversa il varco sul perno a un quinto della larghezza.
+                if (!o.frameless) casing(a, b, u, n, top, o, pick)
+                val (la, lb, lt) = doorGlazing(a, u, w, n, top, o, pick)
+                val lw = la.distanceTo(lb)
+                val swing = if (o.opensInward) n else n * -1.0
+                val axis = if (o.hingeLeft) la + u * (lw * Openings.PIVOT_AT) else lb - u * (lw * Openings.PIVOT_AT)
+                doorLeaf(axis - swing * (lw * Openings.PIVOT_AT), swing, lw, 2.0, lt - 1, o, pick, handleAtEnd = true)
+            }
             else -> {
                 // Porta a battente: aperta a 90° verso il lato di apertura, come nel simbolo della pianta.
                 // Filo muro: niente coprifilo, l'anta sta a filo della faccia.
                 if (!o.frameless) casing(a, b, u, n, top, o, pick)
+                val (la, lb, lt) = doorGlazing(a, u, w, n, top, o, pick)
+                val lw = la.distanceTo(lb)
                 val swing = if (o.opensInward) n else n * -1.0
-                fun leafFrom(hinge: Vec2, length: Double) = doorLeaf(hinge + swing * half, swing, length, 2.0, top - 1, o, pick, handleAtEnd = true)
+                fun leafFrom(hinge: Vec2, length: Double) = doorLeaf(hinge + swing * half, swing, length, 2.0, lt - 1, o, pick, handleAtEnd = true)
                 if (o.kind.leaves == 2) {
                     val split = w * o.leafSplit
                     leafFrom(a, split)
                     leafFrom(b, w - split)
                 } else {
-                    leafFrom(if (o.hingeLeft) a else b, w)
+                    leafFrom(if (o.hingeLeft) la else lb, lw)
                 }
             }
         }
+    }
+
+    /**
+     * Sopraluce e vetro di fianco della porta: vetri fissi con il telaio del colore della porta, a metà muro.
+     * Restituisce il tratto e la cima che restano all'anta.
+     */
+    private fun doorGlazing(a: Vec2, u: Vec2, w: Double, n: Vec2, top: Double, o: Opening, pick: Pick): Triple<Vec2, Vec2, Double> {
+        val r = o.leafRange
+        val la = a + u * (w * r.start)
+        val lb = a + u * (w * r.endInclusive)
+        val transom = o.transomCm
+        val side = o.sidelightCm
+        if (transom <= 0 && side <= 0) return Triple(la, lb, top)
+        val frame = tint(Rgba.argb(o.finish.argb), pick)
+        val glassColor = tint(glass, pick).copy(a = glass.a)
+        val lt = top - transom
+        val f = 3.0
+        if (transom > 0) {
+            box(a, a + u * w, 3.0, lt - f, lt, frame, pick) // traverso tra anta e sopraluce
+            pane(a, a + u * w, lt, top, glassColor, pick)
+        }
+        if (side > 0) {
+            val (g0, g1) = if (o.hingeLeft) lb to (a + u * w) else a to la
+            val mull = if (o.hingeLeft) lb else la
+            box(mull - u * (f / 2), mull + u * (f / 2), 3.0, 0.0, lt, frame, pick) // montante tra anta e vetro
+            box(g0, g1, 3.0, 0.0, 10.0, frame, pick) // zoccolo sotto il vetro
+            pane(g0, g1, 10.0, lt - f, glassColor, pick)
+        }
+        return Triple(la, lb, lt)
     }
 
     /** I pannelli della porta a libro sono stretti: i riquadri delle pannellate diventano lisci. */
@@ -2006,11 +2046,23 @@ private class SceneBuilder(
                 part(0.0, 1.0, 0.0, height, thick, color)
                 for (y in listOf(0.3, 0.55, 0.8)) part(0.04, 0.96, height * y - 0.4, height * y + 0.4, thick + 0.25, relief)
             }
+            DoorModel.Armored -> {
+                // Anta più spessa, bugne quadrate in rilievo, serratura sopra la maniglia e spioncino.
+                part(0.0, 1.0, 0.0, height, thick + 1.5, color)
+                for (row in 0 until 3) {
+                    val y0 = height * (0.08 + row * 0.3)
+                    part(0.12, 0.88, y0, y0 + height * 0.24, thick + 2.1, relief)
+                }
+                val lockAt = if (handleAtEnd) 0.86 else 0.14
+                part(lockAt - 0.02, lockAt + 0.02, 120.0, 128.0, thick + 2.4, metal)
+                part(0.48, 0.52, height * 0.76, height * 0.77 + 2.0, thick + 2.2, metal)
+            }
         }
         // Maniglia (la porta moderna ha il maniglione verticale).
         val at = if (handleAtEnd) 0.88 else 0.12
-        if (o.doorModel == DoorModel.Modern) part(at - 0.015, at + 0.015, height * 0.38, height * 0.78, thick + 2.5, metal)
-        else part(if (handleAtEnd) 0.8 else 0.07, if (handleAtEnd) 0.93 else 0.2, 102.0, 104.5, thick + 2.5, metal)
+        val grip = if (o.doorModel == DoorModel.Armored) thick + 4.0 else thick + 2.5
+        if (o.doorModel == DoorModel.Modern) part(at - 0.015, at + 0.015, height * 0.38, height * 0.78, grip, metal)
+        else part(if (handleAtEnd) 0.8 else 0.07, if (handleAtEnd) 0.93 else 0.2, 102.0, 104.5, grip, metal)
     }
 
     /** Coprifilo attorno alla porta, sulle due facce del muro, e rivestimento dello spessore del varco. */

@@ -78,6 +78,15 @@ internal fun DrawScope.doorPreview(model: DoorModel, color: Color) {
             for (y in listOf(0.3f, 0.55f, 0.8f)) drawLine(line, px(l + 0.03f, y), px(r - 0.03f, y), thin)
             drawLine(Metal, px(r - 0.07f, 0.35f), px(r - 0.07f, 0.75f), 2.5f * density, cap = StrokeCap.Round)
         }
+        DoorModel.Armored -> {
+            // Tre bugne quadrate, serratura e spioncino.
+            for (k in 0 until 3) {
+                val y0 = t + 0.04f + k * 0.29f
+                box(l + 0.05f, y0, r - 0.05f, y0 + 0.24f, line, thin)
+            }
+            drawCircle(Metal, 1.6f * density, px(0.5f, 0.22f))
+            drawCircle(Metal, 1.6f * density, px(r - 0.06f, 0.5f))
+        }
     }
     if (model != DoorModel.Modern) drawCircle(Metal, 2.2f * density, px(r - 0.06f, 0.58f))
 }

@@ -5,6 +5,7 @@ import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.LOrientation
 import com.sagoma.planimetria.model.FixtureKind
+import com.sagoma.planimetria.model.DoorModel
 import com.sagoma.planimetria.model.Finish
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
@@ -83,7 +84,7 @@ data class PendingOpening(
 
 /** Varianti di porte e finestre offerte dal menu; dopo si cambiano tutte dalla scheda Info. */
 enum class OpeningPreset {
-    None, WallSlide, Folding, Frameless, UnequalLeaves, TiltTurn, Hopper, Fixed, InteriorGlazing;
+    None, WallSlide, Folding, Frameless, UnequalLeaves, TiltTurn, Hopper, Fixed, InteriorGlazing, Armored, Pivot, Glazed;
 
     fun apply(o: Opening): Opening = when (this) {
         None -> o
@@ -97,6 +98,12 @@ enum class OpeningPreset {
         Fixed -> o.copy(sash = SashType.Fixed)
         // Vetrata interna tra due stanze: fissa, a riquadri neri, da sopra il piano di lavoro fino quasi al soffitto.
         InteriorGlazing -> o.copy(sash = SashType.Fixed, windowModel = WindowModel.Loft, width = 180.0, height = 150.0, sillHeight = 90.0)
+        // Blindata: la porta d'ingresso, un po' più larga, antracite.
+        Armored -> o.copy(doorModel = DoorModel.Armored, entrance = true, width = 90.0, color = Finish.Anthracite)
+        // A bilico: grande, alta e filo muro, come di solito.
+        // Porta con sopraluce di 40 cm e vetro di fianco di 30: tutta l'apertura è più grande, l'anta resta 80 × 210.
+        Glazed -> o.copy(transom = 40.0, sidelight = 30.0, width = 110.0, height = 250.0)
+        Pivot -> o.copy(pivot = true, frameless = true, width = 100.0, height = 240.0, doorModel = DoorModel.Modern)
     }
 }
 

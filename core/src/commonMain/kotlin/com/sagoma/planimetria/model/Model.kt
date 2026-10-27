@@ -2,6 +2,7 @@ package com.sagoma.planimetria.model
 
 import com.sagoma.planimetria.testi.T
 import kotlinx.serialization.Serializable
+import kotlin.math.max
 import kotlin.math.hypot
 
 /** Punto/vettore in coordinate mondo, espresse in centimetri. L'asse y cresce verso il basso (come lo schermo). */
@@ -188,6 +189,12 @@ data class Opening(
     val unequalLeaves: Boolean = false,
     /** Finestre e balconi non scorrevoli: a battente, anta-ribalta, vasistas o fissi. */
     val sash: SashType = SashType.Casement,
+    /** Porta a bilico: l'anta gira su un perno a un quinto della larghezza, dal lato di [hingeLeft]. */
+    val pivot: Boolean = false,
+    /** Porte a un'anta: sopraluce, cioè vetro fisso alto tanti cm sopra l'anta (dentro l'altezza dell'apertura). */
+    val transom: Double = 0.0,
+    /** Porte a un'anta: vetro fisso largo tanti cm di fianco all'anta, dal lato opposto al cardine (dentro la larghezza). */
+    val sidelight: Double = 0.0,
 ) {
     /** Colore effettivo di anta e telaio. */
     val finish: Finish get() = color ?: if (kind.glazed) Finish.White else Finish.Oak
@@ -200,6 +207,19 @@ data class Opening(
     val hopper: Boolean get() = kind.glazed && !sliding && sash == SashType.Hopper
     /** Porta a libro. */
     val folds: Boolean get() = folding && !kind.glazed && kind.hasLeaves && !sliding
+    /** Sopraluce e vetro di fianco valgono per la porta a un'anta a battente o a bilico. */
+    val hasDoorGlazing: Boolean get() = kind == OpeningKind.Door && !sliding && !folding
+    /** Sopraluce effettivo (cm), lasciando all'anta almeno 150 cm. */
+    val transomCm: Double get() = if (hasDoorGlazing) transom.coerceIn(0.0, max(0.0, height - 150.0)) else 0.0
+    /** Vetro di fianco effettivo (cm), lasciando all'anta almeno 50 cm. */
+    val sidelightCm: Double get() = if (hasDoorGlazing) sidelight.coerceIn(0.0, max(0.0, width - 50.0)) else 0.0
+    /** Tratto del varco occupato dall'anta, da 0 (inizio `a`) a 1: senza vetro di fianco tutto il varco. */
+    val leafRange: ClosedFloatingPointRange<Double> get() {
+        val g = if (width > 0) sidelightCm / width else 0.0
+        return if (hingeLeft) 0.0..(1 - g) else g..1.0
+    }
+    /** Porta a bilico (un'anta, a battente). */
+    val pivots: Boolean get() = pivot && !kind.glazed && kind.leaves == 1 && !sliding && !folding
     /** Ante a battente: hanno l'arco di apertura e un verso (interno/esterno). Anche la porta a libro e l'anta-ribalta. */
     val swings: Boolean get() = kind.hasLeaves && !sliding && !fixed && !hopper
     /** Ante disuguali: solo con due ante a battente. */

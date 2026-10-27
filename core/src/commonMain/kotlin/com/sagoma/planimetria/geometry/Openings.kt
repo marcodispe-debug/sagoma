@@ -14,6 +14,9 @@ import kotlin.math.min
 data class WallGap(val roomId: Long, val wallIndex: Int, val a: Vec2, val b: Vec2)
 
 object Openings {
+    /** Perno della porta a bilico: a un quinto della larghezza dal lato del cardine. */
+    const val PIVOT_AT = 0.2
+
 
     /** Distanza massima tra due muri paralleli per considerarli a contatto (§5). */
     const val SHARED_WALL_TOLERANCE_CM = 12.0

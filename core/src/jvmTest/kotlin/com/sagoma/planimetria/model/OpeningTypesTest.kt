@@ -130,6 +130,31 @@ class OpeningTypesTest {
     }
 
     @Test
+    fun `porta a bilico - aperta sporge anche dall'altra parte del muro`() {
+        val door = OpeningPreset.Pivot.apply(Opening.default(1, OpeningKind.Door, 0, 200.0)) // 100 cm: da 150 a 250, perno a 170
+        assertTrue(door.pivots && door.swings && door.hasSideChoice)
+        val hit = assertNotNull(scene(door).hit(Vec3(170.0, 100.0, -100.0), Vec3(0.0, 0.0, 1.0)))
+        assertEquals(Pick.Opening(1, 1), hit.pick)
+        assertTrue(hit.point.z < -15.0, "l'anta esce di 20 cm fuori: z = ${hit.point.z}")
+    }
+
+    @Test
+    fun `porta con sopraluce e vetro di fianco - vetri fissi, l'anta resta 80 × 210`() {
+        val door = OpeningPreset.Glazed.apply(Opening.default(1, OpeningKind.Door, 0, 200.0)) // 110 × 250: da 145 a 255
+        assertEquals(30.0, door.sidelightCm)
+        assertEquals(40.0, door.transomCm)
+        val s = scene(door)
+        // Vetro di fianco, dal lato opposto al cardine (cardine a sinistra: vetro da 225 a 255).
+        assertEquals(Pick.Opening(1, 1), assertNotNull(fromInside(s, 240.0, 100.0)).pick)
+        // Sopraluce sopra l'anta.
+        assertEquals(Pick.Opening(1, 1), assertNotNull(fromInside(s, 185.0, 230.0)).pick)
+        // Senza vetri, nello stesso punto si passa.
+        assertNull(fromInside(scene(door.copy(transom = 0.0, sidelight = 0.0)), 240.0, 100.0))
+        // Scorrevole o a libro i vetri non valgono.
+        assertEquals(0.0, door.copy(sliding = true).sidelightCm)
+    }
+
+    @Test
     fun `i dati nuovi si salvano e si rileggono`() {
         val openings = listOf(
             OpeningPreset.WallSlide.apply(Opening.default(1, OpeningKind.Door, 0, 100.0)),
@@ -141,6 +166,9 @@ class OpeningTypesTest {
             Opening.default(7, OpeningKind.Niche, 1, 60.0),
             passage(PassageStyle.Pointed).copy(id = 8, wallIndex = 3, position = 220.0),
             passage(PassageStyle.Segmental).copy(id = 9, wallIndex = 1, position = 240.0),
+            OpeningPreset.Pivot.apply(Opening.default(10, OpeningKind.Door, 0, 120.0)),
+            OpeningPreset.Armored.apply(Opening.default(11, OpeningKind.Door, 2, 300.0)),
+            OpeningPreset.Glazed.apply(Opening.default(12, OpeningKind.Door, 3, 150.0)),
         )
         val plan = FloorPlan(listOf(room(*openings.toTypedArray())))
         assertEquals(openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)

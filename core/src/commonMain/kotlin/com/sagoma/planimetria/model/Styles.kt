@@ -15,6 +15,8 @@ enum class DoorModel {
     Glazed,
     Planks,
     Modern,
+    /** Blindata: anta spessa con le bugne, serratura e spioncino. */
+    Armored,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */

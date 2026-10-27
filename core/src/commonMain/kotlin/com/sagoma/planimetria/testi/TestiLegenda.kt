@@ -29,6 +29,7 @@ open class TestiLegenda {
     open val varcoSenzaPortaArco: String get() = "Varco senza porta con l'arco in alto."
     open val antaSulMuro: String get() = "Anta appena fuori dal muro, su un binario a vista; la freccia indica dove scorre."
     open val pannelliPiegati: String get() = "Due pannelli che si piegano a V verso il lato di apertura."
+    open val pernoAnta: String get() = "L'anta gira su un perno: aperta, sporge anche dall'altra parte."
     open val vetroFisso: String get() = "Vetro nel muro che non si apre: niente arco."
     open val vasistasRibalta: String get() = "L'anta si ribalta in cima verso la stanza (tratteggio)."
     open val nicchiaMezzoMuro: String get() = "Incavo profondo mezzo muro, verso la stanza; tratteggiato se sta in alto."

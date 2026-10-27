@@ -846,6 +846,11 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                     }
                 }
             }
+            // Porta a un'anta: sopraluce e vetro di fianco (0 = niente).
+            if (o.hasDoorGlazing) Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                NumberField(T.pannelli.sopraluce, o.transom, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(transom = v.coerceIn(0.0, 120.0)) } }
+                NumberField(T.pannelli.vetroDiFianco, o.sidelight, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(sidelight = v.coerceIn(0.0, 120.0)) } }
+            }
             if (o.kind == OpeningKind.Passage) {
                 Row(Modifier.padding(end = 8.dp)) {
                     Choice(T.pannelli.stile, PassageStyle.entries.map { it.label }, o.style.ordinal, Modifier.weight(1f)) { i ->
@@ -870,11 +875,12 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                     }
                 }
             } else {
-                // Porte: a battente, scorrevoli o a libro.
-                val current = when { o.sliding -> 1; o.folding -> 2; else -> 0 }
+                // Porte: a battente, scorrevoli, a libro o (con un'anta) a bilico.
+                val options = listOf(T.pannelli.battente, T.pannelli.scorrevole, T.pannelli.aLibro) + if (o.kind.leaves == 1) listOf(T.pannelli.aBilico) else emptyList()
+                val current = when { o.sliding -> 1; o.folding -> 2; o.pivots -> 3; else -> 0 }
                 Row(Modifier.padding(end = 8.dp)) {
-                    Choice(T.pannelli.apertura, listOf(T.pannelli.battente, T.pannelli.scorrevole, T.pannelli.aLibro), current, Modifier.weight(1f)) { i ->
-                        update { it.copy(sliding = i == 1, folding = i == 2) }
+                    Choice(T.pannelli.apertura, options, current, Modifier.weight(1f)) { i ->
+                        update { it.copy(sliding = i == 1, folding = i == 2, pivot = i == 3) }
                     }
                 }
                 if (o.sliding) Row(Modifier.padding(end = 8.dp)) {
@@ -1034,6 +1040,7 @@ internal fun openingLabel(o: Opening): String {
         o.sliding && o.slideOnWall && !o.kind.glazed -> T.pannelli.scorrevoleEsterna2(name)
         o.sliding -> T.pannelli.scorrevole2(name)
         o.folds -> T.pannelli.aLibro2(name)
+        o.pivots -> T.pannelli.aBilico2(name)
         o.kind.glazed && o.sash != SashType.Casement -> T.pannelli.conAnta(name, o.sash.label)
         o.unequal -> T.pannelli.disuguali2(name)
         o.frameless && !o.kind.glazed -> T.pannelli.filoMuro2(name)

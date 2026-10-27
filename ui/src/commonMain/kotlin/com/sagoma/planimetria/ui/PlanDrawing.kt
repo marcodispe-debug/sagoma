@@ -814,10 +814,34 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
         else drawFold(b + base, a + base, swing, color, line, cam)
         return
     }
+    // Vetro di fianco della porta: vetro fisso nel muro (linea doppia); l'anta occupa il resto del varco.
+    val lr = o.leafRange
+    val la = a + (b - a) * lr.start
+    val lb = a + (b - a) * lr.endInclusive
+    if (o.sidelightCm > 0) {
+        val (g0, g1) = if (o.hingeLeft) lb to b else a to la
+        val g = n * minOf(1.5, half)
+        drawLine(WindowColor, cam.o(g0 - g), cam.o(g1 - g), strokeWidth = thin)
+        drawLine(WindowColor, cam.o(g0 + g), cam.o(g1 + g), strokeWidth = thin)
+        drawLine(color, cam.o((if (o.hingeLeft) lb else la) - n * half), cam.o((if (o.hingeLeft) lb else la) + n * half), strokeWidth = thin)
+    }
+    if (o.pivots) {
+        // Porta a bilico: l'anta aperta attraversa il varco sul perno; due archi, uno grande e uno piccolo dall'altra parte.
+        val w = la.distanceTo(lb)
+        val dir = if (o.hingeLeft) u else u * -1.0
+        val axis = (if (o.hingeLeft) la else lb) + dir * (w * Openings.PIVOT_AT) + base - swing * half
+        val big = w * (1 - Openings.PIVOT_AT)
+        val small = w * Openings.PIVOT_AT
+        drawLine(color, cam.o(axis - swing * small), cam.o(axis + swing * big), strokeWidth = line, cap = StrokeCap.Round)
+        drawPivotArc(axis, dir, swing, big, color, line, cam)
+        drawPivotArc(axis, dir * -1.0, swing * -1.0, small, color, line, cam)
+        drawCircle(color, 2.dp.toPx(), cam.o(axis))
+        return
+    }
     when (o.kind.leaves) {
         1 -> {
-            val hinge = if (o.hingeLeft) a else b
-            val free = if (o.hingeLeft) b else a
+            val hinge = if (o.hingeLeft) la else lb
+            val free = if (o.hingeLeft) lb else la
             drawLeaf(hinge + base, free + base, swing, color, line, cam)
         }
         2 -> {
@@ -838,6 +862,17 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
             drawPath(path, color, style = Stroke(width = thin))
         }
     }
+}
+
+/** Arco tratteggiato di raggio `r` attorno al perno `axis`, dalla posizione chiusa (verso `along`) a quella aperta (verso `swing`). */
+private fun DrawScope.drawPivotArc(axis: Vec2, along: Vec2, swing: Vec2, r: Double, color: Color, width: Float, cam: Camera) {
+    val arc = Path()
+    for (k in 0..24) {
+        val t = PI / 2 * k / 24
+        val p = cam.o(axis + along * (cos(t) * r) + swing * (sin(t) * r))
+        if (k == 0) arc.moveTo(p.x, p.y) else arc.lineTo(p.x, p.y)
+    }
+    drawPath(arc, color, style = Stroke(width = width / 2, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))))
 }
 
 /** Porta a libro: dal cardine due pannelli aperti a V (a 60°) che arrivano a metà del varco, più il tratteggio della corsa. */

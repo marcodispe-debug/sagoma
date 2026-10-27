@@ -256,6 +256,7 @@ private val legendSections: List<LegendSection> by lazy {
                 LegendItem(T.legenda.portaScorrevole, T.legenda.antaNelloSpessoreMuro, opening(OpeningKind.Door, sliding = true)),
                 LegendItem(T.editor.portaScorrevoleEsterna, T.legenda.antaSulMuro, opening(OpeningKind.Door, preset = OpeningPreset.WallSlide)),
                 LegendItem(T.editor.portaALibro, T.legenda.pannelliPiegati, opening(OpeningKind.Door, preset = OpeningPreset.Folding)),
+                LegendItem(T.editor.portaABilico, T.legenda.pernoAnta, opening(OpeningKind.Door, preset = OpeningPreset.Pivot)),
                 LegendItem(T.legenda.aperturaSquadrata, T.legenda.varcoMuroSenzaPorta, opening(OpeningKind.Passage)),
                 LegendItem(T.legenda.aperturaAdArco, T.legenda.varcoSenzaPortaArco, opening(OpeningKind.Passage, style = PassageStyle.Arched)),
                 LegendItem(OpeningKind.Niche.label, T.legenda.nicchiaMezzoMuro, opening(OpeningKind.Niche)),
