@@ -2307,6 +2307,40 @@ private class SceneBuilder(
                 box(b - u * 3.0 + out, b + out, 2.0, bottom, top, line, pick)
                 box(a - u * 4.0 + out, b + u * 4.0 + out, 3.0, top, top + 18, c, pick) // cassonetto
             }
+            Shading.Venetian -> {
+                // Lamelle inclinate ogni 7 cm, abbassate per due terzi, con le guide ai lati e il pacco in alto.
+                val c = tint(Rgba(0.55f, 0.57f, 0.6f), pick)
+                val guide = c.mix(Rgba(0f, 0f, 0f), 0.25f)
+                val low = top - (top - bottom) * 2 / 3
+                var y = low
+                while (y < top - 6) {
+                    box(a + u * 3.0 + out, b - u * 3.0 + out, 2.4, y, y + 0.6, c, pick)
+                    box(a + u * 3.0 + out * 1.03, b - u * 3.0 + out * 1.03, 1.2, y + 0.6, y + 1.6, c, pick)
+                    y += 7.0
+                }
+                box(a + out, a + u * 3.0 + out, 2.6, bottom, top, guide, pick)
+                box(b - u * 3.0 + out, b + out, 2.6, bottom, top, guide, pick)
+                box(a + out, b + out, 3.0, top - 6, top, c, pick)
+            }
+            Shading.InteriorShutters -> {
+                // Scuri interni: ante piene di legno (colore dell'infisso), aperte sulla faccia del muro verso la stanza.
+                val c = tint(Rgba.argb(o.finish.argb), pick).mix(Rgba(0f, 0f, 0f), 0.05f)
+                val relief = c.mix(Rgba(0f, 0f, 0f), 0.12f)
+                val inner = n * (half + 1.6)
+                val leaves = if (o.leaves >= 2 || w > 90) 2 else 1
+                val lw = w / leaves
+                val sides = if (leaves == 2) listOf(a to -1.0, b to 1.0) else listOf((if (o.hingeLeft) a else b) to (if (o.hingeLeft) -1.0 else 1.0))
+                for ((edge, dirSign) in sides) {
+                    val p0 = edge + inner
+                    val p1 = edge + u * (dirSign * lw) + inner
+                    box(p0, p1, 1.5, bottom, top, c, pick)
+                    // Due riquadri in rilievo verso la stanza.
+                    val q0 = p0 + u * (dirSign * lw * 0.15) + n * 0.6
+                    val q1 = p0 + u * (dirSign * lw * 0.85) + n * 0.6
+                    box(q0, q1, 1.5, bottom + (top - bottom) * 0.1, bottom + (top - bottom) * 0.45, relief, pick)
+                    box(q0, q1, 1.5, bottom + (top - bottom) * 0.55, bottom + (top - bottom) * 0.9, relief, pick)
+                }
+            }
         }
     }
 

@@ -77,6 +77,8 @@ object NomiEs : Nomi() {
         Shading.None -> "Ninguno"
         Shading.Shutters -> "Contraventanas"
         Shading.RollerShutter -> "Persiana enrollable"
+        Shading.Venetian -> "Veneciana exterior"
+        Shading.InteriorShutters -> "Contraventanas interiores"
     }
 
     override fun stairStructure(v: StairStructure): String = when (v) {

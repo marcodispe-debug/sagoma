@@ -173,6 +173,17 @@ class OpeningTypesTest {
     }
 
     @Test
+    fun `scuri interni dentro, veneziana fuori`() {
+        val w = Opening.default(1, OpeningKind.Window1, 0, 200.0) // 80: da 160 a 240, da 90 a 210
+        val inside = assertNotNull(fromInside(scene(w.copy(shading = Shading.InteriorShutters)), 150.0, 150.0))
+        assertEquals(Pick.Opening(1, 1), inside.pick)
+        assertTrue(inside.point.z > 8.0, "scuro sulla faccia interna: z = ${inside.point.z}")
+        val out = assertNotNull(scene(w.copy(shading = Shading.Venetian)).hit(Vec3(200.0, 180.0, -100.0), Vec3(0.0, 0.0, 1.0)))
+        assertEquals(Pick.Opening(1, 1), out.pick)
+        assertTrue(out.point.z < -8.0, "veneziana fuori: z = ${out.point.z}")
+    }
+
+    @Test
     fun `i dati nuovi si salvano e si rileggono`() {
         val openings = listOf(
             OpeningPreset.WallSlide.apply(Opening.default(1, OpeningKind.Door, 0, 100.0)),
@@ -189,7 +200,8 @@ class OpeningTypesTest {
             OpeningPreset.Glazed.apply(Opening.default(12, OpeningKind.Door, 3, 150.0)),
             OpeningPreset.FourLeaves.apply(Opening.default(13, OpeningKind.Balcony2, 0, 200.0)),
             OpeningPreset.LiftSlide.apply(Opening.default(14, OpeningKind.Balcony2, 2, 200.0)),
-            OpeningPreset.PivotSash.apply(Opening.default(15, OpeningKind.Window1, 1, 200.0)),
+            OpeningPreset.PivotSash.apply(Opening.default(15, OpeningKind.Window1, 1, 200.0)).copy(shading = Shading.Venetian),
+            Opening.default(16, OpeningKind.Window2, 3, 200.0).copy(shading = Shading.InteriorShutters),
         )
         val plan = FloorPlan(listOf(room(*openings.toTypedArray())))
         assertEquals(openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)

@@ -136,6 +136,19 @@ internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color
         var y = t + 0.04f
         while (y < t + (b - t) * 0.4f) { drawLine(Color(0xFF8D9095), px(l, y), px(r, y), 1f * density); y += 0.05f }
     }
+    if (shading == Shading.Venetian) {
+        box(l - 0.02f, t - 0.06f, r + 0.02f, t, Color(0xFF6B6F75))
+        var y = t + 0.03f
+        while (y < t + (b - t) * 0.66f) { drawLine(Color(0xFF8D9095), px(l, y), px(r, y), 2.2f * density); y += 0.045f }
+    }
+    if (shading == Shading.InteriorShutters) {
+        val sc = color.shade(0.92f)
+        for ((a, z) in listOf(0.08f to l, r to 0.92f)) {
+            box(a, t, z, b, sc)
+            box(a + 0.03f, t + 0.06f, z - 0.03f, 0.5f, sc.shade(0.8f), 1.2f * density)
+            box(a + 0.03f, 0.56f, z - 0.03f, b - 0.06f, sc.shade(0.8f), 1.2f * density)
+        }
+    }
 }
 
 // ---------- Scale ----------

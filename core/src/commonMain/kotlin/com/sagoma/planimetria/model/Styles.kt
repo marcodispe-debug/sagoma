@@ -75,11 +75,15 @@ enum class FramePosition {
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.framePosition(this)
 }
 
-/** Oscuranti di finestre e balconi, all'esterno. */
+/** Oscuranti di finestre e balconi: all'esterno, tranne gli scuri interni. */
 enum class Shading {
     None,
     Shutters,
     RollerShutter,
+    /** Veneziana esterna (frangisole a lamelle orientabili), abbassata per due terzi. */
+    Venetian,
+    /** Scuri interni: ante di legno sulla faccia del muro verso la stanza, aperte ai lati della finestra. */
+    InteriorShutters,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
