@@ -77,7 +77,7 @@ class DesktopGlSceneRenderer(
     private var skyColor by mutableStateOf(Color(0.80f, 0.88f, 0.96f))
 
     // Stato OpenGL (solo sul thread "Sagoma 3D").
-    private var context: WglContext? = null
+    private var context: GlContext? = null
     private var program = 0
     private var depthProgram = 0
     private lateinit var res: GlResources
@@ -115,8 +115,8 @@ class DesktopGlSceneRenderer(
 
     init {
         gl.execute {
-            // Contesto OpenGL con le funzioni di Windows (niente glfw.dll, che Smart App Control può bloccare).
-            context = WglContext()
+            // Contesto OpenGL con le funzioni di Windows (niente glfw.dll, che Smart App Control può bloccare); su Linux con X11.
+            context = GlContext.create()
             res = GlResources(readAsset)
             program = link(PbrShaders.vertex(SimpleShaders.DESKTOP_HEADER), PbrShaders.fragment(SimpleShaders.DESKTOP_HEADER))
             depthProgram = link(PbrShaders.depthVertex(SimpleShaders.DESKTOP_HEADER), PbrShaders.depthFragment(SimpleShaders.DESKTOP_HEADER))
@@ -419,6 +419,7 @@ class DesktopGlSceneRenderer(
         glUniform1i(u("uRoofMap"), 7)
         glUniformMatrix4fv(u("uRoofMvp"), false, roofMvp)
         glUniform1f(u("uRoofTexel"), 1f / ROOF_SIZE)
+        glUniform1f(u("uRoofDepthCm"), (ROOF_FAR - 1.0).toFloat())
         val lights = LitShaders.Lights(scene, d, eye, windowsAlways = true, brightness = lampBrightness)
         // Di notte l'occhio si abitua un poco: più esposizione solo se c'è qualche lampada accesa (così le
         // stanze illuminate si vedono bene); senza luci resta tutto buio.
@@ -429,6 +430,13 @@ class DesktopGlSceneRenderer(
         glUniform1i(u("uEmissiveTex"), 3)
         glUniform1i(u("uShadowMap"), 4)
         glUniform1f(u("uShadowTexel"), 1f / SHADOW_SIZE)
+        // Ombre in centimetri veri, per ogni grandezza della casa (vedi il vertex shader). Margine di profondità di 3 mm: il sole non
+        // passa negli ultimi centimetri di una parete sotto il soffitto (con il margine di prima, 5-15 cm: una "striscia" chiara).
+        val r = sunRadius()
+        glUniform1f(u("uShadowTexelCm"), (2 * r / SHADOW_SIZE).toFloat())
+        glUniform1f(u("uShadowBias"), (0.3 / (r * 4 - 1.0)).toFloat())
+        // Bordo morbido pieno quando ciò che fa ombra è ad almeno 20 cm, più netto quando è più vicino.
+        glUniform1f(u("uShadowSoft"), ((r * 4 - 1.0) / 20.0).toFloat())
         glUniform1i(u("uLampCount"), lights.lampCount)
         glUniform4fv(u("uLamp"), lights.lamps)
         glUniform3fv(u("uLampColor"), lights.lampColors)
@@ -561,12 +569,15 @@ class DesktopGlSceneRenderer(
         glDrawElements(GL_TRIANGLES, p.count, GL_UNSIGNED_INT, 0L)
     }
 
+    /** Mezzo lato (cm) del quadrato visto dal sole per le ombre: tutta la casa e un po' di prato attorno. */
+    private fun sunRadius(): Double = (scene?.bounds?.let { hypot(it.width, it.height) / 2 } ?: 1000.0) + 600.0
+
     /** Proiezione ortogonale dal sole che contiene tutta la casa. */
     private fun sunMatrix(d: Daylight): FloatArray {
         val b = scene?.bounds
         val cx = b?.let { (it.minX + it.maxX) / 2 } ?: 0.0
         val cz = b?.let { (it.minY + it.maxY) / 2 } ?: 0.0
-        val r = (b?.let { hypot(it.width, it.height) / 2 } ?: 1000.0) + 600.0
+        val r = sunRadius()
         val center = Vec3(cx, 150.0, cz)
         val from = center + d.toSun * (r * 2)
         val up = if (abs(d.toSun.y) > 0.95) Vec3(0.0, 0.0, 1.0) else Vec3.Up

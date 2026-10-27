@@ -17,6 +17,10 @@ object PbrShaders {
         uniform mat4 uViewProj;
         uniform mat4 uModel;
         uniform mat4 uLightMvp;
+        uniform mat4 uRoofMvp;
+        uniform vec3 uToSun;
+        // Lato (cm) di un punto della mappa delle ombre del sole.
+        uniform float uShadowTexelCm;
         attribute vec3 aPos;
         attribute vec3 aNormal;
         attribute vec4 aColor;
@@ -25,14 +29,32 @@ object PbrShaders {
         varying vec3 vNormal;
         varying vec4 vColor;
         varying vec2 vUv;
-        varying vec4 vShadow;
+        // "centroid": sui bordi (antialiasing) i punti per il sole restano sulla superficie, non oltre il suo spigolo (dove,
+        // sopra il soffitto, il sole c'è).
+        centroid varying vec4 vShadow;
+        centroid varying vec4 vRoofSun;
         void main() {
             vec4 w = uModel * vec4(aPos, 1.0);
             vPos = w.xyz;
             vNormal = mat3(uModel[0].xyz, uModel[1].xyz, uModel[2].xyz) * aNormal;
             vColor = aColor;
             vUv = aUv;
-            vShadow = uLightMvp * w;
+            // Punto con cui si guarda la mappa delle ombre del sole: spostato lungo la normale, dal lato del sole, di 3,5 punti della
+            // mappa (fin dove arrivano i campioni del bordo morbido), di più quanto più la superficie è di sbieco rispetto al sole. Così
+            // una superficie non fa ombra a se stessa e basta un margine di profondità minimo (uShadowBias).
+            vec3 s = w.xyz;
+            vec3 inward = vec3(0.0);
+            float ln = length(vNormal);
+            if (ln > 0.1) {
+                vec3 n = vNormal / ln;
+                float c = dot(n, uToSun);
+                if (c < 0.0) { n = -n; c = -c; }
+                s += n * (3.5 * uShadowTexelCm * sqrt(max(1.0 - c * c, 0.0)));
+                inward = vec3(n.x, 0.0, n.z) * 2.0;
+            }
+            vShadow = uLightMvp * vec4(s, 1.0);
+            // Lo stesso punto (2 cm dentro la stanza, per una parete) nella mappa dei soffitti: vedi sunShadow().
+            vRoofSun = uRoofMvp * vec4(s + inward, 1.0);
             gl_Position = uViewProj * w;
         }
     """
@@ -71,7 +93,11 @@ object PbrShaders {
         uniform sampler2D uRoofMap;
         uniform mat4 uRoofMvp;
         uniform float uRoofTexel;
+        // Centimetri tra le quote 0 e 1 della mappa dei soffitti.
+        uniform float uRoofDepthCm;
         uniform float uShadowTexel;
+        uniform float uShadowBias;
+        uniform float uShadowSoft;
         uniform float uExposure;
         uniform int uLampCount;
         uniform vec4 uLamp[$MAX_LAMPS];
@@ -87,7 +113,8 @@ object PbrShaders {
         varying vec3 vNormal;
         varying vec4 vColor;
         varying vec2 vUv;
-        varying vec4 vShadow;
+        centroid varying vec4 vShadow;
+        centroid varying vec4 vRoofSun;
 
         const float PI = 3.14159265;
 
@@ -101,17 +128,28 @@ object PbrShaders {
             return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
         }
 
-        float sunShadow(float ndl) {
+        float sunShadow() {
             vec3 p = vShadow.xyz / vShadow.w * 0.5 + 0.5;
             if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0 || p.z > 1.0) return 1.0;
-            float bias = 0.0008 + 0.003 * (1.0 - ndl);
+            // Bordo morbido quanto è lontano ciò che fa ombra, come la penombra vera: a contatto (gli ultimi centimetri di una
+            // parete sotto il soffitto, i piedi di un mobile) quasi netto, così il sole non entra "di lato" dove non arriva.
+            float blocker = p.z - uShadowBias - texture2D(uShadowMap, p.xy).r;
+            float spread = blocker > 0.0 ? clamp(blocker * uShadowSoft, 0.1, 1.0) : 1.0;
             float lit = 0.0;
-            // Bordo morbido: 16 campioni su un disco.
+            // 16 campioni su un disco.
             for (int x = -2; x <= 1; x++) for (int y = -2; y <= 1; y++) {
-                vec2 o = (vec2(float(x), float(y)) + 0.5) * 1.3 * uShadowTexel;
-                lit += (p.z - bias <= texture2D(uShadowMap, p.xy + o).r) ? 1.0 : 0.0;
+                vec2 o = (vec2(float(x), float(y)) + 0.5) * 1.3 * spread * uShadowTexel;
+                lit += (p.z - uShadowBias <= texture2D(uShadowMap, p.xy + o).r) ? 1.0 : 0.0;
             }
-            return lit / 16.0;
+            lit /= 16.0;
+            // Negli ultimi 2 cm sotto un soffitto il sole non arriva (entra solo da finestre e porte, più in basso): lì la mappa delle
+            // ombre, a punti di quasi un centimetro, non distingue la parete dal soffitto che la tocca, e ne usciva un filo chiaro.
+            vec3 q = vRoofSun.xyz / vRoofSun.w * 0.5 + 0.5;
+            if (q.x > 0.0 && q.x < 1.0 && q.y > 0.0 && q.y < 1.0) {
+                float below = (q.z - texture2D(uRoofMap, q.xy).r) * uRoofDepthCm;
+                if (below > 0.0) lit *= smoothstep(0.5, 2.5, below);
+            }
+            return lit;
         }
 
         /**
@@ -210,7 +248,7 @@ object PbrShaders {
             float ssao = uUseAo > 0.5 ? texture2D(uAoTex, gl_FragCoord.xy / uViewport).r : 1.0;
             ao *= ssao;
             float ndlSun = max(dot(N, uToSun), 0.0);
-            if (ndlSun > 0.0) color += shade(N, V, uToSun, uSun, albedo, rough, metal) * sunShadow(ndlSun);
+            if (ndlSun > 0.0) color += shade(N, V, uToSun, uSun, albedo, rough, metal) * sunShadow();
             for (int i = 0; i < $MAX_LAMPS; i++) {
                 if (i >= uLampCount) break;
                 // La lampada illumina solo la sua stanza, cioè i suoi rettangoli (niente luce attraverso i muri, né sul prato).
@@ -283,7 +321,7 @@ object PbrShaders {
         varying vec3 vNormal;
         varying vec4 vColor;
         varying vec2 vUv;
-        varying vec4 vShadow;
+        centroid varying vec4 vShadow;
 
         float linearDepth(float z) { float n = z * 2.0 - 1.0; return 2.0 * uNear * uFar / (uFar + uNear - n * (uFar - uNear)); }
 

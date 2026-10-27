@@ -13,6 +13,9 @@ kotlin {
     sourceSets {
         jvmTest.dependencies {
             implementation(kotlin("test"))
+            // Prove della vista 3D anche su Linux (nel cloud, con Xvfb e Mesa): l'app per Windows non cambia.
+            runtimeOnly("org.lwjgl:lwjgl:3.4.3:natives-linux")
+            runtimeOnly("org.lwjgl:lwjgl-opengl:3.4.3:natives-linux")
         }
         jvmMain.dependencies {
             implementation(project(":ui"))
