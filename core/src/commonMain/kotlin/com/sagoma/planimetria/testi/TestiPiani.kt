@@ -34,4 +34,27 @@ open class TestiPiani {
      * tutte le lingue. "Mansarda" e "Sottotetto" sono anche nomi di stanza e si traducono da lì.
      */
     open val pianiComuni: List<String> get() = listOf("Piano rialzato", "Seminterrato", "Interrato", "Ammezzato", "Soppalco")
+
+    // Tetto inclinato sopra l'ultimo piano.
+    open val tettoMenu: String get() = "⌂ Tetto inclinato…"
+    open val tetto: String get() = "Tetto inclinato"
+    open fun tettoSopra(name: Any?): String = "Il tetto sta sopra l'ultimo piano («$name») e copre il rettangolo dei suoi muri esterni. Tutto facoltativo: «Piano» lo toglie."
+    open val forma: String get() = "Forma"
+    open val tettoPiano: String get() = "Piano"
+    open val unaFalda: String get() = "Una falda"
+    open val dueFalde: String get() = "Due falde"
+    open val padiglione: String get() = "Padiglione"
+    open val pendenza: String get() = "Pendenza"
+    open val sporto: String get() = "Sporto della gronda"
+    open val giraColmo: String get() = "↻ Gira il colmo"
+    open val giraFalda: String get() = "↻ Gira la falda"
+    open val manto: String get() = "Manto"
+    open val tegole: String get() = "Tegole"
+    open val ardesia: String get() = "Ardesia"
+    open val lamiera: String get() = "Lamiera"
+    open fun altezzaColmo(cm: Any?): String = "Colmo a $cm cm sopra il solaio dell'ultimo piano."
+    open val tettoNel3D: String get() = "Nel 3D dall'alto il tetto si mette e si toglie con «⌂ Tetto», per guardare dentro. In pianta, all'ultimo piano, è tratteggiato."
+    open val nessunaStanza: String get() = "Prima disegna le stanze dell'ultimo piano: il tetto le copre."
+    open val mostraTetto: String get() = "⌂ Tetto"
+    open val togliTetto: String get() = "⌂ Togli tetto"
 }

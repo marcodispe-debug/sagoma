@@ -138,6 +138,7 @@ object PdfExport {
             val labels = measureRoomLabels(plan, measurer) { true }
             if (shown(com.sagoma.planimetria.model.Layer.WallLengths)) drawWallDimensions(plan, cam, measurer, avoid = labels.map { it.rect(cam, pad) })
             drawWallCuts(state)
+            drawRoof(state)
             drawRoomLabels(labels, cam, pad) { true }
             if (shown(com.sagoma.planimetria.model.Layer.Fixtures)) drawAllFixtures(state)
             if (shown(com.sagoma.planimetria.model.Layer.WallLengths)) {

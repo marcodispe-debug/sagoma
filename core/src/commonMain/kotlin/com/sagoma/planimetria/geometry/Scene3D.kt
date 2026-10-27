@@ -280,6 +280,8 @@ class Scene3D(
              * questo piano è un interrato, e la casa si vede in fondo a uno scavo ([Scene3D.excavation]).
              */
             groundLevel: Double? = null,
+            /** Tetto inclinato da mettere sopra questo piano (l'ultimo della casa), o null per lasciarlo aperto. */
+            roof: com.sagoma.planimetria.model.Roof? = null,
         ): Scene3D {
             // Quote dei pavimenti: il piano corrente a 0, quelli di sotto più in basso.
             val levels = mutableListOf<Level>()
@@ -290,7 +292,7 @@ class Scene3D(
             }
             levels += Level(plan, 0.0, levelHeight, current = true)
             if (above != null) levels += Level(above.plan, levelHeight, above.levelHeight, current = false)
-            return SceneBuilder(levels, focusedRoomId, selected, ceilings, groundLevel).build()
+            return SceneBuilder(levels, focusedRoomId, selected, ceilings, groundLevel, roof).build()
         }
     }
 }
@@ -320,6 +322,7 @@ private class SceneBuilder(
     val selected: Pick?,
     val ceilings: Boolean,
     val groundLevel: Double? = null,
+    val roof: com.sagoma.planimetria.model.Roof? = null,
 ) {
     private val opaque = FloatList()
     private val transparent = FloatList()
@@ -602,6 +605,8 @@ private class SceneBuilder(
             }
             previous = level
         }
+        // Tetto inclinato sopra il piano corrente (l'ultimo).
+        roof?.let { r -> levels.firstOrNull { it.current }?.let { pitchedRoof(r, it) } }
         // Piano interrato: il terreno sta più in alto, la casa si vede in fondo a uno scavo.
         val excavation = groundLevel?.takeIf { it > 1.0 }?.let { excavate(it) }
         // Inquadratura sul piano che si sta guardando (non su quello di sopra, che si vede solo dal vano scala).
@@ -639,6 +644,119 @@ private class SceneBuilder(
         }
         quad(c[0].at(bottom), c[1].at(bottom), c[2].at(bottom), c[3].at(bottom), Vec3.Up, Gravel, null)
         return hole
+    }
+
+    // ---------- Tetto inclinato ----------
+
+    private val soffit = Rgba(0.80f, 0.68f, 0.52f)
+    private val fascia = Rgba(0.52f, 0.38f, 0.26f)
+
+    /**
+     * Tetto inclinato ([Roofs]) sopra il piano `level`: il solaio di sopra (di lato, del colore della facciata) dal soffitto
+     * delle stanze fino all'appoggio, le falde con la loro faccia di sotto (il legno della gronda) e i bordi, i timpani, e per
+     * tegole e ardesia le righe delle file. Non si tocca e non blocca chi cammina.
+     */
+    private fun pitchedRoof(r: com.sagoma.planimetria.model.Roof, level: Level) {
+        plan = level.plan
+        base = level.base
+        current = level.current
+        val shape = Roofs.shape(r, Roofs.footprint(plan) ?: return) ?: return
+        val support = level.levelHeight
+        val facade = coveringBase(plan.facadeOrPaint)
+        // Solaio sopra l'ultimo piano: chiude lo spazio tra la cima dei muri e il tetto.
+        for (room in plan.rooms) {
+            if (room.outdoor) continue
+            val outline = room.exteriorOutline()
+            if (outline.size < 3) continue
+            val y0 = minOf(room.ceilingHeight, support)
+            for (k in outline.indices) {
+                val a = outline[k]
+                val b = outline[(k + 1) % outline.size]
+                if (a.distanceTo(b) < 1e-6) continue
+                val n = (b - a).perp().normalized()
+                val out = if (Polygon.contains(outline, (a + b) / 2.0 + n)) n * -1.0 else n
+                quad(a.at(y0), b.at(y0), b.at(support), a.at(support), out.dir(), facade, null)
+            }
+            for ((ia, ib, ic) in Triangulation.triangulate(outline)) {
+                tri(outline[ia].at(support), outline[ib].at(support), outline[ic].at(support), Vec3.Up, slabEdge, null)
+            }
+        }
+        val cover = Rgba.argb(r.covering.argb)
+        val t = shape.thickness
+        val eaves = shape.eaves
+        fun onBorder(p: Vec2): Int = when {
+            abs(p.y - eaves.minY) < 0.01 -> 0
+            abs(p.x - eaves.maxX) < 0.01 -> 1
+            abs(p.y - eaves.maxY) < 0.01 -> 2
+            abs(p.x - eaves.minX) < 0.01 -> 3
+            else -> -1
+        }
+        val outward = listOf(Vec3(0.0, 0.0, -1.0), Vec3(1.0, 0.0, 0.0), Vec3(0.0, 0.0, 1.0), Vec3(-1.0, 0.0, 0.0))
+        for (f in shape.faces) {
+            val top = f.points.mapIndexed { k, p -> p.at(support + f.heights[k]) }
+            val bottom = f.points.mapIndexed { k, p -> p.at(support + f.heights[k] - t) }
+            var n = ((top[1] - top[0]) cross (top[2] - top[0])).normalized()
+            if (n.y < 0) n = n * -1.0
+            for (k in 1 until top.size - 1) {
+                tri(top[0], top[k], top[k + 1], n, cover, null)
+                tri(bottom[0], bottom[k], bottom[k + 1], n * -1.0, soffit, null)
+            }
+            // Bordi della falda sul giro della gronda (le tavole di testa).
+            for (k in f.points.indices) {
+                val k2 = (k + 1) % f.points.size
+                val side = onBorder(f.points[k])
+                if (side < 0 || side != onBorder(f.points[k2])) continue
+                quad(bottom[k], bottom[k2], top[k2], top[k], outward[side], fascia, null)
+            }
+            if (r.covering != com.sagoma.planimetria.model.RoofCovering.Metal) courses(f, support, n, cover, if (r.covering == com.sagoma.planimetria.model.RoofCovering.Tiles) 34.0 else 24.0)
+        }
+        // Timpani: muri a triangolo (o il muro alto della falda unica) del colore della facciata, visti da fuori e da dentro.
+        val mid = shape.walls.center
+        for (g in shape.gables) {
+            val pts = g.points.mapIndexed { k, p -> p.at(support + g.heights[k]) }
+            val a = g.points.first()
+            val b = g.points.firstOrNull { it.distanceTo(a) > 0.5 } ?: continue
+            var n = (b - a).perp().normalized()
+            if (((a + b) / 2.0 - mid) dot n < 0) n = n * -1.0
+            for (k in 1 until pts.size - 1) {
+                if (((pts[k] - pts[0]) cross (pts[k + 1] - pts[0])).length < 1e-6) continue
+                tri(pts[0], pts[k], pts[k + 1], n.dir(), facade, null)
+                tri(pts[0], pts[k], pts[k + 1], n.dir() * -1.0, wallSide, null)
+            }
+        }
+    }
+
+    /** Righe delle file di tegole sulla falda `f`: una fascia scura ogni `step` cm lungo la pendenza, appena sopra il manto. */
+    private fun courses(f: Roofs.Face, support: Double, n: Vec3, cover: Rgba, step: Double) {
+        val lo = f.heights.min()
+        val hi = f.heights.max()
+        if (hi - lo < 1.0) return
+        // Dislivello di una fila: la parte orizzontale della normale è il seno della pendenza.
+        val dh = step * Vec3(n.x, 0.0, n.z).length
+        if (dh < 0.5) return
+        val down = (Vec3(0.0, -1.0, 0.0) - n * (Vec3(0.0, -1.0, 0.0) dot n)).normalized()
+        val dark = cover.mix(Rgba(0f, 0f, 0f), 0.28f)
+        var h = hi - dh
+        var guard = 0
+        while (h > lo + 0.5 && guard++ < 400) {
+            val cross = mutableListOf<Vec3>()
+            for (k in f.points.indices) {
+                val k2 = (k + 1) % f.points.size
+                val ha = f.heights[k]
+                val hb = f.heights[k2]
+                if ((ha - h) * (hb - h) >= 0 || abs(hb - ha) < 1e-9) continue
+                val s = (h - ha) / (hb - ha)
+                cross += (f.points[k] + (f.points[k2] - f.points[k]) * s).at(support + h)
+            }
+            if (cross.size >= 2) {
+                val lift = n * 0.4
+                val p = cross[0] + lift
+                val q = cross[1] + lift
+                val w = down * 3.0
+                quad(p, q, q + w, p + w, n, dark, null)
+            }
+            h -= dh
+        }
     }
 
     /** Faccia superiore del solaio sopra una stanza di un piano di sotto: il tetto piano visto dall'alto. */

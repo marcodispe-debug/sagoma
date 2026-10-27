@@ -119,6 +119,8 @@ class View3DState {
     var lamps by mutableStateOf("auto")
     /** Luminosità delle lampade della casa (cursore «Luminosità luci»): 1 = normale. Viene dal progetto ([Building.lampBrightness]). */
     var lampBrightness by mutableStateOf(1f)
+    /** Tetto inclinato visibile nella vista dall'alto (pulsante «⌂ Tetto»); camminando c'è sempre. */
+    var showRoof by mutableStateOf(false)
     /** Cursore dell'ora aperto. */
     var timePanel by mutableStateOf(false)
     /** Giorno scelto per il sole (null = oggi). */
@@ -421,13 +423,15 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     // guardando un interrato il prato resta lassù e la casa si vede in fondo allo scavo.
     val building = state.building
     val groundLevel = if (building.groundIndex > 0) building.elevation(building.groundIndex) - building.elevation(building.current) else null
-    val scene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, view.walking, noFurniture, phase, groundLevel) {
+    // Tetto inclinato: solo sopra l'ultimo piano, camminando o se si è scelto di vederlo dall'alto.
+    val roof = building.roof?.takeIf { building.current == building.floors.lastIndex && (view.walking || view.showRoof) }
+    val scene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, view.walking, noFurniture, phase, groundLevel, roof) {
         fun shown(p: com.sagoma.planimetria.model.FloorPlan) = com.sagoma.planimetria.geometry.Phases.view(p, phase)
         val plan = shown(if (noFurniture) scenePlan.copy(furniture = emptyList()) else scenePlan)
         Scene3D.build(
             plan, state.focusedRoomId, selectedPick, ceilings = view.walking, levelHeight = state.levelHeight,
             below = below.map { it.copy(plan = shown(it.plan)) }, above = above?.let { it.copy(plan = shown(it.plan)) },
-            groundLevel = groundLevel,
+            groundLevel = groundLevel, roof = roof,
         )
     }
     LaunchedEffect(scene) { view.setScene(scene) }
@@ -679,6 +683,11 @@ fun View3DControls(state: EditorUiState, view: View3DState, modifier: Modifier =
         LegendButton("$icon $h:${m.toString().padStart(2, '0')}",modifier = modifier, onClick = { view.timePanel = !view.timePanel })
         val lampLabel = when (view.lamps) { "on" -> T.vista3D.luciAccese; "off" -> T.vista3D.luciSpente; else -> T.vista3D.luciAuto }
         LegendButton(lampLabel, modifier = modifier, onClick = { view.nextLamps() })
+    }
+    // Tetto inclinato (se la casa ce l'ha e si guarda l'ultimo piano): si toglie per guardare dentro.
+    val b = state.building
+    if (!view.walking && b.roof != null && b.current == b.floors.lastIndex) {
+        LegendButton(if (view.showRoof) T.piani.togliTetto else T.piani.mostraTetto, modifier = modifier, onClick = { view.showRoof = !view.showRoof })
     }
     LegendButton(if (view.walking) T.vista3D.vistaDallAlto else T.vista3D.cammina, modifier = modifier, onClick = {
         // Con un arredo selezionato si cammina nella stanza in cui si trova.

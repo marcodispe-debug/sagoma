@@ -973,7 +973,7 @@ private val ChoicePadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
 
 /** Numero intero con i pulsanti − e + (null = pulsante disattivato). */
 @Composable
-private fun Stepper(label: String, value: String, onMinus: (() -> Unit)?, onPlus: (() -> Unit)?) {
+internal fun Stepper(label: String, value: String, onMinus: (() -> Unit)?, onPlus: (() -> Unit)?) {
     Column {
         Text(label, style = MaterialTheme.typography.labelMedium)
         Row(verticalAlignment = Alignment.CenterVertically) {

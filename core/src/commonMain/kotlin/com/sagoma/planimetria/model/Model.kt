@@ -943,6 +943,54 @@ data class Place(
     val dst: DaylightSaving = DaylightSaving.Europe,
 )
 
+/** Forma del tetto inclinato. */
+@Serializable
+enum class RoofKind {
+    /** Una falda sola: alto da un lato e basso dall'altro. */
+    Shed,
+    /** Due falde: il colmo a metà, i due lati corti chiusi dal muro a triangolo (timpano). */
+    Gable,
+    /** Padiglione: quattro falde, niente timpani. */
+    Hip,
+}
+
+/** Manto del tetto: decide colore e righe delle file nel 3D. */
+@Serializable
+enum class RoofCovering(val argb: Long) {
+    /** Coppi e tegole in cotto. */
+    Tiles(0xFFA4553A),
+    /** Ardesia o tegole grigio scuro. */
+    Slate(0xFF4A4F55),
+    /** Lamiera grigia (capannoni, case moderne). */
+    Metal(0xFF9AA1A6),
+}
+
+/**
+ * Tetto inclinato sopra l'ultimo piano, appoggiato sul suo solaio. Copre il rettangolo dei muri esterni del piano
+ * (prototipo: le case a L hanno un tetto solo sul rettangolo che le contiene).
+ * [pitchDeg] pendenza delle falde in gradi; [overhang] quanto la gronda sporge oltre il muro (cm);
+ * [turn] quarti di giro: con 0 il colmo corre lungo il lato più lungo (una falda: il lato basso è un lato lungo);
+ * a ogni giro il colmo o il lato basso girano di 90°. Il padiglione ha sempre il colmo sul lato lungo.
+ */
+@Serializable
+data class Roof(
+    val kind: RoofKind = RoofKind.Gable,
+    val pitchDeg: Double = DEFAULT_PITCH,
+    val overhang: Double = DEFAULT_OVERHANG,
+    val turn: Int = 0,
+    val covering: RoofCovering = RoofCovering.Tiles,
+) {
+    companion object {
+        const val DEFAULT_PITCH = 30.0
+        const val MIN_PITCH = 5.0
+        const val MAX_PITCH = 60.0
+        const val DEFAULT_OVERHANG = 50.0
+        const val MAX_OVERHANG = 150.0
+        /** Spessore del pacchetto del tetto (travetti, tavolato, manto), misurato in verticale (cm). */
+        const val THICKNESS = 22.0
+    }
+}
+
 /** La casa: i piani dal basso verso l'alto e quello che si sta modificando (`current`). */
 @Serializable
 data class Building(
@@ -964,6 +1012,8 @@ data class Building(
      * [MIN_LAMP_BRIGHTNESS] a [MAX_LAMP_BRIGHTNESS].
      */
     val lampBrightness: Double = 1.0,
+    /** Tetto inclinato sopra l'ultimo piano (facoltativo): null = tetto piano, come prima. */
+    val roof: Roof? = null,
 ) {
     init {
         require(floors.isNotEmpty()) { "Serve almeno un piano" }

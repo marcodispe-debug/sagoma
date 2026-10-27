@@ -482,6 +482,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
             // Quote dei muri (solo lettura: le lunghezze si cambiano dalla tendina Info della stanza).
             if (layers.visible(Layer.WallLengths)) drawWallDimensions(state.plan, state.camera, measurer, avoid = labels.map { it.rect(state.camera, labelPadPx) })
             drawWallCuts(state)
+            drawRoof(state)
             drawRoomLabels(labels, state.camera, labelPadPx) { it.id == state.focusedRoomId }
             // Sopra le etichette: una colonna appena messa sta proprio al centro della stanza.
             if (layers.visible(Layer.Structure)) drawStructures(shown, measurer)

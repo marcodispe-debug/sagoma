@@ -513,6 +513,18 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         if (v == s.building.lampBrightness) s else s.copy(building = s.building.copy(lampBrightness = v))
     }
 
+    /**
+     * Tetto inclinato sopra l'ultimo piano (null = tetto piano). Pendenza e sporto restano nei limiti di [Roof].
+     * È una modifica della casa: si annulla con ↶.
+     */
+    fun setRoof(roof: com.sagoma.planimetria.model.Roof?) = commitBuilding { b ->
+        b.copy(roof = roof?.copy(
+            pitchDeg = roof.pitchDeg.coerceIn(com.sagoma.planimetria.model.Roof.MIN_PITCH, com.sagoma.planimetria.model.Roof.MAX_PITCH),
+            overhang = roof.overhang.coerceIn(0.0, com.sagoma.planimetria.model.Roof.MAX_OVERHANG),
+            turn = ((roof.turn % 4) + 4) % 4,
+        ))
+    }
+
     /** Città della casa per il giro del sole (null = nessuna, vale Roma). Non si annulla. */
     fun setPlace(place: com.sagoma.planimetria.model.Place?) = _state.update { s ->
         s.copy(building = s.building.copy(site = s.building.site.copy(place = place)))

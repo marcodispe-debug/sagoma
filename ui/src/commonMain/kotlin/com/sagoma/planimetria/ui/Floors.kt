@@ -27,11 +27,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.FloorDialog
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.Roof
+import com.sagoma.planimetria.model.RoofCovering
+import com.sagoma.planimetria.model.RoofKind
 import com.sagoma.planimetria.testi.T
 
 /**
@@ -41,6 +45,7 @@ import com.sagoma.planimetria.testi.T
 @Composable
 fun FloorButton(building: Building, vm: EditorViewModel, modifier: Modifier = Modifier, compact: Boolean = false) {
     var open by remember { mutableStateOf(false) }
+    var roofOpen by remember { mutableStateOf(false) }
     Box(modifier) {
         OutlinedButton(
             onClick = { open = true },
@@ -65,8 +70,60 @@ fun FloorButton(building: Building, vm: EditorViewModel, modifier: Modifier = Mo
             DropdownMenuItem(text = { Text(T.piani.aggiungiPianoSopra) }, onClick = { open = false; vm.openFloorDialog(null) })
             DropdownMenuItem(text = { Text(T.piani.aggiungiPianoSotto) }, onClick = { open = false; vm.openFloorDialog(null, below = true) })
             DropdownMenuItem(text = { Text(T.piani.modifica(building.floor.name)) }, onClick = { open = false; vm.openFloorDialog(building.current) })
+            DropdownMenuItem(text = { Text(T.piani.tettoMenu) }, onClick = { open = false; roofOpen = true })
         }
     }
+    if (roofOpen) RoofDialog(building, vm, onClose = { roofOpen = false })
+}
+
+/**
+ * Tetto inclinato sopra l'ultimo piano: forma, pendenza, sporto della gronda, verso del colmo e manto. Ogni scelta vale subito
+ * (si vede nel 3D e in pianta) e si annulla con ↶; «Piano» toglie il tetto.
+ */
+@Composable
+fun RoofDialog(building: Building, vm: EditorViewModel, onClose: () -> Unit) {
+    val roof = building.roof
+    val top = building.floors.last()
+    val shape = roof?.let { r -> com.sagoma.planimetria.geometry.Roofs.footprint(top.plan)?.let { com.sagoma.planimetria.geometry.Roofs.shape(r, it) } }
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(T.piani.tetto) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(T.piani.tettoSopra(top.name), style = MaterialTheme.typography.bodySmall)
+                if (com.sagoma.planimetria.geometry.Roofs.footprint(top.plan) == null) Text(T.piani.nessunaStanza, style = MaterialTheme.typography.bodyMedium)
+                val kinds = listOf(null, RoofKind.Shed, RoofKind.Gable, RoofKind.Hip)
+                Choice(
+                    T.piani.forma, listOf(T.piani.tettoPiano, T.piani.unaFalda, T.piani.dueFalde, T.piani.padiglione), kinds.indexOf(roof?.kind),
+                ) { i -> vm.setRoof(kinds[i]?.let { k -> (roof ?: Roof()).copy(kind = k) }) }
+                if (roof != null) {
+                    val pitch = roof.pitchDeg.roundToInt()
+                    val percent = (kotlin.math.tan(roof.pitchDeg * kotlin.math.PI / 180) * 100).roundToInt()
+                    Stepper(
+                        T.piani.pendenza, "$pitch° · $percent%",
+                        onMinus = if (roof.pitchDeg > Roof.MIN_PITCH) ({ vm.setRoof(roof.copy(pitchDeg = roof.pitchDeg - 5)) }) else null,
+                        onPlus = if (roof.pitchDeg < Roof.MAX_PITCH) ({ vm.setRoof(roof.copy(pitchDeg = roof.pitchDeg + 5)) }) else null,
+                    )
+                    Stepper(
+                        T.piani.sporto, "${roof.overhang.roundToInt()} cm",
+                        onMinus = if (roof.overhang > 0) ({ vm.setRoof(roof.copy(overhang = (roof.overhang - 10).coerceAtLeast(0.0))) }) else null,
+                        onPlus = if (roof.overhang < Roof.MAX_OVERHANG) ({ vm.setRoof(roof.copy(overhang = roof.overhang + 10)) }) else null,
+                    )
+                    // Il padiglione ha il colmo sempre sul lato lungo; una falda gira di un quarto alla volta (quattro versi).
+                    if (roof.kind != RoofKind.Hip) OutlinedButton(onClick = { vm.setRoof(roof.copy(turn = roof.turn + 1)) }) {
+                        Text(if (roof.kind == RoofKind.Shed) T.piani.giraFalda else T.piani.giraColmo)
+                    }
+                    val coverings = RoofCovering.entries
+                    Choice(T.piani.manto, listOf(T.piani.tegole, T.piani.ardesia, T.piani.lamiera), coverings.indexOf(roof.covering)) { i ->
+                        vm.setRoof(roof.copy(covering = coverings[i]))
+                    }
+                    shape?.let { Text(T.piani.altezzaColmo(it.ridgeHeight.roundToInt()), style = MaterialTheme.typography.bodyMedium) }
+                    Text(T.piani.tettoNel3D, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text(T.comuni.chiudi) } },
+    )
 }
 
 /**
