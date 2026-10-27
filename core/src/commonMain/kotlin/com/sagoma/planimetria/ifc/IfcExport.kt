@@ -22,6 +22,8 @@ import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.SashType
+import com.sagoma.planimetria.model.PassageStyle
+import com.sagoma.planimetria.model.WindowShape
 import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
 import kotlin.math.acos
@@ -422,15 +424,30 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
         val sill = if (o.kind.hasSill) o.sillHeight else 0.0
         val top = sill + o.height
         val rect = listOf(Vec2(t0, sill), Vec2(t1, sill), Vec2(t1, top), Vec2(t0, top)).map { Vec2(it.x * 10, it.y * 10) }
-        // Varchi ad arco: la cima del vano segue l'arco (la stessa curva del 3D), a fettine dritte.
-        val arch = if (o.kind == OpeningKind.Passage && o.style.arched) o.style else null
-        val outline = if (arch == null) rect else buildList {
-            add(Vec2(t0, sill)); add(Vec2(t1, sill))
-            for (k in ARCH_SLICES downTo 0) {
-                val t = t0 + (t1 - t0) * k / ARCH_SLICES
-                add(Vec2(t, Openings.archTop(arch, t0, t1, sill, top, t)))
+        // Varchi e finestre ad arco: la cima del vano segue l'arco (la stessa curva del 3D), a fettine dritte.
+        // Finestre tonde (oblò): un cerchio largo quanto la finestra, dal davanzale in su.
+        val arch = when {
+            o.kind == OpeningKind.Passage && o.style.arched -> o.style
+            o.shape == WindowShape.Arched -> PassageStyle.Arched
+            else -> null
+        }
+        val outline = when {
+            o.shape == WindowShape.Round -> {
+                val r = (t1 - t0) / 2
+                (0 until ARCH_SLICES * 2).map { k ->
+                    val a = 2 * kotlin.math.PI * k / (ARCH_SLICES * 2)
+                    Vec2((t0 + r + r * cos(a)) * 10, (sill + r + r * sin(a)) * 10)
+                }
             }
-        }.map { Vec2(it.x * 10, it.y * 10) }.let(::simplify)
+            arch == null -> rect
+            else -> buildList {
+                add(Vec2(t0, sill)); add(Vec2(t1, sill))
+                for (k in ARCH_SLICES downTo 0) {
+                    val t = t0 + (t1 - t0) * k / ARCH_SLICES
+                    add(Vec2(t, Openings.archTop(arch, t0, t1, sill, top, t)))
+                }
+            }.map { Vec2(it.x * 10, it.y * 10) }.let(::simplify)
+        }
         val half = p.thickness / 2 * 10
         val openingPlacement = local(p.placement, axis3(origin3))
         val niche = o.kind == OpeningKind.Niche
@@ -457,16 +474,16 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
             props(IfcExport.PSET, listOf(opening), sagoma + if (niche) listOf("SillHeight" to length(sill)) else emptyList())
             return null
         }
-        val panel = extrusion(rect, axis3(point(0.0, 25.0, 0.0), dir(0.0, -1.0, 0.0), xDir), 50.0)
+        val panel = extrusion(outline, axis3(point(0.0, 25.0, 0.0), dir(0.0, -1.0, 0.0), xDir), 50.0)
         val fillPlacement = local(openingPlacement, axis3(origin3))
         val widthMm = num((t1 - t0) * 10)
         val heightMm = num(o.height * 10)
         val isWindow = o.kind.glazed && o.kind != OpeningKind.Balcony1 && o.kind != OpeningKind.Balcony2
         val fill = if (isWindow) {
-            val partitioning = if (o.kind.leaves == 2) "DOUBLE_PANEL_VERTICAL" else "SINGLE_PANEL"
+            val partitioning = partitioning(o.leaves)
             val window = w.add(
                 "IFCWINDOW", guid("$baseKey/fill"), NULL, str(o.kind.label), NULL, NULL, fillPlacement, shape(bodyRep(listOf(panel))), NULL,
-                heightMm, widthMm, ".WINDOW.", ".$partitioning.", NULL,
+                heightMm, widthMm, ".WINDOW.", ".$partitioning.", userPartitioning(o.leaves),
             )
             // Come si aprono le ante: nell'IFC4 sta nel tipo della finestra (IfcWindowType con IfcWindowPanelProperties).
             windowTypes.getOrPut(partitioning to panelOperations(o)) { mutableListOf() } += window
@@ -513,15 +530,22 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
             if (o.splay != 0.0) add("Splay" to length(o.splay))
             if (o.splayRounded) add("SplayRounded" to bool(true))
             if (o.entrance) add("Entrance" to bool(true))
+            if (o.pivot) add("Pivot" to bool(true))
+            if (o.transom != 0.0) add("Transom" to length(o.transom))
+            if (o.sidelight != 0.0) add("Sidelight" to length(o.sidelight))
+            if (o.leafCount != 0) add("LeafCount" to int(o.leafCount.toLong()))
+            if (o.liftSlide) add("LiftSlide" to bool(true))
+            if (o.windowShape != d.windowShape) add("WindowShape" to label(o.windowShape.name))
         }
     }
 
     /** Modo di aprirsi della porta (anche dei balconi, che nel file sono porte) con i nomi dell'IFC4. */
     fun doorOperation(o: Opening): String {
         val side = if (o.hingeLeft) "LEFT" else "RIGHT"
-        val two = o.kind.leaves == 2
+        val two = o.leaves >= 2
         return when {
-            o.sliding -> if (two) "DOUBLE_DOOR_SLIDING" else "SLIDING_TO_$side"
+            // Alzante: un'anta fissa e una che scorre.
+            o.sliding -> if (two && !o.lifts) "DOUBLE_DOOR_SLIDING" else "SLIDING_TO_$side"
             o.folds -> if (two) "DOUBLE_DOOR_FOLDING" else "FOLDING_TO_$side"
             o.fixed -> "NOTDEFINED"
             two -> "DOUBLE_DOOR_SINGLE_SWING"
@@ -532,17 +556,26 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
     /** Modo di aprirsi di ogni anta della finestra, da sinistra, con i nomi dell'IFC4 (IfcWindowPanelOperationEnum). */
     fun panelOperations(o: Opening): List<String> {
         fun hand(left: Boolean) = if (left) "LEFTHAND" else "RIGHTHAND"
-        val leaves = if (o.kind.leaves == 2) listOf(true, false) else listOf(o.hingeLeft)
-        return leaves.map { left ->
+        val n = o.leaves
+        // Le ante della metà sinistra hanno il cardine a sinistra, quelle della metà destra a destra.
+        val leaves = if (n == 1) listOf(o.hingeLeft) else List(n) { it * 2 < n }
+        return leaves.mapIndexed { i, left ->
             when {
+                // Alzante: la prima anta resta ferma, le altre scorrono.
+                o.lifts && n > 1 && i == 0 -> "FIXEDCASEMENT"
                 o.sliding -> "SLIDINGHORIZONTAL"
                 o.sash == SashType.Fixed -> "FIXEDCASEMENT"
                 o.sash == SashType.Hopper -> "BOTTOMHUNG"
+                o.sash == SashType.Pivot -> "PIVOTHORIZONTAL"
                 o.sash == SashType.TiltTurn -> "TILTANDTURN${hand(left)}"
                 else -> "SIDEHUNG${hand(left)}"
             }
         }
     }
+
+    /** Suddivisione in ante dell'IFC4 (per 4 ante non c'è un nome: USERDEFINED, con il nome scritto a parte). */
+    fun partitioning(leaves: Int) = when (leaves) { 1 -> "SINGLE_PANEL"; 2 -> "DOUBLE_PANEL_VERTICAL"; 3 -> "TRIPLE_PANEL_VERTICAL"; else -> "USERDEFINED" }
+    fun userPartitioning(leaves: Int) = if (partitioning(leaves) == "USERDEFINED") "'QUADRUPLE_PANEL_VERTICAL'" else NULL
 
     /** Finestre raggruppate per tipo: (suddivisione, modo di aprirsi delle ante) → finestre. */
     val windowTypes = LinkedHashMap<Pair<String, List<String>>, MutableList<String>>()
@@ -552,14 +585,14 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
         if (windowTypes.isEmpty()) return
         val types = windowTypes.entries.map { (k, windows) ->
             val (partitioning, ops) = k
-            val positions = if (ops.size == 2) listOf("LEFT", "RIGHT") else listOf("MIDDLE")
+            val positions = when (ops.size) { 1 -> listOf("MIDDLE"); 2 -> listOf("LEFT", "RIGHT"); else -> listOf("LEFT") + List(ops.size - 2) { "MIDDLE" } + "RIGHT" }
             val panels = ops.mapIndexed { i, op ->
                 w.add("IFCWINDOWPANELPROPERTIES", guid("windowtype/$partitioning/${ops.joinToString("+")}/panel/$i"), NULL, NULL, NULL, ".$op.", ".${positions[i]}.", NULL, NULL, NULL)
             }
             val name = str("Finestra " + ops.joinToString(" + ") { it.lowercase() })
             val type = w.add(
                 "IFCWINDOWTYPE", guid("windowtype/$partitioning/${ops.joinToString("+")}"), NULL, name, NULL, NULL, list(panels), NULL, NULL, NULL,
-                ".WINDOW.", ".$partitioning.", StepWriter.bool(false), NULL,
+                ".WINDOW.", ".$partitioning.", StepWriter.bool(false), userPartitioning(ops.size),
             )
             w.add("IFCRELDEFINESBYTYPE", newGuid(), NULL, NULL, NULL, list(windows), type)
             type

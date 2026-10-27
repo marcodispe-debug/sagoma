@@ -20,6 +20,7 @@ import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.SashType
 import com.sagoma.planimetria.model.Shading
 import com.sagoma.planimetria.model.WindowModel
+import com.sagoma.planimetria.model.WindowShape
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -338,6 +339,12 @@ internal class IfcReader(val f: StepFile) {
             color = e("Color", Finish.entries),
             splay = propNum(h.id, IfcExport.PSET, "Splay")?.let { it * scale } ?: 0.0,
             splayRounded = b("SplayRounded"), entrance = b("Entrance"),
+            pivot = b("Pivot"),
+            transom = propNum(h.id, IfcExport.PSET, "Transom")?.let { it * scale } ?: 0.0,
+            sidelight = propNum(h.id, IfcExport.PSET, "Sidelight")?.let { it * scale } ?: 0.0,
+            leafCount = propNum(h.id, IfcExport.PSET, "LeafCount")?.toInt() ?: 0,
+            liftSlide = b("LiftSlide"),
+            windowShape = e("WindowShape", WindowShape.entries) ?: base.windowShape,
         )
         if (h.kind != null) return o
         // File non uscito da sagoma: il modo di aprirsi dai nomi dell'IFC.
@@ -354,11 +361,14 @@ internal class IfcReader(val f: StepFile) {
         val ops = h.panelOperations
         if (ops.isNotEmpty()) {
             when {
-                ops.all { it == "SLIDINGHORIZONTAL" } -> o = o.copy(sliding = true)
+                "SLIDINGHORIZONTAL" in ops && ops.all { it == "SLIDINGHORIZONTAL" || it == "FIXEDCASEMENT" } ->
+                    o = o.copy(sliding = true, liftSlide = "FIXEDCASEMENT" in ops)
                 ops.all { it == "FIXEDCASEMENT" } -> o = o.copy(sash = SashType.Fixed)
                 ops.any { it == "BOTTOMHUNG" } -> o = o.copy(sash = SashType.Hopper)
                 ops.any { it.startsWith("TILTANDTURN") } -> o = o.copy(sash = SashType.TiltTurn)
+                ops.any { it == "PIVOTHORIZONTAL" } -> o = o.copy(sash = SashType.Pivot)
             }
+            if (ops.size in 3..4 && o.kind.leaves == 2) o = o.copy(leafCount = ops.size)
             if (ops.size == 1) ops[0].takeIf { it.endsWith("HAND") }?.let { o = o.copy(hingeLeft = it.endsWith("LEFTHAND")) }
         }
         return o
@@ -519,7 +529,8 @@ internal class IfcReader(val f: StepFile) {
 
             // Porte, finestre e passaggi.
             val holes = mutableListOf<Hole>()
-            for (fill in f.ofType("IFCDOOR", "IFCWINDOW").filter(mine)) {
+            // Le finestre da tetto (anche quelle del tetto del professionista) stanno nel tetto, non nei muri.
+            for (fill in f.ofType("IFCDOOR", "IFCWINDOW").filter(mine).filter { !(it.type == "IFCWINDOW" && it.enum(10) == "SKYLIGHT") }) {
                 val opening = fillOf[fill.id]
                 val wall = opening?.let { voidOf[it] }?.let { wallById[it] }
                 holes += hole(fill, opening?.let { f[it] }, wall, z, filled = true) ?: continue

@@ -11,6 +11,9 @@ import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.SashType
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.model.WindowModel
+import com.sagoma.planimetria.model.DoorModel
+import com.sagoma.planimetria.model.Shading
+import com.sagoma.planimetria.model.WindowShape
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -165,5 +168,58 @@ class IfcOpeningTypesTest {
         assertTrue(os.any { it.sash == SashType.Hopper }, "vasistas")
         assertEquals(2, os.count { it.sash == SashType.Fixed }, "fisse")
         assertEquals(2, os.count { it.kind == OpeningKind.Passage })
+    }
+
+    // ---------- Secondo gruppo: blindata, bilico, sopraluce, 3-4 ante, alzante, finestre ad arco e tonde, oscuranti ----------
+
+    private val group2 = listOf(
+        Opening(1, OpeningKind.Window1, 0, 80.0, 60.0, 100.0, sillHeight = 110.0, sash = SashType.Pivot),
+        Opening(2, OpeningKind.Window2, 0, 250.0, 180.0, 140.0, sillHeight = 90.0, leafCount = 3),
+        Opening(3, OpeningKind.Window1, 0, 450.0, 80.0, 150.0, sillHeight = 80.0, windowShape = WindowShape.Arched),
+        Opening(4, OpeningKind.Window1, 0, 600.0, 60.0, 60.0, sillHeight = 130.0, windowShape = WindowShape.Round),
+        Opening(5, OpeningKind.Window1, 0, 730.0, 70.0, 140.0, sillHeight = 90.0, shading = Shading.Venetian),
+        Opening(6, OpeningKind.Door, 1, 100.0, 90.0, 210.0, pivot = true, doorModel = DoorModel.Armored),
+        Opening(7, OpeningKind.Door, 1, 300.0, 120.0, 240.0, transom = 40.0, sidelight = 30.0),
+        Opening(8, OpeningKind.Balcony2, 2, 200.0, 240.0, 240.0, leafCount = 4),
+        Opening(9, OpeningKind.Balcony2, 2, 550.0, 200.0, 240.0, sliding = true, liftSlide = true),
+        Opening(10, OpeningKind.Window1, 2, 720.0, 60.0, 120.0, sillHeight = 90.0, shading = Shading.InteriorShutters),
+    )
+    private val big = Room(3, "Salone", RoomType.Soggiorno, rect(0.0, 0.0, 800.0, 500.0), wallThickness = 30.0, openings = group2)
+
+    private fun look2(o: Opening) = look(o) + listOf(o.pivot, o.transom.toInt(), o.sidelight.toInt(), o.leafCount, o.liftSlide, o.windowShape, o.shading, o.doorModel)
+
+    @Test
+    fun `secondo gruppo - nomi standard e andata e ritorno`() {
+        val text = IfcExport.export(house(listOf(big)), "Gruppo 2", key = "g2").also { save("gruppo-2.ifc", it) }
+        val f = StepFile.parse(text)
+        val typeOf = f.ofType("IFCRELDEFINESBYTYPE").flatMap { r -> r.refs(4).map { it to f[r.ref(5)]!! } }.toMap()
+        val windows = f.ofType("IFCWINDOW").associate { w -> w.enum(11) to typeOf[w.id]!!.refs(5).map { f[it]!!.enum(4) } }
+        assertEquals(listOf("PIVOTHORIZONTAL"), f.ofType("IFCWINDOW").map { typeOf[it.id]!!.refs(5).map { p -> f[p]!!.enum(4) } }.first { it == listOf("PIVOTHORIZONTAL") })
+        assertEquals(3, windows["TRIPLE_PANEL_VERTICAL"]?.size)
+        // Balconi: alzante = un'anta che scorre; 4 ante = due ante a battente per l'IFC (il numero vero sta nelle proprietà).
+        val doors = f.ofType("IFCDOOR").map { it.enum(11) }.sortedBy { it }
+        assertEquals(listOf("DOUBLE_DOOR_SINGLE_SWING", "SINGLE_SWING_LEFT", "SINGLE_SWING_LEFT", "SLIDING_TO_LEFT"), doors)
+        // Finestra tonda e ad arco: vani con tanti punti.
+        val profiles = f.ofType("IFCOPENINGELEMENT").map { op ->
+            val solid = f[f[f[op.ref(6)]!!.refs(2).first()]!!.refs(3).first()]!!
+            f[f[solid.ref(0)]!!.ref(2)]!!.refs(0).size - 1
+        }
+        assertEquals(2, profiles.count { it > 10 }, "profili: $profiles")
+        val back = IfcImport.read(text).building.floors.single().plan.rooms.single()
+        assertEquals(group2.associate { it.id to look2(it) }, back.openings.associate { it.id to look2(it) })
+    }
+
+    @Test
+    fun `quattro ante - USERDEFINED con il nome scritto`() {
+        val four = big.copy(openings = listOf(Opening(1, OpeningKind.Window2, 0, 300.0, 240.0, 140.0, sillHeight = 90.0, leafCount = 4)))
+        val f = StepFile.parse(IfcExport.export(house(listOf(four)), "4 ante", key = "g4"))
+        val w = f.ofType("IFCWINDOW").single()
+        assertEquals("USERDEFINED", w.enum(11))
+        assertEquals("QUADRUPLE_PANEL_VERTICAL", w.str(12))
+        val t = f.ofType("IFCWINDOWTYPE").single()
+        assertEquals(listOf("LEFT", "MIDDLE", "MIDDLE", "RIGHT"), t.refs(5).map { f[it]!!.enum(5) })
+        // Da un altro programma: 4 ante dal tipo.
+        val back = IfcImport.read(f.let { IfcExport.export(house(listOf(four)), "4 ante", key = "g4").replace("'Sagoma'", "'Altro'") })
+        assertEquals(4, back.building.floors.single().plan.rooms.single().openings.single().leafCount)
     }
 }
