@@ -25,7 +25,29 @@ class FileProjectRepository(private val root: File) : ProjectRepository {
     @Serializable
     private data class Index(val projects: List<ProjectInfo> = emptyList(), val last: Long? = null)
 
-    private fun read(): Index = runCatching { json.decodeFromString(Index.serializer(), index.readText()) }.getOrDefault(Index())
+    private fun read(): Index {
+        if (!index.exists()) return Index()
+        return runCatching { json.decodeFromString(Index.serializer(), index.readText()) }.getOrElse { rebuild() }
+    }
+
+    /**
+     * Elenco illeggibile (scrittura interrotta, sincronizzazione del cloud…): lo si mette da parte e lo si rifà dalle cartelle
+     * dei progetti, che restano tutti (con nome «Progetto N»), invece di ripartire da un elenco vuoto che li nasconderebbe.
+     */
+    @Synchronized
+    private fun rebuild(): Index {
+        runCatching { index.copyTo(File(dir, "index.corrupt-${System.currentTimeMillis()}.json"), overwrite = true) }
+        val projects = dir.listFiles()?.filter { it.isDirectory && it.name.toLongOrNull() != null }?.map { f ->
+            val id = f.name.toLong()
+            val modified = File(f, "planimetria.json").takeIf { it.exists() }?.lastModified() ?: f.lastModified()
+            ProjectInfo(id, if (id == 1L) T.progetti.miaCasa else T.progetti.progetto2(id), created = modified, modified = modified)
+        }?.sortedBy { it.id }.orEmpty().ifEmpty {
+            folder(1).mkdirs()
+            val now = System.currentTimeMillis()
+            listOf(ProjectInfo(1, T.progetti.miaCasa, created = now, modified = now))
+        }
+        return Index(projects, last = projects.maxBy { it.modified }.id).also(::write)
+    }
 
     @Synchronized
     private fun write(i: Index) {

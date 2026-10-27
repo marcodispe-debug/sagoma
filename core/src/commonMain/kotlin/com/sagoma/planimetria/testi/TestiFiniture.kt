@@ -5,6 +5,7 @@ open class TestiFiniture {
     open val pittura: String get() = "Pittura"
     open val rivestimento: String get() = "Rivestimento"
     open val materiale: String get() = "Materiale"
+    open fun rivestimentoDiPrima(p1: Any?): String = "Rivestimento di prima: $p1"
     open fun colore(p1: Any?): String = "Colore $p1"
     open val tuttaParete: String get() = "Tutta la parete"
     open fun altoCmTerra(p1: Any?): String = "Alto $p1 cm da terra"

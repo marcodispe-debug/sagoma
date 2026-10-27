@@ -220,7 +220,8 @@ object LitShaders {
 
         init {
             if (scene != null && daylight.lampsOn) {
-                for (l in scene.lights.sortedBy { (it.position - viewer).length }.take(MAX_LAMPS)) {
+                // Prima le lampade vere, poi le luci che passano dalle porte (deboli): con troppe luci restano fuori quelle.
+                for (l in scene.lights.sortedWith(compareBy({ it.spill }, { (it.position - viewer).length })).take(MAX_LAMPS)) {
                     val i = lampCount++
                     // Una plafoniera da ~1000 lumen illumina bene una stanza a 2 m.
                     val s = (l.lumens / 1000.0 * 0.9).toFloat() * brightness

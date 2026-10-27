@@ -2484,12 +2484,39 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
      */
     fun setRoomWallThickness(roomId: Long, thickness: Double) = commit { plan ->
         val room = plan.room(roomId)?.takeIf { thickness in 3.0..120.0 } ?: return@commit plan
+        val delta = (thickness - room.wallThickness) / 2
         var offsets = room.wallOffsets
         for (i in 0 until room.wallCount) {
             if (i in room.wallThicknesses) continue
-            offsets = withInnerFaceKept(room, offsets, i, (thickness - room.wallThickness) / 2)
+            offsets = withInnerFaceKept(room, offsets, i, delta)
         }
-        plan.replace(room.copy(wallThickness = thickness, wallOffsets = offsets))
+        var result = plan.replace(room.copy(wallThickness = thickness, wallOffsets = offsets))
+        // I muri in comune sono gli stessi muri fisici: cambiano anche per le stanze accanto, allargandosi verso di loro.
+        for (i in 0 until room.wallCount) {
+            if (i !in room.wallThicknesses) result = withSharedWall(result, room, i, thickness, -delta)
+        }
+        result
+    }
+
+    /** Il muro `index` di `room` (com'era prima) visto dalle stanze accanto: spessore `thickness`, mezzeria spostata di `shift`. */
+    private fun withSharedWall(plan: FloorPlan, room: Room, index: Int, thickness: Double?, shift: Double): FloorPlan {
+        var result = plan
+        val a = room.wallStart(index)
+        val b = room.wallEnd(index)
+        for (other in plan.rooms) {
+            if (other.id == room.id) continue
+            for (j in 0 until other.wallCount) {
+                if (!Dimensions.sharesWall(a, b, other.wallStart(j), other.wallEnd(j))) continue
+                val r = result.room(other.id)!!
+                result = result.replace(
+                    r.copy(
+                        wallThicknesses = if (thickness == null || thickness == r.wallThickness) r.wallThicknesses - j else r.wallThicknesses + (j to thickness),
+                        wallOffsets = withInnerFaceKept(r, r.wallOffsets, j, shift),
+                    ),
+                )
+            }
+        }
+        return result
     }
 
     /**
@@ -2516,17 +2543,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             wallThicknesses = if (thickness == null || thickness == r.wallThickness) r.wallThicknesses - i else r.wallThicknesses + (i to thickness),
             wallOffsets = withInnerFaceKept(r, r.wallOffsets, i, shift),
         )
-        var result = plan.replace(apply(room, index, delta))
-        val a = room.wallStart(index)
-        val b = room.wallEnd(index)
-        for (other in plan.rooms) {
-            if (other.id == roomId) continue
-            for (j in 0 until other.wallCount) {
-                // Per la stanza accanto "fuori" è dall'altra parte: la mezzeria si sposta verso di lei.
-                if (Dimensions.sharesWall(a, b, other.wallStart(j), other.wallEnd(j))) result = result.replace(apply(result.room(other.id)!!, j, -delta))
-            }
-        }
-        result
+        // Per la stanza accanto "fuori" è dall'altra parte: la mezzeria si sposta verso di lei.
+        withSharedWall(plan.replace(apply(room, index, delta)), room, index, thickness, -delta)
     }
 
     /**
