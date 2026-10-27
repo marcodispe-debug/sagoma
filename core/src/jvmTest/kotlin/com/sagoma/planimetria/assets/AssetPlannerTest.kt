@@ -29,6 +29,7 @@ class AssetPlannerTest {
     private val S = AssetPriority.Scene
     private fun req(path: String, p: AssetPriority = S) = AssetRequest(path, p)
     private fun maps(id: String, p: AssetPriority = S) = listOf("color", "normal", "orm").map { req("materials/${id}_$it.jpg", p) }
+    private fun maps2k(id: String) = listOf("color", "normal", "orm").map { req("materials/2k/${id}_$it.jpg", AssetPriority.Soon) }
     private val bounds = Bounds(0.0, 0.0, 300.0, 250.0)
 
     private fun placed(id: Long, model: String) = Scene3D.PlacedFurniture(id, model, Vec3(0.0, 0.0, 0.0), 0.0, 100.0, 50.0, 80.0, false)
@@ -59,6 +60,19 @@ class AssetPlannerTest {
         assertEquals(maps("cotto") + maps("parquet"), r)
         // una superficie con meno di un triangolo non si disegna: niente mappe
         assertEquals(emptyList(), AssetPlanner.forScene(scene(textured = mapOf("vuoto" to FloatArray(0), "due" to tris(2)))))
+    }
+
+    @Test
+    fun `sul computer, dopo tutto quello che serve alla scena, le mappe 2K degli stessi materiali, meno urgenti`() {
+        val s = scene(listOf(placed(1, "ob_1")), textured = linkedMapOf("parquet" to tris(), "cotto" to tris()), bounds = bounds)
+        val r = AssetPlanner.forScene(s, listOf("giorno"), MaterialResolution.K2)
+        assertEquals(
+            listOf(req("furniture/ob_1.glb")) + maps("cotto") + maps("parquet") + maps("grass005") + req("env/giorno.ibl") +
+                maps2k("cotto") + maps2k("parquet") + maps2k("grass005"),
+            r,
+        )
+        // Sul telefono (1K, il valore di partenza) le stesse richieste di sempre.
+        assertEquals(r.filter { it.priority == S }, AssetPlanner.forScene(s, listOf("giorno")))
     }
 
     @Test

@@ -314,6 +314,8 @@ data class Room(
     val wallFinishes: Map<Int, WallFinish> = emptyMap(),
     /** Pavimento con un materiale fotografico ([MaterialCatalog]); vince su [floorFinish] nel 3D. */
     val floorMaterial: String? = null,
+    /** Verso e misura dei pezzi di [floorMaterial]. */
+    val floorLayout: MaterialLayout = MaterialLayout(),
     /** Spessore dei muri della stanza (cm) e di singoli muri che fanno eccezione (portanti, tramezzi). */
     val wallThickness: Double = WALL_THICKNESS,
     val wallThicknesses: Map<Int, Double> = emptyMap(),
@@ -954,6 +956,16 @@ data class Building(
     val units: LengthUnit = LengthUnit.Centimeters,
     /** Dove punta il nord rispetto alla pianta e in che città è la casa: decidono il giro del sole nel 3D (facoltativi). */
     val site: HouseSite = HouseSite(),
+    /**
+     * Indice in [floors] del piano terra, a livello del terreno: quelli prima sono interrati (aggiunti con «piano sotto»).
+     * Nel 3D il prato sta alla sua quota e copre gli interrati.
+     */
+    val ground: Int = 0,
+    /**
+     * Luminosità delle lampade della casa nel 3D e nei render, scelta da chi usa l'app: 1 = come le fa sagoma, da
+     * [MIN_LAMP_BRIGHTNESS] a [MAX_LAMP_BRIGHTNESS].
+     */
+    val lampBrightness: Double = 1.0,
 ) {
     init {
         require(floors.isNotEmpty()) { "Serve almeno un piano" }
@@ -963,8 +975,14 @@ data class Building(
     /** Piano di sotto (null al piano più basso). */
     val below: Floor? get() = floors.getOrNull(current - 1)
 
-    /** Quota del pavimento del piano `index` rispetto al piano terra (cm). */
+    /** Quota del pavimento del piano `index` rispetto al piano più basso (cm). */
     fun elevation(index: Int): Double = floors.take(index).sumOf { it.levelHeight }
+
+    /** Indice del piano terra, sempre valido. */
+    val groundIndex: Int get() = ground.coerceIn(floors.indices)
+
+    /** Il piano `index` rispetto al piano terra: 0 il piano terra, 1 il primo piano, -1 il primo interrato. */
+    fun level(index: Int): Int = index - groundIndex
 
     /** Stessa casa con la pianta del piano corrente sostituita. */
     fun withPlan(plan: FloorPlan): Building {
@@ -975,12 +993,20 @@ data class Building(
     val nextFloorId: Long get() = (floors.maxOfOrNull { it.id } ?: 0L) + 1
 
     companion object {
+        const val MIN_LAMP_BRIGHTNESS = 0.25
+        const val MAX_LAMP_BRIGHTNESS = 2.0
+
         /** Casa a un piano. `autoLevel`: l'interpiano segue le stanze (i progetti nuovi); i file vecchi sono manuali. */
         fun single(plan: FloorPlan, autoLevel: Boolean = false) =
             Building(listOf(Floor(1, floorName(0), plan, autoLevel = autoLevel).synced()))
 
-        /** Nome proposto per il piano `index` (0 = piano terra), nella lingua dell'app o in quella data. */
-        fun floorName(index: Int, lingua: com.sagoma.planimetria.testi.Lingua = T.lingua): String = when (index) {
+        /** Nome proposto per il piano `index` (0 = piano terra, -1 il primo interrato), nella lingua dell'app o in quella data. */
+        fun floorName(index: Int, lingua: com.sagoma.planimetria.testi.Lingua = T.lingua): String = when {
+            index < 0 -> lingua.piani.interrato(-index)
+            else -> floorNameAbove(index, lingua)
+        }
+
+        private fun floorNameAbove(index: Int, lingua: com.sagoma.planimetria.testi.Lingua): String = when (index) {
             0 -> lingua.piani.pianoTerra
             1 -> lingua.piani.primoPiano
             2 -> lingua.piani.secondoPiano

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -66,8 +65,11 @@ fun <T> ModelPicker(
                             name(option),
                             style = MaterialTheme.typography.labelSmall,
                             textAlign = TextAlign.Center,
+                            // Sempre due righe (le schede restano alte uguali), misurate dal testo: con 30 dp fissi la
+                            // seconda riga veniva tagliata in fondo («Parquet rovere»).
+                            minLines = 2,
                             maxLines = 2,
-                            modifier = Modifier.padding(top = 4.dp).height(30.dp),
+                            modifier = Modifier.padding(top = 4.dp),
                         )
                     }
                 }

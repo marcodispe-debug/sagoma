@@ -79,16 +79,22 @@ C'è una sola app (`com.sagoma.planimetria`, "Sagoma") per privati e professioni
   restano anche camminando, perché i soffitti (facce rivolte in basso, materiale `lit_down` a due facce) le proiettano e il
   sole entra solo dalle finestre. Ogni finestra aggiunge una luce morbida verso la stanza (proporzionale alla sua area e
   alla luce del giorno) e dentro casa la luce ambiente diffusa si riduce. Plafoniere, faretti, lampadari, neon, strisce
-  LED e le lampade del catalogo sono luci vere (`Scene3D.lights`), accese quando fa buio, sempre o mai.
+  LED e le lampade del catalogo sono luci vere (`Scene3D.lights`), accese quando fa buio, sempre o mai. Ogni tipo ha la
+  sua forma di luce come nei profili IES (`LightProfile`: fascio stretto del faretto, plafoniera solo verso il basso,
+  paralume che illumina sopra e sotto, applique verso la stanza…): sul computer nello shader, su Android con i coni di
+  Filament. Sul computer la luce di una lampada resta nella sua stanza, ma da porte, passaggi e muri tolti ne passa una parte
+  nella stanza vicina (`LightSpill`: una luce morbida sulla soglia con il flusso che attraversa il varco).
 - Cielo e riflessi: foto a 360° di Poly Haven
   (CC0: *kloofendal_48d_partly_cloudy_puresky*, *lilienstein*, *lebombo*) in `catalogo/src/main/assets/env/*.ibl`, preparate
   con `tools/furniture/PackEnv.java` (armoniche sferiche per la luce diffusa + cubo per riflessi e cielo; i livelli
   ruvidi dei riflessi li calcola Filament all'avvio con `generatePrefilterMipmap`).
 - Materiali fotografici (pavimenti della stanza e rivestimento "Materiale fotografico" di pareti, facciata e muri
-  singoli, prato attorno alla casa): 188 materiali di ambientCG e Poly Haven (CC0) in `catalogo/src/main/assets/materials/`
-  (1024 px, 118 MB; i tessuti e le moquette diventano anche tappeti rettangolari e tondi), preparati con `tools/furniture/PackMaterials.java` da `tools/furniture/materials.tsv` (nome, categoria,
+  singoli, prato attorno alla casa): 380 materiali di ambientCG e Poly Haven (CC0) in `catalogo/src/main/assets/materials/`
+  (1024 px, 233 MB; i tessuti e le moquette diventano anche tappeti rettangolari e tondi), preparati con `tools/furniture/PackMaterials.java` da `tools/furniture/materials.tsv` (nome, categoria,
   lato reale della foto). Nel 3D sono superfici a parte (`Scene3D.textured`, uv in ripetizioni della foto) disegnate
-  da `TexturedSurfaces` con colore, rilievo e ruvidità; il renderer semplice usa il colore medio.
+  da `TexturedSurfaces` con colore, rilievo e ruvidità; il renderer semplice usa il colore medio. Gli stessi materiali in
+  2K (3D del computer) e 4K (render) stanno solo sul server del catalogo (`MaterialResolution`, `tools/furniture/PackMaterialsHd.java`,
+  vedi `docs/catalogo-server.md`): il computer usa l'1K finché il 2K non è arrivato.
 
 ## Moduli (Kotlin Multiplatform)
 
@@ -141,9 +147,11 @@ Pareti sotto il tetto (sottotetti): nel riquadro di un muro c'è "Taglio diagona
 
 Guida mansarda: il pulsante "⌂ Mansarda" in fondo alla barra in basso (e nella colonna a sinistra in orizzontale) apre una guida di 8 passi con un disegno per ognuno. I passi sono: com'è fatta una mansarda, disegnare la stanza, abbassare il muretto ("Altezza muro"), attivare "Taglio diagonale" sulla prima parete laterale, scegliere dove inizia la discesa (campo o pallino da trascinare), ripetere sulla parete di fronte, controllare gli avvisi, vista 3D. L'ultimo passo ha il pulsante "Apri la vista 3D" (`ui/Guides.kt`).
 
-Piani: il pulsante del piano in alto a sinistra ("🏠 Piano terra ▾") mostra il piano su cui si lavora. Dal suo menu si fanno tre cose:
+Piani: il pulsante del piano in alto a sinistra ("🏠 Piano terra ▾") mostra il piano su cui si lavora. Dal suo menu si fanno quattro cose:
 - cambiare piano;
 - aggiungere un piano sopra, scegliendo nome, interpiano (default 300 cm) e se partire dai muri del piano più alto (solo i muri) o da un piano vuoto;
+- aggiungere un piano sotto (interrato), allo stesso modo partendo dal piano più basso: il piano terra resta quello (`Building.ground`)
+  e nel 3D, guardando dal piano terra in su, il prato sta alla sua quota e copre gli interrati;
 - modificare nome e interpiano del piano corrente, o eliminarlo.
 
 Il piano di sotto si vede in grigio tratteggiato. La cronologia vale per tutta la casa: ↶ riporta anche al piano della modifica. Il file salvato passa alla versione 2 (`building` con tutti i piani); i file della versione 1 si aprono come casa a un piano (`model/Building`, `persistence/PlanStore`).

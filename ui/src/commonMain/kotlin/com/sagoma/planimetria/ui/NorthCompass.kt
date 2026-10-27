@@ -199,7 +199,7 @@ fun HouseSiteDialog(site: HouseSite, onNorth: (Double) -> Unit, onPlace: (Place?
                 }
                 TextButton(onClick = { onNorth(0.0); degrees = "0" }) { Text(T.vista3D.nordInAlto) }
                 Spacer(Modifier.height(4.dp))
-                Text(T.vista3D.cittaScelta(site.place?.name ?: T.vista3D.nessunaCitta), style = MaterialTheme.typography.titleSmall)
+                Text(T.vista3D.cittaScelta(site.place?.let { Places.displayName(it, T.lingua.codice) } ?: T.vista3D.nessunaCitta), style = MaterialTheme.typography.titleSmall)
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -207,12 +207,12 @@ fun HouseSiteDialog(site: HouseSite, onNorth: (Double) -> Unit, onPlace: (Place?
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                val found = remember(query) { Places.search(query) }
+                val found = remember(query, T.lingua.codice) { Places.search(query, T.lingua.codice) }
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
                     if (query.isBlank()) item {
                         PlaceRow(T.vista3D.nessunaCitta, site.place == null) { onPlace(null) }
                     }
-                    items(found) { p -> PlaceRow(p.name, site.place?.name == p.name) { onPlace(p) } }
+                    items(found) { p -> PlaceRow(Places.displayName(p, T.lingua.codice), site.place?.name == p.name) { onPlace(p) } }
                 }
             }
         },

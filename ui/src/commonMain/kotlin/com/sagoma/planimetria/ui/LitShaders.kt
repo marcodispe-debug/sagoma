@@ -1,6 +1,7 @@
 package com.sagoma.planimetria.ui
 
 import com.sagoma.planimetria.geometry.Bounds
+import com.sagoma.planimetria.geometry.LightZones
 import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.SunAngles
 import com.sagoma.planimetria.geometry.SunPath
@@ -172,24 +173,28 @@ object LitShaders {
     /**
      * Prato: un grande quadrato poco sotto il pavimento più basso della scena (se si guarda un piano di sopra,
      * sotto quelli di sotto: altrimenti il prato li taglierebbe e li coprirebbe), nel formato dei vertici della scena.
+     * Attorno a uno scavo sono quattro rettangoli che lasciano il buco.
      */
     fun ground(scene: Scene3D): FloatArray {
-        val b = scene.bounds ?: return FloatArray(0)
-        val m = 4000.0
-        val x0 = (b.minX - m).toFloat(); val x1 = (b.maxX + m).toFloat()
-        val z0 = (b.minY - m).toFloat(); val z1 = (b.maxY + m).toFloat()
         var lowest = 0f
         var k = 1
         while (k < scene.opaque.size) { lowest = minOf(lowest, scene.opaque[k]); k += Scene3D.FLOATS_PER_VERTEX }
-        val y = lowest - 0.5f
+        // Con degli interrati sotto il piano terra il prato sta alla sua quota e li copre (sono sotto terra); guardando un
+        // interrato resta lassù, attorno allo scavo ([Scene3D.excavation]).
+        val y = (scene.groundLevel?.toFloat() ?: lowest) - 0.5f
         val g = grass
-        val corners = listOf(x0 to z0, x0 to z1, x1 to z1, x0 to z0, x1 to z1, x1 to z0)
-        val out = FloatArray(corners.size * Scene3D.FLOATS_PER_VERTEX)
-        corners.forEachIndexed { i, (x, z) ->
-            val o = i * Scene3D.FLOATS_PER_VERTEX
-            out[o] = x; out[o + 1] = y; out[o + 2] = z
-            out[o + 3] = 0f; out[o + 4] = 1f; out[o + 5] = 0f
-            out[o + 6] = g[0]; out[o + 7] = g[1]; out[o + 8] = g[2]; out[o + 9] = 1f
+        val rects = scene.lawn(4000.0)
+        val out = FloatArray(rects.size * 6 * Scene3D.FLOATS_PER_VERTEX)
+        var o = 0
+        for (r in rects) {
+            val x0 = r.minX.toFloat(); val x1 = r.maxX.toFloat()
+            val z0 = r.minY.toFloat(); val z1 = r.maxY.toFloat()
+            for ((x, z) in listOf(x0 to z0, x0 to z1, x1 to z1, x0 to z0, x1 to z1, x1 to z0)) {
+                out[o] = x; out[o + 1] = y; out[o + 2] = z
+                out[o + 3] = 0f; out[o + 4] = 1f; out[o + 5] = 0f
+                out[o + 6] = g[0]; out[o + 7] = g[1]; out[o + 8] = g[2]; out[o + 9] = 1f
+                o += Scene3D.FLOATS_PER_VERTEX
+            }
         }
         return out
     }
@@ -198,11 +203,16 @@ object LitShaders {
      * Uniform delle luci per la scena e l'ora: lampade (le più vicine a chi guarda, fino a [MAX_LAMPS]) e
      * finestre (fino a [MAX_WINDOWS]).
      */
-    class Lights(scene: Scene3D?, daylight: Daylight, viewer: Vec3, windowsAlways: Boolean = false) {
+    class Lights(scene: Scene3D?, daylight: Daylight, viewer: Vec3, windowsAlways: Boolean = false, brightness: Float = 1f) {
         val lamps = FloatArray(MAX_LAMPS * 4)
         val lampColors = FloatArray(MAX_LAMPS * 3)
-        /** Stanza di ogni lampada in pianta (minX, minZ, maxX, maxZ): la luce non passa i muri. */
-        val lampBoxes = FloatArray(MAX_LAMPS * 4)
+        /**
+         * Stanza di ogni lampada in pianta: [LightZones.MAX] rettangoli (minX, minZ, maxX, maxZ) per lampada, quelli in più vuoti.
+         * La luce non passa i muri.
+         */
+        val lampBoxes = FloatArray(MAX_LAMPS * LightZones.MAX * 4)
+        /** Asse di ogni lampada (x, y, z) e forma della sua luce ([com.sagoma.planimetria.geometry.LightProfile.ordinal]). */
+        val lampAxes = FloatArray(MAX_LAMPS * 4)
         var lampCount = 0
         val windows = FloatArray(MAX_WINDOWS * 4)
         val windowDirs = FloatArray(MAX_WINDOWS * 4)
@@ -210,21 +220,34 @@ object LitShaders {
 
         init {
             if (scene != null && daylight.lampsOn) {
-                for (l in scene.lights.sortedBy { (it.position - viewer).length }.take(MAX_LAMPS)) {
+                // Prima le lampade vere, poi le luci che passano dalle porte (deboli): con troppe luci restano fuori quelle.
+                for (l in scene.lights.sortedWith(compareBy({ it.spill }, { (it.position - viewer).length })).take(MAX_LAMPS)) {
                     val i = lampCount++
                     // Una plafoniera da ~1000 lumen illumina bene una stanza a 2 m.
-                    val s = (l.lumens / 1000.0 * 0.9).toFloat()
+                    val s = (l.lumens / 1000.0 * 0.9).toFloat() * brightness
                     // I faretti puntano in basso: la luce si mette poco sotto, così arriva sul pavimento.
                     val p = l.direction?.let { l.position + it * 30.0 } ?: l.position
                     lamps[i * 4] = p.x.toFloat(); lamps[i * 4 + 1] = p.y.toFloat(); lamps[i * 4 + 2] = p.z.toFloat(); lamps[i * 4 + 3] = s
                     val c = if (l.warm) floatArrayOf(1f, 0.80f, 0.58f) else floatArrayOf(0.95f, 0.97f, 1f)
                     lampColors[i * 3] = c[0]; lampColors[i * 3 + 1] = c[1]; lampColors[i * 3 + 2] = c[2]
+                    val ax = l.beamAxis.normalized()
+                    lampAxes[i * 4] = ax.x.toFloat(); lampAxes[i * 4 + 1] = ax.y.toFloat(); lampAxes[i * 4 + 2] = ax.z.toFloat()
+                    lampAxes[i * 4 + 3] = l.profile.ordinal.toFloat()
                     // Gli angoli della stanza sono in mezzeria dei muri: poco oltre ci sono le facce interne (illuminate),
                     // mentre le facce esterne restano fuori (buie).
-                    val b = l.room
+                    val zones = l.zones ?: listOfNotNull(l.room)
                     val m = 3.0
-                    lampBoxes[i * 4] = (b?.minX?.minus(m) ?: -1e7).toFloat(); lampBoxes[i * 4 + 1] = (b?.minY?.minus(m) ?: -1e7).toFloat()
-                    lampBoxes[i * 4 + 2] = (b?.maxX?.plus(m) ?: 1e7).toFloat(); lampBoxes[i * 4 + 3] = (b?.maxY?.plus(m) ?: 1e7).toFloat()
+                    for (z in 0 until LightZones.MAX) {
+                        val o = (i * LightZones.MAX + z) * 4
+                        val b = zones.getOrNull(z)
+                        if (b == null && (z > 0 || l.room != null)) {
+                            // Rettangolo vuoto: non contiene nessun punto.
+                            lampBoxes[o] = 1e7f; lampBoxes[o + 1] = 1e7f; lampBoxes[o + 2] = -1e7f; lampBoxes[o + 3] = -1e7f
+                            continue
+                        }
+                        lampBoxes[o] = (b?.minX?.minus(m) ?: -1e7).toFloat(); lampBoxes[o + 1] = (b?.minY?.minus(m) ?: -1e7).toFloat()
+                        lampBoxes[o + 2] = (b?.maxX?.plus(m) ?: 1e7).toFloat(); lampBoxes[o + 3] = (b?.maxY?.plus(m) ?: 1e7).toFloat()
+                    }
                 }
             }
             // Luce dalle finestre solo camminando: vista dall'alto la stanza è già aperta sul cielo, e la luce

@@ -44,6 +44,15 @@ class FacadeWholeHouseTest {
     }
 
     @Test
+    fun `anche un interrato aggiunto sotto prende il colore della casa`() {
+        val vm = vm()
+        vm.setFacadeFinish(ochre)
+        vm.addFloor("", 300.0, copyRooms = true, autoLevel = true, below = true)
+        assertEquals(listOf(ochre, ochre), vm.facades())
+        assertEquals("Piano interrato", vm.state.value.fullBuilding.floors.first().name)
+    }
+
+    @Test
     fun `eccezione solo per il piano corrente`() {
         val vm = vm()
         vm.setFacadeFinish(ochre)

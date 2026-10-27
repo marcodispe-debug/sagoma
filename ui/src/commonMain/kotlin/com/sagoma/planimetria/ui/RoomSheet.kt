@@ -46,7 +46,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.sagoma.planimetria.editor.GuideField
@@ -146,11 +148,22 @@ fun InfoSheet(
                     Box(Modifier.size(10.dp).background(dotColor, CircleShape))
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(
+                // Nome e misura su una riga; se non ci stanno (pannello stretto, lingue con parole lunghe) il nome può andare
+                // su due righe e la misura sotto, più piccola, invece di sparire nei puntini. Col telefono in orizzontale
+                // (poca altezza) resta solo il nome: i dettagli si leggono aprendo Info.
+                var twoLines by remember(title) { mutableStateOf(false) }
+                val lowWindow = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } < 500.dp
+                val head = title.substringBefore(" · ")
+                val rest = title.substringAfter(" · ", "")
+                if (twoLines) Column(Modifier.weight(1f)) {
+                    Text(head, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (rest.isNotEmpty() && !lowWindow) Text(rest, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                } else Text(
                     title,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { if (it.hasVisualOverflow) twoLines = true },
                     modifier = Modifier.weight(1f),
                 )
                 actions()
@@ -236,22 +249,11 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
                 style = MaterialTheme.typography.bodyMedium,
             )
             // Schede a larghezza fissa: tutte visibili anche sul telefono ("Porte e impianti" va su due righe).
-            androidx.compose.material3.SecondaryTabRow(selectedTabIndex = tabs.indexOf(tab), containerColor = Color.Transparent) {
-                // Margini stretti: con quelli standard le parole si spezzano a metà nella tendina.
-                for (t in tabs) androidx.compose.material3.Tab(
-                    selected = t == tab,
-                    onClick = { lastRoomTab = t },
-                    modifier = Modifier.guide(GuideTarget.MeasuresTab.takeIf { t == RoomTab.Measures }, done = tab == RoomTab.Measures),
-                ) {
-                    Text(
-                        if (t == RoomTab.Photos && room.photos.isNotEmpty()) "${t.label} (${room.photos.size})" else t.label,
-                        style = MaterialTheme.typography.labelLarge,
-                        textAlign = TextAlign.Center,
-                        maxLines = 2,
-                        modifier = Modifier.padding(horizontal = 2.dp, vertical = 10.dp),
-                    )
-                }
-            }
+            InfoTabRow(
+                tabs.map { t -> if (t == RoomTab.Photos && room.photos.isNotEmpty()) "${t.label} (${room.photos.size})" else t.label },
+                tabs.indexOf(tab),
+                tabModifier = { i -> Modifier.guide(GuideTarget.MeasuresTab.takeIf { tabs[i] == RoomTab.Measures }, done = tab == RoomTab.Measures) },
+            ) { lastRoomTab = tabs[it] }
         }
         // Contenuto della scheda: scorre nello spazio rimasto, con la barra di scorrimento a destra (ogni scheda riparte dall'alto).
         val scroll = key(tab) { rememberScrollState() }
@@ -406,12 +408,28 @@ private fun MeasuresTab(room: Room, vm: EditorViewModel) {
 /** Scheda Finiture: aspetto nel 3D, pavimento e pareti. */
 @Composable
 private fun FinishesTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
-    ModelPicker(T.schedaStanza.pavimento, FloorFinish.entries, room.floorFinish, { it.label }, { vm.setRoomLook(room.id, floor = it) }) {
-        floorPreview(it, Color(room.type.argb))
-    }
-    // Pavimento con un materiale fotografico (vince sulla finitura qui sopra), dove ci sono i materiali.
+    // Pavimento: dove ci sono i materiali fotografici si sceglie solo tra quelli («Nessuno» = colore della stanza). I pavimenti
+    // disegnati di prima restano solo nei progetti che li hanno, e si possono togliere; senza materiali (browser) restano i soli.
     if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS)) {
-        MaterialPicker(T.schedaStanza.pavimentoFotografico, room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
+        if (room.floorFinish != FloorFinish.RoomColor) Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(T.schedaStanza.pavimentoDiPrima(T.lingua.minuscola(room.floorFinish.label)), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            TextButton(onClick = { vm.setRoomLook(room.id, floor = FloorFinish.RoomColor) }) { Text(T.schedaStanza.togli, color = MaterialTheme.colorScheme.error) }
+        }
+        MaterialPicker(T.schedaStanza.pavimento, room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
+        if (room.floorMaterial != null) {
+            MaterialLayoutControls(room.floorLayout, room.floorMaterial) { vm.setFloorLayout(room.id, it) }
+            // Quanti pezzi servono con la posa a pezzi.
+            val count = remember(room) { com.sagoma.planimetria.geometry.LayingPieces.count(room) }
+            if (count != null) Text(
+                T.finiture.pezziServono(count.total, count.whole, count.cut, com.sagoma.planimetria.geometry.formatDecimal(count.area, 2)),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(end = 8.dp, bottom = 4.dp),
+            )
+        }
+    } else {
+        ModelPicker(T.schedaStanza.pavimento, FloorFinish.entries, room.floorFinish, { it.label }, { vm.setRoomLook(room.id, floor = it) }) {
+            floorPreview(it, Color(room.type.argb))
+        }
     }
     // Colore qualsiasi e rivestimenti. La facciata è una sola per tutta la casa: si cambia da qualunque stanza
     // e vale per tutti i piani; con più piani si può fare un'eccezione per il piano corrente.
@@ -441,8 +459,11 @@ private fun ItemRow(title: String, detail: String, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Text(detail, style = MaterialTheme.typography.bodySmall)
+            // Nome sopra e dettagli sotto: su una riga sola i dettagli lunghi schiacciavano il nome («Finest-ra 2 ante»).
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyMedium)
+                Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Text("  ›", style = MaterialTheme.typography.titleMedium)
         }
     }

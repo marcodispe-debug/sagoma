@@ -31,6 +31,7 @@ import com.google.android.filament.gltfio.Gltfio
 import com.google.android.filament.gltfio.ResourceLoader
 import com.google.android.filament.gltfio.UbershaderProvider
 import com.sagoma.planimetria.geometry.Glb
+import com.sagoma.planimetria.geometry.LightProfile
 import com.sagoma.planimetria.geometry.Rgba
 import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.SunAngles
@@ -252,6 +253,15 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
     private var sceneLights: List<Scene3D.SceneLight> = emptyList()
     private var sceneWindows: List<Scene3D.SceneWindow> = emptyList()
 
+    /** Luminosità delle lampade scelta col cursore (1 = normale). */
+    private var lampBrightness = 1f
+
+    override fun setLampBrightness(k: Float) {
+        if (k == lampBrightness) return
+        lampBrightness = k
+        if (lampsOnNow) { updateLamps(lampsOn = true); dirty = true }
+    }
+
     override fun setDaylight(hour: Float, lamps: String, sun: SunAngles) {
         if (hour == this.hour && lamps == lampsMode && sun == sunAt) return
         this.hour = hour
@@ -321,13 +331,15 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
      */
     override fun setLights(lights: List<Scene3D.SceneLight>): Boolean {
         val old = sceneLights
-        sceneLights = lights
+        // Qui le lampade illuminano anche oltre i muri (niente ombre): la luce che passa dalle porte c'è già.
+        val lamps = lights.filterNot { it.spill }
+        sceneLights = lamps
         if (!lampsOnNow) return true // lampade spente: niente da aggiornare, le luci nuove valgono alla prossima accensione
         val lm = engine.lightManager
-        val sameShape = lampEntities.size == lights.size && old.size == lights.size &&
-            lights.indices.all { (old[it].direction == null) == (lights[it].direction == null) }
+        val sameShape = lampEntities.size == lamps.size && old.size == lamps.size &&
+            lamps.indices.all { (old[it].direction == null) == (lamps[it].direction == null) && old[it].profile == lamps[it].profile }
         if (sameShape) {
-            for ((i, l) in lights.withIndex()) {
+            for ((i, l) in lamps.withIndex()) {
                 val inst = lm.getInstance(lampEntities[i])
                 val p = l.position
                 lm.setPosition(inst, (p.x * 0.01).toFloat(), (p.y * 0.01).toFloat(), (p.z * 0.01).toFloat())
@@ -348,12 +360,20 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
             val (r, g, b) = if (l.warm) Triple(1f, 0.82f, 0.62f) else Triple(0.95f, 0.97f, 1f)
             val p = l.position
             val dir = l.direction
-            val builder = if (dir != null) LightManager.Builder(LightManager.Type.FOCUSED_SPOT)
-                .direction(dir.x.toFloat(), dir.y.toFloat(), dir.z.toFloat())
-                .spotLightCone(0.35f, 0.8f)
-            else LightManager.Builder(LightManager.Type.POINT)
+            val axis = l.beamAxis
+            // Forma della luce (LightProfile): Filament non legge i profili IES, si avvicinano con i coni dei faretti.
+            // Plafoniere e applique sono coni larghi (niente luce verso il soffitto o dietro il muro); il resto puntiforme.
+            val builder = when {
+                dir != null -> LightManager.Builder(LightManager.Type.FOCUSED_SPOT)
+                    .direction(dir.x.toFloat(), dir.y.toFloat(), dir.z.toFloat())
+                    .spotLightCone(0.35f, 0.8f)
+                l.profile == LightProfile.Downlight || l.profile == LightProfile.Wall -> LightManager.Builder(LightManager.Type.SPOT)
+                    .direction(axis.x.toFloat(), axis.y.toFloat(), axis.z.toFloat())
+                    .spotLightCone(0.9f, 1.5f)
+                else -> LightManager.Builder(LightManager.Type.POINT)
+            }
             builder.color(r, g, b)
-                .intensity((l.lumens * LUMEN_SCALE).toFloat())
+                .intensity((l.lumens * LUMEN_SCALE * lampBrightness).toFloat())
                 .position((p.x * 0.01).toFloat(), (p.y * 0.01).toFloat(), (p.z * 0.01).toFloat())
                 .falloff(7f)
                 .castShadows(false)
@@ -455,7 +475,7 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         asset = next
         loadFurniture(s.furniture)
         texturedSurfaces.update(s.textured + (GRASS to ground(s)))
-        sceneLights = s.lights
+        sceneLights = s.lights.filterNot { it.spill }
         sceneWindows = s.windows
         applyLighting()
     }
@@ -468,15 +488,19 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         var minY = 0f
         var k = 1
         while (k < s.opaque.size) { minY = minOf(minY, s.opaque[k]); k += Scene3D.FLOATS_PER_VERTEX }
-        val b = s.bounds ?: return FloatArray(0)
-        val m = 4000.0
-        val x0 = (b.minX - m).toFloat(); val x1 = (b.maxX + m).toFloat()
-        val z0 = (b.minY - m).toFloat(); val z1 = (b.maxY + m).toFloat()
-        val y = minY - 0.3f
+        // Con degli interrati sotto il piano terra il prato sta alla sua quota e li copre; guardando un interrato resta lassù,
+        // attorno allo scavo.
+        val y = (s.groundLevel?.toFloat() ?: minY) - 0.3f
         val size = 200f
         fun v(x: Float, z: Float) = floatArrayOf(x, y, z, 0f, 1f, 0f, x / size, z / size)
-        // Due triangoli rivolti verso l'alto.
-        return v(x0, z0) + v(x0, z1) + v(x1, z1) + v(x0, z0) + v(x1, z1) + v(x1, z0)
+        // Per ogni rettangolo di prato due triangoli rivolti verso l'alto.
+        var out = FloatArray(0)
+        for (r in s.lawn(4000.0)) {
+            val x0 = r.minX.toFloat(); val x1 = r.maxX.toFloat()
+            val z0 = r.minY.toFloat(); val z1 = r.maxY.toFloat()
+            out += v(x0, z0) + v(x0, z1) + v(x1, z1) + v(x0, z0) + v(x1, z1) + v(x1, z0)
+        }
+        return out
     }
 
     private fun modelFile(name: String): ByteBuffer? = modelFiles.getOrPut(name) {

@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.Density
 import com.sagoma.planimetria.access.Account
 import com.sagoma.planimetria.assets.AssetRequests
 import com.sagoma.planimetria.assets.AssetStore
+import com.sagoma.planimetria.assets.MaterialResolution
 import com.sagoma.planimetria.assets.NoAssetRequests
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.persistence.LanguageStore
@@ -60,6 +61,12 @@ interface Platform {
 
     /** Guida interattiva (le lezioni sul progetto di prova): pensata per mouse e schermo largo, c'è solo sul computer. */
     val interactiveGuide: Boolean get() = false
+
+    /** Joystick sullo schermo per muoversi nel 3D: serve dove non ci sono tastiera e mouse; sul computer non c'è (WASD, frecce, mouse). */
+    val walkJoystick: Boolean get() = true
+
+    /** Definizione dei materiali nel 3D: 1K sul telefono (quelli dell'app), 2K sul computer (dal server, finché mancano l'1K). */
+    val materialResolution: MaterialResolution get() = MaterialResolution.K1
 
     /** Messaggio breve in basso. */
     fun toast(message: String)

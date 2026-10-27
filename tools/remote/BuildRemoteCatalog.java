@@ -9,10 +9,15 @@ import java.util.stream.Stream;
  * Prepara il catalogo remoto degli asset: la cartella da caricare così com'è sul server (per esempio un bucket Cloudflare R2
  * o qualsiasi hosting di file statici). Di solito si lancia da Gradle: `gradlew :catalogo:preparaCatalogoRemoto`.
  *
- * Uso (JDK 17+): java BuildRemoteCatalog.java [--solo-manifest] <cartella degli asset> <cartella di uscita> <catalogVersion> [releaseId]
+ * Uso (JDK 17+): java BuildRemoteCatalog.java [--solo-manifest] [--hd=<cartella>] [--indice-hd=<file>] <cartella degli asset> <cartella di uscita> <catalogVersion> [releaseId]
  *   <cartella degli asset>  per esempio catalogo/src/main/assets (furniture/, materials/, env/)
  *   <catalogVersion>        intero che cresce a ogni pubblicazione (l'app rifiuta un manifest più vecchio di uno già visto)
  *   --solo-manifest         scrive solo manifest.json, senza blob (è il manifest che l'app porta con sé)
+ *   --hd=<cartella>         i file che stanno solo sul server, non nell'app: i materiali 2K e 4K (materials/2k/, materials/4k/,
+ *                           preparati da tools/furniture/PackMaterialsHd.java), per esempio catalogo/hd
+ *   --indice-hd=<file>      l'elenco di quei file (percorso, impronta, dimensione), nel repository: se la cartella --hd c'è lo
+ *                           si riscrive da lei, altrimenti si legge. Così il manifest dell'app è uguale a quello del server anche
+ *                           dove i file grandi non ci sono (si scaricano una volta, sul computer di chi pubblica).
  *
  * Scrive nell'uscita:
  *   manifest.json           l'elenco (schema 1, vedi core/.../assets/remote/ManifestParser.kt): ogni asset con i suoi file,
@@ -29,11 +34,14 @@ import java.util.stream.Stream;
 public class BuildRemoteCatalog {
     record FileEntry(String role, String path, String sha256, long size, String mime) {}
     record Asset(String id, String kind, List<FileEntry> files) {}
+    /** Un file del catalogo: percorso logico, impronta, dimensione e da dove copiarlo (null se viene dall'indice HD: il blob è già sul server). */
+    record Source(String rel, String sha, long size, Path file) {}
 
     public static void main(String[] args) throws Exception {
         boolean onlyManifest = Arrays.asList(args).contains("--solo-manifest");
-        args = Arrays.stream(args).filter(a -> !a.equals("--solo-manifest")).toArray(String[]::new);
-        if (args.length < 3) { System.err.println("Uso: java BuildRemoteCatalog.java [--solo-manifest] <asset> <uscita> <catalogVersion> [releaseId]"); System.exit(1); }
+        Path hd = option(args, "--hd="), hdIndex = option(args, "--indice-hd=");
+        args = Arrays.stream(args).filter(a -> !a.startsWith("--")).toArray(String[]::new);
+        if (args.length < 3) { System.err.println("Uso: java BuildRemoteCatalog.java [--solo-manifest] [--hd=<cartella>] [--indice-hd=<file>] <asset> <uscita> <catalogVersion> [releaseId]"); System.exit(1); }
         Path in = Paths.get(args[0]).toAbsolutePath().normalize();
         Path out = Paths.get(args[1]).toAbsolutePath().normalize();
         long version = Long.parseLong(args[2]);
@@ -41,31 +49,54 @@ public class BuildRemoteCatalog {
         String release = args.length > 3 ? args[3] : "v" + version;
         if (!release.matches("[A-Za-z0-9_\\-][A-Za-z0-9_.\\-]{0,127}")) throw new IllegalArgumentException("releaseId non valido: " + release);
 
-        List<Path> all;
-        try (Stream<Path> s = Files.walk(in)) { all = s.filter(Files::isRegularFile).sorted().toList(); }
+        List<Source> sources = new ArrayList<>(scan(in));
+        int fromIndex = 0;
+        List<Source> hdFiles = hd != null && Files.isDirectory(hd) ? scan(hd) : List.of();
+        if (!hdFiles.isEmpty()) {
+            sources.addAll(hdFiles);
+            if (hdIndex != null) {
+                StringBuilder idx = new StringBuilder("# File solo sul server (materiali 2K e 4K): percorso, SHA-256, byte. Scritto da tools/remote/BuildRemoteCatalog.java.\n");
+                for (Source f : hdFiles) idx.append(f.rel()).append('\t').append(f.sha()).append('\t').append(f.size()).append('\n');
+                if (!Files.exists(hdIndex) || !Files.readString(hdIndex, StandardCharsets.UTF_8).equals(idx.toString())) {
+                    Files.writeString(hdIndex, idx.toString(), StandardCharsets.UTF_8);
+                    System.out.println("Indice dei file HD riscritto: " + hdIndex + " (va nel repository)");
+                }
+            }
+        } else if (hdIndex != null && Files.exists(hdIndex)) {
+            for (String line : Files.readAllLines(hdIndex, StandardCharsets.UTF_8)) {
+                if (line.isBlank() || line.startsWith("#")) continue;
+                String[] c = line.split("\t");
+                if (c.length != 3 || !c[1].matches("[0-9a-f]{64}")) throw new IllegalStateException("Riga dell'indice HD non valida: " + line);
+                sources.add(new Source(c[0], c[1], Long.parseLong(c[2]), null));
+                fromIndex++;
+            }
+        }
+        sources.sort(Comparator.comparing(Source::rel));
         Map<String, Asset> assets = new TreeMap<>();
         long bytes = 0;
         Set<String> blobs = new HashSet<>();
+        Set<String> paths = new HashSet<>();
         int copied = 0;
-        for (Path p : all) {
-            String rel = in.relativize(p).toString().replace('\\', '/');
+        for (Source f : sources) {
+            String rel = f.rel(), sha = f.sha();
+            long size = f.size();
             if (!portable(rel)) throw new IllegalStateException("Percorso non adatto al catalogo remoto: " + rel);
+            if (!paths.add(rel)) throw new IllegalStateException("Due file con lo stesso percorso: " + rel);
             String[] g = group(rel);
-            String sha = sha256(p);
-            long size = Files.size(p);
             assets.computeIfAbsent(g[0], k -> new Asset(k, g[1], new ArrayList<>())).files().add(new FileEntry(g[2], rel, sha, size, mime(rel)));
             bytes += size;
-            if (blobs.add(sha) && !onlyManifest) {
+            if (blobs.add(sha) && !onlyManifest && f.file() != null) {
                 Path blob = out.resolve("blobs").resolve(sha.substring(0, 2)).resolve(sha);
                 if (!Files.exists(blob) || Files.size(blob) != size) {
                     Files.createDirectories(blob.getParent());
                     Path tmp = blob.resolveSibling(sha + ".tmp");
-                    Files.copy(p, tmp, StandardCopyOption.REPLACE_EXISTING);
+                    Files.copy(f.file(), tmp, StandardCopyOption.REPLACE_EXISTING);
                     Files.move(tmp, blob, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
                     copied++;
                 }
             }
         }
+        if (fromIndex > 0 && !onlyManifest) System.out.println("File HD presi dall'indice, senza cartella: " + fromIndex + " (i loro blob devono essere già sul server)");
         for (Asset a : assets.values()) {
             Set<String> roles = new HashSet<>();
             for (FileEntry f : a.files()) if (!roles.add(f.role())) throw new IllegalStateException(a.id() + ": due file con il ruolo " + f.role());
@@ -88,7 +119,21 @@ public class BuildRemoteCatalog {
         j.append("  ]\n}\n");
         Files.createDirectories(out);
         Files.writeString(out.resolve("manifest.json"), j.toString(), StandardCharsets.UTF_8);
-        System.out.printf(Locale.ROOT, "Asset: %d, file: %d (%.1f MB), blob diversi: %d, copiati ora: %d%n", assets.size(), all.size(), bytes / 1048576.0, blobs.size(), copied);
+        System.out.printf(Locale.ROOT, "Asset: %d, file: %d (%.1f MB), blob diversi: %d, copiati ora: %d%n", assets.size(), sources.size(), bytes / 1048576.0, blobs.size(), copied);
+    }
+
+    /** I file di una cartella con percorso logico (relativo, con "/"), impronta e dimensione, in ordine. */
+    static List<Source> scan(Path dir) throws Exception {
+        List<Path> all;
+        try (Stream<Path> s = Files.walk(dir)) { all = s.filter(Files::isRegularFile).sorted().toList(); }
+        List<Source> out = new ArrayList<>();
+        for (Path p : all) out.add(new Source(dir.relativize(p).toString().replace('\\', '/'), sha256(p), Files.size(p), p));
+        return out;
+    }
+
+    static Path option(String[] args, String prefix) {
+        for (String a : args) if (a.startsWith(prefix)) return Paths.get(a.substring(prefix.length())).toAbsolutePath().normalize();
+        return null;
     }
 
     /** Asset, tipo e ruolo di un file, dal suo percorso logico. */
@@ -105,6 +150,15 @@ public class BuildRemoteCatalog {
         if (dir.equals("materials") && !name.contains("/")) {
             for (String kind : new String[]{"color", "normal", "orm", "thumb"}) {
                 if (name.endsWith("_" + kind + ".jpg")) return new String[]{"material:" + cut(name, "_" + kind + ".jpg"), "material", kind.equals("thumb") ? "thumbnail" : kind};
+            }
+        }
+        // Materiali più definiti (solo sul server): materials/2k/<id>_color.jpg → asset "material:<id>:2k".
+        for (String res : new String[]{"2k", "4k"}) {
+            String prefix = "materials/" + res + "/";
+            if (!rel.startsWith(prefix) || rel.substring(prefix.length()).contains("/")) continue;
+            String file = rel.substring(prefix.length());
+            for (String kind : new String[]{"color", "normal", "orm"}) {
+                if (file.endsWith("_" + kind + ".jpg")) return new String[]{"material:" + cut(file, "_" + kind + ".jpg") + ":" + res, "material-" + res, kind};
             }
         }
         if (dir.equals("env") && name.endsWith(".ibl") && !name.contains("/")) return new String[]{"environment:" + cut(name, ".ibl"), "environment", "ibl"};
