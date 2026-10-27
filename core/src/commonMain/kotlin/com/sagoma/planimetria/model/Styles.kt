@@ -40,10 +40,24 @@ enum class WindowModel {
     Classic,
     Minimal,
     English,
+    /** Vetrata stile loft: profili neri sottili e vetro diviso a riquadri. */
+    Loft,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.windowModel(this)
+}
+
+/** Come si apre l'anta di finestre e balconi (quando non sono scorrevoli). */
+enum class SashType {
+    Casement,
+    TiltTurn,
+    Hopper,
+    Fixed,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.sashType(this)
 }
 
 /** Dove sta l'infisso di finestre e balconi nello spessore del muro. */

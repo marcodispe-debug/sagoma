@@ -1302,17 +1302,42 @@ private class SceneBuilder(
 
     /** Varco nel muro, in cm lungo il muro (t) e in altezza. */
     private class Gap(
-        val t0: Double, val t1: Double, val bottom: Double, val top: Double, val arched: Boolean, val pick: Pick,
+        val t0: Double, val t1: Double, val bottom: Double, val top: Double, val arch: PassageStyle, val pick: Pick,
         /** Sguincio (cm per lato) verso l'interno della stanza `splayRoom`: sulla sua faccia il varco è più largo. */
         val splay: Double = 0.0, val splayRoom: Long? = null, val splayRounded: Boolean = false,
+        /** Nicchia: buca solo la fascia interna della stanza `splayRoom`, non il muro intero. */
+        val niche: Boolean = false,
     ) {
-        /** Bordo superiore del varco nel punto t: dritto, oppure ad arco (semicerchio ribassato). */
+        val arched: Boolean get() = arch.arched
+
+        /** Bordo superiore del varco nel punto t: dritto, ad arco tondo, ribassato o a sesto acuto. */
         fun topAt(t: Double): Double {
             if (!arched) return top
-            val w = t1 - t0
-            val rise = min(w / 2, (top - bottom) * 0.3)
-            val x = ((t - (t0 + t1) / 2) / (w / 2)).coerceIn(-1.0, 1.0)
-            return top - rise + rise * sqrt(1 - x * x)
+            val c = (t1 - t0) / 2
+            if (c < 1e-6) return top
+            val x = (t - (t0 + t1) / 2).coerceIn(-c, c)
+            val h = top - bottom
+            return when (arch) {
+                PassageStyle.Segmental -> {
+                    // Pezzo di cerchio che passa per le due imposte e sale di `rise` al centro.
+                    val rise = min(c * 0.36, h * 0.25)
+                    val r = (c * c + rise * rise) / (2 * rise)
+                    top - rise + (sqrt(max(0.0, r * r - x * x)) - (r - rise))
+                }
+                PassageStyle.Pointed -> {
+                    // Sesto acuto equilatero (ogni arco ha il centro sull'imposta opposta), schiacciato se il varco è basso.
+                    val full = c * sqrt(3.0)
+                    val rise = min(full, h * 0.45)
+                    val ax = abs(x)
+                    val y = sqrt(max(0.0, 4 * c * c - (ax + c) * (ax + c)))
+                    top - rise + rise * (y / full)
+                }
+                else -> {
+                    val rise = min(c, h * 0.3)
+                    val k = x / c
+                    top - rise + rise * sqrt(1 - k * k)
+                }
+            }
         }
     }
 
@@ -1320,12 +1345,12 @@ private class SceneBuilder(
         val (a, b) = Openings.span(owner, o)
         val ta = (a - s) dot u
         val tb = (b - s) dot u
-        val bottom = if (o.kind.glazed) o.sillHeight else 0.0
+        val bottom = o.bottom
         // Il varco non supera il muro, che in mansarda può essere più basso dell'apertura.
         val top = min(wallTop((ta + tb) / 2) - 1, bottom + o.height)
         return Gap(
-            min(ta, tb), max(ta, tb), bottom, top, o.kind == OpeningKind.Passage && o.style == PassageStyle.Arched, Pick.Opening(owner.id, o.id),
-            splay = Openings.splayOf(owner, o), splayRoom = owner.id, splayRounded = o.splayRounded,
+            min(ta, tb), max(ta, tb), bottom, top, if (o.kind == OpeningKind.Passage) o.style else PassageStyle.Square, Pick.Opening(owner.id, o.id),
+            splay = Openings.splayOf(owner, o), splayRoom = owner.id, splayRounded = o.splayRounded, niche = o.kind == OpeningKind.Niche,
         )
     }
 
@@ -1542,11 +1567,23 @@ private class SceneBuilder(
         range: ClosedFloatingPointRange<Double>, side: Vec2, finish: WallFinish, interior: Boolean,
     ) {
         val paint = Rgba.argb(finish.argb)
+        // Le nicchie bucano solo la fascia verso la loro stanza; in fondo resta la parete, alla mezzeria del muro.
+        val faceGaps = gaps.filter { !it.niche || (interior && it.splayRoom == room.id) }
+        for (g in faceGaps) if (g.niche) {
+            val a = (g.t0).coerceIn(range.start, range.endInclusive)
+            val b = (g.t1).coerceIn(range.start, range.endInclusive)
+            if (b - a < 0.5) continue
+            val back = side * 0.05
+            val color = tint(paint, g.pick)
+            val n = Vec3(side.x, 0.0, side.y)
+            quad((s + u * a + back).at(g.bottom), (s + u * b + back).at(g.bottom), (s + u * b + back).at(g.top), (s + u * a + back).at(g.top), n, color, g.pick)
+            quad((s + u * b + back).at(g.bottom), (s + u * a + back).at(g.bottom), (s + u * a + back).at(g.top), (s + u * b + back).at(g.top), n, color, g.pick)
+        }
         // Sguinci: sulla faccia verso la stanza il varco si allarga, e i lati inclinati vanno dalla mezzeria alla faccia.
-        val splayed = if (interior) gaps.filter { it.splay > 0 && it.splayRoom == room.id } else emptyList()
+        val splayed = if (interior) faceGaps.filter { it.splay > 0 && it.splayRoom == room.id } else emptyList()
         @Suppress("NAME_SHADOWING")
-        val gaps = if (splayed.isEmpty()) gaps else gaps.map { g ->
-            if (g in splayed) Gap(g.t0 - g.splay, g.t1 + g.splay, g.bottom, g.top, g.arched, g.pick, g.splay, g.splayRoom, g.splayRounded) else g
+        val gaps = if (splayed.isEmpty()) faceGaps else faceGaps.map { g ->
+            if (g in splayed) Gap(g.t0 - g.splay, g.t1 + g.splay, g.bottom, g.top, g.arch, g.pick, g.splay, g.splayRoom, g.splayRounded, g.niche) else g
         }
         for (g in splayed) {
             val color = tint(paint, g.pick)
@@ -1652,7 +1689,7 @@ private class SceneBuilder(
         val paint = tint(Rgba.argb(w.finishOrPaint.argb), pick)
         for (o in w.openings) {
             val (a, b) = Openings.span(host, o)
-            val bottom = if (o.kind.glazed) o.sillHeight else 0.0
+            val bottom = o.bottom
             val top = min(h - 1, bottom + o.height)
             if (bottom > 0.5) box(a, b, w.thickness / 2, wallBottom, bottom, paint, pick, top = paint)
             if (top < h - 0.5) box(a, b, w.thickness / 2, top, h, paint, pick, top = wallTop)
@@ -1868,15 +1905,26 @@ private class SceneBuilder(
         val h = (if (room.outdoor) Ceilings.sharedWallTop(plan, room, o.wallIndex, (a + b) / 2.0)
         else Ceilings.wallTopAt(room, o.wallIndex, Openings.projectOnWall(room, o.wallIndex, (a + b) / 2.0))) - 1
         val pick = Pick.Opening(room.id, o.id)
-        val bottom = if (o.kind.glazed) o.sillHeight else 0.0
+        val bottom = o.bottom
         val top = min(h, bottom + o.height)
 
         when {
-            o.kind == OpeningKind.Passage -> Unit // varco libero
+            o.kind == OpeningKind.Passage || o.kind == OpeningKind.Niche -> Unit // varco libero, nicchia
             o.kind.glazed -> {
                 // Infisso a filo esterno o interno: spostato nello spessore del muro.
                 val f = n * Openings.frameOffset(room, o)
                 window(a + f, b + f, u, n, bottom, top, o, pick)
+            }
+            o.sliding && o.slideOnWall -> {
+                // Porta scorrevole esterna: anta sulla faccia del muro verso la stanza, aperta a metà sopra il muro,
+                // appesa a un binario a vista che corre per tutta la sua corsa.
+                casing(a, b, u, n, top, o, pick)
+                val face = n * (half + 3.2)
+                val start = if (o.hingeLeft) a - u * (w / 2 + 3) else b - u * (w / 2 + 3)
+                doorLeaf(start + face, u, w + 6, 2.0, top + 2, o, pick, handleAtEnd = !o.hingeLeft)
+                val metal = tint(Rgba(0.2f, 0.21f, 0.22f), pick)
+                val (r0, r1) = if (o.hingeLeft) (a - u * (w + 6)) to (b + u * 6.0) else (a - u * 6.0) to (b + u * (w + 6))
+                box(r0 + face, r1 + face, 1.6, top + 3, top + 7, metal, pick)
             }
             o.sliding -> {
                 // Porta scorrevole: anta nel muro, aperta a metà verso il lato scelto.
@@ -1885,20 +1933,44 @@ private class SceneBuilder(
                 val start = if (o.hingeLeft) a - u * (w / 2) else b - u * (w / 2)
                 doorLeaf(start + off, u, w, 1.5, top - 1, o, pick, handleAtEnd = !o.hingeLeft)
             }
+            o.folds -> {
+                // Porta a libro: ogni anta è divisa in due pannelli piegati a V, aperti a metà verso il lato di apertura.
+                casing(a, b, u, n, top, o, pick)
+                val swing = if (o.opensInward) n else n * -1.0
+                val ang = kotlin.math.PI / 3
+                fun fold(hinge: Vec2, along: Vec2, length: Double) {
+                    val p = length / 2
+                    val d1 = along * kotlin.math.cos(ang) + swing * kotlin.math.sin(ang)
+                    val start = hinge + swing * (half - 1.5)
+                    val mid = start + d1 * p
+                    val d2 = along * kotlin.math.cos(ang) - swing * kotlin.math.sin(ang)
+                    doorLeaf(start, d1, p, 1.5, top - 1, o.copy(doorModel = foldModel(o.doorModel)), pick, handleAtEnd = false)
+                    doorLeaf(mid, d2, p, 1.5, top - 1, o.copy(doorModel = foldModel(o.doorModel)), pick, handleAtEnd = true)
+                }
+                if (o.kind.leaves == 2) {
+                    fold(a, u, w / 2)
+                    fold(b, u * -1.0, w / 2)
+                } else if (o.hingeLeft) fold(a, u, w) else fold(b, u * -1.0, w)
+            }
             else -> {
                 // Porta a battente: aperta a 90° verso il lato di apertura, come nel simbolo della pianta.
-                casing(a, b, u, n, top, o, pick)
+                // Filo muro: niente coprifilo, l'anta sta a filo della faccia.
+                if (!o.frameless) casing(a, b, u, n, top, o, pick)
                 val swing = if (o.opensInward) n else n * -1.0
                 fun leafFrom(hinge: Vec2, length: Double) = doorLeaf(hinge + swing * half, swing, length, 2.0, top - 1, o, pick, handleAtEnd = true)
                 if (o.kind.leaves == 2) {
-                    leafFrom(a, w / 2)
-                    leafFrom(b, w / 2)
+                    val split = w * o.leafSplit
+                    leafFrom(a, split)
+                    leafFrom(b, w - split)
                 } else {
                     leafFrom(if (o.hingeLeft) a else b, w)
                 }
             }
         }
     }
+
+    /** I pannelli della porta a libro sono stretti: i riquadri delle pannellate diventano lisci. */
+    private fun foldModel(m: DoorModel) = if (m == DoorModel.Panels) DoorModel.Flush else m
 
     /**
      * Anta di una porta, dal punto `start` lungo `dir` per `length` cm, spessa 2 × `thick`, alta `height`,
@@ -1959,29 +2031,52 @@ private class SceneBuilder(
     /** Finestra o balcone: telaio bianco e vetro; due ante con il montante centrale, scorrevoli sfalsate. */
     private fun window(a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, top: Double, o: Opening, pick: Pick) {
         if (current) windows += Scene3D.SceneWindow(((a + b) / 2.0).at((bottom + top) / 2), n.dir().normalized(), a.distanceTo(b), top - bottom)
-        // Minimal: profili sottili; se l'infisso è bianco diventa antracite, come di solito sono.
+        // Minimal e loft: profili sottili; se l'infisso è bianco diventa antracite (nero il loft), come di solito sono.
         val minimal = o.windowModel == WindowModel.Minimal
-        val f = if (minimal) 3.0 else 5.0
-        val depth = if (minimal) 3.0 else 4.0
-        val finish = if (minimal && o.color == null) Finish.Anthracite else o.finish
-        val color = tint(Rgba.argb(finish.argb), pick)
+        val loft = o.windowModel == WindowModel.Loft
+        val f = if (minimal || loft) 3.0 else 5.0
+        val depth = if (minimal || loft) 3.0 else 4.0
+        val finish = when {
+            o.color != null -> o.finish
+            minimal -> Finish.Anthracite
+            else -> o.finish
+        }
+        val color = if (loft && o.color == null) tint(Rgba(0.1f, 0.1f, 0.11f), pick) else tint(Rgba.argb(finish.argb), pick)
         shading(a, b, u, n, bottom, top, o, pick)
+        val w = a.distanceTo(b)
+        val split = w * o.leafSplit
+        val glassBottom = bottom + if (bottom > 0) f else 2.0
+        // Ante (tratti lungo il varco, in cm da `a`): una, due (anche disuguali) o nessuna divisione se fissa.
+        val leaves = when {
+            o.sliding -> emptyList()
+            o.kind.leaves == 2 && !o.fixed -> listOf(f to split, split to w - f)
+            else -> listOf(f to w - f)
+        }
         if (o.windowModel == WindowModel.English && !o.sliding) {
             // Inglesina: griglia di listelli sul vetro di ogni anta.
-            val w = a.distanceTo(b)
-            val leaves = if (o.kind.leaves == 2) 2 else 1
-            val lw = (w - 2 * f) / leaves
-            val g0 = bottom + if (bottom > 0) f else 2.0
-            val g1 = top - f
-            for (l in 0 until leaves) {
-                val x0 = f + l * lw
+            for ((x0, x1) in leaves) {
                 for (k in 1..2) {
-                    val x = x0 + lw * k / 3
-                    box(a + u * (x - 0.8), a + u * (x + 0.8), 1.2, g0, g1, color, pick)
+                    val x = x0 + (x1 - x0) * k / 3
+                    box(a + u * (x - 0.8), a + u * (x + 0.8), 1.2, glassBottom, top - f, color, pick)
                 }
                 for (k in 1..2) {
-                    val y = g0 + (g1 - g0) * k / 3
-                    box(a + u * x0, a + u * (x0 + lw), 1.2, y - 0.8, y + 0.8, color, pick)
+                    val y = glassBottom + (top - f - glassBottom) * k / 3
+                    box(a + u * x0, a + u * x1, 1.2, y - 0.8, y + 0.8, color, pick)
+                }
+            }
+        }
+        if (loft && !o.sliding) {
+            // Loft: vetro diviso in riquadri di circa 45 × 50 cm da profili neri.
+            for ((x0, x1) in leaves) {
+                val cols = maxOf(1, kotlin.math.round((x1 - x0) / 45.0).toInt())
+                val rows = maxOf(1, kotlin.math.round((top - f - glassBottom) / 50.0).toInt())
+                for (k in 1 until cols) {
+                    val x = x0 + (x1 - x0) * k / cols
+                    box(a + u * (x - 0.8), a + u * (x + 0.8), 1.5, glassBottom, top - f, color, pick)
+                }
+                for (k in 1 until rows) {
+                    val y = glassBottom + (top - f - glassBottom) * k / rows
+                    box(a + u * x0, a + u * x1, 1.5, y - 0.8, y + 0.8, color, pick)
                 }
             }
         }
@@ -1990,8 +2085,6 @@ private class SceneBuilder(
         box(b - u * f, b, depth, bottom, top, color, pick)
         box(a, b, depth, top - f, top, color, pick)
         box(a, b, depth, bottom, bottom + if (bottom > 0) f else 2.0, color, pick)
-        val w = a.distanceTo(b)
-        val glassBottom = bottom + if (bottom > 0) f else 2.0
         if (o.sliding) {
             val mid = (a + b) / 2.0
             val overlap = u * (w * 0.08)
@@ -2001,9 +2094,26 @@ private class SceneBuilder(
             box(mid - overlap - n * 2.5, mid - overlap + u * 2.0 - n * 2.5, 1.5, glassBottom, top - f, color, pick)
         } else {
             pane(a + u * f, b - u * f, glassBottom, top - f, glassColor, pick)
-            if (o.kind.leaves == 2) {
-                val mid = (a + b) / 2.0
+            if (leaves.size == 2) {
+                val mid = a + u * split
                 box(mid - u * 2.5, mid + u * 2.5, depth, glassBottom, top - f, color, pick)
+            }
+            // Maniglia sul lato libero dell'anta (in cima per il vasistas); il vetro fisso non ne ha.
+            if (!o.fixed && (top - bottom) > 30) {
+                val metal = tint(Rgba(0.62f, 0.64f, 0.66f), pick)
+                val inner = n * (depth + 1.2)
+                if (o.hopper) {
+                    val c = (a + b) / 2.0 + inner
+                    box(c - u * 6.0, c + u * 6.0, 1.0, top - f - 4, top - f - 2, metal, pick)
+                } else {
+                    val y = min(bottom + 105.0, (bottom + top) / 2).coerceAtLeast(glassBottom + 5)
+                    val xs = when {
+                        leaves.size == 2 -> listOf(split - 5.0)
+                        o.hingeLeft -> listOf(w - f - 4)
+                        else -> listOf(f + 4)
+                    }
+                    for (x in xs) box(a + u * (x - 1) + inner, a + u * (x + 1) + inner, 1.0, y - 7, y + 7, metal, pick)
+                }
             }
         }
     }

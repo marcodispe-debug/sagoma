@@ -27,6 +27,7 @@ import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.StairRailing
 import com.sagoma.planimetria.model.StairStructure
 import com.sagoma.planimetria.model.WallPaint
+import com.sagoma.planimetria.model.SashType
 import com.sagoma.planimetria.model.WindowModel
 import com.sagoma.planimetria.persistence.LanguageChoice
 import com.sagoma.planimetria.persistence.ThemeChoice
@@ -50,10 +51,18 @@ object NomiEs : Nomi() {
         Finish.Anthracite -> "Antracita"
     }
 
+    override fun sashType(v: SashType): String = when (v) {
+        SashType.Casement -> "Abatible"
+        SashType.TiltTurn -> "Oscilobatiente"
+        SashType.Hopper -> "Basculante"
+        SashType.Fixed -> "Fija"
+    }
+
     override fun windowModel(v: WindowModel): String = when (v) {
         WindowModel.Classic -> "Clásica"
         WindowModel.Minimal -> "Minimalista"
         WindowModel.English -> "Apertura exterior"
+        WindowModel.Loft -> "Loft"
     }
 
     override fun framePosition(v: FramePosition): String = when (v) {
@@ -161,11 +170,14 @@ object NomiEs : Nomi() {
         OpeningKind.Balcony2 -> "Puerta balconera de dos hojas"
         OpeningKind.FrenchDoor -> "Puerta balconera"
         OpeningKind.Passage -> "Hueco sin puerta"
+        OpeningKind.Niche -> "Hornacina"
     }
 
     override fun passageStyle(v: PassageStyle): String = when (v) {
         PassageStyle.Square -> "Recto"
         PassageStyle.Arched -> "En arco"
+        PassageStyle.Segmental -> "En arco rebajado"
+        PassageStyle.Pointed -> "En arco apuntado"
     }
 
     override fun fixtureKind(v: FixtureKind): String = when (v) {

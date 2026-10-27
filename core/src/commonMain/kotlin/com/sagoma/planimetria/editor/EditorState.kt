@@ -5,7 +5,11 @@ import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.LOrientation
 import com.sagoma.planimetria.model.FixtureKind
+import com.sagoma.planimetria.model.Finish
+import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
+import com.sagoma.planimetria.model.SashType
+import com.sagoma.planimetria.model.WindowModel
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.RoomShape
 import com.sagoma.planimetria.model.RoomType
@@ -73,7 +77,28 @@ data class PendingOpening(
     val style: PassageStyle = PassageStyle.Square,
     /** Porte, finestre e balconi scorrevoli invece che a battente. */
     val sliding: Boolean = false,
+    /** Varianti scelte dal menu (porta a libro, vasistas, vetrata interna…): come cambiano l'apertura appena creata. */
+    val preset: OpeningPreset = OpeningPreset.None,
 )
+
+/** Varianti di porte e finestre offerte dal menu; dopo si cambiano tutte dalla scheda Info. */
+enum class OpeningPreset {
+    None, WallSlide, Folding, Frameless, UnequalLeaves, TiltTurn, Hopper, Fixed, InteriorGlazing;
+
+    fun apply(o: Opening): Opening = when (this) {
+        None -> o
+        WallSlide -> o.copy(sliding = true, slideOnWall = true)
+        Folding -> o.copy(folding = true)
+        Frameless -> o.copy(frameless = true, color = Finish.White)
+        UnequalLeaves -> o.copy(unequalLeaves = true, width = 120.0)
+        TiltTurn -> o.copy(sash = SashType.TiltTurn)
+        // Vasistas: piccola e alta, come nei bagni.
+        Hopper -> o.copy(sash = SashType.Hopper, width = 60.0, height = 60.0, sillHeight = 150.0)
+        Fixed -> o.copy(sash = SashType.Fixed)
+        // Vetrata interna tra due stanze: fissa, a riquadri neri, da sopra il piano di lavoro fino quasi al soffitto.
+        InteriorGlazing -> o.copy(sash = SashType.Fixed, windowModel = WindowModel.Loft, width = 180.0, height = 150.0, sillHeight = 90.0)
+    }
+}
 
 /** Passi del flusso di creazione stanza (§1). */
 /** Come l'utente crea la stanza (risposta a "Conosci le misure?"). */

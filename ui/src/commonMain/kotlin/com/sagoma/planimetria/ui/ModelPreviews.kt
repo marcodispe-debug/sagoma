@@ -100,10 +100,14 @@ internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color
         }
     }
     val frame = when (model) {
-        WindowModel.Minimal -> 0.025f
+        WindowModel.Minimal, WindowModel.Loft -> 0.025f
         else -> 0.05f
     }
-    val fc = if (model == WindowModel.Minimal && color.red > 0.9f) Color(0xFF383B3F) else color
+    val fc = when {
+        model == WindowModel.Minimal && color.red > 0.9f -> Color(0xFF383B3F)
+        model == WindowModel.Loft && color.red > 0.9f -> Color(0xFF1A1A1C)
+        else -> color
+    }
     box(l, t, r, b, fc)
     box(l + frame, t + frame * 1.3f, r - frame, b - frame * 1.3f, GlassBlue)
     // Montante centrale (due ante).
@@ -111,6 +115,11 @@ internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color
     if (model == WindowModel.English) {
         for (x in listOf(l + (0.5f - l) / 2, 0.5f + (r - 0.5f) / 2)) drawLine(fc, px(x, t), px(x, b), 1.2f * density)
         for (y in listOf(t + (b - t) / 3, t + 2 * (b - t) / 3)) drawLine(fc, px(l, y), px(r, y), 1.2f * density)
+    }
+    // Loft: riquadri regolari, profili neri un po' più spessi dell'inglesina.
+    if (model == WindowModel.Loft) {
+        for (x in listOf(l + (0.5f - l) / 2, 0.5f + (r - 0.5f) / 2)) drawLine(fc, px(x, t), px(x, b), 2f * density)
+        for (y in listOf(t + (b - t) / 3, t + 2 * (b - t) / 3)) drawLine(fc, px(l, y), px(r, y), 2f * density)
     }
     if (shading == Shading.RollerShutter) {
         box(l - 0.03f, t - 0.1f, r + 0.03f, t, Color(0xFF8D9095))

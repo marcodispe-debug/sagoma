@@ -78,6 +78,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.OpeningPreset
 import com.sagoma.planimetria.editor.PendingOpening
 import com.sagoma.planimetria.editor.Tip
 import com.sagoma.planimetria.editor.TutorialCourse
@@ -778,8 +779,8 @@ private fun ArchitectureButton(
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     compact: Boolean = false,
 ) {
-    fun opening(kind: OpeningKind, style: PassageStyle = PassageStyle.Square, sliding: Boolean = false) =
-        { vm.startPlacingOpening(PendingOpening(kind, style, sliding)) }
+    fun opening(kind: OpeningKind, style: PassageStyle = PassageStyle.Square, sliding: Boolean = false, preset: OpeningPreset = OpeningPreset.None) =
+        { vm.startPlacingOpening(PendingOpening(kind, style, sliding, preset)) }
     fun fixture(kind: FixtureKind) = { vm.startPlacingFixture(kind) }
     val lights = listOf(
         FixtureKind.Spotlight, FixtureKind.Neon, FixtureKind.Chandelier, FixtureKind.CeilingLight, FixtureKind.LedStrip,
@@ -798,7 +799,11 @@ private fun ArchitectureButton(
                 children = listOf(
                     MenuEntry(T.editor.portaAd1Anta, opening(OpeningKind.Door), guide = GuideTarget.Menu(GuideMenu.Door)),
                     MenuEntry(T.editor.porta2Ante, opening(OpeningKind.Door2)),
+                    MenuEntry(T.editor.porta2AnteDisuguali, opening(OpeningKind.Door2, preset = OpeningPreset.UnequalLeaves)),
                     MenuEntry(T.editor.portaScorrevole, opening(OpeningKind.Door, sliding = true)),
+                    MenuEntry(T.editor.portaScorrevoleEsterna, opening(OpeningKind.Door, preset = OpeningPreset.WallSlide)),
+                    MenuEntry(T.editor.portaALibro, opening(OpeningKind.Door, preset = OpeningPreset.Folding)),
+                    MenuEntry(T.editor.portaFiloMuro, opening(OpeningKind.Door, preset = OpeningPreset.Frameless)),
                     MenuEntry(
                         T.editor.aperturaSenzaPorta,
                         children = PassageStyle.entries.map { st -> MenuEntry(st.label, opening(OpeningKind.Passage, st)) },
@@ -813,6 +818,10 @@ private fun ArchitectureButton(
                     MenuEntry(T.editor.finestraAd1Anta, opening(OpeningKind.Window1)),
                     MenuEntry(T.editor.finestra2Ante, opening(OpeningKind.Window2), guide = GuideTarget.Menu(GuideMenu.Window)),
                     MenuEntry(T.editor.finestraScorrevole, opening(OpeningKind.Window2, sliding = true)),
+                    MenuEntry(T.editor.finestraAntaRibalta, opening(OpeningKind.Window1, preset = OpeningPreset.TiltTurn)),
+                    MenuEntry(T.editor.finestraVasistas, opening(OpeningKind.Window1, preset = OpeningPreset.Hopper)),
+                    MenuEntry(T.editor.finestraFissa, opening(OpeningKind.Window1, preset = OpeningPreset.Fixed)),
+                    MenuEntry(T.editor.vetrataInterna, opening(OpeningKind.Window2, preset = OpeningPreset.InteriorGlazing)),
                 ),
             ),
             MenuEntry(
@@ -825,6 +834,7 @@ private fun ArchitectureButton(
                     MenuEntry(T.editor.balconeScorrevole, opening(OpeningKind.Balcony2, sliding = true)),
                 ),
             ),
+            MenuEntry(T.editor.nicchia, opening(OpeningKind.Niche), enabled = hasRooms),
             MenuEntry(
                 T.editor.impianti,
                 enabled = hasRooms,

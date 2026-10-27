@@ -27,6 +27,7 @@ import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.StairRailing
 import com.sagoma.planimetria.model.StairStructure
 import com.sagoma.planimetria.model.WallPaint
+import com.sagoma.planimetria.model.SashType
 import com.sagoma.planimetria.model.WindowModel
 import com.sagoma.planimetria.persistence.LanguageChoice
 import com.sagoma.planimetria.persistence.ThemeChoice
@@ -50,10 +51,18 @@ open class Nomi {
         Finish.Anthracite -> "Antracite"
     }
 
+    open fun sashType(v: SashType): String = when (v) {
+        SashType.Casement -> "Battente"
+        SashType.TiltTurn -> "Anta-ribalta"
+        SashType.Hopper -> "Vasistas"
+        SashType.Fixed -> "Fissa"
+    }
+
     open fun windowModel(v: WindowModel): String = when (v) {
         WindowModel.Classic -> "Classica"
         WindowModel.Minimal -> "Minimal"
         WindowModel.English -> "All'inglese"
+        WindowModel.Loft -> "Loft"
     }
 
     open fun framePosition(v: FramePosition): String = when (v) {
@@ -161,11 +170,14 @@ open class Nomi {
         OpeningKind.Balcony2 -> "Balcone 2 ante"
         OpeningKind.FrenchDoor -> "Porta-finestra"
         OpeningKind.Passage -> "Apertura senza porta"
+        OpeningKind.Niche -> "Nicchia"
     }
 
     open fun passageStyle(v: PassageStyle): String = when (v) {
         PassageStyle.Square -> "Squadrata"
         PassageStyle.Arched -> "Ad arco"
+        PassageStyle.Segmental -> "Ad arco ribassato"
+        PassageStyle.Pointed -> "A sesto acuto"
     }
 
     open fun fixtureKind(v: FixtureKind): String = when (v) {

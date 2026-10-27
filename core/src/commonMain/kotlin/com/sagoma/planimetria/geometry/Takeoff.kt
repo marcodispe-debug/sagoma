@@ -6,6 +6,7 @@ import com.sagoma.planimetria.model.FloorFinish
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.model.MaterialCatalog
+import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.ProPalette
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.testi.T
@@ -70,9 +71,10 @@ object Takeoff {
     fun wallParts(r: Room, i: Int, length: Double): List<Pair<String, Double>> {
         val f = r.finishOf(i)
         val height = r.wallHeight(i)
-        val openings = r.openings.filter { it.wallIndex == i }
+        // La nicchia non buca la parete: si dipinge anche lei.
+        val openings = r.openings.filter { it.wallIndex == i && it.kind != OpeningKind.Niche }
         fun holesBetween(lo: Double, hi: Double) = openings.sumOf { o ->
-            val bottom = if (o.kind.glazed) o.sillHeight else 0.0
+            val bottom = o.bottom
             o.width * ((minOf(bottom + o.height, hi) - maxOf(bottom, lo)).coerceAtLeast(0.0))
         }
         fun area(lo: Double, hi: Double) = ((length * (hi - lo) - holesBetween(lo, hi)) / 10_000.0).coerceAtLeast(0.0)
@@ -136,11 +138,12 @@ object Takeoff {
         // I muri eliminati (lati aperti) non si dipingono e non hanno battiscopa.
         if (!r.outdoor) for (i in 0 until r.wallCount) if (!r.isRemoved(i)) wall += lengths[i] * r.wallHeight(i) / 10_000.0
         val openSides = (0 until r.wallCount).filter { r.isRemoved(it) }.sumOf { lengths[it] } / 100.0
-        for (o in r.openings) holes += o.width * o.height / 10_000.0
+        val openings = r.openings.filter { it.kind != OpeningKind.Niche }
+        for (o in openings) holes += o.width * o.height / 10_000.0
         // Il battiscopa si interrompe davanti a porte, porte-finestre e varchi (tutto ciò che arriva a terra).
-        val atFloor = r.openings.filter { !it.kind.glazed || it.sillHeight == 0.0 }.sumOf { it.width } / 100.0
-        val doors = r.openings.count { !it.kind.glazed }
-        val windows = r.openings.count { it.kind.glazed }
+        val atFloor = openings.filter { !it.kind.glazed || it.sillHeight == 0.0 }.sumOf { it.width } / 100.0
+        val doors = openings.count { !it.kind.glazed }
+        val windows = openings.count { it.kind.glazed }
         val wallName = if (r.outdoor) "—" else (0 until r.wallCount).map { wallFinishName(r, it) }.distinct().joinToString(" / ")
         return RoomLine(
             floor, r.name, area, perimeter,

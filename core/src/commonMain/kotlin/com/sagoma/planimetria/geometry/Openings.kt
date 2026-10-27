@@ -101,7 +101,8 @@ object Openings {
     fun alongPerimeter(room: Room, p: Vec2, width: Double): Pair<Int, Double>? {
         // Muro singolo ([com.sagoma.planimetria.model.FreeWall.host]): le aperture restano sul suo unico muro.
         val j = (0 until if (room.id < 0) 1 else room.wallCount)
-            .filter { room.wallLength(it) >= width }
+            // Non su un muro eliminato (lato aperto): lì non c'è muro dove metterla.
+            .filter { room.wallLength(it) >= width && !room.isRemoved(it) }
             .minByOrNull { Polygon.distanceToSegment(p, room.wallStart(it), room.wallEnd(it)) } ?: return null
         return j to clampPosition(room.wallLength(j), width, projectOnWall(room, j, p))
     }

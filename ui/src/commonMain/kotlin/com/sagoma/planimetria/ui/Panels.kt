@@ -71,6 +71,7 @@ import com.sagoma.planimetria.model.Finish
 import com.sagoma.planimetria.model.LampModel
 import com.sagoma.planimetria.model.RadiatorModel
 import com.sagoma.planimetria.model.FramePosition
+import com.sagoma.planimetria.model.SashType
 import com.sagoma.planimetria.model.Shading
 import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.StairRailing
@@ -853,16 +854,50 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                 }
             }
         })
-        // Porte, finestre e balconi: a battente o scorrevoli, da che parte e verso dove.
+        // Porte, finestre e balconi: come si aprono, da che parte e verso dove.
         if (o.kind.hasLeaves) add(InfoTab("apertura", T.schedaStanza.schedaApertura) {
-            Row(Modifier.padding(end = 8.dp)) {
-                Choice(T.pannelli.apertura, listOf(T.pannelli.battente, T.pannelli.scorrevole), if (o.sliding) 1 else 0, Modifier.weight(1f)) { i ->
-                    update { it.copy(sliding = i == 1) }
+            if (o.kind.glazed) {
+                // Infissi: a battente o scorrevoli; quelli non scorrevoli a battente, anta-ribalta, vasistas (solo finestre) o fissi.
+                Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.apertura, listOf(T.pannelli.battente, T.pannelli.scorrevole), if (o.sliding) 1 else 0, Modifier.weight(1f)) { i ->
+                        update { it.copy(sliding = i == 1) }
+                    }
+                }
+                val sashes = SashType.entries.filter { it != SashType.Hopper || o.kind.isWindow }
+                if (!o.sliding) Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.tipoAnta, sashes.map { it.label }, sashes.indexOf(o.sash).coerceAtLeast(0), Modifier.weight(1f)) { i ->
+                        update { it.copy(sash = sashes[i]) }
+                    }
+                }
+            } else {
+                // Porte: a battente, scorrevoli o a libro.
+                val current = when { o.sliding -> 1; o.folding -> 2; else -> 0 }
+                Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.apertura, listOf(T.pannelli.battente, T.pannelli.scorrevole, T.pannelli.aLibro), current, Modifier.weight(1f)) { i ->
+                        update { it.copy(sliding = i == 1, folding = i == 2) }
+                    }
+                }
+                if (o.sliding) Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.scorre, listOf(T.pannelli.dentroMuro, T.pannelli.sulMuro), if (o.slideOnWall) 1 else 0, Modifier.weight(1f)) { i ->
+                        update { it.copy(slideOnWall = i == 1) }
+                    }
+                }
+            }
+            // Due ante a battente: uguali o una grande e una piccola.
+            if (o.kind.leaves == 2 && o.swings && !o.folds) Row(Modifier.padding(end = 8.dp)) {
+                Choice(T.pannelli.ante, listOf(T.pannelli.uguali, T.pannelli.disuguali), if (o.unequalLeaves) 1 else 0, Modifier.weight(1f)) { i ->
+                    update { it.copy(unequalLeaves = i == 1) }
                 }
             }
             if (o.hasSideChoice) Row(Modifier.padding(end = 8.dp)) {
-                // Stesso dato: a battente è il lato del cardine, da scorrevole il lato verso cui scorre l'anta.
-                Choice(if (o.sliding) T.pannelli.scorreVerso else T.pannelli.cardine, listOf(T.comuni.sinistra, T.comuni.destra), if (o.hingeLeft) 0 else 1, Modifier.weight(1f)) { i ->
+                // Stesso dato: a battente è il lato del cardine, da scorrevole il lato verso cui scorre l'anta, con le ante
+                // disuguali il lato dell'anta grande.
+                val title = when {
+                    o.sliding -> T.pannelli.scorreVerso
+                    o.unequal -> T.pannelli.antaGrande
+                    else -> T.pannelli.cardine
+                }
+                Choice(title, listOf(T.comuni.sinistra, T.comuni.destra), if (o.hingeLeft) 0 else 1, Modifier.weight(1f)) { i ->
                     update { it.copy(hingeLeft = i == 0) }
                 }
             }
@@ -890,6 +925,12 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
             } else {
                 ModelPicker(T.comuni.modello, DoorModel.entries, o.doorModel, { it.label }, { v -> update { it.copy(doorModel = v) } }) {
                     doorPreview(it, color)
+                }
+                // Porta a battente: con il coprifilo attorno o filo muro (senza cornice).
+                if (o.swings && !o.folds) Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.cornice, listOf(T.pannelli.coprifilo, T.pannelli.filoMuro), if (o.frameless) 1 else 0, Modifier.weight(1f)) { i ->
+                        update { it.copy(frameless = i == 1) }
+                    }
                 }
             }
             ColorPicker(if (o.kind.glazed) T.pannelli.coloreInfisso else T.comuni.colore, Finish.entries.map { it.label to it.argb }, o.finish.ordinal, { k ->
@@ -987,7 +1028,18 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
 }
 
 /** Nome dell'apertura come lo si mostra: "Porta ad 1 anta", "Finestra 2 ante scorrevole"… */
-internal fun openingLabel(o: Opening): String = if (o.sliding) T.pannelli.scorrevole2(o.kind.label) else o.kind.label
+internal fun openingLabel(o: Opening): String {
+    val name = o.kind.label
+    return when {
+        o.sliding && o.slideOnWall && !o.kind.glazed -> T.pannelli.scorrevoleEsterna2(name)
+        o.sliding -> T.pannelli.scorrevole2(name)
+        o.folds -> T.pannelli.aLibro2(name)
+        o.kind.glazed && o.sash != SashType.Casement -> T.pannelli.conAnta(name, o.sash.label)
+        o.unequal -> T.pannelli.disuguali2(name)
+        o.frameless && !o.kind.glazed -> T.pannelli.filoMuro2(name)
+        else -> name
+    }
+}
 
 /** Campo numerico in cm che applica il valore a ogni modifica valida (il riquadro si aggiorna dal vivo). */
 @Composable
