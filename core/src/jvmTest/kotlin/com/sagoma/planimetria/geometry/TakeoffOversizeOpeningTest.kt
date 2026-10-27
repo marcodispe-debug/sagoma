@@ -42,4 +42,15 @@ class TakeoffOversizeOpeningTest {
         assertEquals(0.0, line(window).openingsArea, 1e-6)
         assertEquals(plain.wallArea, line(window).wallArea, 1e-6)
     }
+
+    @Test
+    fun portaRimastaSuUnMuroEliminato() {
+        // Lato aperto da 300 cm con una porta rimasta sopra (file vecchio o letto da una piantina): il battiscopa perde
+        // il lato una volta sola, non anche la larghezza della porta.
+        val door = Opening.default(1, OpeningKind.Door, 1, 150.0)
+        val room = Room(1, "Camera", RoomType.Camera, RoomFactory.rectangle(400.0, 300.0), openings = listOf(door), removedWalls = setOf(1))
+        val open = Takeoff.of(Building.single(FloorPlan(listOf(room.copy(openings = emptyList()))))).rooms.single()
+        val withDoor = Takeoff.of(Building.single(FloorPlan(listOf(room)))).rooms.single()
+        assertEquals(open.skirting, withDoor.skirting, 1e-6)
+    }
 }

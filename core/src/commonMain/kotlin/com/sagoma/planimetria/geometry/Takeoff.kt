@@ -151,7 +151,8 @@ object Takeoff {
         if (!r.outdoor) for (g in gaps) holes += g.a.distanceTo(g.b) * minOf(g.height, r.wallHeight(g.wallIndex)) / 10_000.0
         // Il battiscopa si interrompe davanti a porte, porte-finestre e varchi (tutto ciò che arriva a terra), anche quelli
         // delle porte della stanza accanto.
-        val atFloor = (r.openings.filter { (!it.kind.glazed || it.sillHeight == 0.0) && it.wallIndex < r.wallCount }.sumOf { minOf(it.width, r.wallLength(it.wallIndex)) } + gaps.sumOf { it.a.distanceTo(it.b) }) / 100.0
+        // Una porta rimasta su un muro eliminato non conta: quel lato è già tolto tutto (altrimenti si toglieva due volte).
+        val atFloor = (r.openings.filter { (!it.kind.glazed || it.sillHeight == 0.0) && it.wallIndex < r.wallCount && !r.isRemoved(it.wallIndex) }.sumOf { minOf(it.width, r.wallLength(it.wallIndex)) } + gaps.sumOf { it.a.distanceTo(it.b) }) / 100.0
         val doors = r.openings.count { !it.kind.glazed }
         val windows = r.openings.count { it.kind.glazed }
         val wallName = if (r.outdoor) "—" else (0 until r.wallCount).map { wallFinishName(r, it) }.distinct().joinToString(" / ")
