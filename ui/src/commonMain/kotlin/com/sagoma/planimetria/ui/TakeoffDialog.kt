@@ -42,7 +42,7 @@ fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Uni
     fun exportCsv() {
         // BOM: Excel riconosce così l'UTF-8 (accenti e m²).
         val bytes = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) + Takeoff.csv(res).encodeToByteArray()
-        val name = "computo-${title.replace(Regex("[^A-Za-z0-9 _-]"), "")}-${isoDate(platform.now())}.csv"
+        val name = "computo-${fileNameOf(title, "")}-${isoDate(platform.now())}.csv"
         platform.saveFile(name, "text/csv", bytes) { ok -> platform.toast(if (ok) T.computo.computoEsportato else T.computo.esportazioneNonRiuscita) }
     }
 

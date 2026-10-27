@@ -55,7 +55,7 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
     fun export(p: ProjectInfo) {
         val bytes = runCatching { store.export(p.id) }.getOrNull()
         if (bytes == null) { platform.toast(T.progetti.esportazioneNonRiuscita); return }
-        val name = p.name.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifEmpty { "progetto" }
+        val name = fileNameOf(p.name, "progetto")
         platform.saveFile("$name.sagoma", "application/octet-stream", bytes) { ok ->
             platform.toast(if (ok) T.progetti.progettoEsportato else T.progetti.esportazioneNonRiuscita)
         }

@@ -416,7 +416,7 @@ fun PdfExportDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> U
             platform.toast(T.pdf.tavolaPdfNonDisponibile)
             return
         }
-        val name = (info?.name ?: "planimetria").replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifEmpty { "planimetria" }
+        val name = fileNameOf(info?.name ?: "", "planimetria")
         platform.saveFile("$name.pdf", "application/pdf", pdf) { ok ->
             platform.toast(if (!ok) T.pdf.esportazioneNonRiuscita else if (watermark) T.pdf.tavolaPdfSalvataMarchio else T.pdf.tavolaPdfSalvata)
             if (ok) onDismiss()
