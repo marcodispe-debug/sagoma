@@ -6,6 +6,7 @@ import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.model.Fixture
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
@@ -43,6 +44,20 @@ class DamagedProjectTest {
         assertEquals(5L, plan.rooms[0].id, "la prima tiene il suo numero")
         Dimensions.of(plan)
         Scene3D.build(plan, null, null, ceilings = true)
+    }
+
+    @Test
+    fun stanzaColNumeroNegativoNonSiConfondeConUnMuroSingolo() {
+        // Le porte dei muri singoli usano il numero del muro col meno davanti: la stanza −1 si scambiava col muro 1
+        // (specchiando il gruppo, la sua portafinestra finiva sul muro singolo).
+        val room = Room(-1, "Camera", RoomType.Camera, RoomFactory.rectangle(400.0, 300.0))
+        val wall = FreeWall(1, Vec2(600.0, 0.0), Vec2(900.0, 0.0))
+        val wrongWall = FreeWall(-4, Vec2(600.0, 200.0), Vec2(900.0, 200.0))
+        val plan = reopen(FloorPlan(listOf(room), freeWalls = listOf(wall, wrongWall)))
+        assertTrue(plan.rooms.all { it.id > 0 }, "${plan.rooms.map { it.id }}")
+        assertTrue(plan.freeWalls.all { it.id > 0 }, "${plan.freeWalls.map { it.id }}")
+        assertEquals(2, plan.freeWalls.map { it.id }.toSet().size)
+        assertEquals(1L, plan.freeWalls[0].id, "il muro giusto tiene il suo numero")
     }
 
     @Test

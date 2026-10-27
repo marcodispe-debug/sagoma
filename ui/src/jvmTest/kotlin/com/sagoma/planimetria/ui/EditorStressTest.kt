@@ -67,7 +67,10 @@ class EditorStressTest {
     private fun runSession(seed: Int, steps: Int, problems: MutableMap<String, String>) {
         val rnd = Random(seed)
         val start = Room(1, "Soggiorno", RoomType.Soggiorno, RoomFactory.rectangle(500.0, 400.0))
-        val vm = EditorViewModel(Store(Building.single(FloorPlan(listOf(start)))))
+        // Per partire da progetti salvati (anche rovinati) invece che da una stanza: SAGOMA_STRESS_START=cartella di .json.
+        val startFiles = System.getenv("SAGOMA_STRESS_START")?.let { File(it).listFiles { f -> f.name.endsWith(".json") }?.sortedBy { it.name } }.orEmpty()
+        val first = startFiles.takeIf { it.isNotEmpty() }?.let { runCatching { PlanJson.decodeBuilding(it[seed % it.size].readText()) }.getOrNull() }
+        val vm = EditorViewModel(Store(first ?: Building.single(FloorPlan(listOf(start)))))
         vm.setViewport(1200f, 800f, 24f)
         val log = ArrayList<String>()
 
@@ -306,6 +309,7 @@ class EditorStressTest {
         for (step in 1..steps) {
             val (name, action) = actions[rnd.nextInt(actions.size)]
             log += name
+            val before = vm.state.value.fullBuilding
             try {
                 action()
                 check(vm, step % 5 == 0)
@@ -323,6 +327,8 @@ class EditorStressTest {
                     problems[key] = "  sessione $seed, passo $step («$name»); ultimi passi: ${log.takeLast(6).joinToString(" → ")}\n  " +
                         e.stackTrace.filter { it.className.startsWith("com.sagoma") }.take(6).joinToString("\n  ")
                 }
+                // Per capire cosa è successo: SAGOMA_STRESS_DUMP=cartella riceve la casa prima del passo che si è rotto.
+                System.getenv("SAGOMA_STRESS_DUMP")?.let { dir -> File(dir, "sessione-$seed-passo-$step.json").writeText(PlanJson.encode(before)); File(dir, "dopo-$seed-$step.json").writeText(PlanJson.encode(vm.state.value.fullBuilding)) }
                 return // la sessione non prosegue da uno stato rotto
             }
         }

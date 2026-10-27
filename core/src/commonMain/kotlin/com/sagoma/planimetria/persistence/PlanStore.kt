@@ -2,6 +2,7 @@ package com.sagoma.planimetria.persistence
 
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.Mount
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
@@ -46,6 +47,7 @@ object PlanJson {
 
     /** Adegua i dati letti da file scritti con versioni precedenti dell'app. */
     private fun migrate(plan: FloorPlan): FloorPlan = plan.copy(
+        freeWalls = uniqueFreeWallIds(plan.freeWalls),
         rooms = uniqueRoomIds(plan.rooms).map { room ->
             // Porte e impianti su un muro con numero negativo (file rovinato o scritto da altri programmi): non stanno su
             // nessun muro e facevano cadere 3D e quote. Si tolgono.
@@ -66,14 +68,22 @@ object PlanJson {
 }
 
 /**
- * Stanze con lo stesso numero (file rovinato o scritto da altri programmi): l'app le confondeva tra loro (quote e 3D
- * cadevano, selezionarne una prendeva l'altra). Dalla seconda in poi ricevono un numero nuovo.
+ * Stanze con lo stesso numero, o con un numero zero o negativo (file rovinato o scritto da altri programmi): l'app le
+ * confondeva tra loro (quote e 3D cadevano, selezionarne una prendeva l'altra) e con i muri singoli, che usano i numeri
+ * negativi per le loro porte. Ricevono un numero nuovo; la prima di quelle con lo stesso numero tiene il suo.
  */
-private fun uniqueRoomIds(rooms: List<Room>): List<Room> {
-    if (rooms.map { it.id }.toSet().size == rooms.size) return rooms
+private fun uniqueRoomIds(rooms: List<Room>): List<Room> =
+    renumbered(rooms, { it.id }) { r, id -> r.copy(id = id) }
+
+/** Stesso caso per i muri singoli: il numero della loro porta (negativo) finiva su quello di una stanza. */
+private fun uniqueFreeWallIds(walls: List<FreeWall>): List<FreeWall> =
+    renumbered(walls, { it.id }) { w, id -> w.copy(id = id) }
+
+private fun <T> renumbered(items: List<T>, id: (T) -> Long, withId: (T, Long) -> T): List<T> {
+    if (items.all { id(it) > 0 } && items.map(id).toSet().size == items.size) return items
     val seen = HashSet<Long>()
-    var next = (rooms.maxOfOrNull { it.id } ?: 0L) + 1
-    return rooms.map { r -> if (seen.add(r.id)) r else r.copy(id = next++).also { seen += it.id } }
+    var next = (items.maxOfOrNull(id) ?: 0L).coerceAtLeast(0L) + 1
+    return items.map { item -> if (id(item) > 0 && seen.add(id(item))) item else withId(item, next++).also { seen += id(it) } }
 }
 
 interface PlanStore {
