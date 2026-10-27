@@ -64,7 +64,21 @@ class AperturePhotoTest {
                     o(11, OpeningKind.Window2, 3, 360.0, OpeningPreset.InteriorGlazing).copy(width = 140.0),
                 ),
             )
-            repo.planStore(p.id).save(Building.single(FloorPlan(rooms = listOf(room))))
+            // Seconda stanza, a destra: i tipi del secondo gruppo.
+            val room2 = Room(2, "Studio", RoomType.Studio, RoomFactory.rectangle(600.0, 450.0).map { it + com.sagoma.planimetria.model.Vec2(800.0, 0.0) }).copy(
+                openings = listOf(
+                    o(21, OpeningKind.Window1, 0, 80.0, OpeningPreset.PivotSash),
+                    o(22, OpeningKind.Window2, 0, 270.0, OpeningPreset.ThreeLeaves).copy(shading = com.sagoma.planimetria.model.Shading.InteriorShutters),
+                    o(23, OpeningKind.Window1, 0, 470.0, OpeningPreset.RoundWindow),
+                    o(24, OpeningKind.Door, 1, 110.0, OpeningPreset.Pivot),
+                    o(25, OpeningKind.Door, 1, 320.0, OpeningPreset.Glazed),
+                    o(26, OpeningKind.Balcony2, 2, 150.0, OpeningPreset.FourLeaves),
+                    o(27, OpeningKind.Balcony2, 2, 440.0, OpeningPreset.LiftSlide).copy(width = 220.0),
+                    o(28, OpeningKind.Door, 3, 120.0, OpeningPreset.Armored),
+                    o(29, OpeningKind.Window2, 3, 320.0, OpeningPreset.ArchedWindow).copy(shading = com.sagoma.planimetria.model.Shading.Venetian),
+                ),
+            )
+            repo.planStore(p.id).save(Building.single(FloorPlan(rooms = listOf(room, room2))))
             val tips = FileTipStore(dir).also { s -> s.save(Tip.entries.map { it.name }.toSet() + TipStore.TUTORIAL_DONE + TipStore.COURSE_DONE) }
             repo.markOpened(p.id)
 
@@ -72,11 +86,14 @@ class AperturePhotoTest {
                 "01-finestra-fissa" to 1L, "02-vasistas" to 2L, "03-anta-ribalta" to 3L, "04-porta-ante-disuguali" to 4L,
                 "05-porta-scorrevole-esterna" to 5L, "06-porta-a-libro" to 6L, "07-porta-filo-muro" to 7L, "08-nicchia" to 8L,
                 "09-arco-sesto-acuto" to 9L, "10-arco-ribassato" to 10L, "11-vetrata-loft" to 11L,
-            )
+            ).map { (n, id) -> Triple(n, 1L, id) } + listOf(
+                "21-finestra-bilico" to 21L, "22-finestra-3-ante-scuri" to 22L, "23-oblo" to 23L, "24-porta-bilico" to 24L,
+                "25-porta-sopraluce" to 25L, "26-balcone-4-ante" to 26L, "27-alzante" to 27L, "28-porta-blindata" to 28L, "29-finestra-arco-veneziana" to 29L,
+            ).map { (n, id) -> Triple(n, 2L, id) }
             val platform = DesktopPlatform(projects = repo, tips = tips, theme = FileThemeStore(dir), assets = null)
             var t = 0L
             var store: ViewModelStore? = null
-            ImageComposeScene(1400, 1300, Density(1f)).use { scene ->
+            ImageComposeScene(1800, 1100, Density(1f)).use { scene ->
                 fun frames(n: Int) = repeat(n) { t += 50_000_000L; scene.render(t); Thread.sleep(5) }
                 fun shot(name: String) {
                     t += 50_000_000L
@@ -97,10 +114,10 @@ class AperturePhotoTest {
                     scene.sendPointerEvent(PointerEventType.Release, p)
                     frames(10)
                 }
-                for ((nome, id) in schede) {
+                for ((nome, roomId, id) in schede) {
                     vm.deselectAll()
                     frames(3)
-                    vm.selectOpening(1, id)
+                    vm.selectOpening(roomId, id)
                     vm.setInfoExpanded(true)
                     frames(20)
                     shot(nome)
