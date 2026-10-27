@@ -639,7 +639,8 @@ private class SceneBuilder(
             if (current) {
                 lights += LightSpill.through(plan, lights.toList())
                 // Stanze a L o a U: la luce resta nei rettangoli della stanza, non in tutto il suo riquadro.
-                val zones = plan.rooms.associate { Polygon.bounds(it.points) to LightZones.of(it.points) }
+                // Una stanza senza punti (file rovinato) non ha riquadro: si salta, altrimenti il 3D non si apre.
+                val zones = plan.rooms.filter { it.points.size >= 3 }.associate { Polygon.bounds(it.points) to LightZones.of(it.points) }
                 for (k in lights.indices) {
                     val l = lights[k]
                     val z = l.room?.let { zones[it] } ?: continue
