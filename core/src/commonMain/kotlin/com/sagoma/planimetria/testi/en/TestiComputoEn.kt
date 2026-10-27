@@ -16,6 +16,7 @@ object TestiComputoEn : TestiComputo() {
     override val pavimento: String get() = "Flooring"
     override val totale: String get() = "Total"
     override val paretiSuperficieInternaNetto: String get() = "Walls: interior surface net of doors and windows. Skirting: interior perimeter minus doors and balconies."
+    override val togliZoneNonCalpestabili: String get() = "Floor area without the non-walkable areas"
     override val pavimentiOrdinare: String get() = "Flooring to order"
     override val finiturePareti: String get() = "Wall finishes"
     override val arredi: String get() = "Furniture"

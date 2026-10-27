@@ -75,7 +75,7 @@ object PdfExport {
     val drawDensity = Density(0.62f, 1f)
 
     /** [watermark]: marchio del piano gratuito su ogni foglio (lo decide chi esporta, con [com.sagoma.planimetria.access.Rights]). */
-    data class Options(val paper: Paper, val scale: Int?, val allFloors: Boolean, val takeoff: Boolean, val watermark: Boolean = false)
+    data class Options(val paper: Paper, val scale: Int?, val allFloors: Boolean, val takeoff: Boolean, val watermark: Boolean = false, val withoutZones: Boolean = true)
 
     /** Riquadro utile per la pianta nella pagina (sopra al cartiglio). */
     private fun drawArea(p: Paper) = floatArrayOf(MARGIN + DIM_SPACE, MARGIN + DIM_SPACE, p.w - MARGIN - 12f, p.h - MARGIN - BLOCK_H - 16f)
@@ -90,7 +90,7 @@ object PdfExport {
     /** Pagine della tavola: una per piano e, a scelta, il computo. */
     fun pages(building: Building, info: ProjectInfo?, o: Options, measurer: TextMeasurer, date: String): List<PdfPage> {
         val floors = if (o.allFloors) building.floors.filter { it.plan.rooms.isNotEmpty() || it.plan.furniture.isNotEmpty() } else listOf(building.floor)
-        val takeoff = if (o.takeoff) takeoffSheets(Takeoff.of(building), o.paper) else emptyList()
+        val takeoff = if (o.takeoff) takeoffSheets(Takeoff.of(building, o.withoutZones), o.paper) else emptyList()
         val sheets = floors.size + takeoff.size
         val result = floors.mapIndexed { i, fl ->
             PdfPage(o.paper.w, o.paper.h) {
@@ -409,7 +409,7 @@ fun PdfExportDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> U
     fun save() {
         val rooms = (if (allFloors) state.fullBuilding.floors.map { it.plan } else listOf(state.plan)).flatMap { p -> p.rooms.map { it.id } }
         val watermark = !Rights.cleanOutput(platform.account, OutputFormat.Plan, rooms)
-        val opts = PdfExport.Options(paper, scale, allFloors, takeoff, watermark)
+        val opts = PdfExport.Options(paper, scale, allFloors, takeoff, watermark, TakeoffChoice.withoutZones)
         val pages = PdfExport.pages(state.fullBuilding, info, opts, measurer, platform.formatDate(platform.now()))
         val pdf = runCatching { platform.createPdf(pages, PdfExport.drawDensity) }.onFailure { it.printStackTrace() }.getOrNull()
         if (pdf == null) {
@@ -451,6 +451,7 @@ fun PdfExportDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> U
                     Checkbox(checked = takeoff, onCheckedChange = { takeoff = it })
                     Text(T.pdf.aggiungiFoglioComputo)
                 }
+                if (takeoff) ExcludedZonesChoice(state.fullBuilding)
                 Text(
                     T.pdf.cartiglioUsaNomeCliente,
                     style = MaterialTheme.typography.bodySmall,

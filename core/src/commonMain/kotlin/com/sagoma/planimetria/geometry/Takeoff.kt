@@ -91,7 +91,11 @@ object Takeoff {
         this[key] = (this[key] ?: 0.0) + v
     }
 
-    fun of(building: Building): Result {
+    /** True se in casa c'è almeno una zona non calpestabile: solo allora ha senso chiedere se toglierla dal computo. */
+    fun hasExcludedZones(building: Building) = building.floors.any { f -> f.plan.rooms.any { it.excludedZones.isNotEmpty() } }
+
+    /** @param withoutZones true = i m² del pavimento senza le zone non calpestabili (come sulla pianta); lo sceglie l'utente. */
+    fun of(building: Building, withoutZones: Boolean = true): Result {
         val lines = mutableListOf<RoomLine>()
         val floorTot = LinkedHashMap<String, Double>()
         val wallTot = LinkedHashMap<String, Double>()
@@ -102,7 +106,7 @@ object Takeoff {
             // Porte sul muro in comune: il vano buca anche la parete della stanza accanto (che non ha la porta tra le sue).
             val induced = Openings.sharedGaps(plan)
             for (r in plan.rooms) {
-                val line = roomLine(fl.name, plan, r, induced)
+                val line = roomLine(fl.name, plan, r, induced, withoutZones)
                 lines += line
                 floorTot.add(line.floorFinish, line.floorArea)
                 if (!r.outdoor) {
@@ -131,9 +135,9 @@ object Takeoff {
         )
     }
 
-    private fun roomLine(floor: String, plan: FloorPlan, r: Room, induced: List<WallGap> = emptyList()): RoomLine {
-        // Gli stessi m² scritti sulla pianta: senza le zone non calpestabili, dove il pavimento non si posa.
-        val area = r.usableArea() / 10_000.0
+    private fun roomLine(floor: String, plan: FloorPlan, r: Room, induced: List<WallGap>, withoutZones: Boolean): RoomLine {
+        // Con withoutZones gli stessi m² scritti sulla pianta: senza le zone non calpestabili, dove il pavimento non si posa.
+        val area = (if (withoutZones) r.usableArea() else r.interiorArea()) / 10_000.0
         val lengths = r.interiorLengths()
         val perimeter = lengths.sum() / 100.0
         var wall = 0.0
