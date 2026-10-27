@@ -431,9 +431,16 @@ private fun FinishesTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
             floorPreview(it, Color(room.type.argb))
         }
     }
-    // Colore qualsiasi e rivestimenti. La facciata è una sola per tutta la casa: si cambia da qualunque stanza
-    // e vale per tutti i piani; con più piani si può fare un'eccezione per il piano corrente.
+    // Colore qualsiasi e rivestimenti. La facciata (lato esterno) si sceglie dalla scheda del muro: vedi [FacadeFinishSection].
     if (!room.outdoor) FinishPicker(T.schedaStanza.paretiInterne, room.roomFinish, { vm.setRoomFinish(room.id, it) })
+}
+
+/**
+ * Facciata: una sola per tutta la casa, si cambia da qualunque muro e vale per tutti i piani; con più piani si può fare
+ * un'eccezione per il piano corrente.
+ */
+@Composable
+internal fun FacadeFinishSection(plan: FloorPlan, vm: EditorViewModel) {
     val floors = vm.state.collectAsState().value.fullBuilding.floors
     val differs = floors.any { it.plan.facadeOrPaint != plan.facadeOrPaint }
     var onlyThisFloor by remember(floors.size > 1, differs) { mutableStateOf(differs) }

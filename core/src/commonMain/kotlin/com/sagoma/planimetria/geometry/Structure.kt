@@ -54,9 +54,17 @@ object Structure {
     /** Un muro qualsiasi (di una stanza o singolo): mezzeria da `a` a `b`, mezzo spessore `half`. */
     class WallLine(val a: Vec2, val b: Vec2, val half: Double)
 
-    /** Tutti i muri del piano, esclusi i muri singoli con id in `except`. */
+    /**
+     * Tutti i muri dritti del piano, esclusi i muri singoli con id in `except`. I muri spostati di lato ([Room.wallOffsets])
+     * con la loro mezzeria vera; i muri curvi no (la linea dritta tra i due angoli non è il muro).
+     */
     fun wallLines(plan: FloorPlan, except: Long? = null): List<WallLine> =
-        plan.rooms.flatMap { r -> (0 until r.wallCount).map { WallLine(r.wallStart(it), r.wallEnd(it), r.thicknessOf(it) / 2) } } +
+        plan.rooms.flatMap { r ->
+            (0 until r.wallCount).filter { r.arcOf(it) == null }.map {
+                val shift = r.outwardOf(it) * r.wallShift(it)
+                WallLine(r.wallStart(it) + shift, r.wallEnd(it) + shift, r.thicknessOf(it) / 2)
+            }
+        } +
             plan.freeWalls.filter { it.id != except }.map { WallLine(it.start, it.end, it.thickness / 2) }
 
     fun wallSnap(plan: FloorPlan, b: Bounds, distance: Double = SNAP, except: Long? = null): Vec2 {

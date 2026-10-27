@@ -631,8 +631,13 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         closeFloorDialog()
         commitBuilding { b ->
             val from = if (below) b.floors.first() else b.floors.last()
+            // I muri come sono: con il loro spessore, spostati di lato e curvi (altrimenti al piano di sopra tornerebbero
+            // dritti, da 15 cm e centrati, e non starebbero più sopra quelli di sotto).
             val rooms = if (copyRooms) from.plan.rooms.map {
-                Room(it.id, it.name, it.type, it.points, ceilingHeight = it.ceilingHeight, floorFinish = it.type.defaultFloor)
+                Room(
+                    it.id, it.name, it.type, it.points, ceilingHeight = it.ceilingHeight, floorFinish = it.type.defaultFloor,
+                    wallThickness = it.wallThickness, wallThicknesses = it.wallThicknesses, wallOffsets = it.wallOffsets, wallBulges = it.wallBulges,
+                )
             } else emptyList()
             val level = if (below) b.level(0) - 1 else b.level(b.floors.lastIndex) + 1
             // Il piano nuovo ha la stessa facciata di quello accanto: l'esterno di una casa è quasi sempre uguale.
@@ -751,10 +756,16 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val p = withWallRemoved(plan, roomId, index, removed = false)
         val room = p.room(roomId) ?: return
         var nextId = p.nextOpeningId
+        // Muro singolo disegnato al contrario del lato: cardine e verso di apertura si invertono per restare fisicamente dov'erano.
+        val flipped = ((w.end - w.start) dot (room.wallEnd(index) - room.wallStart(index))) < 0
         val moved = w.openings.map { o ->
             val (a, b) = Openings.span(w.host, o)
             val pos = Openings.clampPosition(room.wallLength(index), o.width, Openings.projectOnWall(room, index, (a + b) / 2.0))
-            o.copy(id = nextId++, wallIndex = index, position = pos)
+            o.copy(
+                id = nextId++, wallIndex = index, position = pos,
+                hingeLeft = if (flipped) !o.hingeLeft else o.hingeLeft,
+                opensInward = if (flipped) !o.opensInward else o.opensInward,
+            )
         }
         setPlan(p.replace(room.copy(openings = room.openings + moved)).copy(freeWalls = p.freeWalls.filter { it.id != id }))
         _state.update { it.copy(selection = Selection.Wall(roomId, index), focusedRoomId = roomId) }

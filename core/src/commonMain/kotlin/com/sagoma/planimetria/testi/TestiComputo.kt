@@ -15,6 +15,7 @@ open class TestiComputo {
     open val pavimento: String get() = "Pavimento"
     open val totale: String get() = "Totale"
     open val paretiSuperficieInternaNetto: String get() = "Pareti: superficie interna al netto di porte e finestre. Battiscopa: perimetro interno meno porte e balconi."
+    open val togliZoneNonCalpestabili: String get() = "Pavimento senza le zone non calpestabili"
     open val pavimentiOrdinare: String get() = "Pavimenti da ordinare"
     open val finiturePareti: String get() = "Finiture delle pareti"
     open val arredi: String get() = "Arredi"
