@@ -56,6 +56,8 @@ enum class SashType {
     TiltTurn,
     Hopper,
     Fixed,
+    /** A bilico: gira su un perno orizzontale a metà altezza. */
+    Pivot,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */

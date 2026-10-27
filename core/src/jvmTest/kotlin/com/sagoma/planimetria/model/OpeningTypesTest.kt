@@ -155,6 +155,24 @@ class OpeningTypesTest {
     }
 
     @Test
+    fun `finestre e balconi a 3 e 4 ante, alzante e bilico`() {
+        val four = OpeningPreset.FourLeaves.apply(Opening.default(1, OpeningKind.Balcony2, 0, 200.0)) // 240: da 80 a 320
+        assertEquals(4, four.leaves)
+        assertFalse(four.copy(unequalLeaves = true).unequal, "con 4 ante niente ante disuguali")
+        // La finestra a un'anta resta a un'anta anche con leafCount.
+        assertEquals(1, Opening.default(1, OpeningKind.Window1, 0, 200.0).copy(leafCount = 4).leaves)
+        // Scorrevole a 4 ante: ante sfalsate una sì e una no nello spessore.
+        val s = scene(four.copy(sliding = true))
+        val first = assertNotNull(fromInside(s, 110.0, 120.0)).point.z
+        val second = assertNotNull(fromInside(s, 170.0, 120.0)).point.z
+        assertTrue(abs(first - second) > 4.0, "ante sfalsate: $first e $second")
+        val lift = OpeningPreset.LiftSlide.apply(Opening.default(1, OpeningKind.Balcony2, 0, 200.0))
+        assertTrue(lift.lifts && lift.sliding)
+        val pivot = OpeningPreset.PivotSash.apply(Opening.default(1, OpeningKind.Window1, 0, 200.0))
+        assertTrue(pivot.pivotSash && !pivot.swings && !pivot.hasSideChoice)
+    }
+
+    @Test
     fun `i dati nuovi si salvano e si rileggono`() {
         val openings = listOf(
             OpeningPreset.WallSlide.apply(Opening.default(1, OpeningKind.Door, 0, 100.0)),
@@ -169,6 +187,9 @@ class OpeningTypesTest {
             OpeningPreset.Pivot.apply(Opening.default(10, OpeningKind.Door, 0, 120.0)),
             OpeningPreset.Armored.apply(Opening.default(11, OpeningKind.Door, 2, 300.0)),
             OpeningPreset.Glazed.apply(Opening.default(12, OpeningKind.Door, 3, 150.0)),
+            OpeningPreset.FourLeaves.apply(Opening.default(13, OpeningKind.Balcony2, 0, 200.0)),
+            OpeningPreset.LiftSlide.apply(Opening.default(14, OpeningKind.Balcony2, 2, 200.0)),
+            OpeningPreset.PivotSash.apply(Opening.default(15, OpeningKind.Window1, 1, 200.0)),
         )
         val plan = FloorPlan(listOf(room(*openings.toTypedArray())))
         assertEquals(openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)

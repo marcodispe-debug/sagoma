@@ -2098,10 +2098,12 @@ private class SceneBuilder(
         val w = a.distanceTo(b)
         val split = w * o.leafSplit
         val glassBottom = bottom + if (bottom > 0) f else 2.0
-        // Ante (tratti lungo il varco, in cm da `a`): una, due (anche disuguali) o nessuna divisione se fissa.
+        // Ante (tratti lungo il varco, in cm da `a`): una, due (anche disuguali), tre o quattro uguali, nessuna divisione se fissa.
         val leaves = when {
             o.sliding -> emptyList()
-            o.kind.leaves == 2 && !o.fixed -> listOf(f to split, split to w - f)
+            o.fixed -> listOf(f to w - f)
+            o.leaves == 2 -> listOf(f to split, split to w - f)
+            o.leaves > 2 -> (0 until o.leaves).map { k -> maxOf(f, w * k / o.leaves) to minOf(w - f, w * (k + 1) / o.leaves) }
             else -> listOf(f to w - f)
         }
         if (o.windowModel == WindowModel.English && !o.sliding) {
@@ -2137,29 +2139,45 @@ private class SceneBuilder(
         box(b - u * f, b, depth, bottom, top, color, pick)
         box(a, b, depth, top - f, top, color, pick)
         box(a, b, depth, bottom, bottom + if (bottom > 0) f else 2.0, color, pick)
+        // Alzante: la soglia e il traverso in basso più alti e robusti.
+        if (o.lifts) box(a, b, depth + 1.0, bottom, glassBottom + 4.0, color, pick)
         if (o.sliding) {
-            val mid = (a + b) / 2.0
-            val overlap = u * (w * 0.08)
-            pane(a + u * f + n * 2.5, mid + overlap + n * 2.5, glassBottom, top - f, glassColor, pick)
-            pane(mid - overlap - n * 2.5, b - u * f - n * 2.5, glassBottom, top - f, glassColor, pick)
-            box(mid + overlap - u * 2.0 + n * 2.5, mid + overlap + n * 2.5, 1.5, glassBottom, top - f, color, pick)
-            box(mid - overlap - n * 2.5, mid - overlap + u * 2.0 - n * 2.5, 1.5, glassBottom, top - f, color, pick)
+            // Ante scorrevoli sfalsate nello spessore (una sì e una no), sovrapposte dove si incontrano.
+            val count = maxOf(2, o.leaves)
+            val overlap = w * 0.08 / (count - 1)
+            val low = if (o.lifts) glassBottom + 4.0 else glassBottom
+            for (k in 0 until count) {
+                val x0 = maxOf(f, w * k / count - if (k > 0) overlap else 0.0)
+                val x1 = minOf(w - f, w * (k + 1) / count + if (k < count - 1) overlap else 0.0)
+                val off = n * (if (k % 2 == 0) 2.5 else -2.5)
+                pane(a + u * x0 + off, a + u * x1 + off, low, top - f, glassColor, pick)
+                if (k > 0) box(a + u * x0 + off, a + u * (x0 + 2.0) + off, 1.5, low, top - f, color, pick)
+                if (k < count - 1) box(a + u * (x1 - 2.0) + off, a + u * x1 + off, 1.5, low, top - f, color, pick)
+            }
         } else {
             pane(a + u * f, b - u * f, glassBottom, top - f, glassColor, pick)
-            if (leaves.size == 2) {
-                val mid = a + u * split
+            // Montanti tra un'anta e l'altra.
+            for (k in 1 until leaves.size) {
+                val mid = a + u * leaves[k].first
                 box(mid - u * 2.5, mid + u * 2.5, depth, glassBottom, top - f, color, pick)
+            }
+            // A bilico: il perno orizzontale a metà altezza, ai due lati.
+            if (o.pivotSash) {
+                val y = (glassBottom + top - f) / 2
+                val metal = tint(Rgba(0.62f, 0.64f, 0.66f), pick)
+                for (x in listOf(f + 1.5, w - f - 1.5)) box(a + u * (x - 1.5), a + u * (x + 1.5), depth + 0.6, y - 1.5, y + 1.5, metal, pick)
             }
             // Maniglia sul lato libero dell'anta (in cima per il vasistas); il vetro fisso non ne ha.
             if (!o.fixed && (top - bottom) > 30) {
                 val metal = tint(Rgba(0.62f, 0.64f, 0.66f), pick)
                 val inner = n * (depth + 1.2)
-                if (o.hopper) {
+                if (o.hopper || o.pivotSash) {
                     val c = (a + b) / 2.0 + inner
                     box(c - u * 6.0, c + u * 6.0, 1.0, top - f - 4, top - f - 2, metal, pick)
                 } else {
                     val y = min(bottom + 105.0, (bottom + top) / 2).coerceAtLeast(glassBottom + 5)
                     val xs = when {
+                        leaves.size > 2 -> leaves.mapIndexed { k, (x0, x1) -> if (k * 2 < leaves.size) x1 - 4 else x0 + 4 }
                         leaves.size == 2 -> listOf(split - 5.0)
                         o.hingeLeft -> listOf(w - f - 4)
                         else -> listOf(f + 4)

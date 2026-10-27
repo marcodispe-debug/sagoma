@@ -270,6 +270,7 @@ private val legendSections: List<LegendSection> by lazy {
                 LegendItem(T.legenda.finestraScorrevole, T.legenda.anteSovrapposteScorrono, opening(OpeningKind.Window2, sliding = true)),
                 LegendItem(T.editor.finestraFissa, T.legenda.vetroFisso, opening(OpeningKind.Window1, preset = OpeningPreset.Fixed)),
                 LegendItem(T.editor.finestraVasistas, T.legenda.vasistasRibalta, opening(OpeningKind.Window1, preset = OpeningPreset.Hopper)),
+                LegendItem(T.editor.finestraBilico, T.legenda.perniOrizzontale, opening(OpeningKind.Window1, preset = OpeningPreset.PivotSash)),
                 LegendItem(T.legenda.balconeAd1Anta, T.legenda.portaFinestraFinoTerra, opening(OpeningKind.Balcony1)),
                 LegendItem(T.legenda.balcone2Ante, T.legenda.portaFinestraDueAnte, opening(OpeningKind.Balcony2)),
                 LegendItem(T.legenda.balconeScorrevole, T.legenda.portaFinestraAnteScorrevoli, opening(OpeningKind.Balcony2, sliding = true)),

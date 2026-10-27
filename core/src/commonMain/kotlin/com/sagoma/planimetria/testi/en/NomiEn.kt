@@ -57,6 +57,7 @@ object NomiEn : Nomi() {
         SashType.TiltTurn -> "Tilt and turn"
         SashType.Hopper -> "Hopper"
         SashType.Fixed -> "Fixed"
+        SashType.Pivot -> "Pivot"
     }
 
     override fun windowModel(v: WindowModel): String = when (v) {

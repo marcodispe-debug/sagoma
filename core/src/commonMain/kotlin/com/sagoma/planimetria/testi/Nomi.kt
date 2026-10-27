@@ -57,6 +57,7 @@ open class Nomi {
         SashType.TiltTurn -> "Anta-ribalta"
         SashType.Hopper -> "Vasistas"
         SashType.Fixed -> "Fissa"
+        SashType.Pivot -> "A bilico"
     }
 
     open fun windowModel(v: WindowModel): String = when (v) {

@@ -868,7 +868,18 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                         update { it.copy(sliding = i == 1) }
                     }
                 }
-                val sashes = SashType.entries.filter { it != SashType.Hopper || o.kind.isWindow }
+                val sashes = SashType.entries.filter { (it != SashType.Hopper && it != SashType.Pivot) || o.kind.isWindow }
+                // Finestre e balconi a 2 ante: anche 3 o 4.
+                if (o.kind.leaves == 2) Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.numeroAnte, listOf("2", "3", "4"), o.leaves - 2, Modifier.weight(1f)) { i ->
+                        update { it.copy(leafCount = if (i == 0) 0 else i + 2) }
+                    }
+                }
+                if (o.sliding) Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.tipoScorrevole, listOf(T.pannelli.normale, T.pannelli.alzante), if (o.liftSlide) 1 else 0, Modifier.weight(1f)) { i ->
+                        update { it.copy(liftSlide = i == 1) }
+                    }
+                }
                 if (!o.sliding) Row(Modifier.padding(end = 8.dp)) {
                     Choice(T.pannelli.tipoAnta, sashes.map { it.label }, sashes.indexOf(o.sash).coerceAtLeast(0), Modifier.weight(1f)) { i ->
                         update { it.copy(sash = sashes[i]) }
@@ -890,7 +901,7 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                 }
             }
             // Due ante a battente: uguali o una grande e una piccola.
-            if (o.kind.leaves == 2 && o.swings && !o.folds) Row(Modifier.padding(end = 8.dp)) {
+            if (o.leaves == 2 && o.swings && !o.folds) Row(Modifier.padding(end = 8.dp)) {
                 Choice(T.pannelli.ante, listOf(T.pannelli.uguali, T.pannelli.disuguali), if (o.unequalLeaves) 1 else 0, Modifier.weight(1f)) { i ->
                     update { it.copy(unequalLeaves = i == 1) }
                 }
@@ -1035,8 +1046,9 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
 
 /** Nome dell'apertura come lo si mostra: "Porta ad 1 anta", "Finestra 2 ante scorrevole"… */
 internal fun openingLabel(o: Opening): String {
-    val name = o.kind.label
+    val name = if (o.leaves > 2) T.pannelli.anteN(o.kind == OpeningKind.Balcony2, o.leaves) else o.kind.label
     return when {
+        o.lifts -> T.pannelli.alzante2(name)
         o.sliding && o.slideOnWall && !o.kind.glazed -> T.pannelli.scorrevoleEsterna2(name)
         o.sliding -> T.pannelli.scorrevole2(name)
         o.folds -> T.pannelli.aLibro2(name)

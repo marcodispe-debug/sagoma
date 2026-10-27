@@ -31,6 +31,7 @@ object TestiLegendaEn : TestiLegenda() {
     override val antaSulMuro: String get() = "Leaf just outside the wall on a visible track; the arrow shows where it slides."
     override val pannelliPiegati: String get() = "Two panels that fold into a V toward the opening side."
     override val pernoAnta: String get() = "The leaf turns on a pivot: when open it also sticks out on the other side."
+    override val perniOrizzontale: String get() = "The sash turns on a horizontal pivot halfway up: half goes in, half out (dashed)."
     override val vetroFisso: String get() = "Glass in the wall that doesn't open: no arc."
     override val vasistasRibalta: String get() = "The sash tilts in at the top toward the room (dashed)."
     override val nicchiaMezzoMuro: String get() = "Recess half the wall deep, toward the room; dashed if it is up high."

@@ -57,6 +57,7 @@ object NomiFr : Nomi() {
         SashType.TiltTurn -> "Oscillo-battant"
         SashType.Hopper -> "Soufflet"
         SashType.Fixed -> "Fixe"
+        SashType.Pivot -> "Basculante"
     }
 
     override fun windowModel(v: WindowModel): String = when (v) {

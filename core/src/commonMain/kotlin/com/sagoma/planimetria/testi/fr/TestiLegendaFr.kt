@@ -31,6 +31,7 @@ object TestiLegendaFr : TestiLegenda() {
     override val antaSulMuro: String get() = "Vantail devant le mur sur un rail apparent ; la flèche indique où il coulisse."
     override val pannelliPiegati: String get() = "Deux panneaux qui se plient en V du côté de l'ouverture."
     override val pernoAnta: String get() = "Le vantail tourne sur un pivot : ouvert, il dépasse aussi de l'autre côté."
+    override val perniOrizzontale: String get() = "Le vantail tourne sur un pivot horizontal à mi-hauteur : une moitié vers l'intérieur, l'autre vers l'extérieur (pointillés)."
     override val vetroFisso: String get() = "Vitre dans le mur qui ne s'ouvre pas : pas d'arc."
     override val vasistasRibalta: String get() = "Le vantail bascule en haut vers la pièce (pointillés)."
     override val nicchiaMezzoMuro: String get() = "Renfoncement de la moitié du mur, côté pièce ; en pointillés s'il est en hauteur."

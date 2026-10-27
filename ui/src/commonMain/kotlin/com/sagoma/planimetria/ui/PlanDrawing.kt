@@ -784,12 +784,23 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
         return
     }
     // Vetro fisso e vasistas: il vetro nel muro, senza arco; il vasistas ha in più l'anta che si ribalta verso la stanza.
-    if (o.fixed || o.hopper) {
+    if (o.fixed || o.hopper || o.pivotSash) {
         val f = n * frame
         val g = n * minOf(1.5, half)
         if (frame == 0.0) {
             drawLine(color, cam.o(a - g), cam.o(b - g), strokeWidth = thin)
             drawLine(color, cam.o(a + g), cam.o(b + g), strokeWidth = thin)
+        }
+        // A bilico: metà anta va verso la stanza e metà verso fuori.
+        if (o.pivotSash) {
+            val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
+            val reach = minOf(o.height * 0.25, 20.0)
+            for (side in listOf(1.0, -1.0)) {
+                val tilt = n * (side * (half + reach))
+                drawLine(color, cam.o(a + f + n * (side * half)), cam.o(a + f + tilt), strokeWidth = thin, pathEffect = dash)
+                drawLine(color, cam.o(b + f + n * (side * half)), cam.o(b + f + tilt), strokeWidth = thin, pathEffect = dash)
+                drawLine(color, cam.o(a + f + tilt), cam.o(b + f + tilt), strokeWidth = thin, pathEffect = dash)
+            }
         }
         if (o.hopper) {
             val tilt = n * (half + minOf(o.height * 0.25, 20.0))
@@ -836,6 +847,15 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
         drawPivotArc(axis, dir, swing, big, color, line, cam)
         drawPivotArc(axis, dir * -1.0, swing * -1.0, small, color, line, cam)
         drawCircle(color, 2.dp.toPx(), cam.o(axis))
+        return
+    }
+    if (o.leaves > 2) {
+        // Tre o quattro ante: quelle della metà sinistra incernierate a sinistra, le altre a destra.
+        for (k in 0 until o.leaves) {
+            val p0 = a + (b - a) * (k.toDouble() / o.leaves)
+            val p1 = a + (b - a) * ((k + 1).toDouble() / o.leaves)
+            if (k * 2 < o.leaves) drawLeaf(p0 + base, p1 + base, swing, color, line, cam) else drawLeaf(p1 + base, p0 + base, swing, color, line, cam)
+        }
         return
     }
     when (o.kind.leaves) {
@@ -907,14 +927,26 @@ private fun DrawScope.drawSliding(o: Opening, a: Vec2, b: Vec2, n: Vec2, color: 
         val (s, e) = if (towardA) (a - u * w) to a else b to (b + u * w)
         drawLine(color.copy(alpha = 0.5f), cam.o(s + off), cam.o(e + off), strokeWidth = width / 2, pathEffect = dash)
         drawArrow((a + b) / 2.0 + off, if (towardA) u * -1.0 else u, color, cam)
+    } else if (o.leaves > 2) {
+        // Tre o quattro ante sfalsate una sì e una no; scorrono verso il centro.
+        val n2 = o.leaves
+        val overlap = w * 0.08 / (n2 - 1)
+        for (k in 0 until n2) {
+            val o2 = if (k % 2 == 0) off else off * -1.0
+            val x0 = maxOf(0.0, w * k / n2 - if (k > 0) overlap else 0.0)
+            val x1 = minOf(w, w * (k + 1) / n2 + if (k < n2 - 1) overlap else 0.0)
+            drawLine(color, cam.o(a + u * x0 + o2), cam.o(a + u * x1 + o2), strokeWidth = width, cap = StrokeCap.Round)
+            drawArrow(a + u * ((x0 + x1) / 2) + o2, if (k * 2 < n2) u else u * -1.0, color, cam)
+        }
     } else {
         val mid = (a + b) / 2.0
         val overlap = u * (w * 0.08)
         drawLine(color, cam.o(a + off), cam.o(mid + overlap + off), strokeWidth = width, cap = StrokeCap.Round)
         val off2 = if (o.slideOnWall) off + n * 3.0 else off * -1.0
         drawLine(color, cam.o(mid - overlap + off2), cam.o(b + off2), strokeWidth = width, cap = StrokeCap.Round)
-        drawArrow((a + mid) / 2.0 + off, u, color, cam)
-        drawArrow((mid + b) / 2.0 + off2, u * -1.0, color, cam)
+        // Alzante: un'anta fissa (dal lato del cardine) e una che scorre.
+        if (!o.lifts || !o.hingeLeft) drawArrow((a + mid) / 2.0 + off, u, color, cam)
+        if (!o.lifts || o.hingeLeft) drawArrow((mid + b) / 2.0 + off2, u * -1.0, color, cam)
     }
 }
 

@@ -195,6 +195,10 @@ data class Opening(
     val transom: Double = 0.0,
     /** Porte a un'anta: vetro fisso largo tanti cm di fianco all'anta, dal lato opposto al cardine (dentro la larghezza). */
     val sidelight: Double = 0.0,
+    /** Finestre e balconi a 2 ante: 3 o 4 ante invece di 2 (0 = quelle del tipo). */
+    val leafCount: Int = 0,
+    /** Balconi e finestre scorrevoli: alzante scorrevole (un'anta fissa e una che scorre, telaio più robusto). */
+    val liftSlide: Boolean = false,
 ) {
     /** Colore effettivo di anta e telaio. */
     val finish: Finish get() = color ?: if (kind.glazed) Finish.White else Finish.Oak
@@ -207,6 +211,12 @@ data class Opening(
     val hopper: Boolean get() = kind.glazed && !sliding && sash == SashType.Hopper
     /** Porta a libro. */
     val folds: Boolean get() = folding && !kind.glazed && kind.hasLeaves && !sliding
+    /** Numero di ante: quelle del tipo, o 3-4 per finestre e balconi a 2 ante. */
+    val leaves: Int get() = if (kind.glazed && kind.leaves == 2 && leafCount in 3..4) leafCount else kind.leaves
+    /** Finestra a bilico: l'anta gira su un perno orizzontale a metà altezza. */
+    val pivotSash: Boolean get() = kind.glazed && !sliding && sash == SashType.Pivot
+    /** Alzante scorrevole. */
+    val lifts: Boolean get() = liftSlide && sliding && kind.glazed
     /** Sopraluce e vetro di fianco valgono per la porta a un'anta a battente o a bilico. */
     val hasDoorGlazing: Boolean get() = kind == OpeningKind.Door && !sliding && !folding
     /** Sopraluce effettivo (cm), lasciando all'anta almeno 150 cm. */
@@ -221,9 +231,9 @@ data class Opening(
     /** Porta a bilico (un'anta, a battente). */
     val pivots: Boolean get() = pivot && !kind.glazed && kind.leaves == 1 && !sliding && !folding
     /** Ante a battente: hanno l'arco di apertura e un verso (interno/esterno). Anche la porta a libro e l'anta-ribalta. */
-    val swings: Boolean get() = kind.hasLeaves && !sliding && !fixed && !hopper
+    val swings: Boolean get() = kind.hasLeaves && !sliding && !fixed && !hopper && !pivotSash
     /** Ante disuguali: solo con due ante a battente. */
-    val unequal: Boolean get() = unequalLeaves && kind.leaves == 2 && swings && !folds
+    val unequal: Boolean get() = unequalLeaves && leaves == 2 && swings && !folds
     /** Cardine (battente) o verso di scorrimento (scorrevole) con un'anta; con due ante disuguali, il lato dell'anta grande. */
     val hasSideChoice: Boolean get() = (kind.leaves == 1 && (swings || sliding)) || unequal
     /** Dove si incontrano le due ante, da 0 (inizio `a` del varco) a 1: a metà, o a 2/3 dal lato dell'anta grande. */

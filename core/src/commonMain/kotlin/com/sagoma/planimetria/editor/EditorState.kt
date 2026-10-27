@@ -84,7 +84,7 @@ data class PendingOpening(
 
 /** Varianti di porte e finestre offerte dal menu; dopo si cambiano tutte dalla scheda Info. */
 enum class OpeningPreset {
-    None, WallSlide, Folding, Frameless, UnequalLeaves, TiltTurn, Hopper, Fixed, InteriorGlazing, Armored, Pivot, Glazed;
+    None, WallSlide, Folding, Frameless, UnequalLeaves, TiltTurn, Hopper, Fixed, InteriorGlazing, Armored, Pivot, Glazed, PivotSash, ThreeLeaves, FourLeaves, LiftSlide;
 
     fun apply(o: Opening): Opening = when (this) {
         None -> o
@@ -103,6 +103,11 @@ enum class OpeningPreset {
         // A bilico: grande, alta e filo muro, come di solito.
         // Porta con sopraluce di 40 cm e vetro di fianco di 30: tutta l'apertura è più grande, l'anta resta 80 × 210.
         Glazed -> o.copy(transom = 40.0, sidelight = 30.0, width = 110.0, height = 250.0)
+        PivotSash -> o.copy(sash = SashType.Pivot, width = 100.0, height = 120.0)
+        ThreeLeaves -> o.copy(leafCount = 3, width = 180.0)
+        FourLeaves -> o.copy(leafCount = 4, width = 240.0)
+        // Alzante scorrevole: grande vetrata a profili sottili.
+        LiftSlide -> o.copy(sliding = true, liftSlide = true, width = 260.0, windowModel = WindowModel.Minimal)
         Pivot -> o.copy(pivot = true, frameless = true, width = 100.0, height = 240.0, doorModel = DoorModel.Modern)
     }
 }
