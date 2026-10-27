@@ -67,9 +67,9 @@ object PdfExport {
     /** Punti di pagina per cm reale alla scala 1:[denominator]. */
     fun ptPerCm(denominator: Int) = 10.0 / denominator / 0.352778
 
-    private const val MARGIN = 28f        // cornice (≈ 1 cm)
+    internal const val MARGIN = 28f        // cornice (≈ 1 cm)
     private const val BLOCK_W = 250f      // cartiglio
-    private const val BLOCK_H = 96f
+    internal const val BLOCK_H = 96f
     private const val DIM_SPACE = 44f     // spazio per le quote esterne attorno alla pianta
     /** Punti per dp nei disegni della pianta: testi e tratti un po' più fini che sullo schermo. */
     val drawDensity = Density(0.62f, 1f)
@@ -90,17 +90,17 @@ object PdfExport {
     /** Pagine della tavola: una per piano e, a scelta, il computo. */
     fun pages(building: Building, info: ProjectInfo?, o: Options, measurer: TextMeasurer, date: String): List<PdfPage> {
         val floors = if (o.allFloors) building.floors.filter { it.plan.rooms.isNotEmpty() || it.plan.furniture.isNotEmpty() } else listOf(building.floor)
-        val sheets = floors.size + if (o.takeoff) 1 else 0
+        val takeoff = if (o.takeoff) takeoffSheets(Takeoff.of(building), o.paper) else emptyList()
+        val sheets = floors.size + takeoff.size
         val result = floors.mapIndexed { i, fl ->
             PdfPage(o.paper.w, o.paper.h) {
                 drawPlanSheet(fl, info, o, measurer, i + 1, sheets, date, building.layers)
                 if (o.watermark) with(Watermark) { drawWatermark(measurer, Watermark.exportLetterPx(size.width, size.height)) }
             }
         }.toMutableList()
-        if (o.takeoff) {
-            val res = Takeoff.of(building)
+        takeoff.forEachIndexed { k, lines ->
             result += PdfPage(o.paper.w, o.paper.h) {
-                drawTakeoffSheet(res, info, o.paper, sheets, measurer, date)
+                drawTakeoffSheet(lines, info, o.paper, floors.size + k + 1, sheets, measurer, date)
                 if (o.watermark) with(Watermark) { drawWatermark(measurer, Watermark.exportLetterPx(size.width, size.height)) }
             }
         }
@@ -317,29 +317,39 @@ object PdfExport {
     // ---------------------------------------------------------------------------------------------------
     // Foglio del computo
 
-    private fun DrawScope.drawTakeoffSheet(res: Takeoff.Result, info: ProjectInfo?, p: Paper, sheet: Int, m: TextMeasurer, date: String) {
-        drawRect(Color.White)
-        drawFrame(p)
-        drawTitleBlock(p, info, T.pdf.computoArredi, "—", sheet, sheet, m, date)
+    /** Una riga del computo nella tavola: un titolo o una riga di tabella, già messa al suo posto nel foglio. */
+    internal class TakeoffLine(val x: Float, val y: Float, val cells: List<String>, val widths: List<Float>, val bold: Boolean, val right: Set<Int>, val title: Boolean)
+
+    /**
+     * Righe del computo divise in fogli, due colonne per foglio. Con tante stanze, arredi e impianti la seconda colonna
+     * si riempiva e le righe scendevano sopra il cartiglio e fuori dal foglio: ora continuano in un foglio nuovo.
+     */
+    internal fun takeoffSheets(res: Takeoff.Result, p: Paper): List<List<TakeoffLine>> {
         val left = MARGIN + 14
         val maxY = p.h - MARGIN - BLOCK_H - 10
-        var y = MARGIN + 22
-        var colX = left
+        val top = MARGIN + 22
         val colW = (p.w - 2 * MARGIN - 28) / 2
+        val sheets = mutableListOf(mutableListOf<TakeoffLine>())
+        var y = top
+        var colX = left
         fun nl(h: Float = 11f) {
             y += h
-            if (y > maxY && colX == left) { colX = left + colW + 14; y = MARGIN + 22 }
+            if (y <= maxY) return
+            y = top
+            if (colX == left) colX = left + colW + 14
+            else { colX = left; sheets += mutableListOf<TakeoffLine>() }
         }
         fun row(cells: List<String>, widths: List<Float>, bold: Boolean = false, right: Set<Int> = emptySet()) {
-            var x = colX
-            cells.forEachIndexed { i, s ->
-                if (i in right) text(m, s, x + widths[i] - 6, y, 7.5f, bold = bold, maxWidth = widths[i] - 6, right = true)
-                else text(m, s, x, y, 7.5f, bold = bold, maxWidth = widths[i] - 6)
-                x += widths[i]
-            }
+            sheets.last() += TakeoffLine(colX, y, cells, widths, bold, right, title = false)
             nl()
         }
-        fun title(s: String) { nl(6f); text(m, s, colX, y, 10f, bold = true); nl(14f) }
+        fun title(s: String) {
+            nl(6f)
+            // Un titolo non resta da solo in fondo alla colonna: va in cima alla prossima con la sua tabella.
+            if (y + 14f + 11f > maxY) nl(maxY)
+            sheets.last() += TakeoffLine(colX, y, listOf(s), emptyList(), bold = true, right = emptySet(), title = true)
+            nl(14f)
+        }
         val w = listOf(colW * 0.30f, colW * 0.13f, colW * 0.15f, colW * 0.14f, colW * 0.28f)
         val multi = res.rooms.map { it.floor }.distinct().size > 1
         val nums = setOf(1, 2, 3)
@@ -363,6 +373,22 @@ object PdfExport {
             title(T.pdf.impianti)
             val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.52f)
             for (i in res.fixtures) row(listOf("${i.count}×", i.name, i.where), w3)
+        }
+        return sheets.filter { it.isNotEmpty() }
+    }
+
+    private fun DrawScope.drawTakeoffSheet(lines: List<TakeoffLine>, info: ProjectInfo?, p: Paper, sheet: Int, sheets: Int, m: TextMeasurer, date: String) {
+        drawRect(Color.White)
+        drawFrame(p)
+        drawTitleBlock(p, info, T.pdf.computoArredi, "—", sheet, sheets, m, date)
+        for (l in lines) {
+            if (l.title) { text(m, l.cells[0], l.x, l.y, 10f, bold = true); continue }
+            var x = l.x
+            l.cells.forEachIndexed { i, s ->
+                if (i in l.right) text(m, s, x + l.widths[i] - 6, l.y, 7.5f, bold = l.bold, maxWidth = l.widths[i] - 6, right = true)
+                else text(m, s, x, l.y, 7.5f, bold = l.bold, maxWidth = l.widths[i] - 6)
+                x += l.widths[i]
+            }
         }
     }
 }
