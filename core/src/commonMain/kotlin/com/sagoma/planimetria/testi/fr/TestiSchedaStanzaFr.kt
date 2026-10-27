@@ -38,7 +38,7 @@ object TestiSchedaStanzaFr : TestiSchedaStanza() {
     override fun pavimentoInteroM2Computo(p1: Any?): String = "Sol entier $p1 m² (le métré utilise celui-ci)."
     override val aggiungiZonaNonCalpestabile: String get() = "▧ Ajouter une zone non praticable"
     override val pavimento: String get() = "Sol"
-    override val pavimentoFotografico: String get() = "Sol photographique"
+    override fun pavimentoDiPrima(p1: Any?): String = "Ancien sol : $p1"
     override val paretiInterne: String get() = "Murs intérieurs"
     override val paretiEsterneTuttaCasa: String get() = "Murs extérieurs (toute la maison)"
     override val paretiEsterneSoloPiano: String get() = "Murs extérieurs (cet étage seulement)"

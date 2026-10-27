@@ -38,7 +38,7 @@ open class TestiSchedaStanza {
     open fun pavimentoInteroM2Computo(p1: Any?): String = "Pavimento intero $p1 m² (il computo usa questo)."
     open val aggiungiZonaNonCalpestabile: String get() = "▧ Aggiungi zona non calpestabile"
     open val pavimento: String get() = "Pavimento"
-    open val pavimentoFotografico: String get() = "Pavimento fotografico"
+    open fun pavimentoDiPrima(p1: Any?): String = "Pavimento di prima: $p1"
     open val paretiInterne: String get() = "Pareti interne"
     open val paretiEsterneTuttaCasa: String get() = "Pareti esterne (tutta la casa)"
     open val paretiEsterneSoloPiano: String get() = "Pareti esterne (solo questo piano)"

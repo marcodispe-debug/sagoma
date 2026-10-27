@@ -38,7 +38,7 @@ object TestiSchedaStanzaEn : TestiSchedaStanza() {
     override fun pavimentoInteroM2Computo(p1: Any?): String = "Whole floor $p1 m² (the quantities use this)."
     override val aggiungiZonaNonCalpestabile: String get() = "▧ Add non-walkable area"
     override val pavimento: String get() = "Floor"
-    override val pavimentoFotografico: String get() = "Photographic floor"
+    override fun pavimentoDiPrima(p1: Any?): String = "Previous floor: $p1"
     override val paretiInterne: String get() = "Interior walls"
     override val paretiEsterneTuttaCasa: String get() = "Exterior walls (whole house)"
     override val paretiEsterneSoloPiano: String get() = "Exterior walls (this floor only)"

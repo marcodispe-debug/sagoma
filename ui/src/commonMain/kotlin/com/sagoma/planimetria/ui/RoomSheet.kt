@@ -408,12 +408,18 @@ private fun MeasuresTab(room: Room, vm: EditorViewModel) {
 /** Scheda Finiture: aspetto nel 3D, pavimento e pareti. */
 @Composable
 private fun FinishesTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
-    ModelPicker(T.schedaStanza.pavimento, FloorFinish.entries, room.floorFinish, { it.label }, { vm.setRoomLook(room.id, floor = it) }) {
-        floorPreview(it, Color(room.type.argb))
-    }
-    // Pavimento con un materiale fotografico (vince sulla finitura qui sopra), dove ci sono i materiali.
+    // Pavimento: dove ci sono i materiali fotografici si sceglie solo tra quelli («Nessuno» = colore della stanza). I pavimenti
+    // disegnati di prima restano solo nei progetti che li hanno, e si possono togliere; senza materiali (browser) restano i soli.
     if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS)) {
-        MaterialPicker(T.schedaStanza.pavimentoFotografico, room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
+        if (room.floorFinish != FloorFinish.RoomColor) Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(T.schedaStanza.pavimentoDiPrima(T.lingua.minuscola(room.floorFinish.label)), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            TextButton(onClick = { vm.setRoomLook(room.id, floor = FloorFinish.RoomColor) }) { Text(T.schedaStanza.togli, color = MaterialTheme.colorScheme.error) }
+        }
+        MaterialPicker(T.schedaStanza.pavimento, room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
+    } else {
+        ModelPicker(T.schedaStanza.pavimento, FloorFinish.entries, room.floorFinish, { it.label }, { vm.setRoomLook(room.id, floor = it) }) {
+            floorPreview(it, Color(room.type.argb))
+        }
     }
     // Colore qualsiasi e rivestimenti. La facciata è una sola per tutta la casa: si cambia da qualunque stanza
     // e vale per tutti i piani; con più piani si può fare un'eccezione per il piano corrente.
