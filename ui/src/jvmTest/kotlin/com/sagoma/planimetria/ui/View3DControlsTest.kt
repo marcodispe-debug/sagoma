@@ -66,6 +66,52 @@ class View3DControlsTest {
     }
 
     @Test
+    fun `A e D spostano di lato senza girare lo sguardo, dall'alto e camminando`() {
+        val v = View3DState()
+        val yaw = v.camera.yaw
+        val t = v.camera.target
+        val ahead = Vec3(v.camera.forward.x, 0.0, v.camera.forward.z).normalized()
+        v.keys += Key.D
+        v.step(0.5)
+        assertEquals(yaw, v.camera.yaw, 1e-9)
+        val moved = v.camera.target - t
+        assertTrue(moved.length > 100.0)
+        assertEquals(0.0, moved.dot(ahead), 1e-6) // di lato, non avanti
+        v.keys.clear()
+        v.camera.mode = com.sagoma.planimetria.geometry.Camera3D.Mode.Walk
+        v.camera.eye = Vec3(0.0, 160.0, 0.0)
+        v.camera.walkYaw = 0.0
+        v.startWalkingForTest()
+        v.keys += Key.A
+        v.step(1.0)
+        assertEquals(0.0, v.camera.walkYaw, 1e-9)
+        assertEquals(-170.0, v.camera.eye.x, 1e-6) // a sinistra = verso −x con yaw 0
+        assertEquals(0.0, v.camera.eye.z, 1e-6)
+    }
+
+    @Test
+    fun `dall'alto si parte piano e in tre decimi di secondo si va alla velocità piena`() {
+        val v = View3DState()
+        v.keys += Key.W
+        val steps = (1..30).map {
+            val t = v.camera.target
+            v.step(1.0 / 60)
+            (v.camera.target - t).length
+        }
+        val full = v.camera.distance * 0.4 / 60
+        assertTrue(steps.first() < full * 0.4, "primo passo ${steps.first()} su $full")
+        assertTrue(steps.zipWithNext().all { (a, b) -> b >= a - 1e-9 }, "accelera senza strappi: $steps")
+        assertEquals(full, steps.last(), 1e-9)
+        // Fermi e si riparte: di nuovo piano.
+        v.keys.clear()
+        v.step(1.0 / 60)
+        v.keys += Key.W
+        val t = v.camera.target
+        v.step(1.0 / 60)
+        assertTrue((v.camera.target - t).length < full * 0.4)
+    }
+
+    @Test
     fun `il tasto destro sposta la vista parallela al pavimento`() {
         val v = View3DState()
         val t = v.camera.target

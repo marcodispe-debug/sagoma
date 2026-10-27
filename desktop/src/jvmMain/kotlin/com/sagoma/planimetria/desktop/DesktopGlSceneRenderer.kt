@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.asComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
+import com.sagoma.planimetria.assets.MaterialResolution
 import com.sagoma.planimetria.geometry.Mat4
 import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.SunAngles
@@ -36,6 +37,7 @@ import org.lwjgl.opengl.GL30.*
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -47,18 +49,25 @@ import kotlin.math.sin
  * materiali fotografici, modelli 3D degli arredi, sole con ombre morbide secondo l'ora, cielo, luci della
  * casa e luce dalle finestre; l'immagine passa a Compose come una normale immagine (così pulsanti e gesti
  * della vista 3D stanno sopra). Si ridisegna solo quando cambiano scena, telecamera, ora o misure.
- * `readAsset` legge i file di arredi e materiali (null nella versione senza catalogo).
+ * `readAsset` legge i file di arredi e materiali (null nella versione senza catalogo); `materials` è la definizione dei
+ * materiali fotografici da usare quando c'è (altrimenti l'1K).
  */
-class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { null }) : SceneRenderer {
+class DesktopGlSceneRenderer(
+    private val readAsset: (String) -> ByteArray? = { null },
+    private val materials: MaterialResolution = MaterialResolution.K1,
+) : SceneRenderer {
     /** Tutto l'OpenGL gira su questo thread (il contesto è legato a lui). */
     private val gl = Executors.newSingleThreadExecutor { Thread(it, "Sagoma 3D").apply { isDaemon = true } }
     private val scheduled = AtomicBoolean(false)
+    /** Disegni chiesti e non ancora finiti ([drawing]). */
+    private val inFlight = AtomicInteger(0)
     @Volatile private var pendingScene: Scene3D? = null
     @Volatile private var scene: Scene3D? = null
     @Volatile private var size = IntSize.Zero
     @Volatile private var released = false
     @Volatile private var hour = 11f
     @Volatile private var lamps = "auto"
+    @Volatile private var lampBrightness = 1f
     @Volatile private var sunAt: SunAngles = SunPath.simple(11f)
     @Volatile private var walking = false
     @Volatile private var eye = Vec3.Zero
@@ -161,9 +170,12 @@ class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { n
     /** Chiede un nuovo disegno (più richieste ravvicinate diventano un solo disegno). */
     private fun request() {
         if (released || size.width <= 0 || size.height <= 0) return
-        if (scheduled.compareAndSet(false, true)) gl.execute {
-            scheduled.set(false)
-            runCatching { renderFrame() }.onFailure { it.printStackTrace() }
+        if (scheduled.compareAndSet(false, true)) {
+            inFlight.incrementAndGet()
+            gl.execute {
+                scheduled.set(false)
+                try { runCatching { renderFrame() }.onFailure { it.printStackTrace() } } finally { inFlight.decrementAndGet() }
+            }
         }
     }
 
@@ -175,7 +187,7 @@ class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { n
         val s = size
         if (s.width <= 0 || s.height <= 0) return
         ensureFramebuffer(s)
-        pendingScene?.let { upload(it); pendingScene = null }
+        pendingScene?.let { res.retryMissing(); upload(it); pendingScene = null }
         val d = Daylight(hour, lamps, walking, sunAt)
         val lightMvp = sunMatrix(d)
         roofMvp = roofMatrix()
@@ -250,7 +262,7 @@ class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { n
         glUniformMatrix4fv(u("uModel"), false, IDENTITY)
         drawArrays(program, opaqueVbo, opaqueCount, Format.SCENE)
         for ((id, buf) in textured) {
-            setMaterial(albedo = res.material(id, "color"), normal = res.material(id, "normal"), orm = res.material(id, "orm"), ormHasAo = true, roughness = 1f, metallic = 1f, macro = id == GRASS)
+            setMaterial(albedo = res.material(id, "color", materials), normal = res.material(id, "normal", materials), orm = res.material(id, "orm", materials), ormHasAo = true, roughness = 1f, metallic = 1f, macro = id == GRASS)
             drawArrays(program, buf.first, buf.second, Format.TEXTURED)
         }
         forEachFurniturePart(opaqueOnly = true) { part, m ->
@@ -397,7 +409,7 @@ class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { n
         glUniform1i(u("uRoofMap"), 7)
         glUniformMatrix4fv(u("uRoofMvp"), false, roofMvp)
         glUniform1f(u("uRoofTexel"), 1f / ROOF_SIZE)
-        val lights = LitShaders.Lights(scene, d, eye, windowsAlways = true)
+        val lights = LitShaders.Lights(scene, d, eye, windowsAlways = true, brightness = lampBrightness)
         // Di notte l'occhio si abitua un poco: più esposizione solo se c'è qualche lampada accesa (così le
         // stanze illuminate si vedono bene); senza luci resta tutto buio.
         glUniform1f(u("uExposure"), 1.0f + (if (lights.lampCount > 0) 1.4f else 0.3f) * (1f - d.day))
@@ -411,6 +423,7 @@ class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { n
         glUniform4fv(u("uLamp"), lights.lamps)
         glUniform3fv(u("uLampColor"), lights.lampColors)
         glUniform4fv(u("uLampBox"), lights.lampBoxes)
+        glUniform4fv(u("uLampAxis"), lights.lampAxes)
         glUniform1i(u("uWinCount"), lights.windowCount)
         glUniform4fv(u("uWin"), lights.windows)
         glUniform4fv(u("uWinDir"), lights.windowDirs)
@@ -708,6 +721,14 @@ class DesktopGlSceneRenderer(private val readAsset: (String) -> ByteArray? = { n
         this.hour = hour
         this.lamps = lamps
         this.sunAt = sun
+        request()
+    }
+
+    override val drawing: Boolean get() = inFlight.get() > 0
+
+    override fun setLampBrightness(k: Float) {
+        if (k == lampBrightness) return
+        lampBrightness = k
         request()
     }
 

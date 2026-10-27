@@ -14,7 +14,7 @@ open class TestiProgetti {
     open val nuovoProgetto2: String get() = "Nuovo progetto"
     open val datiProgetto: String get() = "Dati del progetto"
     open fun eliminare(name: Any?): String = "Eliminare \"$name\"?"
-    open val progettoVieneCancellatoQuesto: String get() = "Il progetto viene cancellato da questo telefono. Se vuoi tenerne una copia, esportalo prima."
+    open val progettoVieneCancellatoQuesto: String get() = "Il progetto viene cancellato da questo dispositivo. Se vuoi tenerne una copia, esportalo prima."
     open val modificato: String get() = "Modificato il "
     open val apri: String get() = "Apri"
     open val nomeDatiCliente: String get() = "Nome e dati del cliente"

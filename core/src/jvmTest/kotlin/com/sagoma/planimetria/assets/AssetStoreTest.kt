@@ -156,4 +156,12 @@ class AssetStoreTest {
         assertEquals("materials/woodfloor040_thumb.jpg", AssetPaths.materialThumbnail("woodfloor040"))
         assertEquals("env/giorno.ibl", AssetPaths.environment("giorno"))
     }
+
+    @Test
+    fun `i materiali piu definiti stanno in una cartella per risoluzione, l'1K resta dov'era`() {
+        assertEquals("materials/woodfloor040_color.jpg", AssetPaths.materialMap("woodfloor040", "color", MaterialResolution.K1))
+        assertEquals("materials/2k/woodfloor040_normal.jpg", AssetPaths.materialMap("woodfloor040", "normal", MaterialResolution.K2))
+        assertEquals("materials/4k/woodfloor040_orm.jpg", AssetPaths.materialMap("woodfloor040", "orm", MaterialResolution.K4))
+        assertEquals(listOf(1024, 2048, 4096), MaterialResolution.entries.map { it.side })
+    }
 }

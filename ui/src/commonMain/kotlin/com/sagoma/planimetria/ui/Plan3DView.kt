@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.sagoma.planimetria.assets.AssetPlanner
@@ -78,6 +79,7 @@ import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.SpotAim
 import com.sagoma.planimetria.geometry.Vec3
 import com.sagoma.planimetria.geometry.at
+import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Mount
@@ -98,6 +100,11 @@ private val MOVE_KEYS = setOf(
 /** Attesa prima di controllare i file della scena: più arrivi vicini diventano una sola ricarica. */
 private const val ASSET_RELOAD_DELAY_MS = 300L
 
+/** Dall'alto, con WASD e frecce: frazione della distanza della telecamera percorsa in un secondo. */
+private const val ORBIT_SPEED = 0.4
+/** Secondi per arrivare alla velocità piena muovendosi dall'alto. */
+private const val EASE_S = 0.3
+
 class View3DState {
     val camera = Camera3D()
     /** Renderer della superficie visibile (null quando la vista 3D è chiusa). */
@@ -115,6 +122,8 @@ class View3DState {
     /** Ora del giorno (6:30 = 6.5) e luci della casa ("auto", "on", "off"). */
     var hour by mutableStateOf(11f)
     var lamps by mutableStateOf("auto")
+    /** Luminosità delle lampade della casa (cursore «Luminosità luci»): 1 = normale. Viene dal progetto ([Building.lampBrightness]). */
+    var lampBrightness by mutableStateOf(1f)
     /** Cursore dell'ora aperto. */
     var timePanel by mutableStateOf(false)
     /** Giorno scelto per il sole (null = oggi). */
@@ -134,6 +143,7 @@ class View3DState {
     fun refresh() {
         tick = ++tickCounter
         renderer?.setDaylight(hour, lamps, sun)
+        renderer?.setLampBrightness(lampBrightness)
         renderer?.setCamera(camera.position, camera.position + camera.forward, camera.up, camera.fovY, camera.near, walking)
     }
 
@@ -246,8 +256,28 @@ class View3DState {
     /** Tasti premuti in questo momento (frecce, WASD, PagSu/PagGiù, + e −, Maiusc). */
     val keys = mutableStateSetOf<Key>()
 
+    /**
+     * Tasto premuto o lasciato: se muove la telecamera (o è Maiusc) lo segna e dice true. Lo usano la vista 3D e, quando la
+     * tastiera è rimasta altrove (es. sul pulsante appena premuto), la schermata dell'editor: così WASD e frecce vanno subito.
+     */
+    fun onKey(e: androidx.compose.ui.input.key.KeyEvent): Boolean {
+        val k = e.key
+        if (k !in MOVE_KEYS && k != Key.ShiftLeft && k != Key.ShiftRight) return false
+        when (e.type) {
+            KeyEventType.KeyDown -> keys += k
+            KeyEventType.KeyUp -> keys -= k
+        }
+        return true
+    }
+
     /** C'è qualcosa che muove la telecamera a ogni fotogramma (tasti tenuti o joystick). */
     val moving: Boolean get() = keys.any { it in MOVE_KEYS } || joystick != Offset.Zero
+
+    /** Il renderer sta ancora disegnando l'ultima immagine: il passo dopo aspetta (vedi [SceneRenderer.drawing]). */
+    val drawing: Boolean get() = renderer?.drawing == true
+
+    /** Da quanto (s) ci si sposta dall'alto senza fermarsi: si parte piano e si arriva alla velocità piena in [EASE_S]. */
+    private var orbitMoving = 0.0
 
     /** Un fotogramma di movimento, `dt` secondi dopo il precedente. */
     fun step(dt: Double) {
@@ -271,7 +301,9 @@ class View3DState {
         } else {
             // Stessi comandi della camminata: avanti/indietro e di lato si sposta la vista sul pavimento
             // (più veloce quanto più si è lontani), ← → girano, PagSu/PagGiù alzano o abbassano lo sguardo.
-            val speed = camera.distance * 0.6 * dt * fast
+            // Si parte piano e si accelera: un salto subito alla velocità piena si vede come uno scatto (a metà del passo).
+            val ease = (0.3 + 0.7 * ((orbitMoving + dt / 2) / EASE_S)).coerceAtMost(1.0)
+            val speed = camera.distance * ORBIT_SPEED * dt * fast * ease
             var ahead = joystick.y.toDouble()
             var side = joystick.x.toDouble()
             if (held(Key.DirectionUp, Key.W)) ahead += 1.0
@@ -285,7 +317,8 @@ class View3DState {
             if (ahead != 0.0 || side != 0.0) {
                 val flatAhead = Vec3(camera.forward.x, 0.0, camera.forward.z).normalized()
                 camera.target = camera.target + flatAhead * (ahead * speed) + flatRight * (side * speed)
-            }
+                orbitMoving += dt
+            } else orbitMoving = 0.0
         }
         if (held(Key.Plus, Key.Equals, Key.NumPadAdd)) zoomContinuous(dt)
         if (held(Key.Minus, Key.NumPadSubtract)) zoomContinuous(-dt)
@@ -398,12 +431,17 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     // Mentre si orienta un faretto la scena resta quella di prima (niente ricostruzione della geometria a ogni movimento del dito):
     // cambiano solo le luci (vedi sotto). Alla fine del trascinamento la scena si ricostruisce con il nuovo orientamento.
     val scenePlan = state.aimDrag?.basePlan ?: state.plan
-    val scene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, view.walking, noFurniture, phase) {
+    // Interrati sotto il piano terra: guardando dal piano terra in su il prato sta alla quota del piano terra e li copre;
+    // guardando un interrato il prato resta lassù e la casa si vede in fondo allo scavo.
+    val building = state.building
+    val groundLevel = if (building.groundIndex > 0) building.elevation(building.groundIndex) - building.elevation(building.current) else null
+    val scene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, view.walking, noFurniture, phase, groundLevel) {
         fun shown(p: com.sagoma.planimetria.model.FloorPlan) = com.sagoma.planimetria.geometry.Phases.view(p, phase)
         val plan = shown(if (noFurniture) scenePlan.copy(furniture = emptyList()) else scenePlan)
         Scene3D.build(
             plan, state.focusedRoomId, selectedPick, ceilings = view.walking, levelHeight = state.levelHeight,
             below = below.map { it.copy(plan = shown(it.plan)) }, above = above?.let { it.copy(plan = shown(it.plan)) },
+            groundLevel = groundLevel,
         )
     }
     LaunchedEffect(scene) { view.setScene(scene) }
@@ -414,7 +452,7 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     LaunchedEffect(scene, assetsVersion) {
         delay(ASSET_RELOAD_DELAY_MS)
         val store = scenePlatform.assetStore
-        val missing = AssetPlanner.forScene(scene).filter { !store.isAvailable(it.path) }
+        val missing = AssetPlanner.forScene(scene, resolution = scenePlatform.materialResolution).filter { !store.isAvailable(it.path) }
         for (r in missing) scenePlatform.assetRequests.request(r.path, r.priority)
         view.assetsChecked(missing.mapTo(HashSet()) { it.path }) { store.isAvailable(it) }
     }
@@ -442,17 +480,29 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
         snapshotFlow { view.moving }.collectLatest { moving ->
             if (!moving) return@collectLatest
             var last = 0L
+            // Tempo passato dall'ultimo passo: finché il renderer disegna l'immagine di prima si aspetta, poi un passo solo per
+            // tutto il tempo trascorso. Ogni immagine si sposta quanto il tempo vero tra un'immagine e l'altra: niente scatti.
+            var pending = 0.0
             while (true) {
                 withFrameNanos { now ->
-                    val dt = if (last == 0L) 0.0 else ((now - last) / 1e9).coerceAtMost(0.1)
+                    if (last != 0L) pending = (pending + (now - last) / 1e9).coerceAtMost(0.1)
                     last = now
-                    if (dt > 0) view.step(dt)
+                    if (pending > 0 && !view.drawing) {
+                        view.step(pending)
+                        pending = 0.0
+                    }
                 }
             }
         }
     }
     val keyFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { keyFocus.requestFocusSafely() }
+    // La tastiera alla vista 3D all'apertura e passando da orbita a camminata, dopo un fotogramma: il clic sul pulsante che
+    // l'ha aperta non deve riprenderla.
+    LaunchedEffect(view.walking) {
+        keyFocus.requestFocusSafely()
+        withFrameNanos { }
+        keyFocus.requestFocusSafely()
+    }
 
     Box(
         modifier.onSizeChanged {
@@ -484,15 +534,7 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
                 // Tastiera (computer): frecce, WASD, PagSu/PagGiù, + e −, Maiusc per correre o spostare.
                 .focusRequester(keyFocus)
                 .focusable()
-                .onKeyEvent { e ->
-                    val k = e.key
-                    val handled = k in MOVE_KEYS || k == Key.ShiftLeft || k == Key.ShiftRight
-                    when (e.type) {
-                        KeyEventType.KeyDown -> if (handled) view.keys += k
-                        KeyEventType.KeyUp -> view.keys -= k
-                    }
-                    handled
-                }
+                .onKeyEvent { e -> view.onKey(e) }
                 .onFocusChanged { if (!it.isFocused) view.keys.clear() }
                 // Rotellina del mouse: zoom (camminando, passi avanti e indietro).
                 .pointerInput(Unit) {
@@ -508,21 +550,25 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
                 }
                 .pointerInput(Unit) {
                 awaitEachGesture {
-                    val down = awaitFirstDown()
+                    val down = awaitAnyDown()
                     keyFocus.requestFocusSafely()
                     val w = size.width.toFloat()
                     val h = size.height.toFloat()
                     val cam = view.camera
-                    // Mouse: tasto destro o rotellina premuta spostano la vista invece di ruotarla.
+                    // Mouse: tasto destro o rotellina premuta spostano la vista invece di ruotarla; un clic col destro deseleziona tutto.
                     val buttons = currentEvent.buttons
                     if (buttons.isSecondaryPressed || buttons.isTertiaryPressed) {
+                        var moved = 0f
                         while (true) {
                             val event = awaitPointerEvent()
                             val ch = event.changes.firstOrNull { it.id == down.id } ?: break
                             if (!ch.pressed) break
-                            view.panBy(ch.position - ch.previousPosition, h)
+                            val delta = ch.position - ch.previousPosition
+                            moved += delta.getDistance()
+                            view.panBy(delta, h)
                             ch.consume()
                         }
+                        if (buttons.isSecondaryPressed && moved <= viewConfiguration.touchSlop) vm.deselectAll()
                         return@awaitEachGesture
                     }
                     // Maniglia del fascio di un faretto a parete selezionato: si controlla prima di qualunque oggetto della scena,
@@ -668,7 +714,14 @@ fun View3DControls(state: EditorUiState, view: View3DState, modifier: Modifier =
  * larghi (computer, telefono girato) sta a sinistra, stretto e verticale (lungo `length`), per non coprire la vista.
  */
 @Composable
-fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: Boolean = false, length: androidx.compose.ui.unit.Dp = 240.dp) {
+fun TimeOfDayPanel(
+    view: View3DState,
+    modifier: Modifier = Modifier,
+    vertical: Boolean = false,
+    length: androidx.compose.ui.unit.Dp = 240.dp,
+    /** La luminosità delle lampade è cambiata: si salva nel progetto. */
+    onLampBrightness: (Float) -> Unit = {},
+) {
     if (!view.timePanel) return
     if (vertical) {
         Surface(modifier, shape = RoundedCornerShape(16.dp), tonalElevation = 3.dp, shadowElevation = 4.dp) {
@@ -697,6 +750,7 @@ fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: B
                 )
                 Text("0", style = MaterialTheme.typography.labelSmall)
                 SunDayButton(view, compact = true)
+                LampBrightness(view, onLampBrightness, compact = true)
                 TextButton(onClick = { view.timePanel = false }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(32.dp)) { Text("✕") }
             }
         }
@@ -719,8 +773,39 @@ fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: B
                 T.vista3D.soleSegueBussola,
                 style = MaterialTheme.typography.bodySmall,
             )
+            LampBrightness(view, onLampBrightness)
         }
     }
+}
+
+/**
+ * Luminosità delle lampade della casa, dal 25% al 200%: cursore nel pannello largo; in quello stretto e verticale il valore
+ * con − e + (un cursore lo allargherebbe). Il valore si salva nel progetto (`onChange`).
+ */
+@Composable
+private fun LampBrightness(view: View3DState, onChange: (Float) -> Unit, compact: Boolean = false) {
+    if (view.lamps == "off") return
+    fun set(v: Float) {
+        val k = ((v * 20).roundToInt() / 20f).coerceIn(Building.MIN_LAMP_BRIGHTNESS.toFloat(), Building.MAX_LAMP_BRIGHTNESS.toFloat())
+        view.lampBrightness = k
+        view.refresh()
+        onChange(k)
+    }
+    val pct = (view.lampBrightness * 100).roundToInt()
+    if (compact) {
+        Text("💡 $pct%", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+        Row {
+            TextButton(onClick = { set(view.lampBrightness - 0.1f) }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(32.dp).widthIn(min = 28.dp)) { Text("−") }
+            TextButton(onClick = { set(view.lampBrightness + 0.1f) }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(32.dp).widthIn(min = 28.dp)) { Text("+") }
+        }
+        return
+    }
+    Text(T.vista3D.luminositaLuci(pct), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 6.dp))
+    androidx.compose.material3.Slider(
+        value = view.lampBrightness,
+        onValueChange = { set(it) },
+        valueRange = Building.MIN_LAMP_BRIGHTNESS.toFloat()..Building.MAX_LAMP_BRIGHTNESS.toFloat(),
+    )
 }
 
 /** Joystick per camminare: si trascina il pomello, la spinta è proporzionale allo spostamento. */

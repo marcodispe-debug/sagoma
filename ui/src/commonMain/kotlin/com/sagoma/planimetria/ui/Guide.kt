@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -404,6 +405,10 @@ private fun CourseBubble(course: CourseUi, hint: GuideHint?, vm: EditorViewModel
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 val quiet = onColor.copy(alpha = 0.7f)
+                if (course.canGoBack) {
+                    TextButton(onClick = vm::previousCourseStep) { Text(T.comuni.indietroFreccia, color = quiet) }
+                    Spacer(Modifier.weight(1f))
+                }
                 when (step) {
                     CourseStep.Welcome -> {
                         TextButton(onClick = { vm.finishCourse(completed = false) }) { Text(T.editor.noGrazie, color = quiet) }
@@ -419,7 +424,7 @@ private fun CourseBubble(course: CourseUi, hint: GuideHint?, vm: EditorViewModel
                     }
                     else -> if (step.action) {
                         TextButton(onClick = { vm.finishCourse(completed = false) }) { Text(T.comuni.esci, color = quiet) }
-                        TextButton(onClick = vm::nextCourseStep) { Text(T.editor.saltaPasso) }
+                        if (Course.canSkip(step)) TextButton(onClick = vm::skipCourseStep) { Text(T.editor.saltaPasso) }
                     } else {
                         TextButton(onClick = { vm.finishCourse(completed = false) }) { Text(T.comuni.esci, color = quiet) }
                         TextButton(onClick = vm::nextCourseStep) { Text(c.avanti) }

@@ -3,6 +3,7 @@ package com.sagoma.planimetria.testi
 /** Piani dell'edificio. */
 open class TestiPiani {
     open val aggiungiPianoSopra: String get() = "+ Aggiungi un piano sopra"
+    open val aggiungiPianoSotto: String get() = "+ Aggiungi un piano sotto"
     open fun modifica(name: Any?): String = "✎ Modifica «$name»"
     open fun eliminare(name: Any?): String = "Eliminare $name?"
     open val verrannoTolteTutteStanze: String get() = "Verranno tolte tutte le stanze e le scale di questo piano. Potrai recuperarlo con ↶ Annulla in alto."
@@ -25,6 +26,8 @@ open class TestiPiani {
     open val terzoPiano: String get() = "Terzo piano"
     open val quartoPiano: String get() = "Quarto piano"
     open fun piano(index: Any?): String = "Piano $index"
+    /** Piano sotto il piano terra: 1 il primo interrato, 2 il secondo… */
+    open fun interrato(n: Int): String = if (n == 1) "Piano interrato" else "$n° interrato"
 
     /**
      * Nomi di piano comuni oltre a quelli automatici ("Seminterrato", "Ammezzato"): cambiando lingua si traducono. Stesso ordine in

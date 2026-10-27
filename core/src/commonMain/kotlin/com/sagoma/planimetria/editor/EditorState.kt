@@ -213,7 +213,8 @@ sealed interface Clip {
 data class DimensionDraw(val first: Vec2? = null, val cursor: Vec2? = null)
 
 /** Richiesta di un nuovo piano (finestra "Aggiungi piano"), o di modifica di un piano esistente (`index`). */
-data class FloorDialog(val index: Int?)
+/** Finestra di un piano: `index` quello da modificare, null per uno nuovo (sopra, o sotto con `below`). */
+data class FloorDialog(val index: Int?, val below: Boolean = false)
 
 data class EditorUiState(
     /** Pianta del piano che si sta modificando. */

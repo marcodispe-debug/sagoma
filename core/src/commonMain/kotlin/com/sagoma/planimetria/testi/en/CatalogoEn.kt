@@ -990,5 +990,197 @@ Velluto blu|Blue velvet
 Velluto salvia|Sage velvet
 Vimini intrecciato|Woven wicker
 Wengè|Wenge
+Moquette grigia a quadretti|Grey squares carpet
+Moquette petrolio a riquadri|Teal panelled carpet
+Moquette sabbia a riquadri|Sand panelled carpet
+Cemento liscio|Smooth concrete
+Cemento a vista con fori|Exposed concrete with tie holes
+Cemento a riquadri|Panelled concrete
+Microcemento grigio|Grey microcement
+Microcemento perla|Pearl microcement
+Microcemento antracite|Anthracite microcement
+Resina grigia|Grey resin
+Cemento a casseri|Board-formed concrete
+Resina verde muschio|Moss green resin
+Resina sabbia|Sand resin
+Pannelli in cemento a righe|Ribbed concrete panels
+Sughero fine|Fine cork
+Sughero a granuli|Granulated cork
+Granito rosa|Pink granite
+Granito bianco sardo|Sardinian white granite
+Granito grigio rosato|Pinkish grey granite
+Granito bruno|Brown granite
+Granito lilla|Lilac granite
+Granito rosso|Red granite
+Granito giallo|Yellow granite
+Marmo bianco perla|Pearl white marble
+Marmo nero assoluto|Absolute black marble
+Marmo avorio|Ivory marble
+Marmo rosa|Pink marble
+Marmo Emperador scuro|Dark Emperador marble
+Granito blu Labrador|Blue Labrador granite
+Marmo crema Marfil|Crema Marfil marble
+Marmo nero Portoro|Black Portoro marble
+Marmo Botticino|Botticino marble
+Marmo rosso Alicante|Rojo Alicante marble
+Marmo bianco Thassos|Thassos white marble
+Pietra di Trani|Trani stone
+Onice grigio|Grey onyx
+Onice arancio|Orange onyx
+Onice avorio|Ivory onyx
+Onice multicolore|Multicolour onyx
+Onice nero venato|Veined black onyx
+Intonaco rosso|Red plaster
+Intonaco blu|Blue plaster
+Intonaco verde|Green plaster
+Intonaco giallo|Yellow plaster
+Intonaco verde salvia|Sage green plaster
+Intonaco grigio chiaro|Light grey plaster
+Stucco a spatola|Trowelled stucco
+Stucco veneziano grigio|Grey Venetian plaster
+Graniglia bianca e blu|White and blue terrazzo
+Terrazzo antracite|Anthracite terrazzo
+Terrazzo bianco e grigio|White and grey terrazzo
+Terrazzo avorio|Ivory terrazzo
+Terrazzo azzurro multicolore|Multicolour light blue terrazzo
+Terrazzo sabbia|Sand terrazzo
+Terrazzo grigio multicolore|Multicolour grey terrazzo
+Terrazzo verde|Green terrazzo
+Graniglia fine bianca|Fine white terrazzo
+Terrazzo beige|Beige terrazzo
+Piastrelle tortora 30×30|Taupe tiles 30×30
+Gres bianco opaco|Matt white porcelain
+Mosaico di vetro azzurro|Light blue glass mosaic
+Mosaico a bottoni pastello|Pastel penny mosaic
+Mattoncini rosa|Pink subway tiles
+Mattoncini in marmo avorio|Ivory marble brick tiles
+Scacchiera marmo beige|Beige marble checkerboard
+Scacchiera marmo bianco e nero grande|Large black and white marble checkerboard
+Scacchiera marmo grigio scuro|Dark grey marble checkerboard
+Mosaico di vetro blu|Blue glass mosaic
+Piastrelle a griglia verde scuro|Dark green grid tiles
+Mosaico verde petrolio|Petrol green mosaic
+Mosaico verde salvia|Sage green mosaic
+Cotto arancio 20×20|Orange terracotta 20×20
+Gres pesca grande formato|Large peach porcelain
+Mattoncini petrolio lucidi|Glossy teal subway tiles
+Mattoncini blu polvere|Powder blue subway tiles
+Mattoncini verde smeraldo|Emerald green subway tiles
+Mattoncini gialli|Yellow subway tiles
+Zellige verde|Green zellige
+Piastrelle bianche 10×10 lucide|Glossy white tiles 10×10
+Mattoncini rossi lucidi|Glossy red subway tiles
+Lastre di cemento|Concrete slabs
+Graniglia arancio|Orange terrazzo tiles
+Graniglia verde|Green terrazzo tiles
+Graniglia bianca|White terrazzo tiles
+Graniglia blu|Blue terrazzo tiles
+Marmo azzurro a correre|Light blue marble running bond
+Pietra beige a formati misti|Beige stone mixed sizes
+Pietra grigia a formati misti|Grey stone mixed sizes
+Mosaico di ardesia|Slate mosaic
+Mosaico verde marmorizzato|Marbled green mosaic
+Marmo bianco con tozzetti neri|White marble with black inserts
+Marmo nero e bianco sfalsato|Offset black and white marble
+Marmo nero con tozzetti bianchi|Black marble with white inserts
+Losanghe verde, nero e grigio|Green, black and grey diamonds
+Esagonette cotto e beige a righe|Striped terracotta and beige hexagons
+Esagonette cotto e beige|Terracotta and beige hexagons
+Esagonette in cotto|Terracotta hexagons
+Esagonette azzurre e bianche|Light blue and white hexagons
+Esagonette celesti e petrolio|Sky blue and teal hexagons
+Esagonette in pietra nera|Black stone hexagons
+Piastrelle prugna 10×10|Plum tiles 10×10
+Marmo a onde verde e crema|Green and cream wave marble
+Marmo a rombi verde e crema|Green and cream diamond marble
+Marmo a zig-zag verde e crema|Green and cream zigzag marble
+Lastricato in pietra vecchia|Old stone paving
+Pietra lavica a opus|Lava stone crazy paving
+Cotto antico a quadri|Antique square terracotta
+Cotto a correre|Terracotta running bond
+Azulejos blu fitti|Dense blue azulejos
+Maioliche blu intense|Deep blue majolica
+Maioliche a decori blu|Blue patterned majolica
+Maioliche a stelle blu|Blue star majolica
+Maioliche bianche con angoli blu|White majolica with blue corners
+Piastrelle nere lucide|Glossy black tiles
+Pietra graniglia beige|Beige terrazzo stone
+Cotto in diagonale con fascia|Diagonal terracotta with border
+Bianco in diagonale con fascia blu|Diagonal white with blue border
+Giallo in diagonale con fascia|Diagonal yellow with border
+Nero in diagonale con fascia bianca|Diagonal black with white border
+Lastre di pietra a spacco|Split stone slabs
+Mosaico a bottoni azzurro|Light blue penny mosaic
+Mosaico a bottoni bianco e verde|White and green penny mosaic
+Mosaico a bottoni tortora|Taupe penny mosaic
+Mosaico a bottoni bianco e blu|White and blue penny mosaic
+Mosaico a bottoni ocra|Ochre penny mosaic
+Mosaico a bottoni grigio|Grey penny mosaic
+Mosaico a bottoni rosa e bordeaux|Pink and burgundy penny mosaic
+Mosaico a bottoni bianco|White penny mosaic
+Mosaico a bottoni nero|Black penny mosaic
+Piastrelle bianche 10×10 opache|Matt white tiles 10×10
+Piastrelle blu notte|Midnight blue tiles
+Mattoncini arancio|Orange subway tiles
+Travertino venato|Veined travertine
+Travertino tortora|Taupe travertine
+Travertino oro|Gold travertine
+Travertino silver|Silver travertine
+Travertino giallo|Yellow travertine
+Quarzite grigia|Grey quartzite
+Listoni grigio sbiancato|Whitewashed grey planks
+Listoni mogano|Mahogany planks
+Listoni rovere fumé|Smoked oak planks
+Listoni frassino|Ash planks
+Listoni noce scuro|Dark walnut planks
+Listoncini a correre|Narrow strips running bond
+Listoni rovere sbiancato|Whitewashed oak planks
+Listoni wengè|Wenge planks
+Spina di pesce faggio|Beech herringbone
+Spina di pesce mogano|Mahogany herringbone
+Spina di pesce noce|Walnut herringbone
+Spina di pesce sbiancata|Whitewashed herringbone
+Spina di pesce scura|Dark herringbone
+Parquet a cesto chiaro|Light basket weave parquet
+Parquet a cesto bicolore|Two-tone basket weave parquet
+Parquet a cesto ciliegio|Cherry basket weave parquet
+Parquet a gradini bicolore|Two-tone stepped parquet
+Parquet intarsiato chiaro|Light inlaid parquet
+Parquet intarsiato scuro|Dark inlaid parquet
+Parquet a dama|Checkerboard parquet
+Parquet a cesto wengè|Wenge basket weave parquet
+Parquet a cesto acero|Maple basket weave parquet
+Industriale scuro|Dark industrial parquet
+Parquet a cesto sbiancato|Whitewashed basket weave parquet
+Spina di pesce vecchia grigia|Old grey herringbone
+Spina di pesce larice|Larch herringbone
+Industriale miele|Honey industrial parquet
+Industriale chiaro|Light industrial parquet
+Industriale rovere|Oak industrial parquet
+Parquet Versailles|Versailles parquet
+Listoni noce lunghi|Long walnut planks
+Spina ungherese chiara|Light chevron parquet
+Parquet a intarsio con cornice|Framed inlaid parquet
+Listoncini rovere vissuto|Weathered oak strips
+Spina di pesce in marmo fiammato|Flamed marble herringbone
+Mattoni a spina di pesce|Herringbone bricks
+Laminato miele|Honey laminate
+Laminato pino|Pine laminate
+Linoleum nocciola|Hazel linoleum
+Listelli bianchi verticali|Vertical white strip tiles
+Cementine con scaglie di marmo|Cement tiles with marble chips
+Linoleum a ottagoni|Octagon linoleum
+Cemento verniciato|Painted concrete
+Cotto con tozzetti neri|Terracotta with black inserts
+Parquet a mosaico rustico|Rustic mosaic parquet
+Assi di pino nodose|Knotty pine boards
+Piastre in gomma nera|Black rubber tiles
+Ardesia a opus|Slate crazy paving
+Mosaico di pietra a disegni|Patterned stone mosaic
+Cotto rosso|Red terracotta
+Stucco bianco|White stucco
+Tavolato rovere|Oak boards
+Tavolato di pino vissuto|Weathered pine boards
+Assi grezze|Rough boards
 """
 }

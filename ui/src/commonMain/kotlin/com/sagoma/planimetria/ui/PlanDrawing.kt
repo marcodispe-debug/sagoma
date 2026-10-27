@@ -335,14 +335,19 @@ internal fun DrawScope.drawRoomLabels(labels: List<RoomLabel>, cam: Camera, pad:
 }
 
 /**
- * Quote come nelle planimetrie: per ogni muro di ogni stanza, dentro la stanza, una linea di quota
+ * Quote dentro le stanze, dove fuori non si possono scrivere (vedi [drawExteriorChains]): per ogni muro, dentro la stanza, una linea di quota
  * parallela al filo interno del muro, con le linee di richiamo agli angoli interni, i trattini obliqui
  * alle estremità e il valore in cm sopra la linea. La misura è quella interna (calpestabile), quindi
  * ogni stanza quota i propri muri al proprio interno: anche i muri in comune non si sovrappongono.
  * Il valore evita porte, finestre e impianti sul muro; se non ci sta sulla linea non viene scritto.
  */
-internal fun DrawScope.drawWallDimensions(plan: FloorPlan, cam: Camera, measurer: TextMeasurer, avoid: List<Rect> = emptyList()) {
-    val style = TextStyle(fontSize = 11.sp, color = DimensionColor)
+internal fun DrawScope.drawWallDimensions(
+    plan: FloorPlan, cam: Camera, measurer: TextMeasurer, avoid: List<Rect> = emptyList(),
+    /** Muri (id della stanza, indice) la cui misura si legge già nelle quote esterne: dentro non si ripete. */
+    skip: (Long, Int) -> Boolean = { _, _ -> false },
+    textScale: Float = 1f,
+) {
+    val style = TextStyle(fontSize = 11.sp * textScale, color = DimensionColor)
     val stroke = 1.dp.toPx()
     val offset = 12.dp.toPx() // distanza della linea di quota dal filo interno del muro
     val tick = 4.dp.toPx()
@@ -371,13 +376,24 @@ internal fun DrawScope.drawWallDimensions(plan: FloorPlan, cam: Camera, measurer
             if (deg < -90f) deg += 180f
             rotate(deg, pivot = c) { drawText(t, topLeft = Offset(c.x - t.size.width / 2f, c.y - t.size.height / 2f)) }
         }
+        // Muri già quotati: il muro di fronte, parallelo e lungo uguale (i due lati di un rettangolo), non si ripete.
+        val drawn = mutableListOf<Pair<Vec2, Vec2>>()
         for (i in 0 until room.wallCount) {
             if (logical.arcOf(expanded.origin[i]) != null) continue
+            if (skip(logical.id, expanded.origin[i])) continue
             val len = lengths[i]
             val (p, q) = edges[i]
             val lenPx = (len * cam.scale).toFloat()
             if (len <= 0 || lenPx < 3 * offset) continue
             val u = (q - p).normalized()
+            val repeated = drawn.any { (a, b) ->
+                val v = b - a
+                val ta = (a - p) dot u
+                val tb = (b - p) dot u
+                abs(u.x * v.y - u.y * v.x) < 0.01 * v.length && abs(v.length - p.distanceTo(q)) < 0.5 &&
+                    minOf(maxOf(ta, tb), p.distanceTo(q)) - maxOf(minOf(ta, tb), 0.0) >= 0.9 * p.distanceTo(q)
+            }
+            if (repeated) continue
             val n = u.perp() * sign // verso l'interno della stanza
             val uo = Offset(u.x.toFloat(), u.y.toFloat())
             val no = Offset(n.x.toFloat(), n.y.toFloat())
@@ -420,6 +436,7 @@ internal fun DrawScope.drawWallDimensions(plan: FloorPlan, cam: Camera, measurer
             rotate(deg, pivot = c) {
                 drawText(t, topLeft = Offset(c.x - t.size.width / 2f, c.y - t.size.height / 2f))
             }
+            drawn += p to q
         }
     }
 }

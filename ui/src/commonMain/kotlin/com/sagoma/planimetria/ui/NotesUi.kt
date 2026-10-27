@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
@@ -162,7 +164,8 @@ fun LayersDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> Uni
         onDismissRequest = onDismiss,
         title = { Text(T.note.livelli) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            // Scorre: col telefono in orizzontale l'ultima riga (Arredi) restava tagliata.
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     T.note.nascostoNonVedePianta,
                     style = MaterialTheme.typography.bodySmall,

@@ -49,7 +49,8 @@ class CatalogoFranceseSpagnoloTest {
     fun `ogni arredo e ogni materiale del catalogo ha il nome spagnolo`() {
         val uguali = setOf(
             "Apple iMac 2004", "Cactus", "Chaise longue", "Enciclopedia", "Ficus", "Lavanda", "PlayStation", "TV", "TV 16:9",
-            "Gres beige", "Lino verde", "Opus incertum", "Travertino",
+            "Gres beige", "Lino verde", "Opus incertum", "Travertino", "Granito rosa", "Microcemento perla", "Mosaico verde salvia",
+            "Travertino oro", "Travertino silver", "Zellige verde",
         )
         assertEquals(emptyList<String>(), senzaNome(Spagnolo, uguali))
     }

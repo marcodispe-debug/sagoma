@@ -60,6 +60,8 @@ import com.sagoma.planimetria.testi.T
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.roundToInt
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 /** Progetto aperto: le immagini di sfondo stanno tra i suoi file. */
 val LocalProjectId = staticCompositionLocalOf<Long?> { null }
@@ -169,7 +171,7 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
         onDismissRequest = { if (!loading) onDismiss() },
         title = { Text(if (tracing) T.sfondo.ricalcaPiantina else T.sfondo.piantaSfondo) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 state.tutorial?.takeIf { it.step == TutorialStep.TraceLoad }?.let { t ->
                     Text(
                         T.sfondo.guidaRicalcoPasso(t.number, t.total),
@@ -315,7 +317,7 @@ fun UnderlayToolCard(state: EditorUiState, vm: EditorViewModel) {
             onDismissRequest = { vm.setUnderlayTool(UnderlayTool.Calibrate()) },
             title = { Text(T.sfondo.misuraReale) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(T.sfondo.quantoLungaDavveroDistanza)
                     SelectAllTextField(
                         value = text, onValueChange = { text = it }, label = "cm",

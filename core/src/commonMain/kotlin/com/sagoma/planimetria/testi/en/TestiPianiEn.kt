@@ -4,6 +4,7 @@ import com.sagoma.planimetria.testi.TestiPiani
 
 object TestiPianiEn : TestiPiani() {
     override val aggiungiPianoSopra: String get() = "+ Add a floor above"
+    override val aggiungiPianoSotto: String get() = "+ Add a floor below"
     override fun modifica(name: Any?): String = "✎ Edit «$name»"
     override fun eliminare(name: Any?): String = "Delete $name?"
     override val verrannoTolteTutteStanze: String get() = "All the rooms and stairs on this floor will be removed. You can get it back with ↶ Undo at the top."
@@ -26,6 +27,7 @@ object TestiPianiEn : TestiPiani() {
     override val terzoPiano: String get() = "Third floor"
     override val quartoPiano: String get() = "Fourth floor"
     override fun piano(index: Any?): String = "Floor $index"
+    override fun interrato(n: Int): String = if (n == 1) "Basement" else "Basement $n"
 
     override val pianiComuni: List<String> get() = listOf("Raised ground floor", "Lower ground floor", "Basement", "Entresol", "Mezzanine")
 }

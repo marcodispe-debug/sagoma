@@ -38,6 +38,13 @@ interface SceneRenderer {
      * semplice di sempre). Solo i renderer avanzati le usano.
      */
     fun setDaylight(hour: Float, lamps: String, sun: SunAngles = SunPath.simple(hour)) {}
+    /** Luminosità di tutte le lampade della casa: 1 = quella normale (0,25…2). */
+    fun setLampBrightness(k: Float) {}
+    /**
+     * Sta ancora disegnando l'immagine chiesta per ultima (i renderer che disegnano a parte, fuori dal fotogramma dello schermo).
+     * Chi muove la telecamera aspetta che finisca: così ogni immagine fa un passo pari al tempo passato, senza scatti.
+     */
+    val drawing: Boolean get() = false
     fun onPause() {}
     fun onResume() {}
     /** La superficie non serve più: libera la memoria della scheda grafica. */

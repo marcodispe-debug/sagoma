@@ -189,6 +189,8 @@ data class CourseUi(
     val number: Int,
     val total: Int,
     val detail: String?,
+    /** «Indietro»: c'è un passo prima a cui tornare. */
+    val canGoBack: Boolean = false,
 )
 
 /** Avanzamento della guida interattiva. Le azioni arrivano come [TutorialEvent], come per il tutorial. */
@@ -267,6 +269,22 @@ class Course {
         return done
     }
 
+    /**
+     * «Salta passo»: il passo dopo; dentro «Muro per muro» si salta tutto il disegno dell'ingresso, che la guida mette da sola
+     * (vedi [skipped]).
+     */
+    fun skip() {
+        step = when (step) {
+            CourseStep.WallsFirst, CourseStep.WallsTyped, CourseStep.WallsClose -> CourseStep.WallsDone
+            else -> return next()
+        }
+    }
+
+    /** «Indietro»: di nuovo al passo `target` (uno già fatto). */
+    fun goTo(target: CourseStep) {
+        step = target
+    }
+
     private fun moveTo(target: CourseStep): Boolean {
         if (step == target) return false
         step = target
@@ -300,6 +318,35 @@ class Course {
          */
         fun place(step: CourseStep?, s: EditorUiState, interior: List<Vec2>, shape: List<Vec2>, outdoor: Boolean): List<Vec2>? =
             CourseHints(s).place(step, interior, shape, outdoor)
+
+        /** «Salta passo» c'è: non per caricare la piantina della guida, senza la quale il resto della lezione non si può fare. */
+        fun canSkip(step: CourseStep): Boolean = step.action && step != CourseStep.TraceLoad
+
+        /**
+         * La stanza che nasce quando si salta un passo «Crea stanza»: tipo e filo interno (dove nasce lo decide [place], come
+         * per quelle create a mano). Null: il passo non crea una stanza.
+         */
+        fun skippedRoom(step: CourseStep): Pair<RoomType, List<Vec2>>? = when (step) {
+            CourseStep.SquareMeasures -> GuidePlan.studio.let { it.type to it.points }
+            CourseStep.LMeasures -> GuidePlan.soggiorno.let { it.type to it.points }
+            CourseStep.RectMeasures -> GuidePlan.camera.let { it.type to it.points }
+            CourseStep.SurveyMeasures -> GuidePlan.bagno.let { it.type to it.points }
+            CourseStep.Balcony -> GuidePlan.balcone.let { it.type to it.points }
+            CourseStep.PlanMeasures -> GuidePlan.side(GuidePlan.camera, 1).toDouble().let { RoomType.Camera to RoomFactory.rectangle(it, it) }
+            CourseStep.Bath -> GuidePlan.side(GuidePlan.bagno, 0).toDouble().let { RoomType.Bagno to RoomFactory.rectangle(it, it) }
+            // Il soggiorno a L con misure di prova, un po' più piccolo di quello disegnato: i muri si portano poi sulla piantina.
+            CourseStep.LivingMeasures -> RoomType.Soggiorno to GuidePlan.soggiorno.points.map { it * SKIPPED_LIVING_SCALE }
+            else -> null
+        }
+
+        /**
+         * La casa come l'avrebbe lasciata il passo `step` fatto a mano (muri trascinati, stanze al loro posto, misure esatte,
+         * taratura), così dopo «Salta passo» i passi seguenti si possono fare. Null: il passo non cambia la casa.
+         */
+        fun skipped(step: CourseStep, s: EditorUiState): FloorPlan? = CourseHints(s).skipped(step)
+
+        /** Il passo `step` è già fatto sulla casa `s`: dopo un passo saltato la guida va avanti da sola. */
+        fun ready(step: CourseStep, s: EditorUiState): Boolean = CourseHints(s).ready(step)
 
         /** La casa di prova com'è all'inizio della lezione `lesson`: le stanze (e il tramezzo) delle lezioni prima, al loro posto. */
         fun house(lesson: Lesson): FloorPlan {
@@ -580,6 +627,94 @@ private class CourseHints(private val s: EditorUiState) {
             if (d.y >= 0) Vec2(0.0, house.maxY + GAP_CM - ab.minY) else Vec2(0.0, house.minY - GAP_CM - ab.maxY)
         }
         return at.map { it + away }
+    }
+
+    // ---------- «Salta passo»: la casa come l'avrebbe lasciata il passo fatto ----------
+
+    fun ready(step: CourseStep): Boolean = when (step) {
+        CourseStep.SquareInfo -> squareExact()
+        CourseStep.LMove, CourseStep.RectMove, CourseStep.SurveyMove -> inPlace(step.lesson.planRoom)
+        CourseStep.FreeWallMove -> freeWallInPlace()
+        CourseStep.FreeWallEnd -> freeWallShortened()
+        CourseStep.FreeWallInfo -> freeWallExact()
+        CourseStep.LivingWalls -> livingWalls()?.isEmpty() == true
+        CourseStep.LivingInfo -> livingExact()
+        else -> false
+    }
+
+    fun skipped(step: CourseStep): FloorPlan? = when (step) {
+        // Lo studio: muro di destra più in là, misure esatte, angolo in fuori, di nuovo dritto (Annulla).
+        CourseStep.SquareWall -> studio()?.let { r ->
+            val right = r.points.sortedByDescending { it.x }.take(2).toSet()
+            plan.replace(r.copy(points = r.points.map { if (it in right) it + Vec2(STRETCH_CM, 0.0) else it }))
+        }
+        CourseStep.SquareInfo, CourseStep.SquareUndo -> withRoom(GuidePlan.studio)
+        CourseStep.SquareCorner -> studio()?.let { r ->
+            val corner = r.points.maxBy { it.x + it.y }
+            plan.replace(r.copy(points = r.points.map { if (it == corner) it + Vec2(CORNER_CM, CORNER_CM * 0.6) else it }))
+        }
+        CourseStep.LMove, CourseStep.RectMove, CourseStep.SurveyMove -> step.lesson.planRoom?.let(::withRoom)
+        // L'ingresso disegnato muro per muro: già chiuso, al suo posto.
+        CourseStep.WallsFirst, CourseStep.WallsTyped, CourseStep.WallsClose -> withRoom(GuidePlan.ingresso)
+        CourseStep.FreeWallMove -> partition()?.let { (top, _) ->
+            val w = freeWall()
+            val camera = goal(GuidePlan.camera)
+            val bottom = camera?.maxOf { it.y } ?: (top.y + GuidePlan.tramezzo.length)
+            withFreeWall(if (w != null && upright(w)) w.copy(start = Vec2(top.x, w.start.y), end = Vec2(top.x, w.end.y)) else (w ?: newFreeWall()).copy(start = top, end = Vec2(top.x, bottom)))
+        }
+        CourseStep.FreeWallEnd -> partition()?.let { (top, end) -> withFreeWall((freeWall() ?: newFreeWall()).copy(start = top, end = end)) }
+        CourseStep.FreeWallInfo -> partition()?.let { (top, end) ->
+            withFreeWall((freeWall() ?: newFreeWall()).copy(start = top, end = end, thickness = GuidePlan.tramezzo.thickness))
+        }
+        // Sopra la piantina: taratura fatta, poi le stanze portate e allungate sopra quelle disegnate.
+        CourseStep.CalibA, CourseStep.CalibB, CourseStep.CalibValue -> plan.underlay?.let { u ->
+            val f = GuidePlan.width / (u.cmPerPx * u.widthPx)
+            val a = GuidePlan.onUnderlay(u, GuidePlan.calibrationA)
+            plan.copy(underlay = u.copy(cmPerPx = u.cmPerPx * f, origin = a + (u.origin - a) * f))
+        }
+        CourseStep.MoveRoom -> indoor(RoomType.Camera, 0)?.let { r -> onPlan(GuidePlan.camera.points[0])?.let { moved(r, it) } }
+        CourseStep.Stretch -> indoor(RoomType.Camera, 0)?.let { r -> onDrawn(r, GuidePlan.camera) }
+        CourseStep.MoveBath -> bath()?.let { r -> onPlan(GuidePlan.bagno.points[0])?.let { moved(r, it) } }
+        CourseStep.CornerC, CourseStep.CornerD -> bath()?.takeIf { it.points.size == GuidePlan.bagno.points.size }?.let { r ->
+            val drawn = GuidePlan.bagno.points.map { onPlan(it) ?: return@let null }
+            val i = if (step == CourseStep.CornerC) 2 else 3
+            val corner = Polygon.inset(drawn, -r.wallThickness / 2)[i]
+            plan.replace(r.copy(points = r.points.mapIndexed { k, p -> if (k == i) corner else p }))
+        }
+        CourseStep.Attach -> living()?.let { r ->
+            val d = (cameraCorner() ?: return@let null) - topRight(r)
+            plan.replace(r.copy(points = r.points.map { it + d }))
+        }
+        CourseStep.LivingWalls, CourseStep.LivingInfo -> living()?.let { r -> onDrawn(r, GuidePlan.soggiorno) }
+        else -> null
+    }
+
+    /** La stanza `target` della piantina al suo posto nella casa di prova (aggiunta se manca). */
+    private fun withRoom(target: GuidePlan.Room): FloorPlan? {
+        val g = goal(target) ?: return null
+        val r = room(target.type)
+        val points = Polygon.fromInterior(g, r?.wallThickness ?: Room.WALL_THICKNESS)
+        return if (r != null) plan.replace(r.copy(points = points))
+        else plan.copy(rooms = plan.rooms + Room(plan.nextId, RoomFactory.autoName(plan, target.type), target.type, points, floorFinish = target.type.defaultFloor))
+    }
+
+    private fun newFreeWall(): FreeWall = FreeWall(plan.nextFreeWallId, Vec2.Zero, Vec2.Zero)
+
+    private fun withFreeWall(w: FreeWall): FloorPlan =
+        if (plan.freeWalls.any { it.id == w.id }) plan.replace(w) else plan.copy(freeWalls = plan.freeWalls + w)
+
+    private fun bath(): Room? = room(RoomType.Bagno) ?: plan.rooms.lastOrNull()
+
+    /** La stanza `r` spostata (senza cambiare forma) con l'angolo in alto a sinistra del filo interno in `corner`. */
+    private fun moved(r: Room, corner: Vec2): FloorPlan {
+        val d = corner - r.interior().minBy { it.x + it.y }
+        return plan.replace(r.copy(points = r.points.map { it + d }))
+    }
+
+    /** La stanza `r` proprio sopra la stanza `target` disegnata sulla piantina. */
+    private fun onDrawn(r: Room, target: GuidePlan.Room): FloorPlan? {
+        val drawn = target.points.map { onPlan(it) ?: return null }
+        return plan.replace(r.copy(points = Polygon.fromInterior(drawn, r.wallThickness)))
     }
 
     // ---------- Lo studio: i modi per cambiare forma a una stanza ----------
@@ -940,6 +1075,9 @@ private class CourseHints(private val s: EditorUiState) {
 /** Quanto più in là si trascina il muro di destra dello studio, e l'angolo in basso a destra. */
 private const val STRETCH_CM = 70.0
 private const val CORNER_CM = 60.0
+
+/** Il soggiorno a L creato saltando il passo delle misure, rispetto a quello disegnato. */
+private const val SKIPPED_LIVING_SCALE = 0.85
 
 /** Una stanza nuova nasce così lontana dalla casa (in mezzeria): staccata, ma vicina al suo posto. */
 private const val GAP_CM = 120.0

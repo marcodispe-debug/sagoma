@@ -9,6 +9,7 @@ import com.sagoma.planimetria.geometry.inLineCorners
 import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.interiorLengths
 import com.sagoma.planimetria.model.withAutoNames
+import com.sagoma.planimetria.model.MaterialPieces
 import com.sagoma.planimetria.model.Furniture
 import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.geometry.Fixtures
@@ -230,8 +231,40 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     // ---------- Guida interattiva ----------
 
     private fun publishCourse() {
-        if (!course.active) courseFocus = null
-        _state.update { it.copy(course = course.ui(it)) }
+        if (!course.active) {
+            courseFocus = null
+            courseSteps.clear()
+        }
+        // Ogni passo nuovo si ricorda com'era la casa quando è cominciato: «Indietro» la rimette così.
+        course.step?.let { st -> if (courseSteps.lastOrNull()?.first != st) courseSteps += st to _state.value }
+        _state.update { it.copy(course = course.ui(it)?.copy(canGoBack = courseSteps.size > 1)) }
+    }
+
+    /** I passi della guida fatti finora, con la pianta com'era all'inizio di ognuno. */
+    private val courseSteps = mutableListOf<Pair<CourseStep, EditorUiState>>()
+
+    /**
+     * "Indietro": il passo di prima, con la casa (e le finestre aperte) com'erano quando è cominciato. Si torna avanti con
+     * Annulla, o rifacendo il passo.
+     */
+    fun previousCourseStep() {
+        if (!course.active || courseSteps.size < 2) return
+        courseSteps.removeAt(courseSteps.lastIndex)
+        val (step, before) = courseSteps.last()
+        val now = _state.value
+        if (before.fullBuilding != now.fullBuilding) history.record(now.fullBuilding)
+        setBuilding(before.fullBuilding)
+        _state.update {
+            it.copy(
+                creation = before.creation, creationIntent = before.creationIntent, tracing = before.tracing,
+                underlayTool = before.underlayTool, wallDraw = before.wallDraw, pendingOpening = null, pendingFixture = null,
+                focusedRoomId = before.focusedRoomId, selection = before.selection, infoExpanded = false,
+                canUndo = history.canUndo, canRedo = history.canRedo,
+            )
+        }
+        course.goTo(step)
+        prepareCourseStep()
+        publishCourse()
     }
 
     /**
@@ -245,6 +278,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             publishTutorial()
         }
         history.clear()
+        courseSteps.clear()
         val house = Building.single(if (lesson == Lesson.OverPlan) FloorPlan() else Course.house(lesson), autoLevel = true)
         _state.update {
             EditorUiState(
@@ -261,7 +295,43 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         publishCourse()
     }
 
-    /** "Avanti" o "Salta passo": passo successivo; dopo l'ultimo la guida finisce. */
+    /**
+     * "Salta passo": la guida fa il passo al posto dell'utente (la stanza creata, il muro trascinato, la taratura, …, con
+     * Annulla come se l'avesse fatto lui) e va avanti, così i passi dopo si possono fare. Se il passo dopo risulta già fatto,
+     * va avanti ancora.
+     */
+    fun skipCourseStep() {
+        val step = course.step ?: return
+        if (!Course.canSkip(step)) return
+        _state.update { it.copy(pendingOpening = null, pendingFixture = null) }
+        val room = Course.skippedRoom(step)
+        when {
+            room != null -> addRoomFromInterior(room.first, room.second, Room.DEFAULT_CEILING_HEIGHT, Room.WALL_THICKNESS)
+            // Il tramezzo nasce nella camera, come scegliendo «Muro singolo» con la camera selezionata.
+            step == CourseStep.FreeWallPick -> {
+                val camera = _state.value.plan.rooms.lastOrNull { it.type == RoomType.Camera }
+                _state.update { it.copy(focusedRoomId = camera?.id, selection = null) }
+                addFreeWall()
+            }
+            step == CourseStep.TraceStart -> startTracing()
+            step.lesson == Lesson.Elements -> cancelCreation()
+            else -> Course.skipped(step, _state.value)?.let { plan ->
+                commit { plan }
+                if (step == CourseStep.CalibA || step == CourseStep.CalibB || step == CourseStep.CalibValue) {
+                    _state.update { it.copy(underlayTool = null) }
+                    endTracing()
+                    tutorialEvent(TutorialEvent.Calibrated)
+                } else _state.update { it.copy(creation = null, creationIntent = null, wallDraw = null) }
+            }
+        }
+        if (course.step == step) course.skip()
+        while (course.step?.let { Course.ready(it, _state.value) } == true) course.next()
+        if (!course.active) return finishCourse()
+        prepareCourseStep()
+        publishCourse()
+    }
+
+    /** "Avanti": passo successivo; dopo l'ultimo la guida finisce. */
     fun nextCourseStep() {
         course.next()
         if (!course.active) return finishCourse()
@@ -504,6 +574,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         s.copy(building = s.building.copy(site = s.building.site.copy(northDeg = d)))
     }
 
+    /**
+     * Luminosità delle lampade della casa (1 = normale): si salva nel progetto, così il 3D la ritrova e i render la usano.
+     * Come il nord, non si annulla.
+     */
+    fun setLampBrightness(k: Double) = _state.update { s ->
+        val v = k.coerceIn(Building.MIN_LAMP_BRIGHTNESS, Building.MAX_LAMP_BRIGHTNESS)
+        if (v == s.building.lampBrightness) s else s.copy(building = s.building.copy(lampBrightness = v))
+    }
+
     /** Città della casa per il giro del sole (null = nessuna, vale Roma). Non si annulla. */
     fun setPlace(place: com.sagoma.planimetria.model.Place?) = _state.update { s ->
         s.copy(building = s.building.copy(site = s.building.site.copy(place = place)))
@@ -538,31 +617,33 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         if (!userAdjustedView) fitToView()
     }
 
-    fun openFloorDialog(index: Int?) = _state.update { it.copy(floorDialog = FloorDialog(index)) }
+    fun openFloorDialog(index: Int?, below: Boolean = false) = _state.update { it.copy(floorDialog = FloorDialog(index, below)) }
 
     fun closeFloorDialog() = _state.update { it.copy(floorDialog = null) }
 
     /**
-     * Nuovo piano in cima alla casa, che diventa quello corrente. Con `copyRooms` parte con le stanze
-     * del piano più alto (solo i muri, senza aperture né impianti), da modificare; altrimenti è vuoto
-     * e si apre subito la creazione della prima stanza.
+     * Nuovo piano in cima alla casa o, con `below`, sotto il più basso (un interrato: il piano terra resta quello di prima),
+     * che diventa quello corrente. Con `copyRooms` parte con le stanze del piano più alto (o più basso) (solo i muri, senza
+     * aperture né impianti), da modificare; altrimenti è vuoto e si apre subito la creazione della prima stanza.
      */
-    fun addFloor(name: String, levelHeight: Double, copyRooms: Boolean, autoLevel: Boolean = false) {
+    fun addFloor(name: String, levelHeight: Double, copyRooms: Boolean, autoLevel: Boolean = false, below: Boolean = false) {
         closeFloorDialog()
         commitBuilding { b ->
-            val top = b.floors.last()
+            val from = if (below) b.floors.first() else b.floors.last()
             // I muri come sono: con il loro spessore, spostati di lato e curvi (altrimenti al piano di sopra tornerebbero
             // dritti, da 15 cm e centrati, e non starebbero più sopra quelli di sotto).
-            val rooms = if (copyRooms) top.plan.rooms.map {
+            val rooms = if (copyRooms) from.plan.rooms.map {
                 Room(
                     it.id, it.name, it.type, it.points, ceilingHeight = it.ceilingHeight, floorFinish = it.type.defaultFloor,
                     wallThickness = it.wallThickness, wallThicknesses = it.wallThicknesses, wallOffsets = it.wallOffsets, wallBulges = it.wallBulges,
                 )
             } else emptyList()
-            // Il piano nuovo ha la stessa facciata di quello sotto: l'esterno di una casa è quasi sempre uguale.
-            val plan = FloorPlan(rooms, facade = top.plan.facade, facadeFinish = top.plan.facadeFinish)
-            val floor = Floor(b.nextFloorId, name.trim().ifBlank { Building.floorName(b.floors.size) }, plan, levelHeight, autoLevel).synced()
-            b.copy(floors = b.floors + floor, current = b.floors.size)
+            val level = if (below) b.level(0) - 1 else b.level(b.floors.lastIndex) + 1
+            // Il piano nuovo ha la stessa facciata di quello accanto: l'esterno di una casa è quasi sempre uguale.
+            val plan = FloorPlan(rooms, facade = from.plan.facade, facadeFinish = from.plan.facadeFinish)
+            val floor = Floor(b.nextFloorId, name.trim().ifBlank { Building.floorName(level) }, plan, levelHeight, autoLevel).synced()
+            if (below) b.copy(floors = listOf(floor) + b.floors, current = 0, ground = b.groundIndex + 1)
+            else b.copy(floors = b.floors + floor, current = b.floors.size)
         }
         if (!userAdjustedView) fitToView()
         if (_state.value.plan.rooms.isEmpty()) _state.update { it.copy(creation = CreationStep.PickShape(cancellable = true)) }
@@ -584,7 +665,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         commitBuilding { b ->
             if (b.floors.size < 2 || index !in b.floors.indices) return@commitBuilding b
             val floors = b.floors.filterIndexed { i, _ -> i != index }
-            b.copy(floors = floors, current = (if (b.current >= index) b.current - 1 else b.current).coerceIn(floors.indices))
+            // Tolto un interrato, il piano terra scende di un posto nell'elenco (resta lo stesso piano).
+            val ground = if (index < b.groundIndex) b.groundIndex - 1 else b.groundIndex
+            b.copy(floors = floors, current = (if (b.current >= index) b.current - 1 else b.current).coerceIn(floors.indices), ground = ground.coerceIn(floors.indices))
         }
         if (!userAdjustedView) fitToView()
     }
@@ -1659,6 +1742,14 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     fun closeSelection() = _state.update { it.copy(selection = null) }
 
+    /**
+     * Deseleziona tutto (tasto destro del mouse sul computer): oggetto, stanza attiva, gruppo selezionato, e la porta, l'impianto
+     * o la copia che si stava per mettere. Il disegno dei muri, le quote e i testi in corso restano.
+     */
+    fun deselectAll() = _state.update {
+        it.copy(focusedRoomId = null, selection = null, multi = emptySet(), selectRect = null, pendingOpening = null, pendingFixture = null, pasting = false, pasteCursor = null)
+    }
+
     /** Punto da tenere visibile: l'oggetto selezionato o, senza selezione, l'etichetta della stanza a fuoco. */
     private fun focusAnchor(s: EditorUiState): Vec2? = when (val sel = s.selection) {
         is Selection.Wall -> s.plan.room(sel.roomId)?.takeIf { sel.index < it.wallCount }
@@ -2474,12 +2565,39 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
      */
     fun setRoomWallThickness(roomId: Long, thickness: Double) = commit { plan ->
         val room = plan.room(roomId)?.takeIf { thickness in 3.0..120.0 } ?: return@commit plan
+        val delta = (thickness - room.wallThickness) / 2
         var offsets = room.wallOffsets
         for (i in 0 until room.wallCount) {
             if (i in room.wallThicknesses) continue
-            offsets = withInnerFaceKept(room, offsets, i, (thickness - room.wallThickness) / 2)
+            offsets = withInnerFaceKept(room, offsets, i, delta)
         }
-        plan.replace(room.copy(wallThickness = thickness, wallOffsets = offsets))
+        var result = plan.replace(room.copy(wallThickness = thickness, wallOffsets = offsets))
+        // I muri in comune sono gli stessi muri fisici: cambiano anche per le stanze accanto, allargandosi verso di loro.
+        for (i in 0 until room.wallCount) {
+            if (i !in room.wallThicknesses) result = withSharedWall(result, room, i, thickness, -delta)
+        }
+        result
+    }
+
+    /** Il muro `index` di `room` (com'era prima) visto dalle stanze accanto: spessore `thickness`, mezzeria spostata di `shift`. */
+    private fun withSharedWall(plan: FloorPlan, room: Room, index: Int, thickness: Double?, shift: Double): FloorPlan {
+        var result = plan
+        val a = room.wallStart(index)
+        val b = room.wallEnd(index)
+        for (other in plan.rooms) {
+            if (other.id == room.id) continue
+            for (j in 0 until other.wallCount) {
+                if (!Dimensions.sharesWall(a, b, other.wallStart(j), other.wallEnd(j))) continue
+                val r = result.room(other.id)!!
+                result = result.replace(
+                    r.copy(
+                        wallThicknesses = if (thickness == null || thickness == r.wallThickness) r.wallThicknesses - j else r.wallThicknesses + (j to thickness),
+                        wallOffsets = withInnerFaceKept(r, r.wallOffsets, j, shift),
+                    ),
+                )
+            }
+        }
+        return result
     }
 
     /**
@@ -2506,17 +2624,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             wallThicknesses = if (thickness == null || thickness == r.wallThickness) r.wallThicknesses - i else r.wallThicknesses + (i to thickness),
             wallOffsets = withInnerFaceKept(r, r.wallOffsets, i, shift),
         )
-        var result = plan.replace(apply(room, index, delta))
-        val a = room.wallStart(index)
-        val b = room.wallEnd(index)
-        for (other in plan.rooms) {
-            if (other.id == roomId) continue
-            for (j in 0 until other.wallCount) {
-                // Per la stanza accanto "fuori" è dall'altra parte: la mezzeria si sposta verso di lei.
-                if (Dimensions.sharesWall(a, b, other.wallStart(j), other.wallEnd(j))) result = result.replace(apply(result.room(other.id)!!, j, -delta))
-            }
-        }
-        result
+        // Per la stanza accanto "fuori" è dall'altra parte: la mezzeria si sposta verso di lei.
+        withSharedWall(plan.replace(apply(room, index, delta)), room, index, thickness, -delta)
     }
 
     /**
@@ -2765,10 +2874,16 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         )
     }
 
-    /** Pavimento con un materiale fotografico (null = la finitura normale). */
+    /** Pavimento con un materiale fotografico (null = la finitura normale); la posa a pezzi si adatta al nuovo materiale. */
     fun setFloorMaterial(id: Long, material: String?) = commit { plan ->
         val room = plan.room(id) ?: return@commit plan
-        plan.replace(room.copy(floorMaterial = material))
+        plan.replace(room.copy(floorMaterial = material, floorLayout = MaterialPieces.relay(room.floorLayout, room.floorMaterial, material)))
+    }
+
+    /** Verso e misura dei pezzi del pavimento fotografico della stanza. */
+    fun setFloorLayout(id: Long, layout: com.sagoma.planimetria.model.MaterialLayout) = commit { plan ->
+        val room = plan.room(id) ?: return@commit plan
+        if (room.floorLayout == layout) plan else plan.replace(room.copy(floorLayout = layout))
     }
 
     // ---------- Pianta di sfondo ----------
