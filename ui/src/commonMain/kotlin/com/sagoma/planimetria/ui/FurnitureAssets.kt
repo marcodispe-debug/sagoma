@@ -1,18 +1,25 @@
 package com.sagoma.planimetria.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import com.sagoma.planimetria.assets.AssetPaths
 import com.sagoma.planimetria.assets.LruByteCache
 import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.model.GeneratedFurniture
 import com.sagoma.planimetria.model.MaterialCatalog
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Livello sottile sopra [com.sagoma.planimetria.assets.AssetStore] per l'interfaccia: carica i cataloghi
  * all'avvio (senza file, come nel browser, non succede nulla) e dà le immagini già decodificate di
  * miniature, viste dall'alto e campioni dei materiali. I file li fornisce [Platform.assetStore] (dove stiano
  * non importa qui); le immagini si leggono al primo uso e restano in memoria fino a un limite, poi si
- * butta via la meno usata di recente. Si usa dal solo thread dell'interfaccia.
+ * butta via la meno usata di recente. Si usa dal solo thread dell'interfaccia, tranne la lettura dei cataloghi all'avvio
+ * (vedi [init]).
  */
 object FurnitureAssets {
     // Una miniatura decodificata pesa circa 200 KB e una vista dall'alto circa 180 KB (RGBA): senza limite,
@@ -28,10 +35,32 @@ object FurnitureAssets {
 
     private fun imageCache(maxBytes: Long) = LruByteCache<ImageBitmap>(maxBytes) { it.width.toLong() * it.height * 4 }
 
-    /** Da chiamare all'avvio: senza catalogo (browser) non succede nulla. */
+    /**
+     * I cataloghi di arredi e materiali sono pronti. Si leggono in un thread a parte ([init]): l'app si apre subito e il
+     * progetto (che li usa per disegnare) aspetta questo segnale, di solito già arrivato. Vero finché nessuno chiama [init]
+     * (nelle prove non c'è niente da aspettare).
+     */
+    var ready by mutableStateOf(true)
+        private set
+
+    /**
+     * Da chiamare all'avvio: legge i cataloghi in un thread a parte (prima si leggevano qui, sul thread principale, prima che
+     * comparisse l'app). Senza catalogo (browser) non succede nulla, ma [ready] diventa vero lo stesso.
+     */
     fun init(p: Platform) {
         if (platform != null) return
         platform = p
+        ready = false
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                loadCatalogs(p)
+            } finally {
+                ready = true
+            }
+        }
+    }
+
+    private fun loadCatalogs(p: Platform) {
         val store = p.assetStore
         store.peek(AssetPaths.FURNITURE_CATALOG)?.let { runCatching { FurnitureCatalog.load(it.decodeToString()) } }
         store.peek(AssetPaths.MATERIAL_CATALOG)?.let { runCatching { MaterialCatalog.load(it.decodeToString()) } }

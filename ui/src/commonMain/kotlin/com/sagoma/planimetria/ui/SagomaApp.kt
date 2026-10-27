@@ -1,6 +1,8 @@
 package com.sagoma.planimetria.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -12,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.sagoma.planimetria.editor.Lesson
 import com.sagoma.planimetria.editor.TipStore
@@ -54,6 +57,9 @@ fun SagomaApp(platform: Platform) {
                         val vmOwner = LocalViewModelStoreOwner.current
                         LaunchedEffect(Unit) { vmOwner?.viewModelStore?.clear() }
                         ProjectsScreen { id -> projects.markOpened(id); open = id }
+                    } else if (!FurnitureAssets.ready) {
+                        // Un attimo, all'avvio: i cataloghi (arredi, materiali) si stanno ancora leggendo e il progetto li usa.
+                        Box(Modifier.fillMaxSize())
                     } else {
                         platform.BackHandler(enabled = true) { open = -1L }
                         key(open) {
