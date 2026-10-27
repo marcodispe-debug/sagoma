@@ -31,12 +31,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.model.Covering
@@ -61,27 +57,30 @@ object RecentColors {
 }
 
 /**
- * Finitura di una parete. Pittura di qualsiasi colore (tavolozza estesa, colori recenti o
- * selettore libero) e rivestimento (carta da parati, piastrelle, mattoni, pietra, boiserie, perlinato) con
- * il suo colore e fin dove arriva da terra.
+ * Finitura di una parete: pittura di qualsiasi colore (tavolozza estesa, colori recenti o selettore libero) e,
+ * se si vuole, un materiale fotografico della libreria con fin dove arriva da terra. I rivestimenti disegnati
+ * di prima (carta da parati, piastrelle, mattoni…) non si scelgono più: in un progetto che li ha restano
+ * finché non si cambiano, e si possono togliere.
  */
 @Composable
 fun FinishPicker(label: String, finish: WallFinish, onChange: (WallFinish) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         FreeColorPicker(T.finiture.pittura, finish.argb) { onChange(finish.copy(argb = it)) }
-        val coverings = Covering.entries.filter { it != Covering.Material || MaterialCatalog.items.any { m -> m.forWall } }
-        ModelPicker(T.finiture.rivestimento, coverings, finish.covering, { it.label }, { c ->
-            val material = if (c == Covering.Material) finish.material ?: MaterialCatalog.items.firstOrNull { it.forWall }?.id else finish.material
-            onChange(finish.copy(covering = c, coveringArgb = null, coveringHeight = null, material = material))
-        }) { coveringPreview(it, if (it == finish.covering) finish.coverArgb else it.defaultArgb, finish.argb) }
-        if (finish.covering == Covering.Material) {
-            MaterialPicker(T.finiture.materiale, finish.material, forFloor = false) { onChange(finish.copy(material = it)) }
+        val old = finish.covering != Covering.None && finish.covering != Covering.Material
+        if (old) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
+            Text(T.finiture.rivestimentoDiPrima(T.lingua.minuscola(finish.covering.label)), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            TextButton(onClick = { onChange(finish.copy(covering = Covering.None, coveringArgb = null, coveringHeight = null)) }) {
+                Text(T.schedaStanza.togli, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        MaterialPicker(T.finiture.materiale, finish.material.takeIf { finish.covering == Covering.Material }, forFloor = false, allowNone = true) { id ->
+            onChange(
+                if (id == null) finish.copy(covering = Covering.None, coveringArgb = null, coveringHeight = null, material = null)
+                else finish.copy(covering = Covering.Material, coveringArgb = null, material = id, coveringHeight = finish.coveringHeight.takeIf { finish.covering == Covering.Material }),
+            )
         }
         if (finish.covering != Covering.None) {
-            if (finish.covering != Covering.Material) {
-                FreeColorPicker(T.finiture.colore(T.lingua.minuscola(finish.covering.label)), finish.coverArgb) { onChange(finish.copy(coveringArgb = it)) }
-            }
             val full = finish.coverHeight == null
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
                 Checkbox(checked = full, onCheckedChange = { on ->
@@ -244,83 +243,3 @@ private fun Swatch(label: String, id: String?, isSelected: Boolean, onClick: () 
     }
 }
 
-/** Anteprima di un rivestimento: un pezzo di parete dipinta con sotto il rivestimento. */
-fun DrawScope.coveringPreview(c: Covering, coverArgb: Long, paintArgb: Long) {
-    val w = size.width
-    val h = size.height
-    val cover = Color(coverArgb)
-    drawRect(Color(paintArgb))
-    val top = if (c.defaultHeight == null) 0f else h * 0.35f
-    if (c == Covering.None) return
-    val dark = lerp(cover, Color.Black, 0.25f)
-    val grout = lerp(cover, Color(0xFF8C8C88), 0.5f)
-    val s = h / 12f
-    fun rect(x: Float, y: Float, rw: Float, rh: Float, col: Color) {
-        val x0 = x.coerceAtLeast(0f)
-        val x1 = (x + rw).coerceAtMost(w)
-        val y0 = y.coerceAtLeast(top)
-        val y1 = (y + rh).coerceAtMost(h)
-        if (x1 > x0 && y1 > y0) drawRect(col, Offset(x0, y0), Size(x1 - x0, y1 - y0))
-    }
-    when (c) {
-        Covering.None -> Unit
-        Covering.Material -> {
-            // Un campione a scacchi di colori caldi: "materiale vero".
-            rect(0f, top, w, h, cover)
-            var x = 0f
-            var k = 0
-            while (x < w) { if (k % 2 == 0) rect(x, top, s * 2f, h, lerp(cover, Color.Black, 0.08f)); x += s * 2f; k++ }
-        }
-        Covering.Wallpaper -> {
-            rect(0f, 0f, w, h, lerp(cover, Color.White, 0.45f))
-            var x = 0f
-            while (x < w) { rect(x, 0f, s * 0.8f, h, cover); rect(x + s * 1.4f, 0f, s * 0.16f, h, cover); x += s * 2.6f }
-        }
-        Covering.Tiles, Covering.Metro -> {
-            rect(0f, top, w, h, cover)
-            val tw = if (c == Covering.Tiles) s * 2.5f else s * 2.4f
-            val th = if (c == Covering.Tiles) s * 2.5f else s * 1.2f
-            var row = 0
-            var y = h
-            while (y > top) {
-                rect(0f, y - 0.8f, w, 1.6f, grout)
-                var x = if (c == Covering.Metro && row % 2 == 1) tw / 2 else 0f
-                while (x < w) { rect(x - 0.8f, y - th, 1.6f, th, grout); x += tw }
-                y -= th; row++
-            }
-        }
-        Covering.Boards -> {
-            rect(0f, top, w, h, cover)
-            var x = 0f
-            while (x < w) { rect(x, top, 1.6f, h, dark); x += s * 1.6f }
-        }
-        Covering.Wainscot -> {
-            rect(0f, top, w, h, cover)
-            var x = s
-            while (x < w) {
-                rect(x, top + s, s * 4f, h - top - s * 2f, lerp(cover, Color.Black, 0.05f))
-                rect(x, top + s, s * 4f, 2f, dark); rect(x, h - s - 2f, s * 4f, 2f, dark)
-                rect(x, top + s, 2f, h - top - s * 2f, dark); rect(x + s * 4f - 2f, top + s, 2f, h - top - s * 2f, dark)
-                x += s * 5f
-            }
-        }
-        Covering.Brick, Covering.Stone -> {
-            rect(0f, top, w, h, Color(0xFFCCC7BD))
-            val bh = if (c == Covering.Brick) s * 1.1f else s * 2.4f
-            var y = h
-            var row = 0
-            while (y > top) {
-                var x = if (row % 2 == 1) -s * 2f else 0f
-                var k = 0
-                while (x < w) {
-                    val bw = if (c == Covering.Brick) s * 3.6f else s * (3f + ((row * 7 + k * 5) % 4))
-                    val shade = ((row * 3 + k * 5) % 5 - 2) * 0.05f
-                    val col = if (shade >= 0) lerp(cover, Color.White, shade) else lerp(cover, Color.Black, -shade)
-                    rect(x + 1f, y - bh + 1f, bw - 2f, bh - 2f, col)
-                    x += bw; k++
-                }
-                y -= bh; row++
-            }
-        }
-    }
-}

@@ -59,6 +59,8 @@ class SchedeInfoFotoTest {
     fun foto() {
         if (System.getenv("SAGOMA_FOTO_INFO") != "true") return
         val out = File("build/schede-info").also { it.mkdirs() }
+        // Materiali fotografici del catalogo, se c'è (servono per le finiture delle pareti e dei pavimenti).
+        File("../catalogo/src/main/assets/materials/materials.json").takeIf { it.isFile }?.let { com.sagoma.planimetria.model.MaterialCatalog.load(it.readText()) }
         val dir = Files.createTempDirectory("sagoma-info").toFile()
         try {
             val repo = FileProjectRepository(dir)
@@ -99,7 +101,7 @@ class SchedeInfoFotoTest {
                 "11-trave" to { vm -> vm.selectBeam(1) },
             )
             for (f in formati) {
-                val platform = DesktopPlatform(projects = repo, tips = tips, theme = FileThemeStore(dir), assets = null)
+                val platform = DesktopPlatform(projects = repo, tips = tips, theme = FileThemeStore(dir), assets = File("../catalogo/src/main/assets").takeIf { it.isDirectory })
                 var t = 0L
                 var store: ViewModelStore? = null
                 ImageComposeScene(f.w, f.h, Density(f.density)).use { scene ->
