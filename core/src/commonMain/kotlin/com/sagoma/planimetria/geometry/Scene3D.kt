@@ -254,7 +254,20 @@ class Scene3D(
         val selected: Boolean,
         /** Ribaltato sinistra ↔ destra (es. divano angolare con la penisola dall'altra parte). */
         val mirrored: Boolean = false,
+        /** Sta sul piano che si modifica (solo quelli si selezionano: gli altri piani possono avere gli stessi id). */
+        val onCurrentFloor: Boolean = true,
     )
+
+    /**
+     * Stessa scena con selezionato il mobile `furnitureId` (o nessuno), senza ricostruire la geometria: per i mobili disegnati
+     * con il loro modello la selezione è solo il bagliore azzurro del renderer. `null` se il mobile non è tra questi (tappeti e
+     * mobili costruiti si colorano nella geometria: allora serve [build] con la selezione).
+     */
+    fun withSelectedFurniture(furnitureId: Long?): Scene3D? {
+        if (furnitureId != null && furniture.none { it.onCurrentFloor && it.id == furnitureId }) return null
+        val marked = furniture.map { val sel = it.onCurrentFloor && it.id == furnitureId; if (it.selected == sel) it else it.copy(selected = sel) }
+        return Scene3D(opaque, transparent, picks, obstacles, bounds, marked, textured, lights, windows, roofs, groundLevel, excavation, rooms, treads, noFloor)
+    }
 
     /** Primo oggetto colpito dal raggio (origine, direzione), oppure null. */
     fun hit(origin: Vec3, dir: Vec3): Hit? {
@@ -838,7 +851,7 @@ private class SceneBuilder(
                 if (rug != null) rug(f, rug.first, rug.second, pick)
                 else if (generated != null) generatedFurniture(f, generated, pick)
                 else if (com.sagoma.planimetria.model.SuppliedObjects.isModel(f.model)) suppliedFurniture(f, plan.suppliedFor(f.model), pick)
-                else placed += Scene3D.PlacedFurniture(f.id, f.model, f.center.at(f.elevation), f.rotation, f.width, f.depth, f.height, current && pick == selected, f.mirrored)
+                else placed += Scene3D.PlacedFurniture(f.id, f.model, f.center.at(f.elevation), f.rotation, f.width, f.depth, f.height, current && pick == selected, f.mirrored, current)
                 // Le lampade del catalogo fanno luce: dal paralume (in alto) o, se appese, da sotto. La plafoniera come quella degli
                 // impianti: appena sotto il diffusore e tutta verso il basso.
                 val item = FurnitureCatalog.item(f.model)

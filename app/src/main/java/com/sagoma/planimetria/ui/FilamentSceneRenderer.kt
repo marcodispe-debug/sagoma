@@ -94,6 +94,11 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
     private val modelFiles = HashMap<String, ByteBuffer?>()
     /** Arredi in scena, nello stesso ordine della scena: si riusano se il modello non cambia. */
     private val furniture = mutableListOf<Pair<String, FilamentAsset>>()
+    /**
+     * Arredi le cui foto (texture) si stanno ancora decodificando in altri thread, ognuno con il suo caricatore (quello di
+     * gltfio ne segue uno alla volta). Entrano in scena quando sono pronti (un attimo dopo), non neri o senza foto.
+     */
+    private val loading = mutableListOf<Pair<FilamentAsset, ResourceLoader>>()
     private var pendingScene: Scene3D? = null
     private var dirty = true
     private var running = false
@@ -172,7 +177,7 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         materials = UbershaderProvider(engine)
         assetLoader = AssetLoader(engine, materials, EntityManager.get())
         resourceLoader = ResourceLoader(engine)
-        texturedSurfaces = TexturedSurfaces(engine, scene, materials, assets)
+        texturedSurfaces = TexturedSurfaces(engine, scene, materials, assets) { dirty = true }
     }
 
     private val frameCallback = object : Choreographer.FrameCallback {
@@ -180,6 +185,7 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
             if (!running) return
             Choreographer.getInstance().postFrameCallback(this)
             pendingScene?.let { load(it); pendingScene = null }
+            if (loading.isNotEmpty()) updateLoading()
             val chain = swapChain ?: return
             if (!dirty || uiHelper?.isReadyToRender != true) return
             if (renderer.beginFrame(chain, frameTimeNanos)) {
@@ -496,12 +502,37 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         camera.setProjection(fovY, width.toDouble() / height, near * 0.01, 1000.0, Camera.Fov.VERTICAL)
     }
 
-    /** Sostituisce la scena disegnata con quella nuova. */
+    /** L'ultima scena caricata: della nuova si rifà solo quello che è cambiato. */
+    private var shown: Scene3D? = null
+
+    /**
+     * Sostituisce la scena disegnata con quella nuova. Si rifà solo quello che è cambiato: selezionando un mobile, per
+     * esempio, la casa (glTF), le superfici con le foto e le luci restano quelle di prima e cambia solo il bagliore del mobile.
+     */
     private fun load(s: Scene3D) {
+        val prev = shown
+        val sameGeometry = prev != null && prev.opaque.contentEquals(s.opaque) && prev.transparent.contentEquals(s.transparent)
+        if (!sameGeometry && !loadHouse(s)) return
+        shown = s
+        loadFurniture(s.furniture)
+        val sameTextured = sameGeometry && prev!!.textured.size == s.textured.size &&
+            s.textured.all { (k, v) -> prev.textured[k]?.contentEquals(v) == true }
+        if (!sameTextured || texturedSurfaces.hasMissing) texturedSurfaces.update(s.textured + (GRASS to ground(s)))
+        val lights = s.lights.filterNot { it.spill }
+        if (prev == null || lights != sceneLights || s.windows != sceneWindows) {
+            sceneLights = lights
+            sceneWindows = s.windows
+            applyLighting()
+        }
+        dirty = true
+    }
+
+    /** La casa (muri, pavimenti, vetri…) come glTF in memoria, al posto di quella di prima. */
+    private fun loadHouse(s: Scene3D): Boolean {
         val bytes = Glb.fromScene(s, ground = GROUND)
         val buffer = ByteBuffer.allocateDirect(bytes.size).put(bytes)
         buffer.flip()
-        val next = assetLoader.createAsset(buffer) ?: return
+        val next = assetLoader.createAsset(buffer) ?: return false
         resourceLoader.loadResources(next)
         next.releaseSourceData()
         val rm = engine.renderableManager
@@ -518,11 +549,7 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         }
         scene.addEntities(next.entities)
         asset = next
-        loadFurniture(s.furniture)
-        texturedSurfaces.update(s.textured + (GRASS to ground(s)))
-        sceneLights = s.lights.filterNot { it.spill }
-        sceneWindows = s.windows
-        applyLighting()
+        return true
     }
 
     /**
@@ -575,21 +602,41 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
     private fun createFurniture(model: String): FilamentAsset? {
         val buffer = modelFile(model) ?: return null
         val a = runCatching { assetLoader.createAsset(buffer.duplicate()) }.getOrNull() ?: return null
-        resourceLoader.loadResources(a)
-        a.releaseSourceData()
+        // Foto decodificate in altri thread: prima si aspettavano tutte qui, sul thread principale, e la scena restava ferma.
+        val rl = ResourceLoader(engine)
+        val async = rl.asyncBeginLoad(a)
+        if (async) loading += a to rl else { a.releaseSourceData(); rl.destroy() }
         val rm = engine.renderableManager
         for (e in a.renderableEntities) {
             val ri = rm.getInstance(e)
             rm.setCastShadows(ri, true)
             rm.setReceiveShadows(ri, true)
         }
-        scene.addEntities(a.entities)
+        if (!async) scene.addEntities(a.entities)
         return a
     }
 
     private fun destroyFurniture(a: FilamentAsset) {
+        val i = loading.indexOfFirst { it.first === a }
+        if (i >= 0) loading.removeAt(i).second.apply { asyncCancelLoad(); destroy() }
         scene.removeEntities(a.entities)
         assetLoader.destroyAsset(a)
+    }
+
+    /** A ogni fotogramma: le foto già decodificate vanno sulla scheda grafica; chi ha finito libera il suo caricatore. */
+    private fun updateLoading() {
+        val it = loading.iterator()
+        while (it.hasNext()) {
+            val (a, rl) = it.next()
+            rl.asyncUpdateLoad()
+            if (rl.asyncGetLoadProgress() >= 1f) {
+                scene.addEntities(a.entities)
+                a.releaseSourceData()
+                rl.destroy()
+                it.remove()
+            }
+        }
+        dirty = true
     }
 
     private fun removeFurniture(i: Int) = destroyFurniture(furniture.removeAt(i).second)

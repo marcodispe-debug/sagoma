@@ -608,14 +608,24 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     // guardando un interrato il prato resta lassù e la casa si vede in fondo allo scavo.
     val building = state.building
     val groundLevel = if (building.groundIndex > 0) building.elevation(building.groundIndex) - building.elevation(building.current) else null
-    val scene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, view.walking, noFurniture, phase, groundLevel) {
+    fun buildScene(pick: Pick?): Scene3D {
         fun shown(p: com.sagoma.planimetria.model.FloorPlan) = com.sagoma.planimetria.geometry.Phases.view(p, phase)
         val plan = shown(if (noFurniture) scenePlan.copy(furniture = emptyList()) else scenePlan)
-        Scene3D.build(
-            plan, state.focusedRoomId, selectedPick, ceilings = view.walking, levelHeight = state.levelHeight,
+        return Scene3D.build(
+            plan, state.focusedRoomId, pick, ceilings = view.walking, levelHeight = state.levelHeight,
             below = below.map { it.copy(plan = shown(it.plan)) }, above = above?.let { it.copy(plan = shown(it.plan)) },
             groundLevel = groundLevel,
         )
+    }
+    // Selezionando un mobile (o togliendo la selezione da un mobile) la geometria non cambia: si riusa la scena senza selezione
+    // e cambia solo il bagliore del mobile (Scene3D.withSelectedFurniture). Così il renderer non ricostruisce la casa.
+    val furniturePick = selectedPick as? Pick.Furniture
+    val geometryPick = if (furniturePick != null) null else selectedPick
+    val baseScene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, geometryPick, view.walking, noFurniture, phase, groundLevel) {
+        buildScene(geometryPick)
+    }
+    val scene = remember(baseScene, furniturePick) {
+        if (furniturePick == null) baseScene else baseScene.withSelectedFurniture(furniturePick.furnitureId) ?: buildScene(selectedPick)
     }
     LaunchedEffect(scene) { view.setScene(scene, building.elevation(building.current)) }
     // Catalogo scaricato a richiesta: i file che servono alla scena e non sono ancora qui si chiedono; quando arrivano la scena

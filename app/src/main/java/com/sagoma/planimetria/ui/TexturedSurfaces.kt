@@ -1,6 +1,9 @@
 package com.sagoma.planimetria.ui
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.google.android.filament.Box
 import com.google.android.filament.Colors
@@ -23,22 +26,42 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.nio.IntBuffer
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * Superfici con un materiale fotografico (pavimenti, rivestimenti) disegnate da Filament con le tre mappe
  * del materiale: colore, rilievo (normali) e ruvidità. Le texture si caricano una volta sola e si
  * riusano; la geometria si ricostruisce a ogni cambio della scena (è poca).
+ *
+ * Le tre foto si leggono e si decodificano in un thread a parte: intanto la superficie si vede con la miniatura del materiale
+ * (piccola, si decodifica subito), poi arriva il materiale vero e si chiama [onChange] per ridisegnare.
  */
 internal class TexturedSurfaces(
     private val engine: Engine,
     private val scene: Scene,
     private val provider: MaterialProvider,
     private val assets: AssetStore,
+    private val onChange: () -> Unit,
 ) {
     private class Mat(val instance: MaterialInstance, val textures: List<Texture>)
     private class Surface(val entity: Int, val vb: VertexBuffer, val ib: IndexBuffer)
 
+    /** Materiali veri, pronti (null = non disponibile). */
     private val mats = HashMap<String, Mat?>()
+    /** Materiali provvisori (la miniatura) per quelli che si stanno ancora decodificando. */
+    private val drafts = HashMap<String, Mat?>()
+    /** Materiali in decodifica. */
+    private val pending = HashSet<String>()
+    /** Materiali che non si sono potuti leggere: si riprova alla prossima [update] (il file può arrivare dal server). */
+    private val failed = HashSet<String>()
+    /** Le ultime superfici chieste: si ricostruiscono quando arriva un materiale vero. */
+    private var last: Map<String, FloatArray> = emptyMap()
+    private var destroyed = false
+    private val main = Handler(Looper.getMainLooper())
+    private val decoder: ExecutorService by lazy {
+        Executors.newSingleThreadExecutor { r -> Thread(r, "sagoma-materiali").apply { priority = Thread.NORM_PRIORITY - 1 } }
+    }
     private val surfaces = mutableListOf<Surface>()
     private val sampler = TextureSampler(TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR, TextureSampler.MagFilter.LINEAR, TextureSampler.WrapMode.REPEAT).apply { anisotropy = 4f }
     /** Texture bianca 1×1 per le mappe che il materiale non usa (occlusione, emissione…). */
@@ -49,16 +72,77 @@ internal class TexturedSurfaces(
         }
     }
 
+    /** Ci sono materiali mancanti: una nuova [update] li riprova anche se le superfici sono le stesse. */
+    val hasMissing: Boolean get() = failed.isNotEmpty()
+
     /** Sostituisce le superfici disegnate con quelle della scena (8 float per vertice, in cm). */
     fun update(textured: Map<String, FloatArray>) {
+        failed.clear()
+        rebuild(textured)
+    }
+
+    private fun rebuild(textured: Map<String, FloatArray>) {
         clear()
+        last = textured
         for ((id, data) in textured) {
             val n = data.size / 8
             if (n < 3) continue
-            val mat = mats.getOrPut(id) { load(id) } ?: continue
+            val mat = mats[id] ?: run {
+                if (id !in failed && pending.add(id)) {
+                    if (id !in drafts) drafts[id] = draft(id)
+                    requestLoad(id)
+                }
+                drafts[id]
+            } ?: continue
             surfaces += build(data, n, mat)
         }
     }
+
+    /** Legge e decodifica le tre foto in [decoder]; le texture si creano poi sul thread principale (con il motore). */
+    private fun requestLoad(id: String) {
+        decoder.execute {
+            val maps = runCatching { listOf(decode(id, "color"), decode(id, "normal"), decode(id, "orm")) }
+                .onFailure { Log.w("Sagoma", "materiale $id non disponibile", it) }.getOrNull()
+            main.post {
+                if (destroyed) { maps?.forEach(Bitmap::recycle); return@post }
+                pending.remove(id)
+                val mat = maps?.let { load(id, it) }
+                if (mat == null) {
+                    // Il file non c'è ancora (catalogo scaricato a richiesta): resta la miniatura, si riprova alla prossima scena.
+                    failed += id
+                    return@post
+                }
+                mats[id] = mat
+                // Le superfici si rifanno con il materiale vero, poi si butta quello provvisorio.
+                val d = drafts.remove(id)
+                rebuild(last)
+                d?.let(::destroyMat)
+                onChange()
+            }
+        }
+    }
+
+    private fun decode(id: String, suffix: String): Bitmap {
+        val bytes = assets.peek(AssetPaths.materialMap(id, suffix)) ?: error("${AssetPaths.materialMap(id, suffix)} non trovato")
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+            ?: error("${AssetPaths.materialMap(id, suffix)} non si legge")
+    }
+
+    /**
+     * Materiale provvisorio: solo il colore, dalla miniatura del materiale (che l'app ha sempre con sé). Se manca, null: la
+     * superficie aspetta il materiale vero.
+     */
+    private fun draft(id: String): Mat? = runCatching {
+        val bytes = assets.peek(AssetPaths.materialThumbnail(id)) ?: return null
+        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+            ?: return null
+        val color = texture(bmp, srgb = true)
+        val key = MaterialProvider.MaterialKey().apply { hasBaseColorTexture = true; baseColorUV = 0 }
+        val mi = provider.createMaterialInstance(key, IntArray(8), "sagoma_${id}_miniatura", null)!!
+        neutral(mi)
+        mi.setParameter("baseColorMap", color, sampler); mi.setParameter("baseColorIndex", 0)
+        Mat(mi, listOf(color))
+    }.onFailure { Log.w("Sagoma", "miniatura di $id non disponibile", it) }.getOrNull()
 
     private fun build(data: FloatArray, n: Int, mat: Mat): Surface {
         fun floats(count: Int) = ByteBuffer.allocateDirect(count * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
@@ -118,30 +202,38 @@ internal class TexturedSurfaces(
         return Surface(entity, vb, ib)
     }
 
-    /** Materiale del motore con le tre mappe di `materials/<id>_*.jpg`. */
-    private fun load(id: String): Mat? = runCatching {
-        fun texture(suffix: String, srgb: Boolean): Texture {
-            val bytes = assets.peek(AssetPaths.materialMap(id, suffix)) ?: error("${AssetPaths.materialMap(id, suffix)} non trovato")
-            val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 })!!
-            val t = Texture.Builder()
-                .width(bmp.width).height(bmp.height).levels(0xff)
-                .format(if (srgb) Texture.InternalFormat.SRGB8_A8 else Texture.InternalFormat.RGBA8)
-                .usage(Texture.Usage.DEFAULT or Texture.Usage.GEN_MIPMAPPABLE)
-                .build(engine)
-            TextureHelper.setBitmap(engine, t, 0, bmp)
-            t.generateMipmaps(engine)
-            return t
-        }
-        val color = texture("color", srgb = true)
-        val normal = texture("normal", srgb = false)
-        val orm = texture("orm", srgb = false)
+    /** Texture con le mipmap da una foto già decodificata (la foto si libera quando il motore l'ha copiata). */
+    private fun texture(bmp: Bitmap, srgb: Boolean): Texture {
+        val t = Texture.Builder()
+            .width(bmp.width).height(bmp.height).levels(0xff)
+            .format(if (srgb) Texture.InternalFormat.SRGB8_A8 else Texture.InternalFormat.RGBA8)
+            .usage(Texture.Usage.DEFAULT or Texture.Usage.GEN_MIPMAPPABLE)
+            .build(engine)
+        TextureHelper.setBitmap(engine, t, 0, bmp)
+        t.generateMipmaps(engine)
+        return t
+    }
+
+    /** Materiale del motore con le tre mappe di `materials/<id>_*.jpg` (colore, rilievo, ruvidità), già decodificate. */
+    private fun load(id: String, maps: List<Bitmap>): Mat? = runCatching {
+        val color = texture(maps[0], srgb = true)
+        val normal = texture(maps[1], srgb = false)
+        val orm = texture(maps[2], srgb = false)
         val key = MaterialProvider.MaterialKey().apply {
             hasBaseColorTexture = true; baseColorUV = 0
             hasNormalTexture = true; normalUV = 0
             hasMetallicRoughnessTexture = true; metallicRoughnessUV = 0
         }
         val mi = provider.createMaterialInstance(key, IntArray(8), "sagoma_$id", null)!!
-        // Valori neutri per tutto ciò che il materiale non usa, poi le nostre mappe.
+        neutral(mi)
+        mi.setParameter("normalMap", normal, sampler); mi.setParameter("normalIndex", 0)
+        mi.setParameter("metallicRoughnessMap", orm, sampler); mi.setParameter("metallicRoughnessIndex", 0)
+        mi.setParameter("baseColorMap", color, sampler); mi.setParameter("baseColorIndex", 0)
+        Mat(mi, listOf(color, normal, orm))
+    }.onFailure { Log.w("Sagoma", "materiale $id non disponibile", it) }.getOrNull()
+
+    /** Valori neutri per tutto ciò che il materiale non usa (le mappe vere si mettono dopo). */
+    private fun neutral(mi: MaterialInstance) {
         for (p in mi.material.parameters) {
             when {
                 p.type.name == "INT" && p.name.endsWith("Index") -> mi.setParameter(p.name, -1)
@@ -151,16 +243,17 @@ internal class TexturedSurfaces(
             }
         }
         fun has(name: String) = mi.material.hasParameter(name)
-        mi.setParameter("baseColorMap", color, sampler); mi.setParameter("baseColorIndex", 0)
-        mi.setParameter("normalMap", normal, sampler); mi.setParameter("normalIndex", 0)
-        mi.setParameter("metallicRoughnessMap", orm, sampler); mi.setParameter("metallicRoughnessIndex", 0)
         mi.setParameter("baseColorFactor", Colors.RgbaType.LINEAR, 1f, 1f, 1f, 1f)
         if (has("metallicFactor")) mi.setParameter("metallicFactor", 0f)
         if (has("roughnessFactor")) mi.setParameter("roughnessFactor", 1f)
         if (has("normalScale")) mi.setParameter("normalScale", 1f)
         if (has("emissiveFactor")) mi.setParameter("emissiveFactor", 0f, 0f, 0f)
-        Mat(mi, listOf(color, normal, orm))
-    }.onFailure { Log.w("Sagoma", "materiale $id non disponibile", it) }.getOrNull()
+    }
+
+    private fun destroyMat(m: Mat) {
+        engine.destroyMaterialInstance(m.instance)
+        m.textures.forEach(engine::destroyTexture)
+    }
 
     fun clear() {
         for (s in surfaces) {
@@ -175,11 +268,13 @@ internal class TexturedSurfaces(
 
     fun destroy() {
         clear()
-        for (m in mats.values) if (m != null) {
-            engine.destroyMaterialInstance(m.instance)
-            m.textures.forEach(engine::destroyTexture)
-        }
+        destroyed = true
+        // Quelle in coda non partono; quella in corso finisce a vuoto (vedi requestLoad).
+        decoder.shutdownNow()
+        for (m in mats.values + drafts.values) if (m != null) destroyMat(m)
         mats.clear()
+        drafts.clear()
+        pending.clear()
         engine.destroyTexture(white)
     }
 }
