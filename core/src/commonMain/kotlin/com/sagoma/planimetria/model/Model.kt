@@ -966,8 +966,8 @@ enum class RoofCovering(val argb: Long) {
 }
 
 /**
- * Tetto inclinato sopra l'ultimo piano, appoggiato sul suo solaio. Copre il rettangolo dei muri esterni del piano
- * (prototipo: le case a L hanno un tetto solo sul rettangolo che le contiene).
+ * Tetto inclinato sopra l'ultimo piano, appoggiato sul suo solaio. Segue la forma dei muri esterni del piano (ali a L, T, U)
+ * ([com.sagoma.planimetria.geometry.Roofs]); con muri storti, o con la falda unica, copre il rettangolo che li contiene.
  * [pitchDeg] pendenza delle falde in gradi; [overhang] quanto la gronda sporge oltre il muro (cm);
  * [turn] quarti di giro: con 0 il colmo corre lungo il lato più lungo (una falda: il lato basso è un lato lungo);
  * a ogni giro il colmo o il lato basso girano di 90°. Il padiglione ha sempre il colmo sul lato lungo.

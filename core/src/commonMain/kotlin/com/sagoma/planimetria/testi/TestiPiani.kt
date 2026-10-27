@@ -38,7 +38,7 @@ open class TestiPiani {
     // Tetto inclinato sopra l'ultimo piano.
     open val tettoMenu: String get() = "⌂ Tetto inclinato…"
     open val tetto: String get() = "Tetto inclinato"
-    open fun tettoSopra(name: Any?): String = "Il tetto sta sopra l'ultimo piano («$name») e copre il rettangolo dei suoi muri esterni. Tutto facoltativo: «Piano» lo toglie."
+    open fun tettoSopra(name: Any?): String = "Il tetto sta sopra l'ultimo piano («$name») e segue la forma dei suoi muri esterni (anche a L, a T o a U; con muri storti copre il rettangolo che li contiene). Tutto facoltativo: «Piano» lo toglie."
     open val forma: String get() = "Forma"
     open val tettoPiano: String get() = "Piano"
     open val unaFalda: String get() = "Una falda"

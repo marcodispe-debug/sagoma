@@ -660,7 +660,7 @@ private class SceneBuilder(
         plan = level.plan
         base = level.base
         current = level.current
-        val shape = Roofs.shape(r, Roofs.footprint(plan) ?: return) ?: return
+        val roofPlan = Roofs.plan(r, plan) ?: return
         val support = level.levelHeight
         val facade = coveringBase(plan.facadeOrPaint)
         // Solaio sopra l'ultimo piano: chiude lo spazio tra la cima dei muri e il tetto.
@@ -682,46 +682,49 @@ private class SceneBuilder(
             }
         }
         val cover = Rgba.argb(r.covering.argb)
-        val t = shape.thickness
-        val eaves = shape.eaves
-        fun onBorder(p: Vec2): Int = when {
-            abs(p.y - eaves.minY) < 0.01 -> 0
-            abs(p.x - eaves.maxX) < 0.01 -> 1
-            abs(p.y - eaves.maxY) < 0.01 -> 2
-            abs(p.x - eaves.minX) < 0.01 -> 3
-            else -> -1
-        }
-        val outward = listOf(Vec3(0.0, 0.0, -1.0), Vec3(1.0, 0.0, 0.0), Vec3(0.0, 0.0, 1.0), Vec3(-1.0, 0.0, 0.0))
-        for (f in shape.faces) {
-            val top = f.points.mapIndexed { k, p -> p.at(support + f.heights[k]) }
-            val bottom = f.points.mapIndexed { k, p -> p.at(support + f.heights[k] - t) }
-            var n = ((top[1] - top[0]) cross (top[2] - top[0])).normalized()
-            if (n.y < 0) n = n * -1.0
-            for (k in 1 until top.size - 1) {
-                tri(top[0], top[k], top[k + 1], n, cover, null)
-                tri(bottom[0], bottom[k], bottom[k + 1], n * -1.0, soffit, null)
+        // Ali del tetto (una sola per una casa rettangolare): dove si incontrano resta in vista la falda più alta.
+        for (shape in roofPlan.wings) {
+            val t = shape.thickness
+            val eaves = shape.eaves
+            fun onBorder(p: Vec2): Int = when {
+                abs(p.y - eaves.minY) < 0.01 -> 0
+                abs(p.x - eaves.maxX) < 0.01 -> 1
+                abs(p.y - eaves.maxY) < 0.01 -> 2
+                abs(p.x - eaves.minX) < 0.01 -> 3
+                else -> -1
             }
-            // Bordi della falda sul giro della gronda (le tavole di testa).
-            for (k in f.points.indices) {
-                val k2 = (k + 1) % f.points.size
-                val side = onBorder(f.points[k])
-                if (side < 0 || side != onBorder(f.points[k2])) continue
-                quad(bottom[k], bottom[k2], top[k2], top[k], outward[side], fascia, null)
+            val outward = listOf(Vec3(0.0, 0.0, -1.0), Vec3(1.0, 0.0, 0.0), Vec3(0.0, 0.0, 1.0), Vec3(-1.0, 0.0, 0.0))
+            for (f in shape.faces) {
+                val top = f.points.mapIndexed { k, p -> p.at(support + f.heights[k]) }
+                val bottom = f.points.mapIndexed { k, p -> p.at(support + f.heights[k] - t) }
+                var n = ((top[1] - top[0]) cross (top[2] - top[0])).normalized()
+                if (n.y < 0) n = n * -1.0
+                for (k in 1 until top.size - 1) {
+                    tri(top[0], top[k], top[k + 1], n, cover, null)
+                    tri(bottom[0], bottom[k], bottom[k + 1], n * -1.0, soffit, null)
+                }
+                // Bordi della falda sul giro della gronda (le tavole di testa).
+                for (k in f.points.indices) {
+                    val k2 = (k + 1) % f.points.size
+                    val side = onBorder(f.points[k])
+                    if (side < 0 || side != onBorder(f.points[k2])) continue
+                    quad(bottom[k], bottom[k2], top[k2], top[k], outward[side], fascia, null)
+                }
+                if (r.covering != com.sagoma.planimetria.model.RoofCovering.Metal) courses(f, support, n, cover, if (r.covering == com.sagoma.planimetria.model.RoofCovering.Tiles) 34.0 else 24.0)
             }
-            if (r.covering != com.sagoma.planimetria.model.RoofCovering.Metal) courses(f, support, n, cover, if (r.covering == com.sagoma.planimetria.model.RoofCovering.Tiles) 34.0 else 24.0)
-        }
-        // Timpani: muri a triangolo (o il muro alto della falda unica) del colore della facciata, visti da fuori e da dentro.
-        val mid = shape.walls.center
-        for (g in shape.gables) {
-            val pts = g.points.mapIndexed { k, p -> p.at(support + g.heights[k]) }
-            val a = g.points.first()
-            val b = g.points.firstOrNull { it.distanceTo(a) > 0.5 } ?: continue
-            var n = (b - a).perp().normalized()
-            if (((a + b) / 2.0 - mid) dot n < 0) n = n * -1.0
-            for (k in 1 until pts.size - 1) {
-                if (((pts[k] - pts[0]) cross (pts[k + 1] - pts[0])).length < 1e-6) continue
-                tri(pts[0], pts[k], pts[k + 1], n.dir(), facade, null)
-                tri(pts[0], pts[k], pts[k + 1], n.dir() * -1.0, wallSide, null)
+            // Timpani: muri a triangolo (o il muro alto della falda unica) del colore della facciata, visti da fuori e da dentro.
+            val mid = shape.walls.center
+            for (g in shape.gables) {
+                val pts = g.points.mapIndexed { k, p -> p.at(support + g.heights[k]) }
+                val a = g.points.first()
+                val b = g.points.firstOrNull { it.distanceTo(a) > 0.5 } ?: continue
+                var n = (b - a).perp().normalized()
+                if (((a + b) / 2.0 - mid) dot n < 0) n = n * -1.0
+                for (k in 1 until pts.size - 1) {
+                    if (((pts[k] - pts[0]) cross (pts[k + 1] - pts[0])).length < 1e-6) continue
+                    tri(pts[0], pts[k], pts[k + 1], n.dir(), facade, null)
+                    tri(pts[0], pts[k], pts[k + 1], n.dir() * -1.0, wallSide, null)
+                }
             }
         }
     }

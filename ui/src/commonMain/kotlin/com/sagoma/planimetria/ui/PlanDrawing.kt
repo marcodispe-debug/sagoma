@@ -451,22 +451,19 @@ internal fun DrawScope.drawWallCuts(state: EditorUiState) {
 private val RoofLineColor = Color(0xFF9C4A2E)
 
 /**
- * Tetto inclinato in pianta, solo all'ultimo piano: il giro della gronda, il colmo e i displuvi tratteggiati, come nelle
+ * Tetto inclinato in pianta, solo all'ultimo piano: il giro della gronda, i colmi, i displuvi e i compluvi tratteggiati, come nelle
  * piante dei progettisti (il tetto sta sopra il taglio della pianta).
  */
 internal fun DrawScope.drawRoof(state: EditorUiState) {
     val b = state.building
     val roof = b.roof ?: return
     if (b.current != b.floors.lastIndex) return
-    val shape = com.sagoma.planimetria.geometry.Roofs.footprint(state.plan)?.let { com.sagoma.planimetria.geometry.Roofs.shape(roof, it) } ?: return
+    val shape = com.sagoma.planimetria.geometry.Roofs.plan(roof, state.plan) ?: return
     val cam = state.camera
     val dash = PathEffect.dashPathEffect(floatArrayOf(9.dp.toPx(), 5.dp.toPx()))
-    val e = shape.eaves
-    val corners = listOf(Vec2(e.minX, e.minY), Vec2(e.maxX, e.minY), Vec2(e.maxX, e.maxY), Vec2(e.minX, e.maxY))
-    for (k in corners.indices) {
-        drawLine(RoofLineColor, cam.o(corners[k]), cam.o(corners[(k + 1) % 4]), strokeWidth = 1.5.dp.toPx(), pathEffect = dash)
-    }
-    for ((p, q) in shape.ridges) drawLine(RoofLineColor, cam.o(p), cam.o(q), strokeWidth = 1.2.dp.toPx(), pathEffect = dash)
+    // Gronda (segue la forma della casa), poi colmi, displuvi e compluvi.
+    for ((p, q) in shape.eaves) drawLine(RoofLineColor, cam.o(p), cam.o(q), strokeWidth = 1.5.dp.toPx(), pathEffect = dash)
+    for ((p, q) in shape.lines) drawLine(RoofLineColor, cam.o(p), cam.o(q), strokeWidth = 1.2.dp.toPx(), pathEffect = dash)
 }
 
 /** Mezzeria vera del muro `i`: spostata se il muro ha lo scalino, e accorciata o allungata dove il muro accanto è spostato. */

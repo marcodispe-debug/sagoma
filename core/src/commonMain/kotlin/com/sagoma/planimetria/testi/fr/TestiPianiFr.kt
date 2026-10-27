@@ -32,7 +32,7 @@ object TestiPianiFr : TestiPiani() {
     override val pianiComuni: List<String> get() = listOf("Rez-de-chaussée surélevé", "Demi-sous-sol", "Sous-sol", "Entresol", "Mezzanine")
     override val tettoMenu: String get() = "⌂ Toit en pente…"
     override val tetto: String get() = "Toit en pente"
-    override fun tettoSopra(name: Any?): String = "Le toit repose sur le dernier étage («$name») et couvre le rectangle de ses murs extérieurs. Tout est facultatif : «Plat» l'enlève."
+    override fun tettoSopra(name: Any?): String = "Le toit repose sur le dernier étage («$name») et suit la forme de ses murs extérieurs (aussi en L, en T ou en U ; avec des murs en biais, il couvre le rectangle qui les contient). Tout est facultatif : «Plat» l'enlève."
     override val forma: String get() = "Forme"
     override val tettoPiano: String get() = "Plat"
     override val unaFalda: String get() = "Un pan"

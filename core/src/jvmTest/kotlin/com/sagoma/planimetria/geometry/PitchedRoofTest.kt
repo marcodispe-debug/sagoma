@@ -118,4 +118,76 @@ class PitchedRoofTest {
         assertNull(Roofs.of(two), "ultimo piano vuoto: niente tetto")
         assertNotNull(Roofs.of(building))
     }
+
+    // ---------- Case a L, a T e a U: un'ala per braccio ----------
+
+    private fun room(id: Long, w: Double, d: Double, x: Double, y: Double) =
+        Room(id, "Stanza $id", RoomType.Camera, RoomFactory.rectangle(w, d).map { it + com.sagoma.planimetria.model.Vec2(x, y) })
+
+    /** L: stanza lunga in alto (1000×500) e braccio in basso a destra (400×500). */
+    private val lHouse = FloorPlan(listOf(room(1, 1000.0, 500.0, 0.0, 0.0), room(2, 400.0, 500.0, 600.0, 500.0)))
+
+    @Test
+    fun `casa a L - il braccio entra fino al colmo dell'ala lunga, con due compluvi a 45 gradi`() {
+        val p = assertNotNull(Roofs.plan(Roof(RoofKind.Gable, overhang = 50.0), lHouse))
+        assertEquals(2, p.wings.size)
+        val (main, arm) = p.wings
+        // Ala lunga: colmo lungo x a metà; braccio: colmo lungo y, che parte dal colmo dell'ala lunga.
+        close(main.walls.minY, -7.5); close(main.walls.maxY, 500.0)
+        close(arm.walls.minY, (main.walls.minY + main.walls.maxY) / 2)
+        assertEquals(1, arm.gables.size, "il braccio ha il timpano solo in fondo")
+        // Nessuna falda sopra l'angolo vuoto della L.
+        val empty = com.sagoma.planimetria.model.Vec2(300.0, 800.0)
+        assertTrue(p.wings.none { empty.x in it.eaves.minX..it.eaves.maxX && empty.y in it.eaves.minY..it.eaves.maxY })
+        // Compluvi: dagli angoli rientranti della gronda al punto dove il colmo del braccio incontra la falda dell'ala lunga.
+        assertEquals(2, p.valleys.size)
+        for ((a, b) in p.valleys) {
+            close(abs(a.x - b.x), abs(a.y - b.y))
+            close(b.x, 800.0); close(b.y, 500.0 - 207.5)
+        }
+        // Il colmo del braccio in pianta si ferma lì.
+        val armRidge = p.lines.first { (a, b) -> abs(a.x - 800.0) < 0.01 && abs(b.x - 800.0) < 0.01 }
+        close(minOf(armRidge.first.y, armRidge.second.y), 292.5)
+        // Giro della gronda: sei lati, come la L.
+        assertEquals(6, p.eaves.size)
+    }
+
+    @Test
+    fun `casa a T e a U - un braccio per parte`() {
+        val t = FloorPlan(listOf(room(1, 1200.0, 500.0, 0.0, 0.0), room(2, 400.0, 500.0, 400.0, 500.0)))
+        val tp = assertNotNull(Roofs.plan(Roof(RoofKind.Hip), t))
+        assertEquals(2, tp.wings.size)
+        assertEquals(2, tp.valleys.size)
+        assertEquals(8, tp.eaves.size)
+        val u = FloorPlan(listOf(room(1, 1000.0, 400.0, 0.0, 0.0), room(2, 300.0, 500.0, 0.0, 400.0), room(3, 300.0, 500.0, 700.0, 400.0)))
+        val up = assertNotNull(Roofs.plan(Roof(RoofKind.Gable), u))
+        assertEquals(3, up.wings.size)
+        assertEquals(4, up.valleys.size)
+        assertEquals(8, up.eaves.size)
+    }
+
+    @Test
+    fun `muri storti o falda unica - il tetto copre il rettangolo che contiene la casa`() {
+        val tilted = FloorPlan(listOf(Room(1, "Storta", RoomType.Camera, listOf(
+            com.sagoma.planimetria.model.Vec2(0.0, 0.0), com.sagoma.planimetria.model.Vec2(800.0, 100.0),
+            com.sagoma.planimetria.model.Vec2(750.0, 500.0), com.sagoma.planimetria.model.Vec2(-50.0, 400.0),
+        ))))
+        assertEquals(1, assertNotNull(Roofs.plan(Roof(RoofKind.Gable), tilted)).wings.size)
+        val shed = assertNotNull(Roofs.plan(Roof(RoofKind.Shed), lHouse))
+        assertEquals(1, shed.wings.size)
+        assertEquals(4, shed.eaves.size)
+    }
+
+    @Test
+    fun `nel 3D la L ha il tetto solo sopra la casa`() {
+        val scene = Scene3D.build(lHouse, null, null, ceilings = false, levelHeight = 300.0, roof = Roof(RoofKind.Gable))
+        var k = 0
+        while (k < scene.opaque.size) {
+            val x = scene.opaque[k]; val y = scene.opaque[k + 1]; val z = scene.opaque[k + 2]
+            assertTrue(!(x < 500f && z > 600f && y > 250f), "niente sopra l'angolo vuoto: $x $y $z")
+            k += Scene3D.FLOATS_PER_VERTEX
+        }
+        val p = assertNotNull(Roofs.plan(Roof(RoofKind.Gable), lHouse))
+        close(maxHeight(scene).toDouble(), 300.0 + p.ridgeHeight, 0.5)
+    }
 }

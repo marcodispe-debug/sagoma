@@ -32,7 +32,7 @@ object TestiPianiEs : TestiPiani() {
     override val pianiComuni: List<String> get() = listOf("Planta baja elevada", "Semisótano", "Sótano", "Entresuelo", "Altillo")
     override val tettoMenu: String get() = "⌂ Tejado inclinado…"
     override val tetto: String get() = "Tejado inclinado"
-    override fun tettoSopra(name: Any?): String = "El tejado está sobre la última planta («$name») y cubre el rectángulo de sus muros exteriores. Todo opcional: «Plano» lo quita."
+    override fun tettoSopra(name: Any?): String = "El tejado está sobre la última planta («$name») y sigue la forma de sus muros exteriores (también en L, en T o en U; con muros inclinados cubre el rectángulo que los contiene). Todo opcional: «Plano» lo quita."
     override val forma: String get() = "Forma"
     override val tettoPiano: String get() = "Plano"
     override val unaFalda: String get() = "Una vertiente"

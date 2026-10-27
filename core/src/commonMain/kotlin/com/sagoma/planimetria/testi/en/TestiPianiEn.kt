@@ -32,7 +32,7 @@ object TestiPianiEn : TestiPiani() {
     override val pianiComuni: List<String> get() = listOf("Raised ground floor", "Lower ground floor", "Basement", "Entresol", "Mezzanine")
     override val tettoMenu: String get() = "⌂ Pitched roof…"
     override val tetto: String get() = "Pitched roof"
-    override fun tettoSopra(name: Any?): String = "The roof sits on the top floor («$name») and covers the rectangle of its outer walls. All optional: «Flat» removes it."
+    override fun tettoSopra(name: Any?): String = "The roof sits on the top floor («$name») and follows the shape of its outer walls (also L, T or U shaped; with slanted walls it covers the rectangle around them). All optional: «Flat» removes it."
     override val forma: String get() = "Shape"
     override val tettoPiano: String get() = "Flat"
     override val unaFalda: String get() = "Single slope"

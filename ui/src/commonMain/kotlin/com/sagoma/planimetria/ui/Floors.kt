@@ -84,7 +84,7 @@ fun FloorButton(building: Building, vm: EditorViewModel, modifier: Modifier = Mo
 fun RoofDialog(building: Building, vm: EditorViewModel, onClose: () -> Unit) {
     val roof = building.roof
     val top = building.floors.last()
-    val shape = roof?.let { r -> com.sagoma.planimetria.geometry.Roofs.footprint(top.plan)?.let { com.sagoma.planimetria.geometry.Roofs.shape(r, it) } }
+    val shape = roof?.let { com.sagoma.planimetria.geometry.Roofs.plan(it, top.plan) }
     AlertDialog(
         onDismissRequest = onClose,
         title = { Text(T.piani.tetto) },
