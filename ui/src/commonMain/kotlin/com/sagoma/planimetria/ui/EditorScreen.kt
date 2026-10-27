@@ -826,6 +826,8 @@ private fun ArchitectureButton(
                     MenuEntry(T.editor.finestraFissa, opening(OpeningKind.Window1, preset = OpeningPreset.Fixed)),
                     MenuEntry(T.editor.finestraBilico, opening(OpeningKind.Window1, preset = OpeningPreset.PivotSash)),
                     MenuEntry(T.editor.finestra3Ante, opening(OpeningKind.Window2, preset = OpeningPreset.ThreeLeaves)),
+                    MenuEntry(T.editor.finestraAdArco, opening(OpeningKind.Window2, preset = OpeningPreset.ArchedWindow)),
+                    MenuEntry(T.editor.oblo, opening(OpeningKind.Window1, preset = OpeningPreset.RoundWindow)),
                     MenuEntry(T.editor.vetrataInterna, opening(OpeningKind.Window2, preset = OpeningPreset.InteriorGlazing)),
                 ),
             ),

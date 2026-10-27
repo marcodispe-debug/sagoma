@@ -19,6 +19,7 @@ import com.sagoma.planimetria.model.Shading
 import com.sagoma.planimetria.model.StairRailing
 import com.sagoma.planimetria.model.StairStructure
 import com.sagoma.planimetria.model.WindowModel
+import com.sagoma.planimetria.model.WindowShape
 import com.sagoma.planimetria.model.Covering
 import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.MaterialCatalog
@@ -1307,11 +1308,28 @@ private class SceneBuilder(
         val splay: Double = 0.0, val splayRoom: Long? = null, val splayRounded: Boolean = false,
         /** Nicchia: buca solo la fascia interna della stanza `splayRoom`, non il muro intero. */
         val niche: Boolean = false,
+        /** Varco tondo (oblò): cerchio con il diametro della larghezza, a partire da `bottom`. */
+        val round: Boolean = false,
     ) {
         val arched: Boolean get() = arch.arched
+        /** Bordi curvi: il muro attorno si fa a fettine. */
+        val curved: Boolean get() = arched || round
+
+        /** Bordo inferiore del varco nel punto t: dritto, o la metà bassa del cerchio. */
+        fun bottomAt(t: Double): Double {
+            if (!round) return bottom
+            val c = (t1 - t0) / 2
+            val x = (t - (t0 + t1) / 2).coerceIn(-c, c)
+            return bottom + c - sqrt(max(0.0, c * c - x * x))
+        }
 
         /** Bordo superiore del varco nel punto t: dritto, ad arco tondo, ribassato o a sesto acuto. */
         fun topAt(t: Double): Double {
+            if (round) {
+                val c = (t1 - t0) / 2
+                val x = (t - (t0 + t1) / 2).coerceIn(-c, c)
+                return bottom + c + sqrt(max(0.0, c * c - x * x))
+            }
             if (!arched) return top
             val c = (t1 - t0) / 2
             if (c < 1e-6) return top
@@ -1349,8 +1367,15 @@ private class SceneBuilder(
         // Il varco non supera il muro, che in mansarda può essere più basso dell'apertura.
         val top = min(wallTop((ta + tb) / 2) - 1, bottom + o.height)
         return Gap(
-            min(ta, tb), max(ta, tb), bottom, top, if (o.kind == OpeningKind.Passage) o.style else PassageStyle.Square, Pick.Opening(owner.id, o.id),
+            min(ta, tb), max(ta, tb), bottom, top,
+            when {
+                o.kind == OpeningKind.Passage -> o.style
+                o.shape == WindowShape.Arched -> PassageStyle.Arched
+                else -> PassageStyle.Square
+            },
+            Pick.Opening(owner.id, o.id),
             splay = Openings.splayOf(owner, o), splayRoom = owner.id, splayRounded = o.splayRounded, niche = o.kind == OpeningKind.Niche,
+            round = o.shape == WindowShape.Round,
         )
     }
 
@@ -1583,7 +1608,7 @@ private class SceneBuilder(
         val splayed = if (interior) faceGaps.filter { it.splay > 0 && it.splayRoom == room.id } else emptyList()
         @Suppress("NAME_SHADOWING")
         val gaps = if (splayed.isEmpty()) faceGaps else faceGaps.map { g ->
-            if (g in splayed) Gap(g.t0 - g.splay, g.t1 + g.splay, g.bottom, g.top, g.arch, g.pick, g.splay, g.splayRoom, g.splayRounded, g.niche) else g
+            if (g in splayed) Gap(g.t0 - g.splay, g.t1 + g.splay, g.bottom, g.top, g.arch, g.pick, g.splay, g.splayRoom, g.splayRounded, g.niche, g.round) else g
         }
         for (g in splayed) {
             val color = tint(paint, g.pick)
@@ -1612,7 +1637,7 @@ private class SceneBuilder(
         for (g in gaps) {
             add(g.t0); add(g.t1)
             // Varco ad arco: tante fettine, ognuna con il bordo inferiore inclinato lungo l'arco (curva continua).
-            if (g.arched) for (k in 1 until ARCH_SLICES) add(g.t0 + (g.t1 - g.t0) * k / ARCH_SLICES)
+            if (g.curved) for (k in 1 until ARCH_SLICES) add(g.t0 + (g.t1 - g.t0) * k / ARCH_SLICES)
         }
         val hw = half / 2
         val off = side * hw
@@ -1632,7 +1657,7 @@ private class SceneBuilder(
             var ranges = listOf(wallBottom..h)
             // Sotto una porta il pezzo nello spessore del solaio resta mezzo cm sotto il pavimento: alla stessa quota le due facce
             // sfarfallerebbero sulla soglia.
-            for (g in covering) ranges = ranges.flatMap { cut(it, (if (g.bottom < 0.01) g.bottom - THRESHOLD_SINK else g.bottom)..g.topAt(mid)) }
+            for (g in covering) ranges = ranges.flatMap { cut(it, (if (g.bottomAt(mid) < 0.01) g.bottomAt(mid) - THRESHOLD_SINK else g.bottomAt(mid))..g.topAt(mid)) }
             // Con un rivestimento fino a una certa altezza, il muro si divide in parte rivestita e parte dipinta.
             if (finish.covering != Covering.None) ranges = ranges.flatMap { r ->
                 if (coverTop > r.start + 0.05 && coverTop < r.endInclusive - 0.05) listOf(r.start..coverTop, coverTop..r.endInclusive) else listOf(r)
@@ -1651,8 +1676,12 @@ private class SceneBuilder(
                 val atTop = r.endInclusive >= h - 0.01
                 val topColor = if (atTop) wallTop else color
                 // Sopra un varco ad arco il bordo inferiore segue l'arco da un capo all'altro della fettina.
-                val arch = covering.firstOrNull { it.arched && abs(it.topAt(mid) - r.start) < 0.01 }
-                if (arch != null) {
+                val arch = covering.firstOrNull { it.curved && abs(it.topAt(mid) - r.start) < 0.01 }
+                // Sotto un oblò il bordo superiore segue la metà bassa del cerchio.
+                val under = covering.firstOrNull { it.round && abs(it.bottomAt(mid) - r.endInclusive) < 0.01 }
+                if (under != null) {
+                    slab(p0 + off, p1 + off, hw, r.start, r.start, under.bottomAt(c0), under.bottomAt(c1), color, pick, color)
+                } else if (arch != null) {
                     val t0 = if (atTop && sloped) topFn(c0) else r.endInclusive
                     val t1 = if (atTop && sloped) topFn(c1) else r.endInclusive
                     slab(p0 + off, p1 + off, hw, arch.topAt(c0), arch.topAt(c1), t0, t1, color, pick, topColor)
@@ -2083,6 +2112,7 @@ private class SceneBuilder(
     /** Finestra o balcone: telaio bianco e vetro; due ante con il montante centrale, scorrevoli sfalsate. */
     private fun window(a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, top: Double, o: Opening, pick: Pick) {
         if (current) windows += Scene3D.SceneWindow(((a + b) / 2.0).at((bottom + top) / 2), n.dir().normalized(), a.distanceTo(b), top - bottom)
+        if (o.shape != WindowShape.Rectangle) return shapedWindow(a, b, u, bottom, top, o, pick)
         // Minimal e loft: profili sottili; se l'infisso è bianco diventa antracite (nero il loft), come di solito sono.
         val minimal = o.windowModel == WindowModel.Minimal
         val loft = o.windowModel == WindowModel.Loft
@@ -2185,6 +2215,57 @@ private class SceneBuilder(
                     for (x in xs) box(a + u * (x - 1) + inner, a + u * (x + 1) + inner, 1.0, y - 7, y + 7, metal, pick)
                 }
             }
+        }
+    }
+
+    /**
+     * Finestra ad arco o tonda: telaio che segue il bordo del varco (a fettine) e vetro dentro. Ad arco con due ante ha il
+     * montante centrale fino all'imposta dell'arco; l'oblò ha una croce sottile se è grande.
+     */
+    private fun shapedWindow(a: Vec2, b: Vec2, u: Vec2, bottom: Double, top: Double, o: Opening, pick: Pick) {
+        val w = a.distanceTo(b)
+        val round = o.shape == WindowShape.Round
+        val gap = Gap(0.0, w, bottom, top, if (round) PassageStyle.Square else PassageStyle.Arched, pick, round = round)
+        val color = tint(Rgba.argb((if (o.windowModel == WindowModel.Minimal && o.color == null) Finish.Anthracite else o.finish).argb), pick)
+        val glassColor = tint(glass, pick).copy(a = glass.a)
+        val f = if (o.windowModel == WindowModel.Minimal) 3.0 else 5.0
+        val depth = 3.5
+        val slices = 24
+        val n = (b - a).perp().normalized()
+        for (k in 0 until slices) {
+            val t0 = w * k / slices
+            val t1 = w * (k + 1) / slices
+            val p0 = a + u * t0
+            val p1 = a + u * t1
+            val hi0 = gap.topAt(t0)
+            val hi1 = gap.topAt(t1)
+            val lo0 = gap.bottomAt(t0)
+            val lo1 = gap.bottomAt(t1)
+            // Telaio sopra (lungo l'arco o la metà alta del cerchio) e sotto (davanzale dritto o metà bassa del cerchio).
+            slab(p0, p1, depth, hi0 - f, hi1 - f, hi0, hi1, color, pick, color)
+            slab(p0, p1, depth, lo0, lo1, lo0 + f, lo1 + f, color, pick, color)
+            // Vetro: striscia tra telaio sotto e telaio sopra, visibile dai due lati.
+            val y00 = lo0 + f
+            val y01 = lo1 + f
+            val y10 = hi0 - f
+            val y11 = hi1 - f
+            if (y10 > y00 || y11 > y01) {
+                val nn = n.dir()
+                quad(p0.at(y00), p1.at(y01), p1.at(max(y11, y01)), p0.at(max(y10, y00)), nn, glassColor, pick, glassy = true)
+                quad(p0.at(y00), p1.at(y01), p1.at(max(y11, y01)), p0.at(max(y10, y00)), nn * -1.0, glassColor, pick, glassy = true)
+            }
+        }
+        if (!round) {
+            // Lati dritti fino all'imposta dell'arco.
+            val spring = gap.topAt(0.0)
+            box(a, a + u * f, depth, bottom, spring, color, pick)
+            box(b - u * f, b, depth, bottom, spring, color, pick)
+            if (o.leaves == 2) box(a + u * (w / 2 - 2.5), a + u * (w / 2 + 2.5), depth, bottom + f, gap.topAt(w / 2) - f, color, pick)
+        } else if (w >= 70) {
+            // Oblò grande: croce sottile.
+            val c = bottom + w / 2
+            box(a + u * (w / 2 - 1.5), a + u * (w / 2 + 1.5), depth - 0.5, bottom + f, bottom + w - f, color, pick)
+            box(a + u * f, b - u * f, depth - 0.5, c - 1.5, c + 1.5, color, pick)
         }
     }
 

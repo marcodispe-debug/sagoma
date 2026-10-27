@@ -29,6 +29,7 @@ import com.sagoma.planimetria.model.StairStructure
 import com.sagoma.planimetria.model.WallPaint
 import com.sagoma.planimetria.model.SashType
 import com.sagoma.planimetria.model.WindowModel
+import com.sagoma.planimetria.model.WindowShape
 import com.sagoma.planimetria.persistence.LanguageChoice
 import com.sagoma.planimetria.persistence.ThemeChoice
 import com.sagoma.planimetria.testi.Nomi
@@ -50,6 +51,12 @@ object NomiEn : Nomi() {
         Finish.Walnut -> "Walnut"
         Finish.Grey -> "Grey"
         Finish.Anthracite -> "Anthracite"
+    }
+
+    override fun windowShape(v: WindowShape): String = when (v) {
+        WindowShape.Rectangle -> "Rectangular"
+        WindowShape.Arched -> "Arched"
+        WindowShape.Round -> "Round"
     }
 
     override fun sashType(v: SashType): String = when (v) {

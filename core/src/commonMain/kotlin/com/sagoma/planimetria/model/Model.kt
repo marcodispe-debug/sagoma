@@ -199,6 +199,8 @@ data class Opening(
     val leafCount: Int = 0,
     /** Balconi e finestre scorrevoli: alzante scorrevole (un'anta fissa e una che scorre, telaio più robusto). */
     val liftSlide: Boolean = false,
+    /** Finestre e balconi: rettangolari, ad arco o (solo finestre) tonde. */
+    val windowShape: WindowShape = WindowShape.Rectangle,
 ) {
     /** Colore effettivo di anta e telaio. */
     val finish: Finish get() = color ?: if (kind.glazed) Finish.White else Finish.Oak
@@ -211,6 +213,12 @@ data class Opening(
     val hopper: Boolean get() = kind.glazed && !sliding && sash == SashType.Hopper
     /** Porta a libro. */
     val folds: Boolean get() = folding && !kind.glazed && kind.hasLeaves && !sliding
+    /** Forma effettiva: ad arco o tonda solo per finestre e balconi non scorrevoli (tonda solo le finestre). */
+    val shape: WindowShape get() = when {
+        !kind.glazed || sliding -> WindowShape.Rectangle
+        windowShape == WindowShape.Round && !kind.isWindow -> WindowShape.Rectangle
+        else -> windowShape
+    }
     /** Numero di ante: quelle del tipo, o 3-4 per finestre e balconi a 2 ante. */
     val leaves: Int get() = if (kind.glazed && kind.leaves == 2 && leafCount in 3..4) leafCount else kind.leaves
     /** Finestra a bilico: l'anta gira su un perno orizzontale a metà altezza. */

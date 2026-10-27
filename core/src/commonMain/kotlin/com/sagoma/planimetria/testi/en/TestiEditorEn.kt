@@ -63,6 +63,8 @@ object TestiEditorEn : TestiEditor() {
     override val vetrataInterna: String get() = "Interior glass wall (loft)"
     override val finestraBilico: String get() = "Pivot window"
     override val finestra3Ante: String get() = "Three-leaf window"
+    override val finestraAdArco: String get() = "Arched window"
+    override val oblo: String get() = "Round window"
     override val balcone4Ante: String get() = "Four-leaf French window"
     override val alzanteScorrevole: String get() = "Lift and slide door"
     override val nicchia: String get() = "▯ Wall niche"

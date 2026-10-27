@@ -196,6 +196,7 @@ open class TestiPannelli {
     open val sopraluce: String get() = "Sopraluce"
     open val vetroDiFianco: String get() = "Vetro di fianco"
     open val numeroAnte: String get() = "Numero di ante"
+    open val formaFinestra: String get() = "Forma"
     open val tipoScorrevole: String get() = "Scorrevole"
     open val alzante: String get() = "Alzante"
     open fun alzante2(label: Any?): String = "$label alzante scorrevole"

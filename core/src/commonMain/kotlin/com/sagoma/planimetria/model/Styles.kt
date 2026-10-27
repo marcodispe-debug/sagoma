@@ -64,6 +64,19 @@ enum class SashType {
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.sashType(this)
 }
 
+/** Forma di finestre e balconi. Si possono aggiungere forme, non rinominarle (finiscono nel file). */
+enum class WindowShape {
+    Rectangle,
+    /** Con la cima ad arco tondo. */
+    Arched,
+    /** Tonda (oblò): il diametro è la larghezza. Solo finestre. */
+    Round,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.windowShape(this)
+}
+
 /** Dove sta l'infisso di finestre e balconi nello spessore del muro. */
 enum class FramePosition {
     Center,

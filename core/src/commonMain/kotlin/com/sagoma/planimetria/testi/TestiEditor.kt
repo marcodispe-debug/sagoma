@@ -62,6 +62,8 @@ open class TestiEditor {
     open val vetrataInterna: String get() = "Vetrata interna (loft)"
     open val finestraBilico: String get() = "Finestra a bilico"
     open val finestra3Ante: String get() = "Finestra a 3 ante"
+    open val finestraAdArco: String get() = "Finestra ad arco"
+    open val oblo: String get() = "Finestra tonda (oblò)"
     open val balcone4Ante: String get() = "Balcone a 4 ante"
     open val alzanteScorrevole: String get() = "Alzante scorrevole"
     open val nicchia: String get() = "▯ Nicchia nel muro"

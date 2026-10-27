@@ -63,6 +63,8 @@ object TestiEditorFr : TestiEditor() {
     override val vetrataInterna: String get() = "Verrière d'intérieur"
     override val finestraBilico: String get() = "Fenêtre basculante"
     override val finestra3Ante: String get() = "Fenêtre 3 vantaux"
+    override val finestraAdArco: String get() = "Fenêtre cintrée"
+    override val oblo: String get() = "Fenêtre ronde (œil-de-bœuf)"
     override val balcone4Ante: String get() = "Porte-fenêtre 4 vantaux"
     override val alzanteScorrevole: String get() = "Baie levante-coulissante"
     override val nicchia: String get() = "▯ Niche murale"

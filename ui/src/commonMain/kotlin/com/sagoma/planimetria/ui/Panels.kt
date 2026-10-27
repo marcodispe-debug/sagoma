@@ -77,6 +77,7 @@ import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.StairRailing
 import com.sagoma.planimetria.model.StairStructure
 import com.sagoma.planimetria.model.WindowModel
+import com.sagoma.planimetria.model.WindowShape
 import androidx.compose.ui.graphics.Color
 
 /** Nome breve del tipo di scala (schede di scelta e titolo). */
@@ -826,10 +827,19 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
     val tabs = buildList {
         add(InfoTab("misure", T.schedaStanza.misure) {
             Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                NumberField(T.comuni.larghezza, o.width, Modifier.weight(1f)) { v -> update { it.copy(width = v) } }
-                NumberField(T.comuni.altezza, o.height, Modifier.weight(1f)) { v -> update { it.copy(height = v) } }
+                // Oblò: il diametro è la larghezza, l'altezza la segue.
+                val round = o.shape == WindowShape.Round
+                NumberField(T.comuni.larghezza, o.width, Modifier.weight(1f)) { v -> update { it.copy(width = v, height = if (round) v else it.height) } }
+                if (!round) NumberField(T.comuni.altezza, o.height, Modifier.weight(1f)) { v -> update { it.copy(height = v) } }
                 if (o.kind.hasSill) {
                     NumberField(T.comuni.daTerra, o.sillHeight, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(sillHeight = v) } }
+                }
+            }
+            // Finestre e balconi non scorrevoli: rettangolari, ad arco o (finestre) tonde.
+            if (o.kind.glazed && !o.sliding) Row(Modifier.padding(end = 8.dp)) {
+                val shapes = WindowShape.entries.filter { it != WindowShape.Round || o.kind.isWindow }
+                Choice(T.pannelli.formaFinestra, shapes.map { it.label }, shapes.indexOf(o.shape).coerceAtLeast(0), Modifier.weight(1f)) { i ->
+                    update { if (shapes[i] == WindowShape.Round) it.copy(windowShape = shapes[i], height = it.width) else it.copy(windowShape = shapes[i]) }
                 }
             }
             if (o.kind.glazed) {

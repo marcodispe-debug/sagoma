@@ -196,6 +196,7 @@ object TestiPannelliEs : TestiPannelli() {
     override val sopraluce: String get() = "Montante"
     override val vetroDiFianco: String get() = "Vidrio lateral"
     override val numeroAnte: String get() = "Número de hojas"
+    override val formaFinestra: String get() = "Forma"
     override val tipoScorrevole: String get() = "Corredera"
     override val alzante: String get() = "Elevable"
     override fun alzante2(label: Any?): String = "$label, elevable"

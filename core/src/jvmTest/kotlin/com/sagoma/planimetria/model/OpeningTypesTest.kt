@@ -184,6 +184,26 @@ class OpeningTypesTest {
     }
 
     @Test
+    fun `oblò e finestra ad arco - il muro segue il bordo curvo`() {
+        val round = OpeningPreset.RoundWindow.apply(Opening.default(1, OpeningKind.Window1, 0, 200.0)) // Ø 60 da 130: centro a 160
+        val s = scene(round)
+        assertEquals(Pick.Opening(1, 1), assertNotNull(fromInside(s, 200.0, 160.0)).pick)
+        // Nell'angolo del quadrato attorno al cerchio c'è muro (la faccia a 7,5 cm), sopra e sotto; il vetro sta a metà muro.
+        fun z(sc: Scene3D, x: Double, y: Double) = assertNotNull(fromInside(sc, x, y)).point.z
+        assertTrue(z(s, 174.0, 134.0) > 7.0)
+        assertTrue(z(s, 174.0, 186.0) > 7.0)
+        assertTrue(z(s, 200.0, 160.0) < 5.0)
+        assertTrue(z(scene(round.copy(windowShape = WindowShape.Rectangle)), 174.0, 134.0) < 5.0)
+        // Ad arco: 80 × 160 da 90, arco alto 40 cm; vicino allo spigolo in alto c'è muro.
+        val arched = OpeningPreset.ArchedWindow.apply(Opening.default(1, OpeningKind.Window1, 0, 200.0))
+        assertTrue(z(scene(arched), 163.0, 240.0) > 7.0)
+        assertTrue(z(scene(arched), 200.0, 240.0) < 5.0)
+        // Un balcone non può essere tondo; da scorrevole torna rettangolare.
+        assertEquals(WindowShape.Rectangle, Opening.default(1, OpeningKind.Balcony1, 0, 200.0).copy(windowShape = WindowShape.Round).shape)
+        assertEquals(WindowShape.Rectangle, arched.copy(sliding = true).shape)
+    }
+
+    @Test
     fun `i dati nuovi si salvano e si rileggono`() {
         val openings = listOf(
             OpeningPreset.WallSlide.apply(Opening.default(1, OpeningKind.Door, 0, 100.0)),
@@ -202,6 +222,8 @@ class OpeningTypesTest {
             OpeningPreset.LiftSlide.apply(Opening.default(14, OpeningKind.Balcony2, 2, 200.0)),
             OpeningPreset.PivotSash.apply(Opening.default(15, OpeningKind.Window1, 1, 200.0)).copy(shading = Shading.Venetian),
             Opening.default(16, OpeningKind.Window2, 3, 200.0).copy(shading = Shading.InteriorShutters),
+            OpeningPreset.RoundWindow.apply(Opening.default(17, OpeningKind.Window1, 0, 330.0)),
+            OpeningPreset.ArchedWindow.apply(Opening.default(18, OpeningKind.Window2, 2, 100.0)),
         )
         val plan = FloorPlan(listOf(room(*openings.toTypedArray())))
         assertEquals(openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
