@@ -56,4 +56,14 @@ object TestiControlloEn : TestiControllo() {
     override fun soggiornoPiccolo(a: String, m2: String): String = "$a: $m2 m²; the living room needs at least 14."
     override fun bagnoSenzaFinestra(a: String): String =
         "$a: no opening window to the outside; the bathroom needs mechanical extraction (and no open-flame appliances)."
+    override fun bagnoIncompleto(a: String, manca: String): String =
+        "$a: no $manca. At least one bathroom in the home needs a toilet, a bidet, a bath or shower and a washbasin."
+    override val vaso: String get() = "toilet"
+    override val bide: String get() = "bidet"
+    override val vascaODoccia: String get() = "bath or shower"
+    override val lavabo: String get() = "washbasin"
+    override fun casaPiccola(m2: String, persone: Int, min: String): String =
+        "The home has $m2 m² for $persone people (counted from the beds); it needs at least $min (14 m² each for the first 4, 10 for the others)."
+    override fun monolocalePiccolo(m2: String, min: String, perDue: Boolean): String =
+        "Studio flat of $m2 m²: it needs at least $min for ${if (perDue) "two people" else "one person"}, bathroom included."
 }

@@ -17,8 +17,9 @@ import kotlin.math.roundToInt
  * Luce e aria naturali delle stanze (rapporto aeroilluminante) e minimi delle norme italiane per le case (DM 5 luglio 1975):
  * finestre apribili che danno fuori almeno 1/8 del pavimento nelle stanze da abitare, soffitti alti almeno 2,70 m (2,40 in
  * bagni e corridoi), camere da letto di almeno 9 m² (14 per due persone: un letto matrimoniale o a castello, due letti) e
- * soggiorno di almeno 14 m²; il bagno senza finestra verso fuori ha bisogno dell'aspirazione meccanica. Si guarda la casa come
- * sarà (stato di progetto).
+ * soggiorno di almeno 14 m²; il bagno senza finestra verso fuori ha bisogno dell'aspirazione meccanica; almeno un bagno con vaso,
+ * bidè, vasca o doccia e lavabo; 14 m² a persona per le prime quattro e 10 per le altre, il monolocale almeno 28 m² (38 per due).
+ * Si guarda la casa come sarà (stato di progetto).
  */
 object HousingRules {
     /** Finestre apribili almeno 1/8 del pavimento nelle stanze da abitare. */
@@ -168,6 +169,39 @@ object HousingRules {
         if (inside.size < 3) return 0
         return plan.furniture.filter { Polygon.contains(inside, it.center) }.sumOf { sleepers(it) }
     }
+
+    /** Sanitari che almeno un bagno della casa deve avere. */
+    enum class Sanitary { Toilet, Bidet, BathOrShower, Basin }
+
+    /**
+     * Che sanitario è l'arredo `f` (null se non lo è), dal nome italiano degli arredi da bagno del catalogo (il lavello della cucina
+     * «a una vasca» non è una vasca). Largo di manica: la porta della doccia o il miscelatore della vasca dicono che la doccia o la
+     * vasca ci sono.
+     */
+    fun sanitary(f: Furniture): Sanitary? {
+        val item = FurnitureCatalog.item(f.model)?.takeIf { it.category == "Bagno" } ?: return null
+        val label = item.label
+        return when {
+            label.startsWith("Water") || label.startsWith("WC") || label.startsWith("Toilette") || label.startsWith("Turca") -> Sanitary.Toilet
+            label.startsWith("Bidè") || label.startsWith("Bidet") -> Sanitary.Bidet
+            label.contains("vasca", ignoreCase = true) || label.contains("doccia", ignoreCase = true) -> Sanitary.BathOrShower
+            label.contains("lavabo", ignoreCase = true) || label.startsWith("Lavandino") || label.startsWith("Lavamani") -> Sanitary.Basin
+            else -> null
+        }
+    }
+
+    /** Sanitari nella stanza: gli arredi col centro dentro. */
+    fun sanitaries(plan: FloorPlan, room: Room): Set<Sanitary> {
+        val inside = room.interior()
+        if (inside.size < 3) return emptySet()
+        return plan.furniture.filter { Polygon.contains(inside, it.center) }.mapNotNull { sanitary(it) }.toSet()
+    }
+
+    /** Superficie minima (cm²) della casa per `persons` persone: 14 m² a testa per le prime quattro, 10 per le altre. */
+    fun minHome(persons: Int): Double = (14.0 * min(persons, 4) + 10.0 * (persons - 4).coerceAtLeast(0)) * 10_000
+
+    /** Superficie minima (cm²) del monolocale, bagno compreso: 28 m² per una persona, 38 per due. */
+    fun minStudio(persons: Int): Double = if (persons >= 2) 380_000.0 else 280_000.0
 
     /** Superficie minima (cm²) della camera da letto, per una persona o per due secondo i letti che ci sono. */
     fun minBedroom(plan: FloorPlan, room: Room): Double = if (sleepers(plan, room) >= 2) MIN_DOUBLE_BEDROOM_CM2 else MIN_BEDROOM_CM2

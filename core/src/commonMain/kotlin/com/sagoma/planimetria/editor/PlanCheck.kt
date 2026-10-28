@@ -71,6 +71,9 @@ object PlanCheck {
         SmallBedroom(false, rule = true),
         SmallLiving(false, rule = true),
         BathNoWindow(false, rule = true),
+        BathIncomplete(false, rule = true),
+        SmallHome(false, rule = true),
+        SmallStudio(false, rule = true),
     }
 
     /**
@@ -90,6 +93,7 @@ object PlanCheck {
         val opening: OpeningKind? = null,
         val opening2: OpeningKind? = null,
         val furniture: Long? = null,
+        val count: Int = 0,
     )
 
     /** Oltre questi non si cerca altro: una pianta così ha bisogno di essere ridisegnata, non di un elenco infinito. */
@@ -154,8 +158,43 @@ object PlanCheck {
             val plan = sane(b.floors[f].plan)
             plan.rooms.firstOrNull { !it.outdoor }?.let { r -> out += Issue(Kind.NoEntrance, f, listOf(r.id), boundsOf(plan.rooms.flatMap { it.points })) }
         }
+        if (out.size < MAX_ISSUES) home(b, out)
         // Prima gli errori, poi le cose da controllare e le norme; ognuno nell'ordine dei piani.
         return out.sortedWith(compareBy({ !it.kind.error }, { it.kind.rule }, { it.floor })).take(MAX_ISSUES)
+    }
+
+    /**
+     * Norme per tutta la casa (se ha un bagno e un soggiorno o una cucina: è un'abitazione intera, non una stanza da arredare o un
+     * pezzo di casa): almeno un bagno con vaso, bidè, vasca o doccia e lavabo (se nei bagni ci sono già dei sanitari), metri quadri
+     * per le persone che ci dormono, monolocale.
+     */
+    private fun home(b: Building, out: MutableList<Issue>) {
+        val floors = b.floors.mapIndexed { f, fl -> f to Phases.view(sane(fl.plan), PhaseView.Project) }
+        val baths = floors.flatMap { (f, p) -> p.rooms.filter { it.type == RoomType.Bagno && !it.outdoor && !HousingRules.demolished(it) }.map { Triple(f, p, it) } }
+        if (baths.isEmpty()) return
+        val living = floors.any { (_, p) -> p.rooms.any { (it.type == RoomType.Soggiorno || it.type == RoomType.Cucina) && !it.outdoor && !HousingRules.demolished(it) } }
+        if (!living) return
+        val found = baths.map { (f, p, r) -> Triple(f, r, HousingRules.sanitaries(p, r)) }
+        if (found.any { it.third.isNotEmpty() } && found.none { it.third.size == HousingRules.Sanitary.entries.size }) {
+            // Il bagno più completo, con quello che manca.
+            val (f, r, has) = found.maxBy { it.third.size }
+            val mask = has.fold(0) { m, s -> m or (1 shl s.ordinal) }
+            out += Issue(Kind.BathIncomplete, f, listOf(r.id), Polygon.bounds(r.points).grow(60.0), count = mask)
+        }
+        val indoor = floors.flatMap { (f, p) -> p.rooms.filter { !it.outdoor && !HousingRules.demolished(it) && it.points.size >= 3 }.map { f to it } }
+        val area = indoor.sumOf { it.second.usableArea() }
+        val persons = floors.sumOf { (_, p) -> p.furniture.sumOf { HousingRules.sleepers(it) } }
+        val spaces = floors.sumOf { (_, p) -> HousingRules.livingSpaces(p).size }
+        val f = b.ground.coerceIn(b.floors.indices)
+        val box = boundsOf(indoor.filter { it.first == f }.flatMap { it.second.points }.ifEmpty { indoor.flatMap { it.second.points } }).grow(60.0)
+        fun hundredths(cm2: Double) = (cm2 / 100).roundToInt()
+        if (spaces == 1) {
+            val min = HousingRules.minStudio(persons)
+            if (hundredths(area) < hundredths(min)) out += Issue(Kind.SmallStudio, f, emptyList(), box, a = area / 10_000, b = min / 10_000, count = persons)
+        } else if (persons >= 2) {
+            val min = HousingRules.minHome(persons)
+            if (hundredths(area) < hundredths(min)) out += Issue(Kind.SmallHome, f, emptyList(), box, a = area / 10_000, b = min / 10_000, count = persons)
+        }
     }
 
     /** Testo del problema nella lingua dell'app, con i nomi delle stanze. */
@@ -198,6 +237,19 @@ object PlanCheck {
             else t.soffittoBasso(name(0), formatDecimal(i.a / 100, 2))
             Kind.SmallBedroom -> if (i.b * 10_000 >= HousingRules.MIN_DOUBLE_BEDROOM_CM2) t.cameraPerDuePiccola(name(0), m2(i.a)) else t.cameraPiccola(name(0), m2(i.a))
             Kind.BathNoWindow -> t.bagnoSenzaFinestra(name(0))
+            Kind.BathIncomplete -> t.bagnoIncompleto(
+                name(0),
+                HousingRules.Sanitary.entries.filter { (i.count shr it.ordinal) and 1 == 0 }.joinToString(", ") { s ->
+                    when (s) {
+                        HousingRules.Sanitary.Toilet -> t.vaso
+                        HousingRules.Sanitary.Bidet -> t.bide
+                        HousingRules.Sanitary.BathOrShower -> t.vascaODoccia
+                        HousingRules.Sanitary.Basin -> t.lavabo
+                    }
+                },
+            )
+            Kind.SmallHome -> t.casaPiccola(m2(i.a), i.count, formatDecimal(i.b, 0))
+            Kind.SmallStudio -> t.monolocalePiccolo(m2(i.a), formatDecimal(i.b, 0), i.count >= 2)
             Kind.SmallLiving -> t.soggiornoPiccolo(all, m2(i.a))
         }
     }

@@ -276,4 +276,50 @@ class PlanCheckTest {
         val fixed = bath.copy(openings = listOf(Opening.default(2, OpeningKind.Window1, 0, 100.0).copy(sash = com.sagoma.planimetria.model.SashType.Fixed)))
         assertTrue(PlanCheck.of(Building.single(FloorPlan(listOf(bedroom, fixed)))).any { it.kind == PlanCheck.Kind.BathNoWindow })
     }
+
+    @Test
+    fun `norme - sanitari del bagno, monolocale e metri quadri per persona`() {
+        val saved = com.sagoma.planimetria.model.FurnitureCatalog.items
+        try {
+            fun item(model: String, label: String) = com.sagoma.planimetria.model.FurnitureCatalog.Item(model = model, label = label, category = "Bagno", width = 40.0, depth = 50.0, height = 40.0)
+            com.sagoma.planimetria.model.FurnitureCatalog.set(listOf(item("wc", "WC moderno"), item("bide", "Bidè"), item("doccia", "Box doccia"), item("lavabo", "Lavabo a colonna")))
+            val big = Opening.default(1, OpeningKind.Window2, 2, 300.0).copy(width = 200.0, height = 200.0)
+            // Soggiorno 600×500 (28,37 m²) e bagno 200×250 (4,35 m²) con la finestra: un monolocale di 32,72 m².
+            val living = rect(1, "Soggiorno", RoomType.Soggiorno, 600.0, 500.0, openings = listOf(big))
+            val bath = rect(2, "Bagno", RoomType.Bagno, 200.0, 250.0, Vec2(600.0, 0.0), openings = listOf(Opening.default(2, OpeningKind.Window1, 0, 100.0)))
+            fun thing(id: Long, model: String, x: Double) = com.sagoma.planimetria.model.Furniture(id, model, Vec2(x, 100.0), width = 40.0, depth = 50.0, height = 40.0)
+            val wc = thing(1, "wc", 640.0)
+            val bide = thing(2, "bide", 690.0)
+            val shower = thing(3, "doccia", 740.0)
+            val basin = thing(4, "lavabo", 780.0)
+            val bed = com.sagoma.planimetria.model.Furniture(5, "mobile:letto:rovere", Vec2(300.0, 250.0), width = 160.0, depth = 205.0, height = 100.0)
+            fun house(vararg f: com.sagoma.planimetria.model.Furniture) = Building.single(FloorPlan(listOf(living, bath), furniture = f.toList()))
+            fun rulesOf(b: Building) = PlanCheck.of(b).filter { it.kind.rule }
+            // Bagno ancora da arredare: niente. Arredato a metà: cosa manca.
+            assertEquals(emptyList(), rulesOf(house()))
+            val i = rulesOf(house(wc, shower)).single()
+            assertEquals(PlanCheck.Kind.BathIncomplete, i.kind)
+            assertEquals("«Bagno»: senza bidè, lavabo. Almeno un bagno della casa deve avere vaso, bidè, vasca o doccia e lavabo.", PlanCheck.describe(i, house(wc, shower)))
+            assertEquals(emptyList(), rulesOf(house(wc, bide, shower, basin)))
+            // Con un letto matrimoniale il monolocale deve avere almeno 38 m².
+            val studio = rulesOf(house(bed)).single()
+            assertEquals(PlanCheck.Kind.SmallStudio, studio.kind)
+            assertEquals("Monolocale di 32,72 m²: ne servono almeno 38 per due persone, bagno compreso.", PlanCheck.describe(studio, house(bed)))
+            // Casa con soggiorno e camera (14,82 m² l'una) per quattro persone: 33,99 m² invece di 56.
+            val window = Opening.default(1, OpeningKind.Window2, 2, 200.0).copy(height = 160.0)
+            val room = rect(1, "Soggiorno", RoomType.Soggiorno, 400.0, 400.0, openings = listOf(window))
+            val bedroom = rect(3, "Camera", RoomType.Camera, 400.0, 400.0, Vec2(400.0, 0.0), openings = listOf(window.copy(id = 3)))
+            val bath2 = bath.copy(points = bath.points.map { it + Vec2(200.0, 0.0) })
+            val beds = listOf(bed.copy(center = Vec2(500.0, 200.0)), bed.copy(id = 6, center = Vec2(700.0, 200.0)))
+            val home = Building.single(FloorPlan(listOf(room, bedroom, bath2), furniture = beds))
+            val small = rulesOf(home).single()
+            assertEquals(PlanCheck.Kind.SmallHome, small.kind)
+            assertEquals("La casa ha 33,99 m² per 4 persone (contate dai letti); ne servono almeno 56 (14 m² a testa per le prime 4, 10 per le altre).", PlanCheck.describe(small, home))
+            // Senza bagno, o senza soggiorno né cucina, è solo una parte della casa (o una stanza da arredare): queste norme non si guardano.
+            assertEquals(emptyList(), rulesOf(Building.single(FloorPlan(listOf(room, bedroom), furniture = beds))))
+            assertEquals(emptyList(), rulesOf(Building.single(FloorPlan(listOf(bedroom, bath2), furniture = beds))))
+        } finally {
+            com.sagoma.planimetria.model.FurnitureCatalog.set(saved)
+        }
+    }
 }

@@ -99,4 +99,39 @@ class HousingRulesTest {
         assertFalse(HousingRules.flatCeiling(room.copy(wallHeights = mapOf(0 to 180.0))))
         assertFalse(HousingRules.flatCeiling(room.copy(wallCuts = mapOf(0 to com.sagoma.planimetria.model.WallCut(true, 100.0)))))
     }
+
+    @Test
+    fun `sanitari del bagno e metri quadri per persona`() {
+        val saved = com.sagoma.planimetria.model.FurnitureCatalog.items
+        try {
+            fun item(model: String, label: String, category: String = "Bagno") =
+                com.sagoma.planimetria.model.FurnitureCatalog.Item(model = model, label = label, category = category, width = 40.0, depth = 40.0, height = 40.0)
+            com.sagoma.planimetria.model.FurnitureCatalog.set(
+                listOf(
+                    item("wc", "WC sospeso"), item("bide", "Bidè"), item("porta", "Porta doccia"), item("vasca", "Vasca ad angolo"),
+                    item("lavandino", "Lavandino con specchio"), item("lavello", "Lavello nero a una vasca", "Cucina"), item("tappeto", "Tappetino grigio"),
+                ),
+            )
+            fun f(model: String, x: Double = 100.0) = com.sagoma.planimetria.model.Furniture(1, model, Vec2(x, 100.0), width = 40.0, depth = 40.0, height = 40.0)
+            assertEquals(HousingRules.Sanitary.Toilet, HousingRules.sanitary(f("wc")))
+            assertEquals(HousingRules.Sanitary.Bidet, HousingRules.sanitary(f("bide")))
+            assertEquals(HousingRules.Sanitary.BathOrShower, HousingRules.sanitary(f("porta")))
+            assertEquals(HousingRules.Sanitary.BathOrShower, HousingRules.sanitary(f("vasca")))
+            assertEquals(HousingRules.Sanitary.Basin, HousingRules.sanitary(f("lavandino")))
+            // Il lavello della cucina «a una vasca» e il tappetino non sono sanitari.
+            assertEquals(null, HousingRules.sanitary(f("lavello")))
+            assertEquals(null, HousingRules.sanitary(f("tappeto")))
+            // Nella stanza contano gli arredi col centro dentro.
+            val bath = rect(1, RoomType.Bagno, 200.0, 250.0)
+            val plan = FloorPlan(listOf(bath), furniture = listOf(f("wc"), f("lavandino"), f("bide", 500.0)))
+            assertEquals(setOf(HousingRules.Sanitary.Toilet, HousingRules.Sanitary.Basin), HousingRules.sanitaries(plan, bath))
+        } finally {
+            com.sagoma.planimetria.model.FurnitureCatalog.set(saved)
+        }
+        assertEquals(140_000.0, HousingRules.minHome(1))
+        assertEquals(560_000.0, HousingRules.minHome(4))
+        assertEquals(760_000.0, HousingRules.minHome(6))
+        assertEquals(280_000.0, HousingRules.minStudio(1))
+        assertEquals(380_000.0, HousingRules.minStudio(2))
+    }
 }

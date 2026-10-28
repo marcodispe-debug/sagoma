@@ -56,4 +56,14 @@ open class TestiControllo {
     open fun soggiornoPiccolo(a: String, m2: String): String = "$a: $m2 m²; il soggiorno deve averne almeno 14."
     open fun bagnoSenzaFinestra(a: String): String =
         "$a: nessuna finestra apribile verso fuori; il bagno ha bisogno dell'aspirazione meccanica (e niente apparecchi a fiamma libera)."
+    open fun bagnoIncompleto(a: String, manca: String): String =
+        "$a: senza $manca. Almeno un bagno della casa deve avere vaso, bidè, vasca o doccia e lavabo."
+    open val vaso: String get() = "vaso"
+    open val bide: String get() = "bidè"
+    open val vascaODoccia: String get() = "vasca o doccia"
+    open val lavabo: String get() = "lavabo"
+    open fun casaPiccola(m2: String, persone: Int, min: String): String =
+        "La casa ha $m2 m² per $persone persone (contate dai letti); ne servono almeno $min (14 m² a testa per le prime 4, 10 per le altre)."
+    open fun monolocalePiccolo(m2: String, min: String, perDue: Boolean): String =
+        "Monolocale di $m2 m²: ne servono almeno $min per ${if (perDue) "due persone" else "una persona"}, bagno compreso."
 }
