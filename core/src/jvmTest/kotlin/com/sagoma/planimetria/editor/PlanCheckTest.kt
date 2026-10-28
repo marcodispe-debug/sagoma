@@ -666,6 +666,82 @@ class PlanCheckTest {
     }
 
     @Test
+    fun `Correggi - prese e luci che mancano`() {
+        fun points(b: Building, room: Long) = PlanCheck.of(b).single { it.kind == PlanCheck.Kind.FewPoints && it.rooms == listOf(room) }
+        fun fix(b: Building, room: Long): Pair<Building, List<Fixture>> {
+            val i = points(b, room)
+            assertTrue(PlanCheck.triesFirst(i) && PlanCheck.canFix(b, i))
+            val out = assertNotNull(PlanCheck.fixed(b, i))
+            assertTrue(PlanCheck.of(out).none { it.kind == PlanCheck.Kind.FewPoints && it.rooms == listOf(room) })
+            assertEquals(emptyList(), LiveCheck.newErrors(PlanCheck.of(b), PlanCheck.of(out)))
+            val old = b.floors[0].plan.rooms.single { it.id == room }.fixtures.map { it.id }.toSet()
+            return out to out.floors[0].plan.rooms.single { it.id == room }.fixtures.filter { it.id !in old }
+        }
+        fun at(r: Room, f: Fixture) = com.sagoma.planimetria.geometry.Fixtures.center(r, f)
+
+        // Camera 400×400 (14,82 m²) con una presa: ne mancano 3 e una luce. Le prese lontane tra loro e dalla finestra, a 30 cm; la
+        // plafoniera nel mezzo.
+        val window = Opening.default(10, OpeningKind.Window2, 2, 200.0).copy(height = 160.0)
+        val outlet = Fixture.default(1, FixtureKind.Outlet).copy(wallIndex = 0, position = 100.0)
+        val bedroom = rect(1, "Camera", RoomType.Camera, 400.0, 400.0, openings = listOf(window)).copy(fixtures = listOf(outlet))
+        val (lit, added) = fix(Building.single(FloorPlan(listOf(bedroom))), 1)
+        val outlets = added.filter { it.kind == FixtureKind.Outlet }
+        assertEquals(3, outlets.size)
+        assertTrue(outlets.all { it.elevation == 30.0 })
+        assertTrue(outlets.none { it.wallIndex == 2 && it.position in 125.0..275.0 }, "non sotto la finestra: $outlets")
+        val room = lit.floors[0].plan.rooms.single()
+        val spots = (outlets + outlet).map { at(room, it) }
+        assertTrue(spots.indices.all { a -> spots.indices.all { b -> a == b || spots[a].distanceTo(spots[b]) > 150.0 } }, "$spots")
+        val light = added.single { it.kind.isLight }
+        assertEquals(FixtureKind.CeilingLight, light.kind)
+        assertTrue(light.point.distanceTo(Vec2(200.0, 200.0)) < 15.0, "${light.point}")
+        assertNull(PlanCheck.fixed(lit, points(Building.single(FloorPlan(listOf(bedroom))), 1)), "già corretto")
+
+        // Cucina con le basi sul muro della finestra: le prese a 110 cm, prima sopra il piano di lavoro (non sopra il lavello e i
+        // fuochi), le altre sugli altri muri. Il soggiorno ha già tutto.
+        val full = living.copy(fixtures = (1..4).map { Fixture.default(it.toLong(), FixtureKind.Outlet).copy(wallIndex = 0, position = 60.0 * it) } +
+            Fixture.default(5, FixtureKind.CeilingLight).copy(point = Vec2(200.0, 150.0)))
+        fun module(id: Long, kind: String, x: Double, width: Double) =
+            com.sagoma.planimetria.model.Furniture(id, "cucina:$kind:bianco:legno", Vec2(x, 37.5), width = width, depth = 60.0, height = 90.0)
+        val modules = listOf(module(1, "base", 440.0, 60.0), module(2, "lavello", 510.0, 80.0), module(3, "forno", 580.0, 60.0), module(4, "base", 640.0, 60.0))
+        val (_, cooking) = fix(Building.single(FloorPlan(listOf(full, kitchen), furniture = modules)), 2)
+        val sockets = cooking.filter { it.kind == FixtureKind.Outlet }
+        assertEquals(5, sockets.size)
+        assertTrue(sockets.all { it.elevation == 110.0 })
+        val top = sockets.filter { it.wallIndex == 0 }.map { it.position }
+        assertEquals(2, top.size, "$sockets")
+        assertTrue(top.any { it in 10.0..70.0 } && top.any { it in 210.0..270.0 }, "una sopra ogni base: $top")
+        assertEquals(1, cooking.count { it.kind == FixtureKind.CeilingLight })
+
+        // Bagno con la doccia nell'angolo: la presa a 110 lontano 60 cm dalla doccia, due luci. Balcone da 11 m² davanti al
+        // soggiorno: presa e plafoniera a parete sul muro verso la casa.
+        val saved = com.sagoma.planimetria.model.FurnitureCatalog.items
+        try {
+            com.sagoma.planimetria.model.FurnitureCatalog.set(listOf(
+                com.sagoma.planimetria.model.FurnitureCatalog.Item(model = "doccia", label = "Piatto doccia", category = "Bagno", symbol = "Shower", width = 80.0, depth = 80.0, height = 10.0),
+            ))
+            val shower = com.sagoma.planimetria.model.Furniture(9, "doccia", Vec2(447.5, 47.5), width = 80.0, depth = 80.0, height = 10.0)
+            val bath = rect(3, "Bagno", RoomType.Bagno, 200.0, 250.0, Vec2(400.0, 0.0))
+            val balcony = rect(4, "Balcone", RoomType.Balcone, 400.0, 300.0, Vec2(0.0, 300.0))
+            val b = Building.single(FloorPlan(listOf(full, bath, balcony), furniture = listOf(shower)))
+            val (washed, wet) = fix(b, 3)
+            val plug = wet.single { it.kind == FixtureKind.Outlet }
+            assertEquals(110.0, plug.elevation)
+            val p = at(washed.floors[0].plan.rooms.single { it.id == 3L }, plug)
+            val tray = com.sagoma.planimetria.geometry.Furnishings.outline(shower)
+            assertTrue(tray.indices.all { j -> com.sagoma.planimetria.geometry.Polygon.distanceToSegment(p, tray[j], tray[(j + 1) % tray.size]) >= 60.0 }, "$p")
+            val lamps = wet.filter { it.kind == FixtureKind.CeilingLight }
+            assertEquals(2, lamps.size)
+            assertTrue(lamps[0].point.distanceTo(lamps[1].point) > 80.0, "$lamps")
+            val (_, outside) = fix(b, 4)
+            assertEquals(setOf(FixtureKind.Outlet, FixtureKind.WallLight), outside.map { it.kind }.toSet())
+            assertTrue(outside.all { it.wallIndex == 0 }, "sul muro verso il soggiorno: $outside")
+        } finally {
+            com.sagoma.planimetria.model.FurnitureCatalog.set(saved)
+        }
+    }
+
+    @Test
     fun `Correggi tutti - gli errori di un gruppo insieme`() {
         // Finestra più alta del muro, porta più larga del muro del bagno, cucina sovrapposta al soggiorno: tre errori (⚠) che si
         // correggono da soli.

@@ -243,7 +243,7 @@ object PlanCheck {
         Kind.OpeningTooWide -> i.b >= MIN_FIXED_OPENING_CM
         Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall, Kind.NearWalls, Kind.OpeningOnRemovedWall -> true
         Kind.Overlap -> i.rooms.size == 2
-        Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater -> i.rooms.size == 1
+        Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater, Kind.FewPoints -> i.rooms.size == 1
         Kind.NoEntrance, Kind.NoDoors, Kind.NoFloorWindows -> true
         Kind.NoWindows, Kind.FewWindows -> i.rooms.isNotEmpty()
         Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall -> i.selection is Selection.Opening
@@ -253,14 +253,15 @@ object PlanCheck {
     private val SWINGS = setOf(Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall)
 
     /** Problemi che si riconoscono dalle stanze di [Issue.rooms] (non da cosa selezionare): corretti quando lì non c'è più. */
-    private val BY_ROOMS = setOf(Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater, Kind.NoWindows, Kind.FewWindows)
+    private val BY_ROOMS = setOf(Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater, Kind.NoWindows, Kind.FewWindows,
+        Kind.FewPoints)
 
     /** Finestre sotto 1/8 del pavimento: «senza» e «poche» sono lo stesso problema (una finestra piccola non lo corregge). */
     private val FEW_WINDOWS = setOf(Kind.NoWindows, Kind.FewWindows)
 
     /** Problemi che [canFix] con la casa prova a correggere davvero prima di offrire «Correggi» ([triesFirst]). */
     private val TRIES_FIRST = SWINGS + FEW_WINDOWS + Kind.Overlap + Kind.NoDoor + Kind.NoDoors + Kind.NoEntrance + Kind.NoHeating + Kind.NoWater +
-        Kind.NoFloorWindows
+        Kind.NoFloorWindows + Kind.FewPoints
 
     /**
      * Chiave del problema `i` tra quelli tolti dalla pianta ([Building.hiddenChecks]): tipo, piano (il suo id, che non cambia
@@ -356,7 +357,8 @@ object PlanCheck {
      * alla cucina o al bagno senza punto acqua uno dietro il lavello ([waterFixes]); al piano senza nessuna porta una porta
      * per stanza e quella d'ingresso ([allDoors]); all'ambiente con finestre sotto 1/8 del pavimento si allarga una finestra o
      * se ne mette una nuova su un muro che dà fuori ([windowFixes]), al piano senza nessuna finestra in ogni ambiente da abitare
-     * ([allWindows]); la stanza piccolissima
+     * ([allWindows]); alla stanza con meno punti presa o punti luce di quelli della norma si mettono quelli che mancano
+     * ([pointFixes]); la stanza piccolissima
      * (un pezzo rimasto) si toglie, se il piano ne ha altre; l'anta che urta si gira ([swingFixes]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
      */
     fun fixed(b: Building, i: Issue): Building? {
@@ -370,6 +372,7 @@ object PlanCheck {
             // Il piano senza nessuna porta (appena ricalcato): una porta per stanza e quella d'ingresso; se l'ingresso non trova
             // posto, solo le porte.
             Kind.NoDoors, Kind.NoFloorWindows -> null
+            Kind.FewPoints -> pointFixes(plan, i)
             Kind.TinyRoom -> i.rooms.singleOrNull()?.takeIf { id -> plan.room(id) != null && plan.rooms.size > 1 }?.let { id ->
                 plan.copy(rooms = plan.rooms.filter { it.id != id })
             }
@@ -785,9 +788,16 @@ object PlanCheck {
     /**
      * Tratti del muro `k` della stanza `r` già occupati (inizio e fine lungo il muro): porte e finestre su quella linea (solo con
      * `openings`), impianti a muro e mobili addossati (con `above`, solo quelli che arrivano più su: sotto una finestra il
-     * calorifero o il divano vanno bene).
+     * calorifero o il divano vanno bene; con `below`, solo quelli che partono più giù: sotto la TV appesa la presa va bene).
      */
-    private fun wallBlocks(plan: FloorPlan, r: Room, k: Int, openings: Boolean, above: Double = -1.0): List<Pair<Double, Double>> {
+    private fun wallBlocks(
+        plan: FloorPlan,
+        r: Room,
+        k: Int,
+        openings: Boolean,
+        above: Double = -1.0,
+        below: Double = Double.MAX_VALUE,
+    ): List<Pair<Double, Double>> {
         val a = r.wallStart(k)
         val len = r.wallLength(k)
         val u = (r.wallEnd(k) - a) / len
@@ -802,21 +812,34 @@ object PlanCheck {
                 if (onLine(p) && onLine(q)) out += min(along(p), along(q)) to max(along(p), along(q))
             }
         }
-        for (f in r.fixtures) if (f.kind.mount == Mount.Wall && f.wallIndex == k && f.elevation + f.height > above) {
+        for (f in r.fixtures) if (f.kind.mount == Mount.Wall && f.wallIndex == k && f.elevation + f.height > above && f.elevation < below) {
             val half = max(f.length, FIXTURE_GAP_CM) / 2
             out += (f.position - half) to (f.position + half)
         }
-        val band = r.thicknessOf(k) / 2 + WALL_BAND_CM
         for (f in plan.furniture) {
-            if (f.elevation + f.height <= above) continue
-            val pts = Furnishings.outline(f)
-            val inward = pts.map { -((it - a) dot n) }
-            if (inward.max() < -1.0 || inward.min() > band) continue
-            val t = pts.map(::along)
-            if (t.max() < 0.0 || t.min() > len) continue
-            out += t.min() to t.max()
+            if (f.elevation + f.height <= above || f.elevation >= below) continue
+            out += against(r, k, f) ?: continue
         }
         return out
+    }
+
+    /**
+     * Il tratto del muro `k` della stanza `r` (inizio e fine lungo il muro) davanti a cui è addossato il mobile `f`, o null. Con
+     * `facing`, solo se ha il retro verso quel muro (non il fianco, come una base della cucina accanto all'angolo).
+     */
+    private fun against(r: Room, k: Int, f: Furniture, facing: Boolean = false): Pair<Double, Double>? {
+        val a = r.wallStart(k)
+        val len = r.wallLength(k)
+        val u = (r.wallEnd(k) - a) / len
+        val n = r.outwardOf(k)
+        if (facing && (Furnishings.axes(f).second dot n) > -0.7) return null
+        val band = r.thicknessOf(k) / 2 + WALL_BAND_CM
+        val pts = Furnishings.outline(f)
+        val inward = pts.map { -((it - a) dot n) }
+        if (inward.max() < -1.0 || inward.min() > band) return null
+        val t = pts.map { (it - a) dot u }
+        if (t.max() < 0.0 || t.min() > len) return null
+        return t.min() to t.max()
     }
 
     /** Spazio (cm) che una finestra messa o allargata da «Correggi» lascia dagli spigoli, dalle altre aperture e dai mobili alti. */
@@ -993,6 +1016,170 @@ object PlanCheck {
             if (t < 0.0 || t > len) return@mapNotNull null
             Triple(k, t.coerceIn(FIXTURE_GAP_CM / 2, len - FIXTURE_GAP_CM / 2), d)
         }.minByOrNull { it.third }?.let { it.first to it.second }
+    }
+
+    /** Altezza (cm) da terra delle prese che «Correggi» mette in cucina e in bagno: sopra il piano di lavoro e il lavabo. */
+    private const val HIGH_OUTLET_CM = 110.0
+
+    /** Spazio (cm) che una presa messa da «Correggi» lascia dagli spigoli, da porte e finestre, dagli impianti e dai mobili. */
+    private const val OUTLET_GAP_CM = 15.0
+
+    /** Distanza (cm) delle prese da doccia e vasca: fuori dalla zona 2 della norma CEI 64-8. */
+    private const val WET_ZONE_CM = 60.0
+
+    /** Distanza (cm) tra le prese sopra il piano di lavoro della cucina. */
+    private const val COUNTER_OUTLETS_CM = 60.0
+
+    /** Distanza (cm) minima dai muri delle luci al soffitto messe da «Correggi». */
+    private const val LIGHT_WALL_CM = 40.0
+
+    /** Volte che le luci al soffitto si spostano nel mezzo della loro parte di stanza ([ceilingSpots]), al massimo. */
+    private const val LIGHT_ROUNDS = 20
+
+    /** Altezza (cm) da terra della cima di un mobile basso che fa da piano di lavoro (basi della cucina). */
+    private val COUNTER_TOP_CM = 75.0..100.0
+
+    /**
+     * Posto per un impianto piccolo a muro: muro e distanza dal suo inizio ([Fixture.position]), punto sul filo interno, spazio
+     * libero (cm) ai due lati lungo il muro, se davanti c'è il piano di lavoro.
+     */
+    private class WallSpot(val wall: Int, val at: Double, val point: Vec2, val clear: Double, val counter: Boolean)
+
+    /**
+     * Posti (ogni 10 cm) per un impianto piccolo a muro a `elevation` da terra nella stanza `r`: sui muri dritti e abbastanza
+     * alti, lontano dagli spigoli, da porte e finestre, dagli impianti e dai mobili addossati a quell'altezza, non sopra il lavello,
+     * il lavabo o i fuochi; nel bagno fuori dalla zona di doccia e vasca; su balconi e terrazze solo sul muro verso la casa.
+     */
+    private fun wallSpots(plan: FloorPlan, r: Room, elevation: Double): List<WallSpot> {
+        val inside = r.interior()
+        fun symbol(f: Furniture) = FurnitureCatalog.item(f.model)?.symbolKind
+        val wet = if (r.type != RoomType.Bagno) emptyList() else plan.furniture.filter { f ->
+            (symbol(f) == FurnitureSymbol.Shower || symbol(f) == FurnitureSymbol.Tub) && Polygon.contains(inside, f.center)
+        }.map(Furnishings::outline)
+        val wetOrHot = plan.furniture.filter { symbol(it) == FurnitureSymbol.Sink || symbol(it) == FurnitureSymbol.Hob }
+        val counters = plan.furniture.filter { f -> f.elevation < FIXTURE_GAP_CM && f.elevation + f.height in COUNTER_TOP_CM }
+        val n = r.wallCount
+        val out = mutableListOf<WallSpot>()
+        for (k in 0 until n) {
+            if (r.isRemoved(k) || r.arcOf(k) != null || r.wallHeight(k) < elevation + FIXTURE_GAP_CM) continue
+            val len = r.wallLength(k)
+            val from = kotlin.math.ceil(r.thicknessOf((k + n - 1) % n) / 2 + OUTLET_GAP_CM)
+            val to = len - r.thicknessOf((k + 1) % n) / 2 - OUTLET_GAP_CM
+            val blocks = (wallBlocks(plan, r, k, openings = true, above = elevation - FIXTURE_GAP_CM / 2, below = elevation + FIXTURE_GAP_CM / 2) +
+                wetOrHot.mapNotNull { against(r, k, it) }).map { (x0, x1) -> x0 - OUTLET_GAP_CM to x1 + OUTLET_GAP_CM }
+            val house = if (r.outdoor) neighbours(plan, r, k, outdoor = false) else null
+            val counter = counters.mapNotNull { against(r, k, it, facing = true) }
+            var at = from
+            while (at <= to) {
+                val t = at
+                at += PROBE_STEP_CM
+                if (blocks.any { (x0, x1) -> t in x0..x1 } || (house != null && house.none { (x0, x1) -> t in x0..x1 })) continue
+                val p = Fixtures.wallAnchor(r, Fixture(0, FixtureKind.Outlet, wallIndex = k, position = t)).first
+                if (wet.any { w -> Polygon.contains(w, p) || w.indices.any { j -> Polygon.distanceToSegment(p, w[j], w[(j + 1) % w.size]) < WET_ZONE_CM } }) continue
+                val clear = blocks.fold(min(t - from, to - t)) { c, (x0, x1) -> min(c, if (t < x0) x0 - t else t - x1) }
+                out += WallSpot(k, t, p, clear, counter.any { (x0, x1) -> t in x0..x1 })
+            }
+        }
+        return out
+    }
+
+    /**
+     * Tra i posti `spots` quello più lontano da tutti i punti `taken` (a pari, con più spazio libero intorno), almeno `apart` cm;
+     * senza punti, quello con più spazio libero intorno (nel mezzo del tratto libero più lungo). Null se non ce n'è.
+     */
+    private fun farthest(spots: List<WallSpot>, taken: List<Vec2>, apart: Double): WallSpot? {
+        if (taken.isEmpty()) return spots.maxByOrNull { it.clear }
+        return spots.map { s -> s to taken.minOf { it.distanceTo(s.point) } }.filter { it.second >= apart }
+            .maxWithOrNull(compareBy<Pair<WallSpot, Double>> { it.second }.thenBy { it.first.clear })?.first
+    }
+
+    /**
+     * Stanza con meno punti presa o punti luce di quelli che chiede la norma ([ElectricRules.minimum]): si mettono quelli che
+     * mancano. Le prese a muro ([wallSpots]), ognuna il più lontano possibile da quelle che ci sono già (senza nessuna, nel mezzo
+     * del tratto di muro libero più lungo): a 30 cm da terra come quella del menu, in cucina e in bagno a 110 (in cucina prima
+     * sopra il piano di lavoro). Le luci: plafoniere al soffitto, sparse nella stanza insieme a quelle che ci sono già
+     * ([ceilingSpots]); su balconi e terrazze plafoniere a parete, sul muro verso la casa. Null se non trovano posto.
+     */
+    private fun pointFixes(plan: FloorPlan, i: Issue): FloorPlan? {
+        val r = plan.room(i.rooms.singleOrNull() ?: return null) ?: return null
+        val min = ElectricRules.minimum(plan, r) ?: return null
+        val has = ElectricRules.points(r)
+        if (has.outlets >= min.outlets && has.lights >= min.lights) return null
+        var id = plan.nextFixtureId
+        val added = mutableListOf<Fixture>()
+        fun onWalls(base: Fixture, count: Int, taken: MutableList<Vec2>, first: (List<WallSpot>, MutableList<Vec2>) -> WallSpot? = { _, _ -> null }): Boolean {
+            val spots = wallSpots(plan, r, base.elevation)
+            repeat(count) {
+                val s = first(spots, taken) ?: farthest(spots, taken, 2 * OUTLET_GAP_CM) ?: return false
+                added += base.copy(id = id++, wallIndex = s.wall, position = s.at)
+                taken += s.point
+            }
+            return true
+        }
+        if (has.outlets < min.outlets) {
+            val kitchen = r.type == RoomType.Cucina
+            val base = Fixture.default(0, FixtureKind.Outlet).let { if (kitchen || r.type == RoomType.Bagno) it.copy(elevation = HIGH_OUTLET_CM) else it }
+            val taken = r.fixtures.filter { it.kind == FixtureKind.Outlet }.mapTo(mutableListOf()) { Fixtures.center(r, it) }
+            val counter = { spots: List<WallSpot>, t: MutableList<Vec2> -> if (kitchen) farthest(spots.filter { it.counter }, t, COUNTER_OUTLETS_CM) else null }
+            if (!onWalls(base, min.outlets - has.outlets, taken, counter)) return null
+        }
+        if (has.lights < min.lights) {
+            val lights = r.fixtures.filter { it.kind.isLight }.mapTo(mutableListOf()) { Fixtures.center(r, it) }
+            if (r.outdoor) {
+                if (!onWalls(Fixture.default(0, FixtureKind.WallLight), min.lights - has.lights, lights)) return null
+            } else {
+                val points = ceilingSpots(r.interior(), lights, min.lights - has.lights) ?: return null
+                for (p in points) added += Fixture.default(id++, FixtureKind.CeilingLight).copy(point = p)
+            }
+        }
+        return plan.replace(r.copy(fixtures = r.fixtures + added))
+    }
+
+    /**
+     * Dove mettere `need` luci al soffitto nella stanza con il pavimento `inside` e le luci `fixed`: la stanza si divide in parti,
+     * ognuna con i punti più vicini a una luce, e ogni luce nuova va nel punto più vicino al mezzo della sua parte, finché non si
+     * sposta più. Per cominciare la prima nel punto più lontano dai muri, le altre ognuna il più lontano dalle luci. Sempre ad
+     * almeno [LIGHT_WALL_CM] dai muri, al centimetro; null se la stanza è troppo stretta.
+     */
+    private fun ceilingSpots(inside: List<Vec2>, fixed: List<Vec2>, need: Int): List<Vec2>? {
+        if (inside.size < 3) return null
+        val b = Polygon.bounds(inside)
+        val step = max(PROBE_STEP_CM, max(b.width, b.height) / 40)
+        val samples = mutableListOf<Vec2>()
+        var y = b.minY + step / 2
+        while (y < b.maxY) {
+            var x = b.minX + step / 2
+            while (x < b.maxX) {
+                val p = Vec2(kotlin.math.round(x), kotlin.math.round(y))
+                if (Polygon.contains(inside, p)) samples += p
+                x += step
+            }
+            y += step
+        }
+        fun wallDistance(p: Vec2) = inside.indices.minOf { j -> Polygon.distanceToSegment(p, inside[j], inside[(j + 1) % inside.size]) }
+        val ok = samples.filter { wallDistance(it) >= LIGHT_WALL_CM }
+        if (ok.isEmpty()) return null
+        val centers = mutableListOf<Vec2>()
+        repeat(need) {
+            val all = fixed + centers
+            centers += if (all.isEmpty()) ok.maxBy(::wallDistance) else ok.maxBy { p -> all.minOf { it.distanceTo(p) } }
+        }
+        repeat(LIGHT_ROUNDS) {
+            val all = fixed + centers
+            val parts = samples.groupBy { s -> all.indices.minBy { all[it].distanceTo(s) } }
+            var moved = false
+            for (j in centers.indices) {
+                val part = parts[fixed.size + j] ?: continue
+                val mean = Vec2(part.sumOf { it.x } / part.size, part.sumOf { it.y } / part.size)
+                val next = ok.minBy { it.distanceTo(mean) }
+                if (next != centers[j]) {
+                    centers[j] = next
+                    moved = true
+                }
+            }
+            if (!moved) return centers
+        }
+        return centers
     }
 
     /**
