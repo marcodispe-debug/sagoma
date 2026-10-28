@@ -43,25 +43,42 @@ class CopyOpeningStyleTest {
     })
 
     @Test
-    fun `lo stile della finestra va su tutte le finestre e i balconi del piano, le porte restano`() {
+    fun `lo stile della finestra va su tutte le finestre del piano, balconi e porte restano`() {
         val vm = vm()
-        assertEquals(4, vm.copyOpeningStyle(1, 1))
+        assertEquals(3, vm.copyOpeningStyle(1, 1))
         val plan = vm.state.value.plan
-        val glazed = plan.rooms.flatMap { it.openings }.filter { it.kind.glazed } + plan.freeWalls.single().openings
-        assertEquals(5, glazed.size)
-        for (o in glazed) {
+        val windows = plan.rooms.flatMap { it.openings }.filter { it.kind.isWindow } + plan.freeWalls.single().openings
+        assertEquals(4, windows.size)
+        for (o in windows) {
             assertEquals(WindowModel.Wood, o.windowModel)
             assertEquals(Shading.RomanShutter, o.shading)
             assertTrue(o.grille)
         }
-        // Il balcone resta scorrevole e con le sue misure; le porte non cambiano.
-        val balcony = plan.room(1)!!.opening(4)!!
-        assertTrue(balcony.sliding)
-        assertEquals(80.0, balcony.width)
+        // Il balcone e le porte non cambiano.
+        assertEquals(kitchen.openings[3], plan.room(1)!!.opening(4))
         assertEquals(DoorModel.Panels, plan.room(2)!!.opening(2)!!.doorModel)
         assertEquals(kitchen.openings[2], plan.room(1)!!.opening(3))
         // Di nuovo: niente da cambiare.
         assertEquals(0, vm.copyOpeningStyle(1, 1))
+    }
+
+    @Test
+    fun `lo stile del balcone va solo sui balconi, scorrevoli o no, e le misure restano`() {
+        val vm = vm()
+        vm.startPlacingOpening(PendingOpening(OpeningKind.Balcony2))
+        vm.onTap(DragTarget.Wall(2, 0), Vec2(500.0, 0.0))
+        val added = vm.state.value.plan.room(2)!!.openings.last()
+        vm.updateOpening(1, kitchen.openings[3].copy(windowModel = WindowModel.Wood, shading = Shading.RomanShutter))
+        assertEquals(1, vm.copyOpeningStyle(1, 4))
+        val plan = vm.state.value.plan
+        val styled = plan.room(2)!!.opening(added.id)!!
+        assertEquals(WindowModel.Wood, styled.windowModel)
+        assertEquals(Shading.RomanShutter, styled.shading)
+        assertEquals(added.width, styled.width)
+        // Le finestre restano come erano.
+        assertEquals(kitchen.openings[0], plan.room(1)!!.opening(1))
+        assertEquals(bedroom.openings[0], plan.room(2)!!.opening(1))
+        assertEquals(wall.openings[0], plan.freeWalls.single().openings.single())
     }
 
     @Test
@@ -95,11 +112,11 @@ class CopyOpeningStyleTest {
         })
         val before = vm.state.value.fullBuilding
         // Solo il piano: sopra non cambia niente.
-        assertEquals(4, vm.copyOpeningStyle(1, 1))
+        assertEquals(3, vm.copyOpeningStyle(1, 1))
         assertEquals(WindowModel.Classic, vm.state.value.fullBuilding.floors[1].plan.room(3)!!.opening(1)!!.windowModel)
         vm.undo()
         // Tutta la casa: la finestra di sopra cambia, la porta no.
-        assertEquals(5, vm.copyOpeningStyle(1, 1, allFloors = true))
+        assertEquals(4, vm.copyOpeningStyle(1, 1, allFloors = true))
         val up = vm.state.value.fullBuilding.floors[1].plan.room(3)!!
         assertEquals(WindowModel.Wood, up.opening(1)!!.windowModel)
         assertTrue(up.opening(1)!!.grille)

@@ -1030,15 +1030,15 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                 val named = finishes.firstOrNull { it.argb == c }
                 update { it.copy(color = named, customColor = if (named == null) c else null) }
             }
-            // Lo stesso aspetto su tutte le finestre (o le porte) del piano, o della casa se ha più piani: una modifica sola, si annulla con ↶.
+            // Lo stesso aspetto su tutte le finestre (o i balconi, o le porte) del piano, o della casa se ha più piani: una modifica sola, si annulla con ↶.
             // Non dal vetromattone: le finestre non diventano vetromattone, e lui ha solo il davanzale.
             var copied by remember(o.id) { mutableStateOf<Int?>(null) }
             if (!o.isGlassBlock) OutlinedButton(onClick = { copied = vm.copyOpeningStyle(room.id, o.id) }, modifier = Modifier.padding(top = 4.dp, end = 8.dp)) {
-                Text(if (o.kind.glazed) T.pannelli.copiaStileFinestre else T.pannelli.copiaStilePorte)
+                Text(if (o.kind.isWindow) T.pannelli.applicaStileFinestre else if (o.kind.glazed) T.pannelli.applicaStileBalconi else T.pannelli.applicaStilePorte)
             }
             if (!o.isGlassBlock && vm.state.collectAsState().value.building.floors.size > 1) {
                 OutlinedButton(onClick = { copied = vm.copyOpeningStyle(room.id, o.id, allFloors = true) }, modifier = Modifier.padding(end = 8.dp)) {
-                    Text(if (o.kind.glazed) T.pannelli.copiaStileFinestreCasa else T.pannelli.copiaStilePorteCasa)
+                    Text(if (o.kind.isWindow) T.pannelli.applicaStileFinestreCasa else if (o.kind.glazed) T.pannelli.applicaStileBalconiCasa else T.pannelli.applicaStilePorteCasa)
                 }
             }
             copied?.let { n -> Text(if (n == 0) T.pannelli.giaUguali else T.pannelli.stileCopiato(n), style = MaterialTheme.typography.bodySmall) }
