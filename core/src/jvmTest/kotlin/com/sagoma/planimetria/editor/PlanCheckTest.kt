@@ -809,6 +809,32 @@ class PlanCheckTest {
     }
 
     @Test
+    fun `Correggi - porta del bagno che si apre sul soggiorno`() {
+        // Soggiorno sopra, bagno e corridoio sotto; il bagno si apre sul soggiorno, il corridoio anche (e va bene).
+        val room = rect(1, "Soggiorno", RoomType.Soggiorno, 400.0, 300.0, openings = listOf(entrance, Opening.default(3, OpeningKind.Window2, 3, 150.0)))
+        val bath = rect(3, "Bagno", RoomType.Bagno, 200.0, 200.0, Vec2(0.0, 300.0), openings = listOf(Opening.default(5, OpeningKind.Door, 0, 100.0)))
+        val hall = rect(4, "Corridoio", RoomType.Corridoio, 200.0, 200.0, Vec2(200.0, 300.0), openings = listOf(Opening.default(6, OpeningKind.Door, 0, 100.0)))
+        fun house(vararg r: Room) = Building.single(FloorPlan(r.toList()))
+        val b = house(room, bath, hall)
+        val onLiving = PlanCheck.of(b).single { it.kind == PlanCheck.Kind.BathOnLiving }
+        assertTrue(PlanCheck.triesFirst(onLiving) && PlanCheck.canFix(b, onLiving))
+        val fixed = assertNotNull(PlanCheck.fixed(b, onLiving))
+        val door = fixed.floors[0].plan.rooms.single { it.id == 3L }.openings.single()
+        assertEquals(1, door.wallIndex, "verso il corridoio")
+        val after = PlanCheck.of(fixed)
+        assertTrue(after.none { it.kind == PlanCheck.Kind.BathOnLiving || it.kind == PlanCheck.Kind.NoDoor }, "${after.map { it.kind }}")
+        // Con stato di fatto e di progetto: la porta di prima si chiude, la nuova si apre.
+        val phased = house(room.copy(openings = room.openings + Opening.default(7, OpeningKind.Window1, 0, 350.0).copy(phase = Phase.New)), bath, hall)
+        val works = assertNotNull(PlanCheck.fixed(phased, PlanCheck.of(phased).single { it.kind == PlanCheck.Kind.BathOnLiving })).floors[0].plan
+        val doors = works.rooms.single { it.id == 3L }.openings
+        assertEquals(Phase.Demolish, doors.single { it.id == 5L }.phase)
+        assertEquals(Phase.New, doors.single { it.id != 5L }.phase)
+        // Il bagno che dà solo sul soggiorno: niente «Correggi» (resterebbe senza porta).
+        val alone = house(room, bath)
+        assertTrue(!PlanCheck.canFix(alone, PlanCheck.of(alone).single { it.kind == PlanCheck.Kind.BathOnLiving }))
+    }
+
+    @Test
     fun `Correggi tutti - gli errori di un gruppo insieme`() {
         // Finestra più alta del muro, porta più larga del muro del bagno, cucina sovrapposta al soggiorno: tre errori (⚠) che si
         // correggono da soli.

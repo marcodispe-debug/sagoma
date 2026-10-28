@@ -246,7 +246,7 @@ object PlanCheck {
         Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater, Kind.FewPoints, Kind.BathNoWindow -> i.rooms.size == 1
         Kind.NoEntrance, Kind.NoDoors, Kind.NoFloorWindows -> true
         Kind.NoWindows, Kind.FewWindows -> i.rooms.isNotEmpty()
-        Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall -> i.selection is Selection.Opening
+        Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall, Kind.BathOnLiving -> i.selection is Selection.Opening
         else -> false
     }
 
@@ -261,7 +261,7 @@ object PlanCheck {
 
     /** Problemi che [canFix] con la casa prova a correggere davvero prima di offrire «Correggi» ([triesFirst]). */
     private val TRIES_FIRST = SWINGS + FEW_WINDOWS + Kind.Overlap + Kind.NoDoor + Kind.NoDoors + Kind.NoEntrance + Kind.NoHeating + Kind.NoWater +
-        Kind.NoFloorWindows + Kind.FewPoints + Kind.BathNoWindow
+        Kind.NoFloorWindows + Kind.FewPoints + Kind.BathNoWindow + Kind.BathOnLiving
 
     /**
      * Chiave del problema `i` tra quelli tolti dalla pianta ([Building.hiddenChecks]): tipo, piano (il suo id, che non cambia
@@ -358,7 +358,8 @@ object PlanCheck {
      * per stanza e quella d'ingresso ([allDoors]); all'ambiente con finestre sotto 1/8 del pavimento si allarga una finestra o
      * se ne mette una nuova su un muro che dà fuori ([windowFixes]), al piano senza nessuna finestra in ogni ambiente da abitare
      * ([allWindows]), al bagno senza finestra una su un muro che dà fuori ([bathWindows]); alla stanza con meno punti presa o punti luce di quelli della norma si mettono quelli che mancano
-     * ([pointFixes]); la stanza piccolissima
+     * ([pointFixes]); la porta del bagno che si apre sulla cucina o sul soggiorno va verso un'altra stanza ([bathDoorFixes]); la
+     * stanza piccolissima
      * (un pezzo rimasto) si toglie, se il piano ne ha altre; l'anta che urta si gira ([swingFixes]). Nel piano con stato di fatto e di progetto le porte e le finestre messe sono
      * nuove ([added]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
      */
@@ -369,7 +370,7 @@ object PlanCheck {
         fun Room.with(o: Opening) = copy(openings = openings.map { if (it.id == o.id) o else it })
         val single: FloorPlan? = when (i.kind) {
             Kind.FurnitureInWall -> i.furniture?.let { pushedOut(plan, it) }
-            Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.NoEntrance, Kind.NoHeating, Kind.NoWater, Kind.BathNoWindow -> null
+            Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.NoEntrance, Kind.NoHeating, Kind.NoWater, Kind.BathNoWindow, Kind.BathOnLiving -> null
             // Il piano senza nessuna porta (appena ricalcato): una porta per stanza e quella d'ingresso; se l'ingresso non trova
             // posto, solo le porte.
             Kind.NoDoors, Kind.NoFloorWindows -> null
@@ -425,7 +426,9 @@ object PlanCheck {
             val old = swings(plan).mapTo(HashSet()) { LiveCheck.key(it) }
             return entranceFixes(plan).sortedBy { p -> swings(p).count { LiveCheck.key(it) !in old } }.firstNotNullOfOrNull { accepted(it)?.first }
         }
-        if (i.kind == Kind.NoDoor || i.kind == Kind.NoHeating || i.kind == Kind.NoWater || i.kind in FEW_WINDOWS || i.kind == Kind.BathNoWindow) {
+        if (i.kind == Kind.NoDoor || i.kind == Kind.NoHeating || i.kind == Kind.NoWater || i.kind in FEW_WINDOWS || i.kind == Kind.BathNoWindow ||
+            i.kind == Kind.BathOnLiving
+        ) {
             // Tra le porte (o i caloriferi, i punti acqua, le finestre) che vanno, quella con meno problemi nuovi (anta che urta,
             // bagno che si apre sul soggiorno); a pari, la prima (verso corridoio o soggiorno; sotto la finestra; dietro il
             // lavello; la finestra che c'è allargata).
@@ -435,10 +438,17 @@ object PlanCheck {
                 Kind.NoHeating -> heatFixes(plan, i)
                 Kind.NoWater -> waterFixes(plan, i)
                 Kind.BathNoWindow -> i.rooms.singleOrNull()?.let(plan::room)?.let { bathWindows(plan, it) }.orEmpty()
+                Kind.BathOnLiving -> bathDoorFixes(plan, i)
                 else -> windowFixes(plan, i.rooms.mapNotNull(plan::room))
             }
-            return fixes.mapNotNull { out -> accepted(out)?.let { (result, after) -> result to after.count { LiveCheck.key(it) !in keys } } }
-                .minByOrNull { it.second }?.first
+            return fixes.mapNotNull { out ->
+                accepted(out)?.let { (result, after) ->
+                    val fresh = after.filter { LiveCheck.key(it) !in keys }
+                    // Spostando la porta del bagno, il bagno non deve restare senza porta.
+                    if (i.kind == Kind.BathOnLiving && fresh.any { it.kind == Kind.NoDoor || it.kind == Kind.NoDoors || it.kind == Kind.NoEntrance }) null
+                    else result to fresh.size
+                }
+            }.minByOrNull { it.second }?.first
         }
         if (i.kind == Kind.Overlap) {
             // Tra gli spostamenti che vanno, quello con meno problemi nuovi e poi con la stanza spostata che si attacca di più alle
@@ -628,6 +638,32 @@ object PlanCheck {
                 listOf(d, d.copy(hingeLeft = false), d.copy(opensInward = false), d.copy(hingeLeft = false, opensInward = false))
                     .map { plan.replace(r.copy(openings = r.openings + it)) }
             }
+    }
+
+    /**
+     * Bagno che si apre sulla cucina o sul soggiorno: la sua porta (quella dell'avviso) si toglie e se ne mette una verso una
+     * stanza che non è cucina, soggiorno, bagno o ripostiglio (prima corridoio, disimpegno, antibagno; poi le camere), come per
+     * la stanza senza porta ([doorSpots]), con l'anta nei quattro versi. Se il bagno ha già un'altra porta basta togliere quella.
+     * Con stato di fatto e di progetto la porta di prima si chiude (se c'era già) e quella nuova è da aprire ([added]).
+     */
+    private fun bathDoorFixes(plan: FloorPlan, i: Issue): List<FloorPlan> {
+        val s = i.selection as? Selection.Opening ?: return emptyList()
+        val host = plan.room(s.roomId) ?: return emptyList()
+        val o = host.openings.firstOrNull { it.id == s.openingId } ?: return emptyList()
+        val closed = o.takeIf { Phases.hasChanges(plan) && it.phase == Phase.Existing }?.copy(phase = Phase.Demolish)
+        val without = plan.replace(host.copy(openings = host.openings.mapNotNull { if (it.id == o.id) closed else it }))
+        val bath = without.room(i.rooms.firstOrNull() ?: return emptyList())?.takeIf { !it.outdoor } ?: return emptyList()
+        val project = Phases.view(without, PhaseView.Project)
+        fun fine(other: Room) = !other.outdoor && doorTowards(other) != 3 &&
+            HousingRules.space(project, project.room(other.id) ?: other).none { it.type == RoomType.Cucina || it.type == RoomType.Soggiorno }
+        val id = without.nextOpeningId
+        val moved = doorSpots(without, bath).filter { fine(it.third) }.sortedBy { doorTowards(it.third) }.distinctBy { it.third.id }.take(3)
+            .flatMap { (k, c, _) ->
+                val d = added(plan, Opening.default(id, OpeningKind.Door, k, c))
+                listOf(d, d.copy(hingeLeft = false), d.copy(opensInward = false), d.copy(hingeLeft = false, opensInward = false))
+                    .map { without.replace(bath.copy(openings = bath.openings + it)) }
+            }
+        return listOf(without) + moved
     }
 
     /**
