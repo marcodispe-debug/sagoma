@@ -3185,6 +3185,16 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     /**
+     * «Correggi tutti»: la casa `fixed` ([PlanCheck.fixedAll], calcolata fuori dal disegno partendo dalla casa `from`) diventa
+     * quella del disegno, con un solo ↶ per tutte le correzioni. Se intanto la casa è cambiata, false e niente cambia.
+     */
+    fun applyFixes(from: Building, fixed: Building): Boolean {
+        if (_state.value.fullBuilding != from || fixed == from) return false
+        commitBuilding { fixed }
+        return true
+    }
+
+    /**
      * Toglie (`hidden`) o rimette il «!» del problema sulla pianta: il problema resta nell'elenco di «Controlla la pianta». Si
      * annulla come le altre modifiche; intanto si dimenticano i problemi tolti che non ci sono più.
      */

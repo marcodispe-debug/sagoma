@@ -115,6 +115,27 @@ class PlanCheckEditorTest {
     }
 
     @Test
+    fun `Correggi tutti si annulla con un solo passo`() {
+        val tall = living.copy(openings = living.openings + Opening(8, OpeningKind.Window1, 3, 150.0, 80.0, 200.0, sillHeight = 100.0))
+        val start = Building.single(FloorPlan(listOf(tall, kitchen.copy(points = kitchen.points.map { it + Vec2(-100.0, 0.0) }))))
+        val vm = EditorViewModel(object : PlanStore {
+            override fun load() = start
+            override fun save(building: Building) {}
+        })
+        fun errors() = PlanCheck.of(vm.state.value.fullBuilding).filter { it.kind.error }
+        val from = vm.state.value.fullBuilding
+        val (fixed, n) = PlanCheck.fixedAll(from, errors())
+        assertEquals(2, n)
+        assertEquals(true, vm.applyFixes(from, fixed))
+        assertEquals(emptyList(), errors())
+        // Calcolata su una casa che intanto è cambiata: niente.
+        assertEquals(false, vm.applyFixes(from, fixed))
+        vm.undo()
+        assertEquals(from, vm.state.value.fullBuilding)
+        assertEquals(2, errors().size)
+    }
+
+    @Test
     fun `da lontano i segni vicini diventano uno`() {
         val b = Building.single(FloorPlan(listOf(living, kitchen.copy(points = kitchen.points.map { it + Vec2(-100.0, 0.0) }))))
         val marks = checkMarks(PlanCheck.of(b), b, 0, b.floors[0].plan)

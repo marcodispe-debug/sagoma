@@ -30,6 +30,9 @@ object TestiControlloEn : TestiControllo() {
     override val esportaLoStesso: String get() = "Export anyway"
     override val correggi: String get() = "Fix"
     override val nonSiCorregge: String get() = "This can't be fixed automatically: it needs fixing by hand."
+    override fun correggiTutti(n: Int): String = "Fix all ($n)"
+    override fun corretti(n: Int): String =
+        if (n == 1) "Fixed one problem: undo with ↶." else "Fixed $n problems: one ↶ undoes them all."
     override val togliDallaPianta: String get() = "Remove from plan"
     override val rimettiSullaPianta: String get() = "Show on plan"
     override val togliTutti: String get() = "Remove all from plan"

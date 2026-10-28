@@ -505,6 +505,34 @@ class PlanCheckTest {
     }
 
     @Test
+    fun `Correggi tutti - gli errori di un gruppo insieme`() {
+        // Finestra più alta del muro, porta più larga del muro del bagno, cucina sovrapposta al soggiorno: tre errori (⚠) che si
+        // correggono da soli.
+        val tall = living.copy(openings = living.openings + Opening(8, OpeningKind.Window1, 3, 150.0, 80.0, 200.0, sillHeight = 100.0))
+        val bath = rect(5, "Bagno", RoomType.Bagno, 100.0, 200.0, Vec2(0.0, 300.0), openings = listOf(Opening(7, OpeningKind.Door, 0, 30.0, 140.0, 210.0)))
+        val b = Building.single(FloorPlan(listOf(tall, kitchen.moved(-100.0), bath)))
+        val errors = PlanCheck.of(b).filter { it.kind.error }
+        assertEquals(setOf(PlanCheck.Kind.OpeningOverWall, PlanCheck.Kind.OpeningTooWide, PlanCheck.Kind.Overlap), errors.kinds())
+        val (all, three) = PlanCheck.fixedAll(b, errors)
+        assertEquals(3, three)
+        assertEquals(emptyList(), PlanCheck.of(all).filter { it.kind.error })
+        assertEquals(170.0, all.floors[0].plan.rooms.single { it.id == 1L }.openings.single { it.id == 8L }.height)
+        assertEquals(100.0, all.floors[0].plan.rooms.single { it.id == 5L }.openings.single().width)
+        // Già corretti (l'elenco è vecchio): niente.
+        assertEquals(all to 0, PlanCheck.fixedAll(all, errors))
+        // La porta larga tolta dalla pianta (vista, voluta così) resta com'è; gli altri due sì, e nessun errore nuovo.
+        val wide = errors.single { it.kind == PlanCheck.Kind.OpeningTooWide }
+        val seen = b.copy(hiddenChecks = setOf(PlanCheck.hideKey(b, wide)))
+        val (fixed, two) = PlanCheck.fixedAll(seen, errors)
+        assertEquals(2, two)
+        assertEquals(setOf(PlanCheck.Kind.OpeningTooWide), PlanCheck.of(fixed).filter { it.kind.error }.kinds())
+        assertEquals(emptyList(), LiveCheck.newErrors(PlanCheck.of(seen), PlanCheck.of(fixed)))
+        // Quelli che non si correggono da soli si saltano.
+        val lone = Building.single(FloorPlan(listOf(rect(9, "Camera", RoomType.Camera, 400.0, 300.0))))
+        assertEquals(lone to 0, PlanCheck.fixedAll(lone, PlanCheck.of(lone)))
+    }
+
+    @Test
     fun `impianti piu alti del muro in mansarda`() {
         // Muro 3 basso (140): la plafoniera a parete a 220 cm non ci sta; il calorifero sotto sì, e sul muro alto (1) anche la luce.
         val light = com.sagoma.planimetria.model.Fixture(1, com.sagoma.planimetria.model.FixtureKind.WallLight, wallIndex = 3, position = 200.0, elevation = 220.0)

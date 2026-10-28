@@ -315,6 +315,24 @@ object PlanCheck {
     fun canFix(b: Building, i: Issue): Boolean = canFix(i) && (!triesFirst(i) || fixed(b, i) != null)
 
     /**
+     * «Correggi tutti» di un gruppo dell'elenco: corregge uno dopo l'altro ([fixed]) i problemi di `issues` che si correggono da
+     * soli, ognuno cercato di nuovo nella casa già corretta (sparito con un altro, o cambiato, si salta). Quelli tolti dalla pianta
+     * ([hidden]: già visti, voluti così) restano come sono. Torna la casa corretta e quanti problemi sono stati corretti (0: la
+     * casa di prima). Come per [fixed], nessun errore di disegno nuovo.
+     */
+    fun fixedAll(b: Building, issues: List<Issue>): Pair<Building, Int> {
+        var out = b
+        var n = 0
+        for (i in issues) {
+            if (!canFix(i) || hidden(b, i)) continue
+            val now = LiveCheck.stillThere(i, of(out)) ?: continue
+            out = fixed(out, now) ?: continue
+            n++
+        }
+        return out to n
+    }
+
+    /**
      * La casa con il problema `i` corretto, o null se non si riesce da soli (o la correzione non lo toglie, o non c'è più): il
      * mobile dentro un muro torna fino alla parete; l'impianto più alto del muro si abbassa; la porta o la finestra più alta del
      * muro si accorcia, quella più larga del muro si stringe a quanto se ne vede; quella messa due volte resta una sola, quella su

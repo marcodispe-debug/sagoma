@@ -30,6 +30,9 @@ open class TestiControllo {
     open val esportaLoStesso: String get() = "Esporta lo stesso"
     open val correggi: String get() = "Correggi"
     open val nonSiCorregge: String get() = "Non si riesce a correggere da solo: va sistemato a mano."
+    open fun correggiTutti(n: Int): String = "Correggi tutti ($n)"
+    open fun corretti(n: Int): String =
+        if (n == 1) "Corretto un problema: si annulla con ↶." else "Corretti $n problemi: un solo ↶ li annulla tutti."
     open val togliDallaPianta: String get() = "Togli dalla pianta"
     open val rimettiSullaPianta: String get() = "Rimetti sulla pianta"
     /** Per tutto un gruppo dell'elenco. */
