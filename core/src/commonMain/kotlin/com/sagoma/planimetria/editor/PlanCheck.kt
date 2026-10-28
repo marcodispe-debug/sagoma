@@ -246,7 +246,7 @@ object PlanCheck {
         Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater, Kind.FewPoints, Kind.BathNoWindow -> i.rooms.size == 1
         Kind.NoEntrance, Kind.NoDoors, Kind.NoFloorWindows -> true
         Kind.NoWindows, Kind.FewWindows -> i.rooms.isNotEmpty()
-        Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall, Kind.BathOnLiving -> i.selection is Selection.Opening
+        Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall, Kind.BathOnLiving, Kind.InnerWindow -> i.selection is Selection.Opening
         else -> false
     }
 
@@ -261,7 +261,7 @@ object PlanCheck {
 
     /** Problemi che [canFix] con la casa prova a correggere davvero prima di offrire «Correggi» ([triesFirst]). */
     private val TRIES_FIRST = SWINGS + FEW_WINDOWS + Kind.Overlap + Kind.NoDoor + Kind.NoDoors + Kind.NoEntrance + Kind.NoHeating + Kind.NoWater +
-        Kind.NoFloorWindows + Kind.FewPoints + Kind.BathNoWindow + Kind.BathOnLiving
+        Kind.NoFloorWindows + Kind.FewPoints + Kind.BathNoWindow + Kind.BathOnLiving + Kind.InnerWindow
 
     /**
      * Chiave del problema `i` tra quelli tolti dalla pianta ([Building.hiddenChecks]): tipo, piano (il suo id, che non cambia
@@ -359,6 +359,7 @@ object PlanCheck {
      * se ne mette una nuova su un muro che dà fuori ([windowFixes]), al piano senza nessuna finestra in ogni ambiente da abitare
      * ([allWindows]), al bagno senza finestra una su un muro che dà fuori ([bathWindows]); alla stanza con meno punti presa o punti luce di quelli della norma si mettono quelli che mancano
      * ([pointFixes]); la porta del bagno che si apre sulla cucina o sul soggiorno va verso un'altra stanza ([bathDoorFixes]); la
+     * finestra che dà su un'altra stanza va su un muro che dà fuori ([innerWindowFixes]); la
      * stanza piccolissima
      * (un pezzo rimasto) si toglie, se il piano ne ha altre; l'anta che urta si gira ([swingFixes]). Nel piano con stato di fatto e di progetto le porte e le finestre messe sono
      * nuove ([added]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
@@ -370,7 +371,9 @@ object PlanCheck {
         fun Room.with(o: Opening) = copy(openings = openings.map { if (it.id == o.id) o else it })
         val single: FloorPlan? = when (i.kind) {
             Kind.FurnitureInWall -> i.furniture?.let { pushedOut(plan, it) }
-            Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.NoEntrance, Kind.NoHeating, Kind.NoWater, Kind.BathNoWindow, Kind.BathOnLiving -> null
+            Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.NoEntrance, Kind.NoHeating, Kind.NoWater, Kind.BathNoWindow, Kind.BathOnLiving,
+            Kind.InnerWindow,
+            -> null
             // Il piano senza nessuna porta (appena ricalcato): una porta per stanza e quella d'ingresso; se l'ingresso non trova
             // posto, solo le porte.
             Kind.NoDoors, Kind.NoFloorWindows -> null
@@ -427,7 +430,7 @@ object PlanCheck {
             return entranceFixes(plan).sortedBy { p -> swings(p).count { LiveCheck.key(it) !in old } }.firstNotNullOfOrNull { accepted(it)?.first }
         }
         if (i.kind == Kind.NoDoor || i.kind == Kind.NoHeating || i.kind == Kind.NoWater || i.kind in FEW_WINDOWS || i.kind == Kind.BathNoWindow ||
-            i.kind == Kind.BathOnLiving
+            i.kind == Kind.BathOnLiving || i.kind == Kind.InnerWindow
         ) {
             // Tra le porte (o i caloriferi, i punti acqua, le finestre) che vanno, quella con meno problemi nuovi (anta che urta,
             // bagno che si apre sul soggiorno); a pari, la prima (verso corridoio o soggiorno; sotto la finestra; dietro il
@@ -439,6 +442,7 @@ object PlanCheck {
                 Kind.NoWater -> waterFixes(plan, i)
                 Kind.BathNoWindow -> i.rooms.singleOrNull()?.let(plan::room)?.let { bathWindows(plan, it) }.orEmpty()
                 Kind.BathOnLiving -> bathDoorFixes(plan, i)
+                Kind.InnerWindow -> innerWindowFixes(plan, i)
                 else -> windowFixes(plan, i.rooms.mapNotNull(plan::room))
             }
             return fixes.mapNotNull { out ->
@@ -1017,6 +1021,32 @@ object PlanCheck {
         }.sortedByDescending { it.third - it.second }.take(3).map { (k, lo, hi) ->
             val width = min(BATH_WINDOW_CM, floor10(hi - lo - 2 * WINDOW_GAP_CM))
             plan.replace(r.copy(openings = r.openings + added(plan, newWindow(plan.nextOpeningId, k, (lo + hi) / 2, width))))
+        }
+    }
+
+    /**
+     * Finestra che dà su un'altra stanza al chiuso: la stessa finestra (tipo, misure, davanzale) su un muro della stanza che dà
+     * fuori (anche su un balcone), nel mezzo di uno dei tratti più lunghi (al massimo tre, nell'ordine) liberi da porte, finestre
+     * e mobili alti. Con stato di fatto e di progetto quella che c'è si chiude e se ne apre una nuova. Nessuna se la stanza non
+     * ha muri che danno fuori.
+     */
+    private fun innerWindowFixes(plan: FloorPlan, i: Issue): List<FloorPlan> {
+        val s = i.selection as? Selection.Opening ?: return emptyList()
+        val host = plan.room(s.roomId)?.takeIf { !it.outdoor } ?: return emptyList()
+        val o = host.openings.firstOrNull { it.id == s.openingId && it.kind.isWindow } ?: return emptyList()
+        val closed = o.takeIf { Phases.hasChanges(plan) && it.phase == Phase.Existing }?.copy(phase = Phase.Demolish)
+        val r = host.copy(openings = host.openings.mapNotNull { if (it.id == o.id) closed else it })
+        val without = plan.replace(r)
+        val moving = if (closed != null) o.copy(id = without.nextOpeningId, phase = Phase.New) else o
+        val need = o.width + 2 * WINDOW_GAP_CM
+        return (0 until r.wallCount).filter { k ->
+            !r.isRemoved(k) && r.arcOf(k) == null && r.phaseOf(k) != Phase.Demolish && r.wallHeight(k) >= o.bottom + o.height + 10.0 &&
+                r.wallLength(k) >= need
+        }.flatMap { k ->
+            val blocks = wallBlocks(without, r, k, openings = true, above = o.bottom) + neighbours(without, r, k, outdoor = false)
+            freeRuns(blocks, r.wallLength(k), need).map { (lo, hi) -> Triple(k, lo, hi) }
+        }.sortedByDescending { it.third - it.second }.take(3).map { (k, lo, hi) ->
+            without.replace(r.copy(openings = r.openings + moving.copy(wallIndex = k, position = (lo + hi) / 2)))
         }
     }
 
@@ -1745,7 +1775,7 @@ object PlanCheck {
             }
             // Finestre che danno su un'altra stanza al chiuso, invece che fuori.
             for (s in spans) {
-                if (!s.o.kind.isWindow) continue
+                if (!s.o.kind.isWindow || s.o.phase == Phase.Demolish) continue
                 val other = rooms.firstOrNull { r ->
                     r.id != s.room.id && !r.outdoor && (0 until r.wallCount).any { j ->
                         Dimensions.overlap(s.a, s.b, r.wallStart(j), r.wallEnd(j)) >= 0.5 * s.a.distanceTo(s.b)

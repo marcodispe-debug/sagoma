@@ -499,10 +499,10 @@ class PlanCheckTest {
         assertEquals(100.0, narrow.width)
         assertEquals(50.0, narrow.position)
 
-        // Gli altri problemi no (la finestra verso un'altra stanza: non si sa se va tolta; la camera da sola: non si sa dove va
-        // la sua porta).
+        // Gli altri problemi no (la camera da sola: non si sa dove va la sua porta). La finestra verso un'altra stanza si prova
+        // prima (va su un muro che dà fuori, se c'è).
         val inner = Building.single(FloorPlan(listOf(living, kitchen.copy(openings = listOf(Opening.default(6, OpeningKind.Window1, 3, 60.0))))))
-        assertTrue(!PlanCheck.canFix(PlanCheck.of(inner).first { it.kind == PlanCheck.Kind.InnerWindow }))
+        assertTrue(PlanCheck.triesFirst(PlanCheck.of(inner).first { it.kind == PlanCheck.Kind.InnerWindow }))
         val lone = Building.single(FloorPlan(listOf(rect(9, "Camera", RoomType.Camera, 400.0, 300.0))))
         assertTrue(!PlanCheck.canFix(lone, PlanCheck.of(lone).first { it.kind == PlanCheck.Kind.NoDoor }))
     }
@@ -1171,5 +1171,38 @@ class PlanCheckTest {
         assertEquals("Un problème corrigé (ajouté : 1 fenêtre) : annulez avec ↶.", FixSummary.message(1, b, lit))
         T.lingua = com.sagoma.planimetria.testi.es.Spagnolo
         assertEquals("Un problema corregido (añadido: 1 ventana): se deshace con ↶.", FixSummary.message(1, b, lit))
+    }
+
+    @Test
+    fun `Correggi - finestra che da su un'altra stanza`() {
+        // La finestra della cucina disegnata sul muro in comune con il soggiorno: va, uguale, su un muro che dà fuori.
+        val inside = Opening.default(4, OpeningKind.Window1, 3, 150.0)
+        val b = Building.single(FloorPlan(listOf(living, kitchen.copy(openings = listOf(inside)))))
+        val inner = PlanCheck.of(b).single { it.kind == PlanCheck.Kind.InnerWindow }
+        assertTrue(PlanCheck.triesFirst(inner) && PlanCheck.canFix(b, inner))
+        val fixed = assertNotNull(PlanCheck.fixed(b, inner))
+        val w = fixed.floors[0].plan.rooms.single { it.id == 2L }.openings.single()
+        assertEquals(inside.copy(wallIndex = 0), w)
+        assertTrue(PlanCheck.of(fixed).none { it.kind == PlanCheck.Kind.InnerWindow })
+        assertEquals(FixSummary.Summary(moved = mapOf(FixSummary.Thing.Window to 1)), FixSummary.of(b, fixed))
+        // Con stato di fatto e di progetto quella che c'è si chiude e se ne apre una nuova.
+        val phased = Building.single(FloorPlan(listOf(
+            living.copy(openings = living.openings.map { if (it.id == 3L) it.copy(phase = Phase.New) else it }),
+            kitchen.copy(openings = listOf(inside)),
+        )))
+        val again = PlanCheck.of(phased).single { it.kind == PlanCheck.Kind.InnerWindow }
+        val opened = assertNotNull(PlanCheck.fixed(phased, again)).floors[0].plan.rooms.single { it.id == 2L }.openings
+        assertEquals(listOf(inside.copy(phase = Phase.Demolish), inside.copy(id = 5, wallIndex = 0, phase = Phase.New)), opened)
+        // La stanza chiusa tra le altre: non ha muri che danno fuori, niente «Correggi».
+        val closed = rect(3, "Studio", RoomType.Camera, 200.0, 200.0, Vec2(400.0, 300.0), openings = listOf(Opening.default(20, OpeningKind.Window1, 0, 100.0)))
+        val around = Building.single(FloorPlan(listOf(
+            rect(4, "Camera", RoomType.Camera, 1000.0, 300.0, openings = listOf(Opening.default(10, OpeningKind.Window2, 0, 500.0))),
+            rect(5, "Camera", RoomType.Camera, 400.0, 200.0, Vec2(0.0, 300.0)),
+            rect(6, "Camera", RoomType.Camera, 400.0, 200.0, Vec2(600.0, 300.0)),
+            rect(7, "Camera", RoomType.Camera, 1000.0, 300.0, Vec2(0.0, 500.0)),
+            closed,
+        )))
+        val blind = PlanCheck.of(around).single { it.kind == PlanCheck.Kind.InnerWindow }
+        assertTrue(!PlanCheck.canFix(around, blind))
     }
 }
