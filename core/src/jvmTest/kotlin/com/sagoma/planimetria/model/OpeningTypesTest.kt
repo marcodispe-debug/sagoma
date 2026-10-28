@@ -615,4 +615,25 @@ class OpeningTypesTest {
         val plan = FloorPlan(listOf(room(d, slide.copy(id = 2, wallIndex = 2))))
         assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
     }
+
+    @Test
+    fun `oscuranti sulla faccia del muro anche con l'infisso a filo esterno o interno`() {
+        // Muro da 40 (facce a ±20): l'infisso a filo si sposta di 14 cm, gli oscuranti restano sulle facce del muro.
+        fun scene40(o: Opening) = Scene3D.build(
+            FloorPlan(listOf(Room(1, "Prova", RoomType.Altro, listOf(Vec2(0.0, 0.0), Vec2(400.0, 0.0), Vec2(400.0, 300.0), Vec2(0.0, 300.0)), wallThickness = 40.0, openings = listOf(o)))),
+            null, null, ceilings = false,
+        )
+        for (frame in FramePosition.entries) {
+            // 120 × 120 da 140 a 260 e da 90 a 210: persiane aperte da 80 a 140 e da 260 a 320.
+            val w = Opening.default(1, OpeningKind.Window2, 0, 200.0).copy(width = 120.0, frame = frame)
+            val shutters = assertNotNull(scene40(w.copy(shading = Shading.Shutters)).hit(Vec3(100.0, 153.0, -200.0), Vec3(0.0, 0.0, 1.0)))
+            assertEquals(Pick.Opening(1, 1), shutters.pick, "$frame")
+            assertEquals(-23.3, shutters.point.z, 0.01, "persiane, $frame")
+            val sliding = assertNotNull(scene40(w.copy(shading = Shading.SlidingShutters)).hit(Vec3(100.0, 156.0, -200.0), Vec3(0.0, 0.0, 1.0)))
+            assertEquals(-25.0, sliding.point.z, 0.01, "scorrevoli, $frame")
+            val inside = assertNotNull(scene40(w.copy(shading = Shading.InteriorShutters)).hit(Vec3(100.0, 153.0, 200.0), Vec3(0.0, 0.0, -1.0)))
+            assertEquals(Pick.Opening(1, 1), inside.pick, "$frame")
+            assertEquals(23.1, inside.point.z, 0.01, "scuri interni, $frame")
+        }
+    }
 }

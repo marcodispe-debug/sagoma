@@ -1998,6 +1998,8 @@ private class SceneBuilder(
                 // Infisso a filo esterno o interno: spostato nello spessore del muro.
                 val f = n * Openings.frameOffset(room, o)
                 window(a + f, b + f, u, n, bottom, top, o, pick)
+                // Oscuranti sulle facce del muro, anche con l'infisso spostato a filo esterno o interno.
+                if (o.shape == WindowShape.Rectangle && !o.isGlassBlock) shading(a, b, u, n, bottom, top, o, pick)
                 o.sill?.let { windowSill(room, o, a, b, u, n, bottom, it, pick) }
                 if (o.hasGrille) grille(a, b, u, n * -(room.thicknessOf(o.wallIndex) / 2 + 4.0), bottom, top, pick)
                 if (o.hasInsectScreen) insectScreen(a, b, u, n, bottom, top, o, pick)
@@ -2234,7 +2236,6 @@ private class SceneBuilder(
         val f = profileWidth(o)
         val depth = if (minimal || loft) 3.0 else if (wood) 5.0 else 4.0
         val color = windowFrameColor(o, pick)
-        shading(a, b, u, n, bottom, top, o, pick)
         val w = a.distanceTo(b)
         val split = w * o.leafSplit
         val glassBottom = bottom + if (bottom > 0) f else 2.0
