@@ -325,7 +325,8 @@ object PbrShaders {
             float ssao = uUseAo > 0.5 ? texture2D(uAoTex, gl_FragCoord.xy / uViewport).r : 1.0;
             ao *= ssao;
             float ndlSun = max(dot(N, uToSun), 0.0);
-            if (ndlSun > 0.0) color += shade(N, V, uToSun, uSun, albedo, rough, metal) * sunShadow();
+            // Di notte (sole sotto l'orizzonte, uSun nero) niente ombre da campionare: davano zero luce lo stesso.
+            if (ndlSun > 0.0 && uSun.r + uSun.g + uSun.b > 0.0) color += shade(N, V, uToSun, uSun, albedo, rough, metal) * sunShadow();
             bool lampInRoom = false;
             for (int i = 0; i < $MAX_LAMPS; i++) {
                 if (i >= uLampCount) break;
