@@ -1,5 +1,6 @@
 package com.sagoma.planimetria.ui
 
+import androidx.compose.ui.geometry.Offset
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.PlanCheck
 import com.sagoma.planimetria.editor.Selection
@@ -111,5 +112,25 @@ class PlanCheckEditorTest {
         assertEquals(true, rules.all { PlanCheck.hidden(vm.state.value.fullBuilding, it) })
         vm.undo()
         assertEquals(emptySet(), vm.state.value.fullBuilding.hiddenChecks)
+    }
+
+    @Test
+    fun `da lontano i segni vicini diventano uno`() {
+        val b = Building.single(FloorPlan(listOf(living, kitchen.copy(points = kitchen.points.map { it + Vec2(-100.0, 0.0) }))))
+        val marks = checkMarks(PlanCheck.of(b), b, 0, b.floors[0].plan)
+        assertEquals(true, marks.size >= 2, "segni: ${marks.size}")
+        val error = marks.first { it.issues.first().kind.error }
+        val rule = marks.first { it.issues.first().kind.rule }
+        // Il segno delle norme a 10 px da quello dell'errore, un terzo lontano: due segni, il primo nel punto dell'errore.
+        val far = CheckMark(Vec2(9999.0, 0.0), false, rule.issues)
+        val merged = mergeClose(listOf(rule to Offset(110f, 100f), error to Offset(100f, 100f), far to Offset(400f, 100f)), 28f)
+        assertEquals(2, merged.size)
+        val (one, at) = merged.first()
+        assertEquals(Offset(100f, 100f), at)
+        assertEquals(error.at, one.at)
+        assertEquals(error.issues + rule.issues, one.issues)
+        assertEquals(far, merged[1].first)
+        // Abbastanza lontani: restano com'erano.
+        assertEquals(listOf(error, rule), mergeClose(listOf(error to Offset(0f, 0f), rule to Offset(40f, 0f)), 28f).map { it.first })
     }
 }

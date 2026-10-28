@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -65,6 +66,25 @@ internal fun checkMarks(issues: List<PlanCheck.Issue>, building: Building, floor
         .groupBy { (s, _) -> Triple(s.at.x.roundToLong(), s.at.y.roundToLong(), s.room) }
         .map { (_, list) -> CheckMark(list.first().first.at, list.first().first.room, list.map { it.second }) }
 
+/** Prima gli errori di disegno (⚠), poi le cose da controllare (?), poi le norme (📏). */
+private fun rank(i: PlanCheck.Issue): Int = if (i.kind.error) 0 else if (!i.kind.rule) 1 else 2
+
+/**
+ * I «!» messi sullo schermo (segno e punto, in px) che si toccherebbero, a meno di `minDist` (la pianta vista da lontano), diventano
+ * uno solo, nel punto del più grave, con tutti i loro problemi (prima i più gravi): il tocco li apre tutti.
+ */
+internal fun mergeClose(placed: List<Pair<CheckMark, Offset>>, minDist: Float): List<Pair<CheckMark, Offset>> {
+    val groups = ArrayList<Pair<MutableList<CheckMark>, Offset>>()
+    for ((m, at) in placed.sortedBy { rank(it.first.issues.first()) }) {
+        val near = groups.firstOrNull { (it.second - at).getDistance() < minDist }
+        if (near != null) near.first += m else groups += mutableListOf(m) to at
+    }
+    return groups.map { (ms, at) ->
+        val m = ms.singleOrNull() ?: CheckMark(ms[0].at, ms[0].room, ms.flatMap { it.issues }.sortedBy(::rank))
+        m to at
+    }
+}
+
 /** Colori del «!»: rosso per gli errori di disegno (⚠), giallo per le cose da controllare (?), blu per le norme (📏). */
 @Composable
 private fun markColors(kind: PlanCheck.Kind): Pair<Color, Color> = when {
@@ -91,7 +111,7 @@ private val MARK_NUDGE = 20.dp
 
 /**
  * I «!» sulla pianta, sopra il disegno ([Camera] della pianta 2D); il tocco su un segno chiama `onOpen`. Fuori dallo schermo
- * non si mettono; fuori dai segni il tocco va alla pianta.
+ * non si mettono, quelli che si toccherebbero diventano uno ([mergeClose]); fuori dai segni il tocco va alla pianta.
  */
 @Composable
 internal fun CheckMarkers(marks: List<CheckMark>, camera: Camera, onOpen: (CheckMark) -> Unit, modifier: Modifier = Modifier) {
@@ -103,12 +123,14 @@ internal fun CheckMarkers(marks: List<CheckMark>, camera: Camera, onOpen: (Check
     BoxWithConstraints(modifier) {
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
-        for (m in marks) {
+        val placed = marks.mapNotNull { m ->
             val x = camera.toScreenX(m.at.x) + if (m.room) 0f else nudge
             val y = camera.toScreenY(m.at.y) - if (m.room) lift else nudge
-            if (!x.isFinite() || !y.isFinite() || x < -touch || y < -touch || x > w + touch || y > h + touch) continue
+            if (!x.isFinite() || !y.isFinite() || x < -touch || y < -touch || x > w + touch || y > h + touch) null else m to Offset(x, y)
+        }
+        for ((m, at) in mergeClose(placed, touch)) {
             key(m.at, m.room) {
-                CheckMarker(m, onClick = { onOpen(m) }, modifier = Modifier.offset { IntOffset((x - touch / 2).roundToInt(), (y - touch / 2).roundToInt()) })
+                CheckMarker(m, onClick = { onOpen(m) }, modifier = Modifier.offset { IntOffset((at.x - touch / 2).roundToInt(), (at.y - touch / 2).roundToInt()) })
             }
         }
     }
