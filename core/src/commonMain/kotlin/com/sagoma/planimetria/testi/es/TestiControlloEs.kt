@@ -73,6 +73,8 @@ object TestiControlloEs : TestiControllo() {
     override fun soggiornoPiccolo(a: String, m2: String): String = "$a: $m2 m²; el salón necesita al menos 14."
     override fun bagnoSenzaFinestra(a: String): String =
         "$a: ninguna ventana practicable al exterior; el baño necesita extracción mecánica (y nada de aparatos de llama abierta)."
+    override fun bagnoSuCucina(bagno: String, stanza: String): String =
+        "$bagno se abre directamente a $stanza: muchos reglamentos de higiene municipales piden un antebaño o un distribuidor entre el baño y la cocina o el salón."
     override fun bagnoIncompleto(a: String, manca: String): String =
         "$a: sin $manca. Al menos un baño de la vivienda debe tener inodoro, bidé, bañera o ducha y lavabo."
     override val vaso: String get() = "inodoro"

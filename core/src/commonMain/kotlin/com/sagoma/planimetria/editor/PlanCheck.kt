@@ -81,6 +81,7 @@ object PlanCheck {
         SmallBedroom(false, rule = true),
         SmallLiving(false, rule = true),
         BathNoWindow(false, rule = true),
+        BathOnLiving(false, rule = true),
         BathIncomplete(false, rule = true),
         SmallHome(false, rule = true),
         SmallStudio(false, rule = true),
@@ -160,6 +161,7 @@ object PlanCheck {
                 doors(below?.let { sane(it.plan) to it.levelHeight }, floor.levelHeight)
                 stairs(floor.levelHeight, above?.let { sane(it.plan) }, f == b.floors.lastIndex)
                 rules()
+                bathDoors()
                 systems()
                 if (leadsOutside) outside = true
                 if (noDoors) doorless = true
@@ -296,6 +298,7 @@ object PlanCheck {
             else t.soffittoBasso(name(0), formatDecimal(i.a / 100, 2))
             Kind.SmallBedroom -> if (i.b * 10_000 >= HousingRules.MIN_DOUBLE_BEDROOM_CM2) t.cameraPerDuePiccola(name(0), m2(i.a)) else t.cameraPiccola(name(0), m2(i.a))
             Kind.BathNoWindow -> t.bagnoSenzaFinestra(name(0))
+            Kind.BathOnLiving -> t.bagnoSuCucina(name(0), name(1))
             Kind.BathIncomplete -> t.bagnoIncompleto(
                 name(0),
                 HousingRules.Sanitary.entries.filter { (i.count shr it.ordinal) and 1 == 0 }.joinToString(", ") { s ->
@@ -641,6 +644,37 @@ object PlanCheck {
             val (a, b) = Openings.span(other, o)
             val len = a.distanceTo(b)
             return (0 until r.wallCount).any { j -> Dimensions.overlap(a, b, r.wallStart(j), r.wallEnd(j)) >= 0.5 * len }
+        }
+
+        /**
+         * Bagni che si aprono direttamente (porta o passaggio) sulla cucina o sul soggiorno, anche quando la cucina è a vista nel
+         * soggiorno, nella casa come sarà: molti regolamenti d'igiene dei comuni vogliono un antibagno o un disimpegno in mezzo. In
+         * camera da letto no: di solito si può aprire il secondo bagno, e il bagno principale non si riconosce dal disegno.
+         */
+        fun bathDoors() {
+            val p = Phases.view(plan, PhaseView.Project)
+            fun door(k: OpeningKind) = k == OpeningKind.Door || k == OpeningKind.Door2 || k == OpeningKind.Passage
+            val doors = p.rooms.flatMap { r ->
+                r.openings.filter { it.wallIndex in 0 until r.wallCount && !r.isRemoved(it.wallIndex) && door(it.kind) }.map { r to it }
+            }
+            for (bath in p.rooms) {
+                if (full()) return
+                if (bath.type != RoomType.Bagno || bath.id in crossed || bath.points.size < 3) continue
+                for ((r, o) in doors) {
+                    val (a, b) = Openings.span(r, o)
+                    val len = a.distanceTo(b)
+                    // La porta sta su un muro della stanza `x` (per almeno metà della sua larghezza).
+                    fun on(x: Room) = (0 until x.wallCount).any { j -> Dimensions.overlap(a, b, x.wallStart(j), x.wallEnd(j)) >= 0.5 * len }
+                    val other = when {
+                        r.id == bath.id -> p.rooms.firstOrNull { it.id != bath.id && !it.outdoor && on(it) }
+                        !r.outdoor && on(bath) -> r
+                        else -> null
+                    } ?: continue
+                    if (HousingRules.space(p, other).none { it.type == RoomType.Cucina || it.type == RoomType.Soggiorno }) continue
+                    add(Issue(Kind.BathOnLiving, floor, listOf(bath.id, other.id), boundsOf(listOf(a, b)).grow(120.0), Selection.Opening(r.id, o.id), opening = o.kind))
+                    break
+                }
+            }
         }
 
         /**

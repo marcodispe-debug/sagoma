@@ -73,6 +73,8 @@ open class TestiControllo {
     open fun soggiornoPiccolo(a: String, m2: String): String = "$a: $m2 m²; il soggiorno deve averne almeno 14."
     open fun bagnoSenzaFinestra(a: String): String =
         "$a: nessuna finestra apribile verso fuori; il bagno ha bisogno dell'aspirazione meccanica (e niente apparecchi a fiamma libera)."
+    open fun bagnoSuCucina(bagno: String, stanza: String): String =
+        "$bagno si apre direttamente su $stanza: molti regolamenti d'igiene dei comuni vogliono un antibagno o un disimpegno tra il bagno e la cucina o il soggiorno."
     open fun bagnoIncompleto(a: String, manca: String): String =
         "$a: senza $manca. Almeno un bagno della casa deve avere vaso, bidè, vasca o doccia e lavabo."
     open val vaso: String get() = "vaso"

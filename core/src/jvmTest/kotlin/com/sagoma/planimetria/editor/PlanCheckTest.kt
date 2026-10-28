@@ -278,6 +278,36 @@ class PlanCheckTest {
     }
 
     @Test
+    fun `norme - bagno che si apre sulla cucina o sul soggiorno`() {
+        // Bagno 200×250 sotto il soggiorno, con la finestra; la porta sul muro in comune.
+        val window = Opening.default(10, OpeningKind.Window1, 2, 100.0)
+        fun bath(vararg doors: Opening) = rect(3, "Bagno", RoomType.Bagno, 200.0, 250.0, Vec2(0.0, 300.0), openings = listOf(window) + doors)
+        val door = Opening.default(11, OpeningKind.Door, 0, 100.0)
+        fun on(vararg rooms: Room) = PlanCheck.of(Building.single(FloorPlan(rooms.toList()))).filter { it.kind == PlanCheck.Kind.BathOnLiving }
+        val b = Building.single(FloorPlan(listOf(living, kitchen, bath(door))))
+        val i = on(living, kitchen, bath(door)).single()
+        assertEquals(listOf(3L, 1L), i.rooms)
+        assertEquals(com.sagoma.planimetria.editor.Selection.Opening(3, 11), i.selection)
+        assertEquals(
+            "«Bagno» si apre direttamente su «Soggiorno»: molti regolamenti d'igiene dei comuni vogliono un antibagno o un disimpegno tra il bagno e la cucina o il soggiorno.",
+            PlanCheck.describe(i, b),
+        )
+        // La porta disegnata dal soggiorno sul muro in comune conta lo stesso; un passaggio senza porta anche.
+        val fromLiving = living.copy(openings = living.openings + Opening.default(12, OpeningKind.Door, 2, 300.0))
+        assertEquals(listOf(3L, 1L), on(fromLiving, kitchen, bath()).single().rooms)
+        assertEquals(1, on(living, kitchen, bath(door.copy(kind = OpeningKind.Passage))).size)
+        // Sulla cucina sì; su una camera, un disimpegno o un antibagno no; una porta da chiudere (stato di progetto) no.
+        val underKitchen = rect(3, "Bagno", RoomType.Bagno, 200.0, 250.0, Vec2(450.0, 300.0), openings = listOf(window, door))
+        assertEquals(listOf(3L, 2L), on(living, kitchen, underKitchen).single().rooms)
+        for (type in listOf(RoomType.Camera, RoomType.Corridoio, RoomType.Altro)) {
+            assertEquals(emptyList(), on(living.copy(type = type, name = "Stanza"), kitchen, bath(door)), "$type")
+        }
+        assertEquals(emptyList(), on(living, kitchen, bath(door.copy(phase = com.sagoma.planimetria.model.Phase.Demolish))))
+        // Un bagno senza porte non è questo problema (c'è «senza porta»).
+        assertEquals(emptyList(), on(living, kitchen, bath()))
+    }
+
+    @Test
     fun `norme - sanitari del bagno, monolocale e metri quadri per persona`() {
         val saved = com.sagoma.planimetria.model.FurnitureCatalog.items
         try {
