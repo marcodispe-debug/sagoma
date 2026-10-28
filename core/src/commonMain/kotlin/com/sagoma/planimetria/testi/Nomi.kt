@@ -89,6 +89,7 @@ open class Nomi {
         Shading.Venetian -> "Veneziana esterna"
         Shading.InteriorShutters -> "Scuri interni"
         Shading.RomanShutter -> "Persiana alla romana"
+        Shading.SlidingShutters -> "Persiane scorrevoli"
     }
 
     open fun stairStructure(v: StairStructure): String = when (v) {

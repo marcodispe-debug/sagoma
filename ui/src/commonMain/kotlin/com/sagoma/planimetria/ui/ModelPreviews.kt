@@ -168,6 +168,16 @@ internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color
         var y = t + 0.03f
         while (y < bottom) { drawLine(shadingColor.shade(0.7f), px(l - 0.03f, y), px(r + 0.03f, y), 1f * density); y += 0.05f }
     }
+    // Persiane scorrevoli: le ante aperte di lato, appese al binario sopra la finestra.
+    if (shading == Shading.SlidingShutters) {
+        val sc = shadingColor
+        box(0.04f, t - 0.07f, 0.96f, t - 0.03f, sc.shade(0.7f))
+        for ((a, z) in listOf(0.07f to l - 0.01f, r + 0.01f to 0.93f)) {
+            box(a, t - 0.03f, z, b + 0.02f, sc)
+            var y = t + 0.02f
+            while (y < b) { drawLine(sc.shade(0.7f), px(a, y), px(z, y), 1f * density); y += 0.06f }
+        }
+    }
     if (shading == Shading.InteriorShutters) {
         val sc = shadingColor.shade(0.92f)
         for ((a, z) in listOf(0.08f to l, r to 0.92f)) {

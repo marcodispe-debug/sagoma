@@ -295,10 +295,12 @@ data class Opening(
 
     /**
      * Colore dell'oscurante (ARGB): quello scelto, oppure il solito: persiane verdi con l'infisso bianco e del colore
-     * dell'infisso con gli altri (anche alla romana), tapparella grigio chiaro, veneziana grigia, scuri interni del colore dell'infisso.
+     * dell'infisso con gli altri (anche alla romana), scorrevoli antracite con l'infisso bianco, tapparella grigio chiaro,
+     * veneziana grigia, scuri interni del colore dell'infisso.
      */
     val shadingArgb: Long get() = shadingColor ?: when (shading) {
         Shading.Shutters, Shading.RomanShutter -> if (frameArgb == Finish.White.argb) SHUTTER_GREEN else frameArgb
+        Shading.SlidingShutters -> if (frameArgb == Finish.White.argb) Finish.Anthracite.argb else frameArgb
         Shading.RollerShutter -> ROLLER_GREY
         Shading.Venetian -> VENETIAN_GREY
         Shading.InteriorShutters, Shading.None -> frameArgb

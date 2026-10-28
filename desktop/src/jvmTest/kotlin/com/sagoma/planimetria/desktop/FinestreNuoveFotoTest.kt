@@ -10,6 +10,7 @@ import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
+import com.sagoma.planimetria.model.Shading
 import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.ui.SkiaImages
 import java.io.File
@@ -17,7 +18,7 @@ import kotlin.test.Test
 
 /**
  * Foto 3D delle finestre nuove (inferriata, sopraluce, legno con fermavetro, persiana alla romana e bovindo) e delle porte
- * da garage (basculante e sezionale), zanzariere, tende da sole e vetromattone, viste da fuori e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
+ * da garage (basculante e sezionale), zanzariere, tende da sole, vetromattone e persiane scorrevoli, viste da fuori e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
  */
 class FinestreNuoveFotoTest {
     @Test
@@ -36,6 +37,8 @@ class FinestreNuoveFotoTest {
                 o(5, OpeningKind.Window2, 2, 300.0, OpeningPreset.BayWindow),
                 // Porta d'ingresso sul muro a sinistra, con la soglia di marmo.
                 o(6, OpeningKind.Door, 3, 225.0, OpeningPreset.Armored).copy(sillMaterial = StairMaterial.Marble),
+                // Persiane scorrevoli marroni sul muro a destra (un'anta).
+                o(7, OpeningKind.Window1, 1, 225.0, OpeningPreset.None).copy(shading = Shading.SlidingShutters, shadingColor = 0xFF6B4A33, sillMaterial = StairMaterial.Stone),
             ),
         )
         // Con il catalogo (se c'è) il prato e i materiali sono quelli fotografici, come nell'app.
@@ -56,6 +59,8 @@ class FinestreNuoveFotoTest {
                 o(2, OpeningKind.Balcony2, 2, 420.0, OpeningPreset.None).copy(insectScreen = true, awning = true, sillMaterial = StairMaterial.Marble),
                 // Vetromattone sul muro davanti, con il davanzale di marmo.
                 o(3, OpeningKind.Window1, 0, 150.0, OpeningPreset.GlassBlock).copy(sillMaterial = StairMaterial.Marble),
+                // Balcone con le persiane scorrevoli (antracite) sul muro a destra.
+                o(4, OpeningKind.Balcony2, 1, 225.0, OpeningPreset.None).copy(shading = Shading.SlidingShutters, sillMaterial = StairMaterial.Marble),
             ),
         )
         val scene = Scene3D.build(FloorPlan(listOf(room, garage, living)), null, null, ceilings = false)
@@ -82,5 +87,7 @@ class FinestreNuoveFotoTest {
         shot("12-davanzale-dentro", Vec3(370.0, 165.0, 110.0), Vec3(370.0, 90.0, 0.0), 75.0, walking = true)
         shot("14-vetromattone-fuori", Vec3(60.0, 165.0, 540.0), Vec3(150.0, 150.0, 700.0), 60.0, walking = false)
         shot("15-vetromattone-dentro", Vec3(230.0, 160.0, 960.0), Vec3(150.0, 155.0, 700.0), 70.0, walking = true)
+        shot("16-scorrevoli-balcone", Vec3(1000.0, 180.0, 1150.0), Vec3(600.0, 120.0, 925.0), 55.0, walking = false)
+        shot("17-scorrevoli-finestra", Vec3(780.0, 160.0, 380.0), Vec3(600.0, 140.0, 225.0), 70.0, walking = false)
     }
 }

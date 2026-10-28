@@ -115,6 +115,8 @@ enum class Shading {
     InteriorShutters,
     /** Persiana alla romana (a sporgere): incernierata in alto, aperta in fuori con il fondo staccato dal muro. */
     RomanShutter,
+    /** Persiane scorrevoli: ante a stecche appese a un binario sopra la finestra, aperte di lato lungo il muro (fuori dal vano). */
+    SlidingShutters,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */

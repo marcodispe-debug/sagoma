@@ -571,4 +571,31 @@ class OpeningTypesTest {
         val plan = FloorPlan(listOf(room(g, other.copy(sillMaterial = StairMaterial.Stone))))
         assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
     }
+
+    @Test
+    fun `persiane scorrevoli - ante aperte di lato fuori dal muro e binario sopra`() {
+        // 120 × 120: da 140 a 260, da 90 a 210. Le ante aperte, larghe 63 cm: da 76 a 139 e da 261 a 324.
+        val w = Opening.default(1, OpeningKind.Window2, 0, 200.0).copy(width = 120.0, shading = Shading.SlidingShutters)
+        val panel = assertNotNull(fromOutside(scene(w), 100.0, 150.0))
+        assertEquals(Pick.Opening(1, 1), panel.pick)
+        // A 3,5 cm dalla faccia esterna del muro (−7,5), spesse 3.
+        assertTrue(panel.point.z < -9.0 && panel.point.z > -14.0, "z = ${panel.point.z}")
+        assertEquals(Pick.Opening(1, 1), assertNotNull(fromOutside(scene(w), 300.0, 150.0)).pick)
+        assertEquals(-7.5, assertNotNull(fromOutside(scene(w.copy(shading = Shading.None)), 100.0, 150.0)).point.z, 0.01)
+        // Il vano resta libero e sopra corre il binario.
+        assertTrue(assertNotNull(fromOutside(scene(w), 180.0, 150.0)).point.z > -8.0)
+        val rail = assertNotNull(fromOutside(scene(w), 200.0, 215.0))
+        assertEquals(Pick.Opening(1, 1), rail.pick)
+        assertTrue(rail.point.z < -12.0, "binario: z = ${rail.point.z}")
+        // Con un'anta sola si apre da una parte sola.
+        val single = Opening.default(1, OpeningKind.Window1, 0, 200.0).copy(shading = Shading.SlidingShutters, hingeLeft = true) // da 160 a 240
+        assertEquals(Pick.Opening(1, 1), assertNotNull(fromOutside(scene(single), 130.0, 150.0)).pick)
+        assertEquals(-7.5, assertNotNull(fromOutside(scene(single), 270.0, 150.0)).point.z, 0.01)
+        // Antracite con l'infisso bianco, altrimenti del colore dell'infisso; nel computo; si salva.
+        assertEquals(Finish.Anthracite.argb, w.shadingArgb)
+        assertEquals(Finish.Walnut.argb, w.copy(color = Finish.Walnut).shadingArgb)
+        assertEquals("Classica, bianco · persiane scorrevoli", Openings.description(w))
+        val plan = FloorPlan(listOf(room(w, single.copy(id = 2, wallIndex = 2))))
+        assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
+    }
 }

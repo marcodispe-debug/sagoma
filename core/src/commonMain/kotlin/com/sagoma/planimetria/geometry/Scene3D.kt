@@ -2750,6 +2750,29 @@ private class SceneBuilder(
                     box(p, foot, 0.6, top - drop * 0.5 - 1, top - drop * 0.5 + 1, slat, pick)
                 }
             }
+            Shading.SlidingShutters -> {
+                // Persiane scorrevoli: ante a stecche un poco staccate dal muro, aperte di lato accanto al vano (ognuna larga metà
+                // vano più la battuta), appese a un binario che corre sopra la finestra e sopra le ante aperte.
+                val c = tint(Rgba.argb(o.shadingArgb), pick)
+                val slat = c.mix(Rgba(0f, 0f, 0f), 0.18f)
+                val rail = c.mix(Rgba(0f, 0f, 0f), 0.3f)
+                val off = n * -(half + 3.5)
+                val leaves = if (o.kind.leaves == 2 || w > 90) 2 else 1
+                val lw = w / leaves + 3.0
+                val sides = if (leaves == 2) listOf(a to -1.0, b to 1.0) else listOf((if (o.hingeLeft) a else b) to (if (o.hingeLeft) -1.0 else 1.0))
+                val low = maxOf(bottom - 3, 0.0)
+                for ((edge, dirSign) in sides) {
+                    val p0 = edge + u * dirSign + off
+                    val p1 = edge + u * (dirSign * (lw + 1)) + off
+                    box(p0, p1, 1.5, low, top + 3, c, pick)
+                    var y = low + 6
+                    while (y < top) { box(p0, p1, 2.1, y, y + 1.2, slat, pick); y += 6.0 }
+                }
+                // Il binario: sopra le ante aperte e il vano (con un'anta sola fino a poco oltre l'altro lato).
+                val left = if (sides.any { it.second < 0 }) a - u * (lw + 2) else a - u * 3.0
+                val right = if (sides.any { it.second > 0 }) b + u * (lw + 2) else b + u * 3.0
+                box(left + off, right + off, 2.5, top + 3, top + 8, rail, pick)
+            }
             Shading.InteriorShutters -> {
                 // Scuri interni: ante piene di legno (colore dell'infisso), aperte sulla faccia del muro verso la stanza.
                 val c = tint(Rgba.argb(o.shadingArgb), pick).mix(Rgba(0f, 0f, 0f), 0.05f)

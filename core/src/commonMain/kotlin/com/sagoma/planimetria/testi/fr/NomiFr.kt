@@ -89,6 +89,7 @@ object NomiFr : Nomi() {
         Shading.Venetian -> "Brise-soleil orientable"
         Shading.InteriorShutters -> "Volets intérieurs"
         Shading.RomanShutter -> "Persienne projetable"
+        Shading.SlidingShutters -> "Volets coulissants"
     }
 
     override fun stairStructure(v: StairStructure): String = when (v) {
