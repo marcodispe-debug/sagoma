@@ -278,6 +278,39 @@ class PlanCheckTest {
     }
 
     @Test
+    fun `mobili dentro i muri`() {
+        val saved = com.sagoma.planimetria.model.FurnitureCatalog.items
+        try {
+            com.sagoma.planimetria.model.FurnitureCatalog.set(listOf(com.sagoma.planimetria.model.FurnitureCatalog.Item(model = "armadio", label = "Armadio", category = "Camera", width = 100.0, depth = 60.0, height = 220.0)))
+            // Armadio 100×60 contro il muro 0 del soggiorno (mezzeria y = 0, faccia a 7,5), lontano dalla porta d'ingresso (x 160-240).
+            fun at(y: Double, height: Double = 220.0, x: Double = 100.0, w: Double = 100.0) =
+                com.sagoma.planimetria.model.Furniture(7, "armadio", Vec2(x, y), width = w, depth = 60.0, height = height)
+            fun issues(f: com.sagoma.planimetria.model.Furniture): Pair<Building, List<PlanCheck.Issue>> {
+                val b = Building.single(FloorPlan(listOf(living, kitchen), furniture = listOf(f)))
+                return b to PlanCheck.of(b).filter { it.kind == PlanCheck.Kind.FurnitureInWall }
+            }
+            // Appoggiato alla parete, o dentro di 2 cm: va bene.
+            assertEquals(emptyList(), issues(at(37.5)).second)
+            assertEquals(emptyList(), issues(at(35.5)).second)
+            // Dentro di 5 cm.
+            val (b, list) = issues(at(32.5))
+            val i = list.single()
+            assertEquals(com.sagoma.planimetria.editor.Selection.Furniture(7), i.selection)
+            assertEquals(listOf(1L), i.rooms)
+            assertTrue(!i.kind.error && !i.kind.rule)
+            assertEquals("«Armadio» entra di 5 cm in un muro: spostalo o rimpiccioliscilo.", PlanCheck.describe(i, b))
+            // A cavallo del muro.
+            val (b2, across) = issues(at(0.0))
+            assertEquals("«Armadio» attraversa un muro: spostalo dentro la stanza o rimpiccioliscilo.", PlanCheck.describe(across.single(), b2))
+            // Nel vano della porta non è dentro il muro; un tappeto non conta.
+            assertEquals(emptyList(), issues(at(0.0, x = 200.0, w = 40.0)).second)
+            assertEquals(emptyList(), issues(at(0.0, height = 1.0)).second)
+        } finally {
+            com.sagoma.planimetria.model.FurnitureCatalog.set(saved)
+        }
+    }
+
+    @Test
     fun `impianti piu alti del muro in mansarda`() {
         // Muro 3 basso (140): la plafoniera a parete a 220 cm non ci sta; il calorifero sotto sì, e sul muro alto (1) anche la luce.
         val light = com.sagoma.planimetria.model.Fixture(1, com.sagoma.planimetria.model.FixtureKind.WallLight, wallIndex = 3, position = 200.0, elevation = 220.0)

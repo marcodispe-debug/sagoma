@@ -5,6 +5,7 @@ import com.sagoma.planimetria.geometry.Ceilings
 import com.sagoma.planimetria.geometry.Collisions
 import com.sagoma.planimetria.geometry.HousingRules
 import com.sagoma.planimetria.geometry.Dimensions
+import com.sagoma.planimetria.geometry.Furnishings
 import com.sagoma.planimetria.geometry.ElectricRules
 import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.PhaseView
@@ -76,6 +77,7 @@ object PlanCheck {
         NoHeating(false),
         NoWater(false),
         FixtureOverWall(false),
+        FurnitureInWall(false),
         FewWindows(false, rule = true),
         NoWindows(false, rule = true),
         NoFloorWindows(false, rule = true),
@@ -136,6 +138,9 @@ object PlanCheck {
     private const val MAX_POINTS_CROSS = 1_500
     private const val MAX_POINTS_SHAPE = 500
 
+    /** Un mobile che entra in un muro meno di così (cm) va bene: appoggiato alla parete, a occhio o con l'aggancio. */
+    private const val FURNITURE_IN_WALL_CM = 3.0
+
     /** Coppie di muri da provare per due stanze vicine, al massimo. */
     private const val MAX_WALL_PAIRS = 200_000
 
@@ -161,6 +166,7 @@ object PlanCheck {
                 pairs()
                 openings()
                 fixtures()
+                furnitureInWalls()
                 swings()
                 doors(below?.let { sane(it.plan) to it.levelHeight }, floor.levelHeight)
                 stairs(floor.levelHeight, above?.let { sane(it.plan) }, f == b.floors.lastIndex)
@@ -276,6 +282,11 @@ object PlanCheck {
             Kind.OpeningTooWide -> t.troppoLarga(name(0), cosa, cm(i.a), cm(i.b))
             Kind.OpeningOverWall -> t.sopraIlMuro(name(0), cosa, cm(i.a), cm(i.b))
             Kind.OpeningOnRemovedWall -> t.suMuroTolto(name(0), cosa)
+            Kind.FurnitureInWall -> {
+                val thing = i.furniture?.let { id -> plan?.furniture?.firstOrNull { it.id == id } }
+                    ?.let { f -> FurnitureCatalog.item(f.model)?.nome?.substringBefore(" · ") ?: T.computo.arredo } ?: T.computo.arredo
+                if (i.b > 0) t.mobileAttraversaMuro(t.nome(thing)) else t.mobileNelMuro(t.nome(thing), cm(i.a))
+            }
             Kind.FixtureOverWall -> {
                 val s = i.selection as? Selection.Fixture
                 val f = s?.let { plan?.room(it.roomId)?.fixtures?.firstOrNull { x -> x.id == it.fixtureId } }
@@ -565,6 +576,62 @@ object PlanCheck {
                     }
                 } ?: continue
                 add(Issue(Kind.InnerWindow, floor, listOf(s.room.id, other.id), boundsOf(listOf(s.a, s.b)).grow(80.0), Selection.Opening(s.room.id, s.o.id), opening = s.o.kind))
+            }
+        }
+
+        /**
+         * Mobili che entrano in un muro per più di [FURNITURE_IN_WALL_CM] (o lo attraversano), fuori dai vani di porte e finestre,
+         * nella casa come sarà: di solito spostati a mano o ridimensionati dopo averli messi contro la parete. I tappeti no.
+         */
+        fun furnitureInWalls() {
+            val p = Phases.view(plan, PhaseView.Project)
+            class Band(val a: Vec2, val b: Vec2, val half: Double)
+            val walls = p.rooms.flatMap { r ->
+                (0 until r.wallCount).filter { !r.isRemoved(it) && r.arcOf(it) == null }.map { i ->
+                    val shift = r.outwardOf(i) * r.wallShift(i)
+                    Band(r.wallStart(i) + shift, r.wallEnd(i) + shift, r.thicknessOf(i) / 2)
+                }
+            }.filter { it.a.distanceTo(it.b) >= 1.0 && it.half.isFinite() }
+            // Vani di porte e finestre (di tutte e due le stanze del muro in comune): lì il mobile non entra nel muro.
+            val gaps = p.rooms.flatMap { r ->
+                r.openings.filter { it.wallIndex in 0 until r.wallCount && !r.isRemoved(it.wallIndex) }.map { o ->
+                    val (a, b) = Openings.span(r, o)
+                    Band(a, b, r.thicknessOf(o.wallIndex) / 2 + 1.0)
+                }
+            }
+            fun inGap(q: Vec2) = gaps.any { g -> Polygon.distanceToSegment(q, g.a, g.b) <= g.half }
+            for (f in p.furniture) {
+                if (full()) return
+                if (f.height <= 3.0 || !(f.width > 0.0) || !(f.depth > 0.0) || !f.center.x.isFinite() || !f.center.y.isFinite()) continue
+                val outline = Furnishings.outline(f)
+                // Solo i muri vicini (rettangoli che si toccano): una casa grande ha centinaia di muri e di mobili.
+                val near = boundsOf(outline)
+                val close = walls.filter { w -> boundsOf(listOf(w.a, w.b)).grow(w.half).touches(near) }
+                if (close.isEmpty()) continue
+                val perimeter = outline.indices.sumOf { outline[it].distanceTo(outline[(it + 1) % outline.size]) }
+                val step = max(5.0, perimeter / 400)
+                var depth = 0.0
+                var across = false
+                for (k in outline.indices) {
+                    val a = outline[k]
+                    val b = outline[(k + 1) % outline.size]
+                    val n = max(1, (a.distanceTo(b) / step).toInt())
+                    for (w in close) {
+                        // Un lato del mobile che passa da una parte all'altra del muro (fuori dalle sue punte, dove i muri si
+                        // incontrano negli angoli, e dai vani).
+                        val x = crossing(a, b, w.a, w.b)
+                        if (x != null && x.distanceTo(w.a) > 1.0 && x.distanceTo(w.b) > 1.0 && !inGap(x)) across = true
+                        for (s in 0..n) {
+                            val q = a + (b - a) * (s.toDouble() / n)
+                            val d = w.half - Polygon.distanceToSegment(q, w.a, w.b)
+                            if (d > depth && !inGap(q)) depth = d
+                        }
+                    }
+                }
+                if (!across && depth < FURNITURE_IN_WALL_CM) continue
+                val box = boundsOf(outline).grow(60.0)
+                val room = p.rooms.firstOrNull { !it.outdoor && Polygon.contains(it.points, f.center) }
+                add(Issue(Kind.FurnitureInWall, floor, listOfNotNull(room?.id), box, Selection.Furniture(f.id), a = depth, b = if (across) 1.0 else 0.0, furniture = f.id))
             }
         }
 

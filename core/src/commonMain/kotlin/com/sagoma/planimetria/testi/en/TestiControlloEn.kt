@@ -57,6 +57,8 @@ object TestiControlloEn : TestiControllo() {
         "Above the stairs there are $h cm up to the slab of the floor above: you hit your head (at least 200 are needed). Leave more steps uncovered (stairs Info → Floor above)."
     override fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =
         "$stanze: two leaves hit each other when opening ($cosa and $cosa2). Swap the hinge side or the opening direction."
+    override fun mobileNelMuro(cosa: String, cm: String): String = "$cosa goes $cm cm into a wall: move it or make it smaller."
+    override fun mobileAttraversaMuro(cosa: String): String = "$cosa goes through a wall: move it inside the room or make it smaller."
     override fun antaUrta(a: String, cosa: String, cosa2: String): String =
         "$a: when opening, the leaf hits $cosa2 ($cosa). Move $cosa2 or swap the hinge side or the opening direction."
     override fun antaUrtaMuro(a: String, cosa: String): String =

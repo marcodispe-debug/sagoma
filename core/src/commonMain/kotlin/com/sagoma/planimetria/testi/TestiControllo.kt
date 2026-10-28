@@ -57,6 +57,8 @@ open class TestiControllo {
         "Sopra la scala restano $h cm fino al solaio del piano di sopra: si batte la testa (ne servono almeno 200). Lascia scoperti più gradini (Info della scala → Piano sopra)."
     open fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =
         "$stanze: due ante si urtano aprendosi ($cosa e $cosa2). Cambia il lato del cardine o il verso di apertura."
+    open fun mobileNelMuro(cosa: String, cm: String): String = "$cosa entra di $cm cm in un muro: spostalo o rimpiccioliscilo."
+    open fun mobileAttraversaMuro(cosa: String): String = "$cosa attraversa un muro: spostalo dentro la stanza o rimpiccioliscilo."
     open fun antaUrta(a: String, cosa: String, cosa2: String): String =
         "$a: aprendosi, l'anta urta $cosa2 ($cosa). Sposta $cosa2 o cambia il lato del cardine o il verso di apertura."
     open fun antaUrtaMuro(a: String, cosa: String): String =

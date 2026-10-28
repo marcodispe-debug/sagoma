@@ -57,6 +57,8 @@ object TestiControlloFr : TestiControllo() {
         "Au-dessus de l'escalier il reste $h cm jusqu'au plancher de l'étage supérieur : on se cogne la tête (il en faut au moins 200). Laissez plus de marches découvertes (Infos de l'escalier → Étage sup.)."
     override fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =
         "$stanze : deux vantaux se heurtent en s'ouvrant ($cosa et $cosa2). Changez le côté des paumelles ou le sens d'ouverture."
+    override fun mobileNelMuro(cosa: String, cm: String): String = "$cosa entre de $cm cm dans un mur : déplacez-le ou réduisez-le."
+    override fun mobileAttraversaMuro(cosa: String): String = "$cosa traverse un mur : déplacez-le dans la pièce ou réduisez-le."
     override fun antaUrta(a: String, cosa: String, cosa2: String): String =
         "$a : en s'ouvrant, le vantail heurte $cosa2 ($cosa). Déplacez $cosa2 ou changez le côté des paumelles ou le sens d'ouverture."
     override fun antaUrtaMuro(a: String, cosa: String): String =
