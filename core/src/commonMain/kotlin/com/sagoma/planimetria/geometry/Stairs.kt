@@ -246,7 +246,7 @@ object Stairs {
         val runs = mutableListOf<Pair<Vec2, Vec2>>()
         for ((pi, piece) in pieces.withIndex()) for ((a, b) in edgesOf(piece)) {
             val len = a.distanceTo(b)
-            val n = (len / 10.0).toInt().coerceAtLeast(1)
+            val n = (len / 10.0).toInt().coerceIn(1, MAX_RAILING_SAMPLES)
             var runStart: Vec2? = null
             for (k in 0 until n) {
                 val p0 = a + (b - a) * (k.toDouble() / n)
@@ -278,6 +278,12 @@ object Stairs {
 
     /** Larghezza minima consigliata di una scala dentro casa (cm). */
     const val MIN_WIDTH = 80.0
+
+    /**
+     * Tratti al massimo su un lato del vano per decidere dove va la ringhiera ([wellRailingRunsAlong]): uno ogni 10 cm fino a
+     * 200 m, poi più lunghi. Con una scala larga chilometri (misura sbagliata) erano milioni, e pianta e 3D si fermavano.
+     */
+    private const val MAX_RAILING_SAMPLES = 2000
 
     /** Gradini che si possono coprire con il pavimento di sopra: tutti tranne gli ultimi due (per arrivare). */
     fun maxCovered(l: Layout): Int = (l.steps.size - 2).coerceAtLeast(0)

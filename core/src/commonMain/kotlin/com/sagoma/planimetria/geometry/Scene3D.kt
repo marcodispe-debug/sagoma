@@ -263,6 +263,11 @@ class Scene3D(
         const val WALL_LED_DEPTH = 1.5
         const val WALL_LED_LUMENS = 1000.0
         const val LED_LIGHT_SPACING = 80.0
+        /**
+         * Punti luce al massimo per una striscia LED o un neon (lunga più di 50 m si dividono il flusso in meno punti): con una
+         * lunghezza sbagliata (troppi zeri, file rovinato) erano centinaia di migliaia di luci e il 3D si fermava.
+         */
+        const val MAX_STRIP_LIGHTS = 64
 
         private fun rayTriangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3): Double? {
             val e1 = b - a
@@ -334,8 +339,14 @@ private class FloatList {
     fun toArray() = data.copyOf(size)
 }
 
-/** Montanti al massimo in una ringhiera di balcone (con 12 cm di passo: 240 m). */
+/** Montanti al massimo in una ringhiera di balcone o attorno a un vano scala (con 12 cm di passo: 240 m). */
 private const val MAX_RAILING_POSTS = 2000
+
+/**
+ * Punti al massimo su un lato del vuoto di una scala ([SceneBuilder.holeEdgeRuns]): uno per centimetro fino a 20 m, poi più radi.
+ * Con una scala larga chilometri (misura sbagliata) erano milioni di punti, ognuno provato su tutti i pezzi, e il 3D si fermava.
+ */
+private const val MAX_EDGE_SAMPLES = 2000
 
 /** Pavimenti più grandi di così (cm², 100 × 100 m) senza fughe disegnate; lo stesso per i rivestimenti delle pareti. */
 private const val MAX_PATTERN_AREA = 1e8
@@ -933,11 +944,14 @@ private class SceneBuilder(
         val len = a.distanceTo(b)
         if (len < 1e-6) return
         val u = (b - a) / len
+        // Come sui balconi: su un tratto lunghissimo (scala larga chilometri, misura sbagliata) i montanti sono più radi e contano
+        // come dettagli, altrimenti erano milioni e finivano la memoria.
+        fun step(spacing: Double) = max(spacing, len / MAX_RAILING_POSTS)
         when (type) {
             StairRailing.None -> return
             StairRailing.Metal -> {
                 var t = 0.0
-                while (t <= len + 1e-6) { val c = a + u * t; box(c - u * 0.8, c + u * 0.8, 0.8, 0.0, h, railColor, pick); t += 12.0 }
+                while (t <= len + 1e-6 && detail(6)) { val c = a + u * t; box(c - u * 0.8, c + u * 0.8, 0.8, 0.0, h, railColor, pick); t += step(12.0) }
                 box(a, b, 1.2, 4.0, 7.0, railColor, pick)
                 box(a, b, 2.0, h - 4, h, railColor, pick)
             }
@@ -949,7 +963,7 @@ private class SceneBuilder(
             StairRailing.Wood -> {
                 val wood = Rgba(0.54f, 0.37f, 0.23f)
                 var t = 0.0
-                while (t <= len + 1e-6) { val c = a + u * t; box(c - u * 2.0, c + u * 2.0, 2.0, 0.0, h - 5, wood, pick); t += 15.0 }
+                while (t <= len + 1e-6 && detail(6)) { val c = a + u * t; box(c - u * 2.0, c + u * 2.0, 2.0, 0.0, h - 5, wood, pick); t += step(15.0) }
                 box(a, b, 3.0, h - 6, h, wood, pick)
             }
         }
@@ -1310,7 +1324,7 @@ private class SceneBuilder(
                 val len = a.distanceTo(b)
                 if (len < 1.0) continue
                 val d = (b - a).normalized().perp()
-                val n = kotlin.math.ceil(len).toInt()
+                val n = min(kotlin.math.ceil(len), MAX_EDGE_SAMPLES.toDouble()).toInt()
                 var runStart = -1
                 var runIn = d
                 fun close(end: Int) {
@@ -2436,7 +2450,8 @@ private class SceneBuilder(
 
     /**
      * Termosifone contro il muro nel punto `p` (normale `n` verso la stanza): a piastra con le scanalature,
-     * a elementi verticali, oppure scaldasalviette con due montanti e i tubi orizzontali.
+     * a elementi verticali, oppure scaldasalviette con due montanti e i tubi orizzontali. Scanalature, elementi e tubi contano
+     * come dettagli ([detail]): un termosifone alto o largo chilometri (troppi zeri nel campo) ne aveva milioni e finiva la memoria.
      */
     private fun radiator(f: Fixture, p: Vec2, n: Vec2, along: Vec2, pick: Pick) {
         val depth = Fixtures.RADIATOR_DEPTH
@@ -2452,12 +2467,12 @@ private class SceneBuilder(
                 val groove = c.mix(Rgba(0f, 0f, 0f), 0.1f)
                 seg(0.0, l, depth / 2 + 0.5, depth / 2, y0, y1, c)
                 var y = y0 + 6
-                while (y < y1 - 4) { seg(1.0, l - 1.0, depth / 2 + 0.5, depth / 2 + 0.3, y, y + 0.8, groove); y += 5.0 }
+                while (y < y1 - 4 && detail(6)) { seg(1.0, l - 1.0, depth / 2 + 0.5, depth / 2 + 0.3, y, y + 0.8, groove); y += 5.0 }
             }
             RadiatorModel.Fins -> {
                 val c = tint(Rgba(0.96f, 0.96f, 0.95f), pick)
                 var x = 0.0
-                while (x + 6.0 <= l + 0.01) { seg(x, x + 6.0, depth / 2 + 0.5, depth / 2, y0, y1, c); x += 8.0 }
+                while (x + 6.0 <= l + 0.01 && detail(6)) { seg(x, x + 6.0, depth / 2 + 0.5, depth / 2, y0, y1, c); x += 8.0 }
                 // Collettori sopra e sotto che uniscono gli elementi.
                 seg(0.0, l, depth / 2 + 0.5, depth / 4, y0 + 4, y0 + 8, c)
                 seg(0.0, l, depth / 2 + 0.5, depth / 4, y1 - 8, y1 - 4, c)
@@ -2468,7 +2483,7 @@ private class SceneBuilder(
                 seg(l - 3.0, l, 4.0, 1.5, y0, y1, chrome)
                 var y = y0 + 4
                 var k = 0
-                while (y < y1 - 2) {
+                while (y < y1 - 2 && detail(6)) {
                     seg(1.5, l - 1.5, 4.0, 1.0, y, y + 2.0, chrome)
                     // Ogni cinque tubi uno spazio più largo, per appendere l'asciugamano.
                     y += if (++k % 5 == 0) 14.0 else 7.0
@@ -2618,7 +2633,7 @@ private class SceneBuilder(
     private fun wallLedStrip(room: Room, f: Fixture, p: Vec2, n: Vec2, along: Vec2, pick: Pick) {
         wallGlow(f, p, n, along, f.length, Scene3D.WALL_LED_HEIGHT, Scene3D.WALL_LED_DEPTH, pick)
         if (!current) return
-        val count = maxOf(1, (f.length / Scene3D.LED_LIGHT_SPACING).toInt())
+        val count = (f.length / Scene3D.LED_LIGHT_SPACING).toInt().coerceIn(1, Scene3D.MAX_STRIP_LIGHTS)
         val front = p + n * (Scene3D.WALL_LED_DEPTH + 4.0)
         for (k in 0 until count) {
             val t = f.length * ((k + 0.5) / count) - f.length / 2
@@ -2672,7 +2687,7 @@ private class SceneBuilder(
             FixtureKind.Neon, FixtureKind.LedStrip -> {
                 // Luce lunga: qualche punto luce lungo la sua lunghezza.
                 val (a, b) = Fixtures.linearEnds(f)
-                val n = maxOf(1, (a.distanceTo(b) / 80).toInt())
+                val n = (a.distanceTo(b) / 80).toInt().coerceIn(1, Scene3D.MAX_STRIP_LIGHTS)
                 val total = if (f.kind == FixtureKind.Neon) 2500.0 else 1000.0
                 for (k in 0 until n) lights += Scene3D.SceneLight((a + (b - a) * ((k + 0.5) / n)).at(h - 10), null, total / n, warm = false, room = roomBox, profile = LightProfile.Strip)
             }

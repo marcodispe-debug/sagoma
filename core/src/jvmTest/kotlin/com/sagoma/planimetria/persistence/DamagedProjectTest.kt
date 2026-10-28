@@ -9,8 +9,13 @@ import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
+import com.sagoma.planimetria.model.RadiatorModel
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
+import com.sagoma.planimetria.model.Floor
+import com.sagoma.planimetria.model.Stair
+import com.sagoma.planimetria.model.StairKind
+import com.sagoma.planimetria.model.StairRailing
 import com.sagoma.planimetria.model.Vec2
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -114,6 +119,50 @@ class DamagedProjectTest {
         }
         val scene = Scene3D.build(FloorPlan(rooms), null, null, ceilings = true)
         assertTrue(scene.opaque.size < 25_000_000, "${scene.opaque.size} valori nel 3D")
+    }
+
+    @Test
+    fun termosifoneAltoOLungoCentoChilometri() {
+        // Troppi zeri nel campo dell'altezza o della larghezza (il campo applica il numero mentre si scrive): milioni di
+        // scanalature, elementi o tubi finivano la memoria. Contano come dettagli, che hanno un tetto per scena.
+        for (model in RadiatorModel.entries) for ((length, height) in listOf(10_000_000.0 to 60.0, 80.0 to 10_000_000.0)) {
+            val radiator = Fixture(1, FixtureKind.Radiator, wallIndex = 0, position = 200.0, length = length, height = height, elevation = 12.0, radiatorModel = model)
+            val room = Room(1, "Camera", RoomType.Camera, RoomFactory.rectangle(400.0, 300.0), fixtures = listOf(radiator))
+            val scene = Scene3D.build(FloorPlan(listOf(room)), null, null, ceilings = true)
+            assertTrue(scene.opaque.size < 25_000_000, "$model $length × $height: ${scene.opaque.size} valori nel 3D")
+        }
+    }
+
+    @Test
+    fun striscieLedLungheCentoChilometri() {
+        // Un punto luce ogni 80 cm: erano centinaia di migliaia di luci e il 3D si fermava. Al massimo MAX_STRIP_LIGHTS per
+        // striscia o neon, che si dividono lo stesso flusso.
+        val long = 10_000_000.0
+        val fixtures = listOf(
+            Fixture(1, FixtureKind.WallLedStrip, wallIndex = 0, position = 200.0, length = long, elevation = 250.0),
+            Fixture(2, FixtureKind.LedStrip, point = Vec2(200.0, 150.0), length = long),
+            Fixture(3, FixtureKind.Neon, point = Vec2(200.0, 100.0), length = long),
+        )
+        val room = Room(1, "Soggiorno", RoomType.Soggiorno, RoomFactory.rectangle(400.0, 300.0), fixtures = fixtures)
+        val scene = Scene3D.build(FloorPlan(listOf(room)), null, null, ceilings = true)
+        assertEquals(3 * Scene3D.MAX_STRIP_LIGHTS, scene.lights.size)
+        assertEquals(Scene3D.WALL_LED_LUMENS + 1000.0 + 2500.0, scene.lights.sumOf { it.lumens }, 1e-6)
+    }
+
+    @Test
+    fun scalaLargaCentoChilometri() {
+        // Il contorno del vuoto nel solaio (e la ringhiera attorno, di sopra) si provava ogni centimetro (ogni 10 cm) su tutti i
+        // pezzi del vuoto: con una scala larga chilometri e i primi gradini coperti erano miliardi di prove, e 3D e pianta di
+        // sopra si fermavano. Oltre i 20 m di lato (200 m per la ringhiera) i punti sono più radi.
+        val stair = Stair(1, StairKind.Straight, Vec2(200.0, 150.0), width = 10_000_000.0, coveredSteps = 6, wellRailing = StairRailing.Metal)
+        val room = Room(1, "Corridoio", RoomType.Corridoio, RoomFactory.rectangle(400.0, 300.0))
+        val ground = Floor(1, "Piano terra", reopen(FloorPlan(listOf(room), stairs = listOf(stair))))
+        val first = Floor(2, "Primo piano", FloorPlan(listOf(room)))
+        val start = System.nanoTime()
+        Scene3D.build(ground.plan, null, null, ceilings = true, above = first)
+        Scene3D.build(first.plan, null, null, ceilings = true, below = listOf(ground))
+        val seconds = (System.nanoTime() - start) / 1e9
+        assertTrue(seconds < 30, "3D in $seconds s")
     }
 
     @Test
