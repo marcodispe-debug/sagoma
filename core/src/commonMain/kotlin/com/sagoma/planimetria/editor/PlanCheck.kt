@@ -243,7 +243,7 @@ object PlanCheck {
         Kind.OpeningTooWide -> i.b >= MIN_FIXED_OPENING_CM
         Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall, Kind.NearWalls, Kind.OpeningOnRemovedWall -> true
         Kind.Overlap -> i.rooms.size == 2
-        Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater, Kind.FewPoints -> i.rooms.size == 1
+        Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater, Kind.FewPoints, Kind.BathNoWindow -> i.rooms.size == 1
         Kind.NoEntrance, Kind.NoDoors, Kind.NoFloorWindows -> true
         Kind.NoWindows, Kind.FewWindows -> i.rooms.isNotEmpty()
         Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall -> i.selection is Selection.Opening
@@ -254,14 +254,14 @@ object PlanCheck {
 
     /** Problemi che si riconoscono dalle stanze di [Issue.rooms] (non da cosa selezionare): corretti quando lì non c'è più. */
     private val BY_ROOMS = setOf(Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater, Kind.NoWindows, Kind.FewWindows,
-        Kind.FewPoints)
+        Kind.FewPoints, Kind.BathNoWindow)
 
     /** Finestre sotto 1/8 del pavimento: «senza» e «poche» sono lo stesso problema (una finestra piccola non lo corregge). */
     private val FEW_WINDOWS = setOf(Kind.NoWindows, Kind.FewWindows)
 
     /** Problemi che [canFix] con la casa prova a correggere davvero prima di offrire «Correggi» ([triesFirst]). */
     private val TRIES_FIRST = SWINGS + FEW_WINDOWS + Kind.Overlap + Kind.NoDoor + Kind.NoDoors + Kind.NoEntrance + Kind.NoHeating + Kind.NoWater +
-        Kind.NoFloorWindows + Kind.FewPoints
+        Kind.NoFloorWindows + Kind.FewPoints + Kind.BathNoWindow
 
     /**
      * Chiave del problema `i` tra quelli tolti dalla pianta ([Building.hiddenChecks]): tipo, piano (il suo id, che non cambia
@@ -357,7 +357,7 @@ object PlanCheck {
      * alla cucina o al bagno senza punto acqua uno dietro il lavello ([waterFixes]); al piano senza nessuna porta una porta
      * per stanza e quella d'ingresso ([allDoors]); all'ambiente con finestre sotto 1/8 del pavimento si allarga una finestra o
      * se ne mette una nuova su un muro che dà fuori ([windowFixes]), al piano senza nessuna finestra in ogni ambiente da abitare
-     * ([allWindows]); alla stanza con meno punti presa o punti luce di quelli della norma si mettono quelli che mancano
+     * ([allWindows]), al bagno senza finestra una su un muro che dà fuori ([bathWindows]); alla stanza con meno punti presa o punti luce di quelli della norma si mettono quelli che mancano
      * ([pointFixes]); la stanza piccolissima
      * (un pezzo rimasto) si toglie, se il piano ne ha altre; l'anta che urta si gira ([swingFixes]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
      */
@@ -368,7 +368,7 @@ object PlanCheck {
         fun Room.with(o: Opening) = copy(openings = openings.map { if (it.id == o.id) o else it })
         val single: FloorPlan? = when (i.kind) {
             Kind.FurnitureInWall -> i.furniture?.let { pushedOut(plan, it) }
-            Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.NoEntrance, Kind.NoHeating, Kind.NoWater -> null
+            Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.NoEntrance, Kind.NoHeating, Kind.NoWater, Kind.BathNoWindow -> null
             // Il piano senza nessuna porta (appena ricalcato): una porta per stanza e quella d'ingresso; se l'ingresso non trova
             // posto, solo le porte.
             Kind.NoDoors, Kind.NoFloorWindows -> null
@@ -424,7 +424,7 @@ object PlanCheck {
             val old = swings(plan).mapTo(HashSet()) { LiveCheck.key(it) }
             return entranceFixes(plan).sortedBy { p -> swings(p).count { LiveCheck.key(it) !in old } }.firstNotNullOfOrNull { accepted(it)?.first }
         }
-        if (i.kind == Kind.NoDoor || i.kind == Kind.NoHeating || i.kind == Kind.NoWater || i.kind in FEW_WINDOWS) {
+        if (i.kind == Kind.NoDoor || i.kind == Kind.NoHeating || i.kind == Kind.NoWater || i.kind in FEW_WINDOWS || i.kind == Kind.BathNoWindow) {
             // Tra le porte (o i caloriferi, i punti acqua, le finestre) che vanno, quella con meno problemi nuovi (anta che urta,
             // bagno che si apre sul soggiorno); a pari, la prima (verso corridoio o soggiorno; sotto la finestra; dietro il
             // lavello; la finestra che c'è allargata).
@@ -433,6 +433,7 @@ object PlanCheck {
                 Kind.NoDoor -> doorFixes(plan, i)
                 Kind.NoHeating -> heatFixes(plan, i)
                 Kind.NoWater -> waterFixes(plan, i)
+                Kind.BathNoWindow -> i.rooms.singleOrNull()?.let(plan::room)?.let { bathWindows(plan, it) }.orEmpty()
                 else -> windowFixes(plan, i.rooms.mapNotNull(plan::room))
             }
             return fixes.mapNotNull { out -> accepted(out)?.let { (result, after) -> result to after.count { LiveCheck.key(it) !in keys } } }
@@ -928,7 +929,8 @@ object PlanCheck {
 
     /**
      * Piano senza nessuna finestra (pianta appena ricalcata o letta): in ogni ambiente da abitare le finestre per arrivare a 1/8
-     * del pavimento ([windowFixes]), dove ci sono muri che danno fuori; null se non se ne mette nessuna.
+     * del pavimento ([windowFixes]) e in ogni bagno una ([bathWindows]), dove ci sono muri che danno fuori; null se non se ne
+     * mette nessuna.
      */
     private fun allWindows(plan: FloorPlan): FloorPlan? {
         var out = plan
@@ -938,7 +940,36 @@ object PlanCheck {
             val need = missingLight(out, now)
             out = (0 until 3).firstNotNullOfOrNull { addedWindows(out, now, need, it) } ?: continue
         }
+        for (r in plan.rooms) {
+            if (r.type != RoomType.Bagno || r.outdoor || HousingRules.demolished(r)) continue
+            out = out.room(r.id)?.let { bathWindows(out, it).firstOrNull() } ?: continue
+        }
         return out.takeIf { it != plan }
+    }
+
+    /** Larghezza (cm) della finestra che «Correggi» mette nel bagno, e quella più stretta se il muro libero è corto. */
+    private const val BATH_WINDOW_CM = 80.0
+    private const val MIN_BATH_WINDOW_CM = 60.0
+
+    /**
+     * Bagno senza finestra apribile: una finestra a un'anta come quella del menu (alta 120, davanzale a 90), larga 80 (60 se il
+     * tratto è corto), nel mezzo di uno dei tratti più lunghi (al massimo tre, nell'ordine) dei muri dritti che danno fuori (anche
+     * su un balcone), liberi da porte, finestre e mobili alti. Nessuna se il bagno non ha muri che danno fuori.
+     */
+    private fun bathWindows(plan: FloorPlan, r: Room): List<FloorPlan> {
+        if (r.outdoor) return emptyList()
+        val probe = newWindow(0, 0, 0.0, BATH_WINDOW_CM)
+        val need = MIN_BATH_WINDOW_CM + 2 * WINDOW_GAP_CM
+        return (0 until r.wallCount).filter { k ->
+            !r.isRemoved(k) && r.arcOf(k) == null && r.phaseOf(k) != Phase.Demolish && r.wallHeight(k) >= probe.bottom + probe.height + 10.0 &&
+                r.wallLength(k) >= need
+        }.flatMap { k ->
+            val blocks = wallBlocks(plan, r, k, openings = true, above = probe.bottom) + neighbours(plan, r, k, outdoor = false)
+            freeRuns(blocks, r.wallLength(k), need).map { (lo, hi) -> Triple(k, lo, hi) }
+        }.sortedByDescending { it.third - it.second }.take(3).map { (k, lo, hi) ->
+            val width = min(BATH_WINDOW_CM, floor10(hi - lo - 2 * WINDOW_GAP_CM))
+            plan.replace(r.copy(openings = r.openings + newWindow(plan.nextOpeningId, k, (lo + hi) / 2, width)))
+        }
     }
 
     /** I tratti liberi (inizio e fine) di un muro lungo `len`, tra i tratti occupati `blocks`, lunghi almeno `need`. */

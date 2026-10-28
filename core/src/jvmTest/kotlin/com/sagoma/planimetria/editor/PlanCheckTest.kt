@@ -742,6 +742,39 @@ class PlanCheckTest {
     }
 
     @Test
+    fun `Correggi - finestra del bagno`() {
+        // Bagno 200×250 accanto al soggiorno, senza finestre: una da 80 nel mezzo del muro libero più lungo che dà fuori.
+        val bath = rect(3, "Bagno", RoomType.Bagno, 200.0, 250.0, Vec2(400.0, 0.0))
+        val b = Building.single(FloorPlan(listOf(living, bath)))
+        val dark = PlanCheck.of(b).single { it.kind == PlanCheck.Kind.BathNoWindow }
+        assertTrue(PlanCheck.triesFirst(dark) && PlanCheck.canFix(b, dark))
+        val fixed = assertNotNull(PlanCheck.fixed(b, dark))
+        val window = fixed.floors[0].plan.rooms.single { it.id == 3L }.openings.single()
+        assertEquals(OpeningKind.Window1, window.kind)
+        assertEquals(80.0, window.width)
+        assertEquals(1, window.wallIndex)
+        assertEquals(125.0, window.position)
+        assertTrue(PlanCheck.of(fixed).none { it.kind == PlanCheck.Kind.BathNoWindow })
+        // Bagno chiuso tra le altre stanze (cieco): niente «Correggi», serve l'aspiratore.
+        val blind = rect(3, "Bagno", RoomType.Bagno, 200.0, 200.0, Vec2(400.0, 300.0))
+        val around = Building.single(FloorPlan(listOf(
+            rect(4, "Camera", RoomType.Camera, 1000.0, 300.0, openings = listOf(Opening.default(10, OpeningKind.Window2, 0, 500.0))),
+            rect(5, "Camera", RoomType.Camera, 400.0, 200.0, Vec2(0.0, 300.0)),
+            rect(6, "Camera", RoomType.Camera, 400.0, 200.0, Vec2(600.0, 300.0)),
+            rect(7, "Camera", RoomType.Camera, 1000.0, 300.0, Vec2(0.0, 500.0)),
+            blind,
+        )))
+        val closed = PlanCheck.of(around).single { it.kind == PlanCheck.Kind.BathNoWindow }
+        assertTrue(!PlanCheck.canFix(around, closed))
+        // Il piano senza nessuna finestra: anche il bagno ne riceve una.
+        val bare = Building.single(FloorPlan(listOf(living.copy(openings = living.openings.filter { !it.kind.glazed }), bath)))
+        val none = PlanCheck.of(bare).single { it.kind == PlanCheck.Kind.NoFloorWindows }
+        val all = assertNotNull(PlanCheck.fixed(bare, none))
+        assertTrue(PlanCheck.of(all).none { it.kind == PlanCheck.Kind.BathNoWindow || it.kind == PlanCheck.Kind.NoWindows }, "${PlanCheck.of(all).map { it.kind }}")
+        assertEquals(1, all.floors[0].plan.rooms.single { it.id == 3L }.openings.count { it.kind.glazed })
+    }
+
+    @Test
     fun `Correggi tutti - gli errori di un gruppo insieme`() {
         // Finestra più alta del muro, porta più larga del muro del bagno, cucina sovrapposta al soggiorno: tre errori (⚠) che si
         // correggono da soli.
