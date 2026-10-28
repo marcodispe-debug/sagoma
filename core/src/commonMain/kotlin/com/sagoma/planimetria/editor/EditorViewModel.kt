@@ -88,6 +88,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.min
 
 class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipStore) : ViewModel() {
@@ -3166,6 +3167,30 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         fitTo(viewBounds(_state.value) ?: return)
     }
 
+    /**
+     * «Controlla la pianta» → «Mostra»: va al piano del problema, seleziona ciò che lo riguarda (o mette a fuoco la stanza) e
+     * inquadra la zona, almeno 5 × 5 m attorno perché si capisca dove si è.
+     */
+    fun showIssue(issue: PlanCheck.Issue) {
+        selectFloor(issue.floor)
+        val plan = _state.value.plan
+        val sel = issue.selection?.takeIf { selectionExists(plan, it) }
+        val room = issue.rooms.firstOrNull { plan.room(it) != null }
+        _state.update {
+            it.copy(
+                focusedRoomId = if (sel != null) sel.roomId.takeIf { id -> plan.room(id) != null } else room,
+                selection = sel, multi = emptySet(), selectRect = null,
+            )
+        }
+        val a = issue.area
+        val c = a.center
+        val w = max(a.width, MIN_ISSUE_VIEW) / 2
+        val h = max(a.height, MIN_ISSUE_VIEW) / 2
+        if (!c.x.isFinite() || !c.y.isFinite() || !w.isFinite() || !h.isFinite()) return
+        userAdjustedView = true
+        fitTo(Bounds(c.x - w, c.y - h, c.x + w, c.y + h))
+    }
+
     /** Vista che inquadra `b` nello spazio libero della pianta. */
     private fun fitTo(b: Bounds) {
         if (viewportW <= 0f || viewportH <= 0f) return
@@ -3217,6 +3242,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         /** Trascinando la maniglia della curva, entro questi cm dalla linea dritta il muro torna dritto. */
         private const val BULGE_SNAP = 4.0
         const val AUTOSAVE_DELAY_MS = 400L
+        /** «Mostra» un problema della pianta: la zona inquadrata è almeno così larga e alta (cm). */
+        const val MIN_ISSUE_VIEW = 500.0
         /** Funzioni già spiegate dal tutorial: finito il tutorial, i loro suggerimenti non servono più. */
         val TUTORIAL_TIPS = listOf(Tip.Welcome, Tip.Room, Tip.Wall, Tip.NewRoom, Tip.Opening, Tip.Fixture)
 

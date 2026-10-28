@@ -7,6 +7,7 @@ import com.sagoma.planimetria.geometry.Glb
 import com.sagoma.planimetria.geometry.Phases
 import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.Takeoff
+import com.sagoma.planimetria.editor.PlanCheck
 import kotlinx.serialization.json.*
 import java.io.File
 import java.util.concurrent.Executors
@@ -72,6 +73,7 @@ class DamagedProjectFuzzTest {
                     stage = "dxf$i"; PlanDxf.of(f.plan, f.levelHeight)
                 }
                 stage = "takeoff"; Takeoff.csv(Takeoff.of(b))
+                stage = "check"; PlanCheck.of(b).forEach { PlanCheck.describe(it, b) }
                 stage = "json"; PlanJson.decodeBuilding(PlanJson.encode(b))
             }
             try {

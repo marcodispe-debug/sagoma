@@ -146,6 +146,7 @@ fun EditorScreen(
     // Strumenti professionali: tavola PDF in scala, computo, pianta di sfondo da ricalcare.
     var showPdf by remember { mutableStateOf(false) }
     var showTakeoff by remember { mutableStateOf(false) }
+    var showCheck by remember { mutableStateOf(false) }
     var showBackground by remember { mutableStateOf(false) }
     var showLayers by remember { mutableStateOf(false) }
     var showTheme by remember { mutableStateOf(false) }
@@ -156,6 +157,7 @@ fun EditorScreen(
         T.editor.livelli to { showLayers = true },
         T.editor.tavolaPdfScala to { showPdf = true },
         T.editor.computoListaArredi to { showTakeoff = true },
+        T.controllo.voceMenu to { showCheck = true },
         T.editor.esportaDxf to exportDxf,
         T.editor.piantaSfondo to { showBackground = true },
         T.editor.temaChiaroScuro to { showTheme = true },
@@ -167,6 +169,7 @@ fun EditorScreen(
     if (showSite) HouseSiteDialog(state.building.site, onNorth = vm::setNorth, onPlace = vm::setPlace, onDismiss = { showSite = false })
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
+    if (showCheck) PlanCheckDialog(state, vm, onDismiss = { showCheck = false })
     // "Ricalca una piantina" al posto della prima stanza: la finestra resta aperta finché non si carica e si tara la piantina.
     val tracingSetup = state.tracing != null && state.underlayTool == null
     if (showBackground || tracingSetup) BackgroundDialog(state, vm, projectId, tracing = state.tracing != null, onDismiss = {
