@@ -147,24 +147,26 @@ internal fun CheckMarkers(marks: List<CheckMark>, camera: Camera, onOpen: (Check
 private fun CheckMarker(m: CheckMark, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val (color, content) = markColors(m.issues.first().kind)
     val label = T.controllo.problemiQui(m.issues.size)
-    Box(
-        modifier.size(MARK_TOUCH).clip(CircleShape).clickable(onClick = onClick).semantics {
-            contentDescription = label
-            role = Role.Button
-        },
-    ) {
-        Box(Modifier.align(Alignment.Center).size(MARK_SIZE).shadow(2.dp, CircleShape).background(color, CircleShape), contentAlignment = Alignment.Center) {
-            Text("!", color = content, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+    // Il cerchietto del numero sporge dal cerchio del tocco: sta fuori dal ritaglio, e non ferma il tocco.
+    Box(modifier.size(MARK_TOUCH)) {
+        Box(
+            Modifier.matchParentSize().clip(CircleShape).clickable(onClick = onClick).semantics {
+                contentDescription = label
+                role = Role.Button
+            },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.size(MARK_SIZE).shadow(2.dp, CircleShape).background(color, CircleShape), contentAlignment = Alignment.Center) {
+                Text("!", color = content, fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 14.sp)
+            }
         }
         // Più problemi nello stesso punto: quanti, in un cerchietto in alto a destra.
-        if (m.issues.size > 1) Surface(
-            modifier = Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-3).dp).size(16.dp),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            shadowElevation = 1.dp,
+        if (m.issues.size > 1) Box(
+            Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-3).dp).size(16.dp)
+                .shadow(1.dp, CircleShape).background(MaterialTheme.colorScheme.surface, CircleShape),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(contentAlignment = Alignment.Center) { Text("${m.issues.size}", fontSize = 10.sp, fontWeight = FontWeight.SemiBold) }
+            Text("${m.issues.size}", color = MaterialTheme.colorScheme.onSurface, fontSize = 10.sp, lineHeight = 10.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
