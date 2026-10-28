@@ -278,6 +278,24 @@ class PlanCheckTest {
     }
 
     @Test
+    fun `impianti piu alti del muro in mansarda`() {
+        // Muro 3 basso (140): la plafoniera a parete a 220 cm non ci sta; il calorifero sotto sì, e sul muro alto (1) anche la luce.
+        val light = com.sagoma.planimetria.model.Fixture(1, com.sagoma.planimetria.model.FixtureKind.WallLight, wallIndex = 3, position = 200.0, elevation = 220.0)
+        val radiator = com.sagoma.planimetria.model.Fixture(2, com.sagoma.planimetria.model.FixtureKind.Radiator, wallIndex = 3, position = 100.0, length = 80.0, height = 60.0, elevation = 15.0)
+        val high = light.copy(id = 3, wallIndex = 1)
+        val attic = Room(1, "Camera", RoomType.Camera, RoomFactory.rectangle(500.0, 400.0), wallThickness = 30.0, fixtures = listOf(light, radiator, high),
+            wallHeights = mapOf(3 to 140.0), wallCuts = mapOf(0 to com.sagoma.planimetria.model.WallCut(false, 250.0), 2 to com.sagoma.planimetria.model.WallCut(true, 250.0)))
+        val b = Building.single(FloorPlan(listOf(attic)))
+        val i = PlanCheck.of(b).single { it.kind == PlanCheck.Kind.FixtureOverWall }
+        assertEquals(com.sagoma.planimetria.editor.Selection.Fixture(1, 1), i.selection)
+        assertTrue(!i.kind.error && !i.kind.rule)
+        assertEquals("«Camera»: plafoniera a parete arriva a 226 cm da terra, ma lì il muro è alto 140 cm.", PlanCheck.describe(i, b))
+        // Abbassata sotto la cima del muro: niente.
+        val lower = attic.copy(fixtures = listOf(light.copy(elevation = 120.0), radiator, high))
+        assertTrue(PlanCheck.of(Building.single(FloorPlan(listOf(lower)))).none { it.kind == PlanCheck.Kind.FixtureOverWall })
+    }
+
+    @Test
     fun `norme - mansarda bassa in media`() {
         // Camera 500×400 con il muro 3 basso (140): il soffitto sale fino a 270 nei primi 250 cm. Dentro i muri da 30 la media è
         // 2,39 m: bassa anche per le leggi sui sottotetti (2,40). Con il colmo a 300 la media è 2,62: va bene.

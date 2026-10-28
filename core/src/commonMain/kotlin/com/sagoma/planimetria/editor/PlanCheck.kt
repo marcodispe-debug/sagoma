@@ -2,6 +2,7 @@ package com.sagoma.planimetria.editor
 
 import com.sagoma.planimetria.geometry.Bounds
 import com.sagoma.planimetria.geometry.Ceilings
+import com.sagoma.planimetria.geometry.Collisions
 import com.sagoma.planimetria.geometry.HousingRules
 import com.sagoma.planimetria.geometry.Dimensions
 import com.sagoma.planimetria.geometry.ElectricRules
@@ -74,6 +75,7 @@ object PlanCheck {
         SwingHitsWall(false),
         NoHeating(false),
         NoWater(false),
+        FixtureOverWall(false),
         FewWindows(false, rule = true),
         NoWindows(false, rule = true),
         NoFloorWindows(false, rule = true),
@@ -158,6 +160,7 @@ object PlanCheck {
                 walls()
                 pairs()
                 openings()
+                fixtures()
                 swings()
                 doors(below?.let { sane(it.plan) to it.levelHeight }, floor.levelHeight)
                 stairs(floor.levelHeight, above?.let { sane(it.plan) }, f == b.floors.lastIndex)
@@ -273,6 +276,11 @@ object PlanCheck {
             Kind.OpeningTooWide -> t.troppoLarga(name(0), cosa, cm(i.a), cm(i.b))
             Kind.OpeningOverWall -> t.sopraIlMuro(name(0), cosa, cm(i.a), cm(i.b))
             Kind.OpeningOnRemovedWall -> t.suMuroTolto(name(0), cosa)
+            Kind.FixtureOverWall -> {
+                val s = i.selection as? Selection.Fixture
+                val f = s?.let { plan?.room(it.roomId)?.fixtures?.firstOrNull { x -> x.id == it.fixtureId } }
+                t.sopraIlMuro(name(0), f?.let { T.lingua.minuscola(it.kind.label) } ?: "?", cm(i.a), cm(i.b))
+            }
             Kind.NoDoor -> t.senzaPorta(name(0))
             Kind.NoDoors -> t.nessunaPorta
             Kind.NoEntrance -> t.senzaIngresso
@@ -557,6 +565,19 @@ object PlanCheck {
                     }
                 } ?: continue
                 add(Issue(Kind.InnerWindow, floor, listOf(s.room.id, other.id), boundsOf(listOf(s.a, s.b)).grow(80.0), Selection.Opening(s.room.id, s.o.id), opening = s.o.kind))
+            }
+        }
+
+        /**
+         * Impianti sulle pareti (termosifoni, luci, strisce LED, prese…) che arrivano più in alto del muro su cui stanno: di solito
+         * in mansarda, dove la parete è bassa o tagliata dal tetto. La pianta li segna già in rosso; qui finiscono nell'elenco.
+         */
+        fun fixtures() {
+            for (c in Collisions.of(plan)) {
+                if (full()) return
+                val id = c.fixtureId ?: continue
+                if (c.objectTop <= c.wallTop + 2.0 || !c.point.x.isFinite() || !c.point.y.isFinite()) continue
+                add(Issue(Kind.FixtureOverWall, floor, listOf(c.roomId), Bounds(c.point.x, c.point.y, c.point.x, c.point.y).grow(120.0), Selection.Fixture(c.roomId, id), a = c.objectTop, b = c.wallTop))
             }
         }
 
