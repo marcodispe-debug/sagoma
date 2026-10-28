@@ -142,7 +142,13 @@ class PlanCheckTest {
         assertTrue(PlanCheck.describe(over, Building.single(FloorPlan(listOf(tall)))).contains("arriva a 300 cm da terra, ma lì il muro è alto 270 cm"))
 
         val open = living.copy(removedWalls = setOf(2))
-        assertEquals(Selection.Opening(1, 3), check(open, kitchen).single { it.kind == PlanCheck.Kind.OpeningOnRemovedWall }.selection)
+        val removed = check(open, kitchen).single { it.kind == PlanCheck.Kind.OpeningOnRemovedWall }
+        assertEquals(Selection.Opening(1, 3), removed.selection)
+        // «Correggi»: la finestra sul lato aperto (che non c'è) si toglie; le altre aperture restano.
+        assertTrue(PlanCheck.canFix(removed))
+        val fixed = assertNotNull(PlanCheck.fixed(Building.single(FloorPlan(listOf(open, kitchen))), removed)).floors[0].plan.rooms[0]
+        assertEquals(listOf(1L, 2L), fixed.openings.map { it.id })
+        assertTrue(PlanCheck.of(Building.single(FloorPlan(listOf(fixed, kitchen)))).none { it.kind == PlanCheck.Kind.OpeningOnRemovedWall })
     }
 
     @Test

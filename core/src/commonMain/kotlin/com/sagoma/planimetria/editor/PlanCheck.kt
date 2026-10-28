@@ -234,7 +234,7 @@ object PlanCheck {
         Kind.FurnitureInWall -> i.b == 0.0
         Kind.DoubleOpening -> i.opening != null && i.opening == i.opening2
         Kind.OpeningTooWide -> i.b >= MIN_FIXED_OPENING_CM
-        Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall, Kind.NearWalls -> true
+        Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall, Kind.NearWalls, Kind.OpeningOnRemovedWall -> true
         Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall -> i.selection is Selection.Opening
         else -> false
     }
@@ -305,10 +305,11 @@ object PlanCheck {
     /**
      * La casa con il problema `i` corretto, o null se non si riesce da soli (o la correzione non lo toglie, o non c'è più): il
      * mobile dentro un muro torna fino alla parete; l'impianto più alto del muro si abbassa; la porta o la finestra più alta del
-     * muro si accorcia, quella più larga del muro si stringe a quanto se ne vede; quella messa due volte resta una sola; il muro
-     * lungo zero si unisce al muro dopo (come «Unisci al muro dopo»); il muro della stanza quasi attaccata a un'altra va sulla
-     * linea del muro dell'altra e diventa un muro in comune (come trascinarlo lì); l'anta che urta si gira ([swingFixes]). Una
-     * correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
+     * muro si accorcia, quella più larga del muro si stringe a quanto se ne vede; quella messa due volte resta una sola, quella su
+     * un muro tolto (lato aperto) si toglie; il muro lungo zero si unisce al muro dopo (come «Unisci al muro dopo»); il muro
+     * della stanza quasi attaccata a un'altra va sulla linea del muro dell'altra e diventa un muro in comune (come trascinarlo
+     * lì); l'anta che urta si gira ([swingFixes]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta
+     * che urta altro) non si fa.
      */
     fun fixed(b: Building, i: Issue): Building? {
         if (!canFix(i)) return null
@@ -322,7 +323,8 @@ object PlanCheck {
                 val r = plan.room(s.roomId)?.takeIf { s.index in 0 until it.wallCount } ?: return null
                 r.removeCorner((s.index + 1) % r.wallCount)?.let(plan::replace)
             }
-            Kind.DoubleOpening -> (i.selection as? Selection.Opening)?.let { s ->
+            // La seconda apertura nello stesso punto, o quella sul muro tolto (che non c'è): si toglie.
+            Kind.DoubleOpening, Kind.OpeningOnRemovedWall -> (i.selection as? Selection.Opening)?.let { s ->
                 val r = plan.room(s.roomId) ?: return null
                 if (r.openings.none { it.id == s.openingId }) null else plan.replace(r.copy(openings = r.openings.filter { it.id != s.openingId }))
             }
