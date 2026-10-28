@@ -92,6 +92,7 @@ fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Uni
                 for (t in res.floorMaterials) Line(t.what, "${fmt2(t.quantity)} m²  (+10% ${fmt2(t.quantity * 1.1)})")
                 Section(T.computo.finiturePareti)
                 for (t in res.wallFinishes) Line(t.what, "${fmt2(t.quantity)} m²")
+                if (res.ceilings > 0) Line(T.computo.soffitti, "${fmt2(res.ceilings)} m²")
                 Section(T.computo.arredi)
                 if (res.furniture.isEmpty()) Text(T.computo.nessunArredo, style = MaterialTheme.typography.bodySmall)
                 for (i in res.furniture) Line("${i.count}× ${i.name}", "${i.size}\n${i.where}")

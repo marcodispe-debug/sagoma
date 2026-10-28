@@ -42,6 +42,8 @@ object Takeoff {
         val wallFinishes: List<Total>,
         val furniture: List<Item>,
         val fixtures: List<Item>,
+        /** m² dei soffitti da dipingere (in mansarda la falda vera, più grande della pianta). */
+        val ceilings: Double = 0.0,
     ) {
         val totalFloor: Double get() = rooms.sumOf { it.floorArea }
         val totalWalls: Double get() = rooms.sumOf { it.wallArea }
@@ -117,6 +119,7 @@ object Takeoff {
         val wallTot = LinkedHashMap<String, Double>()
         val furniture = LinkedHashMap<Pair<String, String>, Pair<Int, MutableSet<String>>>()
         val fixtures = LinkedHashMap<String, Pair<Int, MutableSet<String>>>()
+        var ceilings = 0.0
         for (fl in building.floors) {
             val plan = fl.plan
             // Porte sul muro in comune: il vano buca anche la parete della stanza accanto (che non ha la porta tra le sue).
@@ -126,6 +129,7 @@ object Takeoff {
                 lines += line
                 floorTot.add(line.floorFinish, line.floorArea)
                 if (!r.outdoor) {
+                    ceilings += Ceilings.areaM2(r)
                     val lengths = r.interiorLengths()
                     for (i in 0 until r.wallCount) if (!r.isRemoved(i)) for ((name, area) in wallParts(r, i, lengths[i], induced)) wallTot.add(name, area)
                 }
@@ -150,6 +154,7 @@ object Takeoff {
             wallTot.map { (k, v) -> Total(k, v, "m²") },
             furniture.map { (k, v) -> Item(k.first, k.second, v.first, v.second.joinToString(", ")) }.sortedBy { it.name },
             fixtures.map { (k, v) -> Item(k, "", v.first, v.second.joinToString(", ")) },
+            ceilings,
         )
     }
 
@@ -241,6 +246,7 @@ object Takeoff {
         appendLine()
         head(T.computo.paretiM22)
         for (x in res.wallFinishes) row(t(x.what), n(x.quantity))
+        if (res.ceilings > 0) row(t(T.computo.soffitti), n(res.ceilings))
         appendLine()
         head(T.computo.arrediMisureQuantitaDove)
         for (i in res.furniture) row(t(i.name), t(i.size), "${i.count}", t(i.where))

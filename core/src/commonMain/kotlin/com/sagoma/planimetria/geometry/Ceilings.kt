@@ -160,6 +160,18 @@ object Ceilings {
         return out
     }
 
+    /**
+     * Superficie del soffitto in m² sul filo interno dei muri, quella da dipingere: in pendenza (mansarda) è più grande della
+     * pianta, del rapporto tra i triangoli veri e la loro proiezione.
+     */
+    fun areaM2(room: Room): Double {
+        if (room.outdoor) return 0.0
+        val tris = triangles(room)
+        val flat = tris.sumOf { (a, b, c) -> Polygon.area(listOf(a.flat, b.flat, c.flat)) }
+        val real = tris.sumOf { (a, b, c) -> ((b - a) cross (c - a)).length / 2 }
+        return room.interiorArea() * (if (flat > 0) real / flat else 1.0) / 10_000.0
+    }
+
     /** Volume in m³ sul filo interno dei muri: area calpestabile × altezza media del soffitto. */
     fun volumeM3(room: Room): Double {
         if (room.outdoor) return 0.0

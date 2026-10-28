@@ -11,6 +11,7 @@ object TestiComputoEs : TestiComputo() {
     override val stanze: String get() = "Habitaciones"
     override val stanza: String get() = "Habitación"
     override val muriSingoli: String get() = "Paredes sueltas"
+    override val soffitti: String get() = "Techos"
     override val pavM2: String get() = "Suelo m²"
     override val paretiM2: String get() = "Paredes m²"
     override val battiscM: String get() = "Rodapié m"

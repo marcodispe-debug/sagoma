@@ -292,6 +292,7 @@ object PdfExport {
         for (t in res.floorMaterials) row(listOf(t.what, fmt2(t.quantity), fmt2(t.quantity * 1.1)), w2, right = nums2)
         title(T.pdf.paretiNettoAperture)
         for (t in res.wallFinishes) row(listOf(t.what, fmt2(t.quantity), ""), w2, right = nums2)
+        if (res.ceilings > 0) row(listOf(T.computo.soffitti, fmt2(res.ceilings), ""), w2, right = nums2)
         if (res.furniture.isNotEmpty()) {
             title(T.pdf.arredi)
             val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.24f, colW * 0.28f)
