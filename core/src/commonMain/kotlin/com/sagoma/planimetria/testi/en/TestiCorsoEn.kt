@@ -227,8 +227,8 @@ object TestiCorsoEn : TestiCorso() {
     override val controlloMenu: String get() = "Before finishing, a helper to use often: the plan check. Click the «⋮» menu up here."
     override val controlloVoce: String get() = "Click «${T.controllo.voceMenu}»: it looks for the drawing mistakes that usually slip through."
     override val controlloChiudi: String get() =
-        "Here is what to fix (⚠), what to check (?) and the housing rule minimums (📏), for example the rooms that still have no door: «${T.controllo.mostra}» takes you to the right spot and selects it, «${T.controllo.condividi}» sends the list to whoever helps you. " +
-            "Use it now and then and before exporting. Now click «${T.controllo.chiudi}»."
+        "Here is what to fix (⚠), what to check (?) and the housing rule minimums (📏), for example the rooms that still have no door: «${T.controllo.mostra}» takes you to the right spot and selects it, «${T.controllo.correggi}» (where shown) sorts it out by itself, «${T.controllo.condividi}» sends the list to whoever helps you. " +
+            "While you draw, the badge at the top left of the plan tells you if there is something to look at: tap it to open the list again. Now click «${T.controllo.chiudi}»."
     override val ricalca: String get() =
         "Do you already have a floor plan, from the land registry, the project or just a photo? When choosing the first room of a project click «${cr.ricalcaPiantina}»."
     override val usaPiantinaGuida: String get() =

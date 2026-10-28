@@ -41,6 +41,11 @@ import com.sagoma.planimetria.model.LengthUnit
 import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import com.sagoma.planimetria.editor.LiveCheck
+import com.sagoma.planimetria.editor.PlanCheck
 import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -152,6 +157,28 @@ fun EditorScreen(
     var showTheme by remember { mutableStateOf(false) }
     var showLanguage by remember { mutableStateOf(false) }
     var showSite by remember { mutableStateOf(false) }
+    // «Controlla la pianta» in tempo reale: poco dopo l'ultima modifica (mai mentre si trascina), fuori dal filo della pianta. Il
+    // segnale sulla pianta dice quanti problemi ci sono; un errore di disegno appena fatto si dice subito con un avviso breve.
+    var liveIssues by remember(vm) { mutableStateOf<List<PlanCheck.Issue>?>(null) }
+    var liveNotice by remember(vm) { mutableStateOf<PlanCheck.Issue?>(null) }
+    val liveBuilding = state.fullBuilding
+    LaunchedEffect(liveBuilding, state.dragging) {
+        if (state.dragging) return@LaunchedEffect
+        delay(LiveCheck.DELAY_MS)
+        val now = withContext(Dispatchers.Default) { runCatching { PlanCheck.of(liveBuilding) }.getOrDefault(emptyList()) }
+        val before = liveIssues
+        liveIssues = now
+        // Annullato o corretto, l'avviso sparisce. Appena aperto il progetto solo il segnale; durante la guida niente avvisi
+        // (ha già le sue schede).
+        val still = liveNotice?.let { LiveCheck.stillThere(it, now) }
+        val fresh = if (before != null && state.course == null && state.tutorial == null) LiveCheck.newErrors(before, now).firstOrNull() else null
+        liveNotice = fresh ?: still
+    }
+    LaunchedEffect(liveNotice?.let(LiveCheck::key)) {
+        if (liveNotice == null) return@LaunchedEffect
+        delay(LiveCheck.NOTICE_MS)
+        liveNotice = null
+    }
     // Prima di esportare (tavola PDF, DXF): se la pianta ha errori di disegno lo dice, e si può controllare o andare avanti; dopo
     // «Esporta lo stesso» non lo chiede più finché il progetto resta aperto.
     var exportAnyway by remember { mutableStateOf(false) }
@@ -584,6 +611,29 @@ fun EditorScreen(
                     top = with(density) { coveredTopPx.toDp() } + 8.dp,
                 ),
             )
+            // Segnale di «Controlla la pianta» in alto a sinistra, sotto le schede in alto: il tocco apre l'elenco.
+            if (!state.view3d) liveIssues?.let { issues ->
+                LiveCheckChip(
+                    LiveCheck.counts(issues),
+                    onClick = { showCheck = true },
+                    modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = with(density) { coveredTopPx.toDp() } + 8.dp),
+                )
+            }
+            // Errore appena fatto: sotto le schede in alto (la pianta non si sposta), finché non si chiude, si corregge, si
+            // annulla o passa qualche secondo.
+            if (!state.view3d) liveNotice?.let { n ->
+                LiveCheckNotice(
+                    n, liveBuilding,
+                    onShow = { liveNotice = null; vm.showIssue(n) },
+                    onFix = if (PlanCheck.canFix(n)) {
+                        { liveNotice = null; if (!vm.fixIssue(n)) platform.toast(T.controllo.nonSiCorregge) }
+                    } else null,
+                    onClose = { liveNotice = null },
+                    modifier = Modifier.align(Alignment.TopCenter)
+                        .padding(start = 8.dp, end = 8.dp, top = with(density) { coveredTopPx.toDp() } + 8.dp)
+                        .widthIn(max = 520.dp),
+                )
+            }
             // Ora del giorno: su schermo largo o telefono girato, verticale a sinistra (sopra il joystick).
             if (state.view3d) {
                 if (wide || compactHeight) TimeOfDayPanel(

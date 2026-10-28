@@ -7,9 +7,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -17,10 +20,12 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.GuideTarget
+import com.sagoma.planimetria.editor.LiveCheck
 import com.sagoma.planimetria.editor.PlanCheck
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.testi.T
@@ -120,4 +125,70 @@ fun ExportCheckDialog(errors: Int, onCheck: () -> Unit, onExport: () -> Unit, on
         confirmButton = { TextButton(onClick = onCheck) { Text(T.controllo.controlla) } },
         dismissButton = { TextButton(onClick = onExport) { Text(T.controllo.esportaLoStesso) } },
     )
+}
+
+/** Testo del segnale sulla pianta: «⚠ 2  ? 5  📏 3», senza i gruppi vuoti. */
+internal fun liveCheckLabel(c: LiveCheck.Counts): String = listOfNotNull(
+    "⚠ ${c.errors}".takeIf { c.errors > 0 },
+    "? ${c.checks}".takeIf { c.checks > 0 },
+    "📏 ${c.rules}".takeIf { c.rules > 0 },
+).joinToString("  ")
+
+/**
+ * Segnale di «Controlla la pianta» sulla pianta, aggiornato mentre si disegna: quanti problemi ci sono (rosso con un errore di
+ * disegno); il tocco apre l'elenco. Senza problemi non c'è.
+ */
+@Composable
+fun LiveCheckChip(counts: LiveCheck.Counts, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    if (counts.total == 0) return
+    val error = counts.errors > 0
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = if (error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = if (error) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        shadowElevation = 2.dp,
+    ) {
+        Text(liveCheckLabel(counts), Modifier.padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.labelLarge, maxLines = 1)
+    }
+}
+
+/**
+ * Avviso breve quando una modifica crea un errore di disegno (⚠): cosa c'è che non va, «Correggi» dove si può
+ * ([PlanCheck.canFix]), «Mostra» (porta lì e lo seleziona) e «Chiudi». `floors`: con più piani il nome del piano davanti.
+ */
+@Composable
+fun LiveCheckNotice(
+    issue: PlanCheck.Issue,
+    building: Building,
+    onShow: () -> Unit,
+    onFix: (() -> Unit)?,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val where = if (building.floors.size > 1) building.floors.getOrNull(issue.floor)?.name?.let { "$it · " } ?: "" else ""
+    val buttons = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onErrorContainer)
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        shadowElevation = 2.dp,
+    ) {
+        Column(Modifier.padding(start = 16.dp, top = 10.dp, end = 4.dp)) {
+            Text(
+                PlanCheck.mark(issue.kind) + " " + where + PlanCheck.describe(issue, building),
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(end = 12.dp),
+            )
+            Row(Modifier.align(Alignment.End)) {
+                if (onFix != null) TextButton(onClick = onFix, colors = buttons) { Text("✓ " + T.controllo.correggi) }
+                TextButton(onClick = onShow, colors = buttons) { Text(T.controllo.mostra) }
+                TextButton(onClick = onClose, colors = buttons) { Text(T.controllo.chiudi) }
+            }
+        }
+    }
 }
