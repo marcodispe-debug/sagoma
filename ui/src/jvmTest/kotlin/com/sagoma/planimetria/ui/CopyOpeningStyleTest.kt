@@ -4,6 +4,7 @@ import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.geometry.RoomFactory
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.DoorModel
+import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.FreeWall
 import com.sagoma.planimetria.model.Opening
@@ -77,5 +78,31 @@ class CopyOpeningStyleTest {
         // Dal muro singolo (id negativo) la finestra passa il suo stile (quello di serie) alle altre.
         assertEquals(1, vm.copyOpeningStyle(FreeWall.hostId(1), 1))
         assertEquals(WindowModel.Classic, vm.state.value.plan.room(1)!!.opening(1)!!.windowModel)
+    }
+
+    @Test
+    fun `su tutta la casa - anche le finestre degli altri piani, con un solo passo indietro`() {
+        val upstairs = Room(3, "Camera su", RoomType.Camera, RoomFactory.rectangle(400.0, 300.0)).copy(
+            openings = listOf(Opening.default(1, OpeningKind.Window1, 0, 150.0), Opening.default(2, OpeningKind.Door, 2, 100.0)),
+        )
+        val house = Building(listOf(Floor(1, "PT", FloorPlan(listOf(kitchen, bedroom), freeWalls = listOf(wall))), Floor(2, "P1", FloorPlan(listOf(upstairs)))))
+        val vm = EditorViewModel(object : PlanStore {
+            override fun load() = house
+            override fun save(building: Building) {}
+        })
+        val before = vm.state.value.fullBuilding
+        // Solo il piano: sopra non cambia niente.
+        assertEquals(4, vm.copyOpeningStyle(1, 1))
+        assertEquals(WindowModel.Classic, vm.state.value.fullBuilding.floors[1].plan.room(3)!!.opening(1)!!.windowModel)
+        vm.undo()
+        // Tutta la casa: la finestra di sopra cambia, la porta no.
+        assertEquals(5, vm.copyOpeningStyle(1, 1, allFloors = true))
+        val up = vm.state.value.fullBuilding.floors[1].plan.room(3)!!
+        assertEquals(WindowModel.Wood, up.opening(1)!!.windowModel)
+        assertTrue(up.opening(1)!!.grille)
+        assertEquals(upstairs.openings[1], up.opening(2))
+        assertEquals(0, vm.state.value.fullBuilding.current)
+        vm.undo()
+        assertEquals(before, vm.state.value.fullBuilding)
     }
 }

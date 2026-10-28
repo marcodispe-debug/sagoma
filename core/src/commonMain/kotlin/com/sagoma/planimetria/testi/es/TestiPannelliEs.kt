@@ -168,6 +168,8 @@ object TestiPannelliEs : TestiPannelli() {
     override val con: String get() = "Con"
     override val copiaStileFinestre: String get() = "Copiar estilo a todas las ventanas de la planta"
     override val copiaStilePorte: String get() = "Copiar estilo a todas las puertas de la planta"
+    override val copiaStileFinestreCasa: String get() = "Copiar estilo a todas las ventanas de la casa"
+    override val copiaStilePorteCasa: String get() = "Copiar estilo a todas las puertas de la casa"
     override val giaUguali: String get() = "Ya tienen todas este estilo."
     override fun stileCopiato(n: Any?): String = if (n == 1) "Estilo copiado a 1 abertura (↶ para deshacer)." else "Estilo copiado a $n aberturas (↶ para deshacer)."
     override val lampadarioSoffittoTrascinaloSpostarlo: String get() = "Lámpara de techo: arrástrala para moverla."

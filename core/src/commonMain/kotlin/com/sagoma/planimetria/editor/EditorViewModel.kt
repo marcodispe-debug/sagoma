@@ -2210,10 +2210,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     /**
      * Copia l'aspetto dell'apertura `openingId` ([Opening.withStyleOf]) su tutte quelle della stessa famiglia del piano:
-     * gli infissi su tutte le finestre e i balconi, le porte su tutte le porte (anche quelle dei muri singoli).
-     * È una modifica sola: si annulla con ↶. Restituisce quante aperture sono cambiate.
+     * gli infissi su tutte le finestre e i balconi, le porte su tutte le porte (anche quelle dei muri singoli). Con
+     * `allFloors` su tutti i piani della casa. È una modifica sola: si annulla con ↶. Restituisce quante aperture sono cambiate.
      */
-    fun copyOpeningStyle(roomId: Long, openingId: Long): Int {
+    fun copyOpeningStyle(roomId: Long, openingId: Long, allFloors: Boolean = false): Int {
         val from = _state.value.plan.room(roomId)?.opening(openingId) ?: return 0
         var changed = 0
         fun restyle(list: List<Opening>) = list.map { o ->
@@ -2221,12 +2221,18 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             if (n != o) changed++
             n
         }
-        val plan = _state.value.plan
-        val next = plan.copy(
+        fun restyle(plan: FloorPlan) = plan.copy(
             rooms = plan.rooms.map { r -> r.copy(openings = restyle(r.openings)) },
             freeWalls = plan.freeWalls.map { w -> w.copy(openings = restyle(w.openings)) },
         )
-        if (changed > 0) commit { next }
+        if (allFloors) {
+            val b = _state.value.fullBuilding
+            val next = b.copy(floors = b.floors.map { f -> f.copy(plan = restyle(f.plan)) })
+            if (changed > 0) commitBuilding { next }
+        } else {
+            val next = restyle(_state.value.plan)
+            if (changed > 0) commit { next }
+        }
         return changed
     }
 

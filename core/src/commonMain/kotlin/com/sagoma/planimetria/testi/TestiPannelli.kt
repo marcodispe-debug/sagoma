@@ -168,6 +168,8 @@ open class TestiPannelli {
     open val con: String get() = "Con"
     open val copiaStileFinestre: String get() = "Copia stile su tutte le finestre del piano"
     open val copiaStilePorte: String get() = "Copia stile su tutte le porte del piano"
+    open val copiaStileFinestreCasa: String get() = "Copia stile su tutte le finestre della casa"
+    open val copiaStilePorteCasa: String get() = "Copia stile su tutte le porte della casa"
     open val giaUguali: String get() = "Hanno già tutte questo stile."
     open fun stileCopiato(n: Any?): String = if (n == 1) "Stile copiato su 1 apertura (↶ per annullare)." else "Stile copiato su $n aperture (↶ per annullare)."
     open val lampadarioSoffittoTrascinaloSpostarlo: String get() = "Lampadario a soffitto: trascinalo per spostarlo."
