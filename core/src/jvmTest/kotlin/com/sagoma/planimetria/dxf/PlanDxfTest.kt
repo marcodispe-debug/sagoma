@@ -109,6 +109,18 @@ class PlanDxfTest {
         assertEquals(wallLength(two) - 160 + 60, wallLength(withDoor), 1e-6)
     }
 
+    @Test
+    fun `finestra con lo sguincio senza linee dentro il muro`() {
+        // Lo sguincio da 10 allarga il vano verso la stanza: la faccia interna perde 80 + 20, gli stipiti sono mezzo dritti
+        // (15) e mezzo inclinati. Prima i pezzi rimasti dopo il taglio avevano un punto doppio e restava una linea sulla mezzeria.
+        val window = Opening.default(1, OpeningKind.Window1, 0, 200.0).copy(splay = 10.0)
+        val dxf = PlanDxf.of(FloorPlan(listOf(living.copy(openings = listOf(window)))))
+        val lines = entities(dxf).filter { it.first == "LINE" && layer(it) == walls }
+        assertTrue(lines.none { kotlin.math.abs(value(it, 20)) < 0.01 && kotlin.math.abs(value(it, 21)) < 0.01 }, "linea sulla mezzeria")
+        val base = 2 * (430 + 330) + 2 * (370 + 270).toDouble()
+        assertEquals(base - 80 - 100 + 2 * 15 + 2 * hypot(10.0, 15.0), wallLength(dxf), 1e-6)
+    }
+
     /** Scritte di un livello: testo e rotazione (gradi nel DXF, antiorari). */
     private fun texts(dxf: String, name: String) = entities(dxf).filter { it.first == "TEXT" && layer(it) == name }
         .map { e -> e.second.first { it.first == 1 }.second to (e.second.firstOrNull { it.first == 50 }?.second?.toDouble() ?: 0.0) }

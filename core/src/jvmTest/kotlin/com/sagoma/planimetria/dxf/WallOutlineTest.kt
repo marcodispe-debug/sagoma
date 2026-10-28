@@ -135,4 +135,14 @@ class WallOutlineTest {
         // Un muro solo: i suoi quattro lati.
         assertEquals(4, WallOutline.boundary(listOf(normal)).size)
     }
+
+    @Test
+    fun `pezzi con un punto doppio coprono come gli altri`() {
+        // Tagliati da una finestra con lo sguincio o da un muro tolto, i pezzi di muro hanno un punto ripetuto: prima non
+        // coprivano niente e dentro il muro restavano linee (nella pianta DXF).
+        val doubled = listOf(Vec2(0.0, 0.0), Vec2(100.0, 0.0), Vec2(100.0, 20.0), Vec2(100.0, 20.0), Vec2(0.0, 20.0))
+        val over = listOf(Vec2(50.0, 10.0), Vec2(150.0, 10.0), Vec2(150.0, 30.0), Vec2(50.0, 30.0))
+        // Contorno a 8 lati, nessuno dentro.
+        assertEquals(8, WallOutline.boundary(listOf(doubled, over)).size)
+    }
 }

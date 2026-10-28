@@ -195,7 +195,8 @@ object PlanDxf {
         val half = r.thicknessOf(o.wallIndex) / 2 + CUT
         if (o.kind == OpeningKind.Niche) return listOf(listOf(a, b, b + n * half, a + n * half))
         val out = mutableListOf(listOf(a - n * half, b - n * half, b + n * half, a + n * half))
-        val splay = Openings.splayOf(r, o)
+        // Lo sguincio arriva oltre la faccia (fino a `half`): allungato in proporzione, sulla faccia è largo proprio `splay`.
+        val splay = Openings.splayOf(r, o) * half / (half - CUT)
         if (splay > 0) out += listOf(a, b, b + u * splay + n * half, a - u * splay + n * half)
         return out
     }

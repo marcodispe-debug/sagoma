@@ -28,7 +28,12 @@ object WallOutline {
     /** Caselle al massimo che un oggetto tocca in una griglia (oltre va in quella più grande). */
     private const val MAX_CELLS = 4096.0
 
-    private class Piece(pts: List<Vec2>) {
+    /**
+     * Un pezzo convesso. I punti doppi (i pezzi tagliati dal vano di una finestra con lo sguincio o da un muro tolto ne hanno)
+     * si tolgono: con un lato lungo zero nessun punto starebbe dentro e attorno resterebbero linee dentro il muro.
+     */
+    private class Piece(points: List<Vec2>) {
+        private val pts = points.filterIndexed { i, p -> p.distanceTo(points[(i + 1) % points.size]) > 1e-9 }
         val xs = DoubleArray(pts.size) { pts[it].x }
         val ys = DoubleArray(pts.size) { pts[it].y }
         val minX = xs.min()
