@@ -2,6 +2,8 @@ package com.sagoma.planimetria.ui
 
 import com.sagoma.planimetria.editor.DragTarget
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.LiveCheck
+import com.sagoma.planimetria.editor.PlanCheck
 import com.sagoma.planimetria.editor.PendingOpening
 import com.sagoma.planimetria.editor.Selection
 import com.sagoma.planimetria.geometry.Alignment
@@ -61,7 +63,8 @@ import kotlin.test.fail
  * finiture e materiali con la posa a pezzi, campi delle schede di porte, finestre e oggetti, fasi...).
  * Dopo ogni passo: nessun errore, il progetto si salva e si rilegge uguale, identificativi unici, selezione
  * valida, coordinate finite; ogni tanto anche 3D (anche stato di fatto e progetto), collisioni, computo, parapetti,
- * quote esterne, pezzi della posa e l'esportazione 3D del telefono (GLB).
+ * quote esterne, pezzi della posa, l'esportazione 3D del telefono (GLB) e i «!» di «Controlla la pianta» («Correggi» non fa mai
+ * errori nuovi).
  */
 class EditorStressTest {
     private class Store(var saved: Building?) : PlanStore {
@@ -308,6 +311,22 @@ class EditorStressTest {
                     else -> Unit
                 }
             },
+            // «Controlla la pianta»: Correggi, togli o rimetti un «!» (anche di un gruppo intero), Mostra.
+            "controlla la pianta" to {
+                val b = vm.state.value.fullBuilding
+                val issues = PlanCheck.of(b)
+                pick(issues)?.let { i ->
+                    when (rnd.nextInt(4)) {
+                        0 -> if (PlanCheck.canFix(i) && vm.fixIssue(i)) {
+                            val after = PlanCheck.of(vm.state.value.fullBuilding)
+                            require(LiveCheck.newErrors(issues, after).isEmpty()) { "«Correggi» (${i.kind}) ha fatto errori nuovi" }
+                        }
+                        1 -> vm.setCheckHidden(i, rnd.nextInt(4) != 0)
+                        2 -> vm.setChecksHidden(issues.filter { it.kind.error == i.kind.error && it.kind.rule == i.kind.rule }, rnd.nextBoolean())
+                        else -> { clearModes(); vm.showIssue(i) }
+                    }
+                }
+            },
             "annulla/ripeti" to { repeat(rnd.nextInt(1, 5)) { if (rnd.nextBoolean()) vm.undo() else vm.redo() } },
             "piani" to {
                 clearModes()
@@ -552,6 +571,15 @@ class EditorStressTest {
         }
         s.focusedRoomId?.let { require(p.room(it) != null) { "stanza attiva che non c'è" } }
         if (heavy) {
+            // «Controlla la pianta»: ogni «!» ha un punto vero.
+            val issues = PlanCheck.of(b)
+            for (i in issues) {
+                val plan = b.floors[i.floor].plan
+                PlanCheck.spot(i, plan)?.let { require(it.at.x.isFinite() && it.at.y.isFinite()) { "«!» senza un punto vero (${i.kind})" } }
+            }
+            // «Correggi» per le ante si prova prima (qualcuna).
+            issues.filter { PlanCheck.triesFirst(it) }.take(3).forEach { PlanCheck.canFix(b, it) }
+
             val t0 = System.nanoTime()
             System.getenv("SAGOMA_STRESS_SLOW")?.let { dir -> File(dir, "ultimo.json").writeText(PlanJson.encode(b)) }
             val below = b.floors.take(b.current)
