@@ -226,26 +226,38 @@ object PlanCheck {
     /**
      * Problemi che [fixed] sa correggere da solo: solo per questi c'è «Correggi». La stessa apertura messa due volte solo se le due
      * sono dello stesso tipo (una porta e una finestra nello stesso punto: quale togliere lo sceglie chi disegna). L'apertura su un
-     * muro lungo quasi zero no: si corregge il muro (l'apertura passa su quello dopo).
+     * muro lungo quasi zero no: si corregge il muro (l'apertura passa su quello dopo). Le ante che urtano qui sì, ma girarle
+     * non sempre basta: [canFix] con la casa lo prova ([triesFirst]).
      */
     fun canFix(i: Issue): Boolean = when (i.kind) {
         Kind.FurnitureInWall -> i.b == 0.0
         Kind.DoubleOpening -> i.opening != null && i.opening == i.opening2
         Kind.OpeningTooWide -> i.b >= MIN_FIXED_OPENING_CM
         Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall, Kind.NearWalls -> true
+        Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall -> i.selection is Selection.Opening
         else -> false
     }
+
+    private val SWINGS = setOf(Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall)
+
+    /** Problemi che prima di offrire «Correggi» si prova a correggere davvero ([canFix] con la casa): le ante che urtano. */
+    fun triesFirst(i: Issue): Boolean = i.kind in SWINGS && canFix(i)
+
+    /** Come [canFix], ma le ante che urtano si provano a girare (si fa in fretta): «Correggi» solo se serve a qualcosa. */
+    fun canFix(b: Building, i: Issue): Boolean = canFix(i) && (!triesFirst(i) || fixed(b, i) != null)
 
     /**
      * La casa con il problema `i` corretto, o null se non si riesce da soli (o la correzione non lo toglie, o non c'è più): il
      * mobile dentro un muro torna fino alla parete; l'impianto più alto del muro si abbassa; la porta o la finestra più alta del
      * muro si accorcia, quella più larga del muro si stringe a quanto se ne vede; quella messa due volte resta una sola; il muro
      * lungo zero si unisce al muro dopo (come «Unisci al muro dopo»); il muro della stanza quasi attaccata a un'altra va sulla
-     * linea del muro dell'altra e diventa un muro in comune (come trascinarlo lì).
+     * linea del muro dell'altra e diventa un muro in comune (come trascinarlo lì); l'anta che urta si gira ([swingFixes]). Una
+     * correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
      */
     fun fixed(b: Building, i: Issue): Building? {
         if (!canFix(i)) return null
         val plan = b.floors.getOrNull(i.floor)?.plan ?: return null
+        if (i.kind in SWINGS) return turned(b, plan, i)
         fun Room.with(o: Opening) = copy(openings = openings.map { if (it.id == o.id) o else it })
         val single: FloorPlan? = when (i.kind) {
             Kind.FurnitureInWall -> i.furniture?.let { pushedOut(plan, it) }
@@ -294,6 +306,51 @@ object PlanCheck {
             if (gone && LiveCheck.newErrors(before, after).isEmpty()) return result
         }
         return null
+    }
+
+    /**
+     * L'anta che urta girata ([swingFixes]), se così non urta più e non ne urta un'altra (altre ante, mobili, muri). Si guardano
+     * solo le ante del piano: girarle non cambia muri, stanze e aperture (niente errori di disegno nuovi).
+     */
+    private fun turned(b: Building, plan: FloorPlan, i: Issue): Building? {
+        fun swings(p: FloorPlan) = mutableListOf<Issue>().also { FloorCheck(sane(p), i.floor, it).swings() }
+        val before = swings(plan).mapTo(HashSet()) { LiveCheck.key(it) }
+        // Già corretto (l'elenco era vecchio): niente da girare.
+        if (LiveCheck.key(i) !in before) return null
+        val out = swingFixes(plan, i).firstOrNull { p ->
+            val after = swings(p)
+            after.none { it.kind == i.kind && it.selection == i.selection } && after.all { LiveCheck.key(it) in before }
+        } ?: return null
+        return b.copy(floors = b.floors.mapIndexed { k, f -> if (k == i.floor) f.copy(plan = out).synced() else f })
+    }
+
+    /**
+     * Ante che urtano: l'anta girata, prima con il cardine dall'altra parte, poi (solo le porte tra due stanze, non quelle che
+     * danno fuori) aperta verso l'altra stanza, poi tutte e due le cose; per due ante che si urtano, dopo quella scelta anche
+     * l'altra.
+     */
+    private fun swingFixes(plan: FloorPlan, i: Issue): List<FloorPlan> {
+        val s = i.selection as? Selection.Opening ?: return emptyList()
+        val ids = mutableListOf(s.roomId to s.openingId)
+        if (i.kind == Kind.SwingClash) {
+            val sweeps = Swings.sweeps(Phases.view(plan, PhaseView.Project))
+            val mine = sweeps.filter { it.room.id == s.roomId && it.opening.id == s.openingId }
+            sweeps.filter { x -> (x.room.id != s.roomId || x.opening.id != s.openingId) && mine.any { Swings.overlap(it, x) >= Swings.MIN_OVERLAP_CM2 } }
+                .mapTo(ids) { it.room.id to it.opening.id }
+        }
+        return ids.distinct().flatMap { (roomId, openingId) ->
+            val r = plan.room(roomId) ?: return@flatMap emptyList()
+            val o = r.openings.firstOrNull { it.id == openingId } ?: return@flatMap emptyList()
+            // Una porta tra due stanze (anche sui muri singoli) si può aprire dall'altra parte; quella di casa resta com'è.
+            val alone = plan.copy(rooms = plan.rooms.map { if (it.id == r.id) it.copy(openings = listOf(o)) else it.copy(openings = emptyList()) })
+            val between = (o.kind == OpeningKind.Door || o.kind == OpeningKind.Door2) && (r.id < 0 || Openings.sharedGaps(alone).isNotEmpty())
+            val hinge = o.kind.leaves == 1
+            listOfNotNull(
+                o.copy(hingeLeft = !o.hingeLeft).takeIf { hinge },
+                o.copy(opensInward = !o.opensInward).takeIf { between },
+                o.copy(hingeLeft = !o.hingeLeft, opensInward = !o.opensInward).takeIf { hinge && between },
+            ).map { turned -> plan.replace(r.copy(openings = r.openings.map { if (it.id == o.id) turned else it })) }
+        }
     }
 
     /**

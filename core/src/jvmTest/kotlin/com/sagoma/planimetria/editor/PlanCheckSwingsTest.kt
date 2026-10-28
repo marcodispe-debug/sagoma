@@ -16,6 +16,8 @@ import com.sagoma.planimetria.testi.T
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** «Controlla la pianta»: ante a battente che aprendosi si urtano, urtano un mobile o un calorifero, o un muro. */
@@ -96,6 +98,43 @@ class PlanCheckSwingsTest {
         assertEquals(emptyList(), swings(FloorPlan(listOf(hall.copy(wallPhases = mapOf(0 to Phase.Demolish))))))
         // Una porta scorrevole non spazza niente.
         assertEquals(emptyList(), swings(FloorPlan(listOf(hall.copy(openings = listOf(door(1, 0, 100.0).copy(sliding = true)))))))
+    }
+
+    @Test
+    fun `Correggi gira l anta`() {
+        fun fix(plan: FloorPlan): FloorPlan? {
+            val b = Building.single(plan)
+            val i = swings(plan).first()
+            assertTrue(PlanCheck.canFix(i))
+            return PlanCheck.fixed(b, i)?.floors?.get(0)?.plan
+        }
+        // Due porte una di fronte all'altra nel corridoio largo 150, i cardini verso il centro: la seconda (quella che «Mostra»
+        // seleziona) con il cardine dall'altra parte; il verso resta (porte che danno fuori).
+        val facing = FloorPlan(listOf(rect(1, "Corridoio", 400.0, 150.0, listOf(door(1, 0, 100.0, hingeLeft = false), door(2, 2, 240.0, hingeLeft = false)), RoomType.Corridoio)))
+        val turned = assertNotNull(fix(facing), "di fronte")
+        assertEquals(emptyList(), swings(turned))
+        assertEquals(listOf(false, true), turned.rooms.single().openings.map { it.hingeLeft })
+        assertTrue(turned.rooms.single().openings.all { it.opensInward })
+        assertTrue(PlanCheck.triesFirst(swings(facing).single()))
+        assertTrue(PlanCheck.canFix(Building.single(facing), swings(facing).single()))
+        // Nell'angolo il cardine non basta: si toccano comunque, e «Correggi» non c'è.
+        val corner = FloorPlan(listOf(rect(1, "Disimpegno", 300.0, 300.0, listOf(door(1, 0, 250.0), door(2, 1, 50.0)))))
+        assertNull(fix(corner))
+        assertEquals(false, PlanCheck.canFix(Building.single(corner), swings(corner).single()))
+        // Già girata (elenco vecchio): niente da fare.
+        assertNull(PlanCheck.fixed(Building.single(turned), swings(facing).single()))
+        // Corridoio stretto con la camera dall'altra parte del muro: la porta si apre verso la camera.
+        val hall = rect(1, "Corridoio", 400.0, 80.0, listOf(door(1, 0, 100.0)), RoomType.Corridoio)
+        val bedroom = Room(2, "Camera", RoomType.Camera, RoomFactory.rectangle(400.0, 300.0).map { it + Vec2(0.0, -300.0) }, wallThickness = 10.0)
+        val out = assertNotNull(fix(FloorPlan(listOf(hall, bedroom))), "corridoio").rooms.first().openings.single()
+        assertEquals(false, out.opensInward)
+        assertEquals(true, out.hingeLeft)
+        assertEquals(emptyList(), swings(FloorPlan(listOf(hall.copy(openings = listOf(out)), bedroom))))
+        // La porta che dà fuori non si gira verso fuori, e il cardine dall'altra parte non basta: non si corregge da sola.
+        assertNull(fix(FloorPlan(listOf(hall))))
+        // Il calorifero proprio davanti alla porta: girarla non serve.
+        val radiator = Fixture.default(1, FixtureKind.Radiator).copy(wallIndex = 2, position = 300.0)
+        assertNull(fix(FloorPlan(listOf(hall.copy(fixtures = listOf(radiator)).let { it.copy(points = RoomFactory.rectangle(400.0, 95.0)) }))))
     }
 
     @Test

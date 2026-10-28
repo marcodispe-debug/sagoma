@@ -16,7 +16,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,11 +31,13 @@ import com.sagoma.planimetria.editor.LiveCheck
 import com.sagoma.planimetria.editor.PlanCheck
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.testi.T
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * «Controlla la pianta»: l'elenco dei problemi di tutta la casa, prima quelli da correggere, poi quelli da controllare e infine
  * i minimi delle norme per la casa. «Mostra» porta al piano giusto, seleziona e inquadra (la finestra si chiude). «Correggi», dove
- * c'è ([PlanCheck.canFix]), sistema il problema da solo e la finestra resta aperta con l'elenco nuovo (si annulla con ↶). «Condividi»
+ * c'è ([PlanCheck.canFix]; per le ante che urtano compare appena si sa che girarle basta), sistema il problema da solo e la finestra resta aperta con l'elenco nuovo (si annulla con ↶). «Condividi»
  * manda l'elenco come testo (`projectName` nell'oggetto). Ogni gruppo ha il numero dei problemi e si apre e chiude toccando il
  * titolo; all'inizio sono aperti il primo e quelli corti (al massimo [OPEN_GROUP_MAX]).
  */
@@ -43,6 +47,12 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
     val building = state.fullBuilding
     // Pochi millesimi di secondo anche per una casa di 100 stanze (al massimo [PlanCheck.MAX_ISSUES] problemi).
     val issues = remember(building) { runCatching { PlanCheck.of(building) }.getOrDefault(emptyList()) }
+    // Le ante che urtano: girarle si prova fuori dal disegno, e «Correggi» compare solo se basta.
+    val turnable by produceState(emptySet<PlanCheck.Issue>(), building, issues) {
+        value = withContext(Dispatchers.Default) {
+            issues.filterTo(HashSet()) { PlanCheck.triesFirst(it) && runCatching { PlanCheck.canFix(building, it) }.getOrDefault(false) }
+        }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(T.controllo.titolo) },
@@ -75,7 +85,7 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                                 Column(Modifier.weight(1f)) {
                                     Text(PlanCheck.mark(i.kind) + " " + where + PlanCheck.describe(i, building), style = MaterialTheme.typography.bodyMedium)
                                     // Sotto la frase, allineato al testo: a destra c'è già «Mostra».
-                                    if (PlanCheck.canFix(i)) {
+                                    if (if (PlanCheck.triesFirst(i)) i in turnable else PlanCheck.canFix(i)) {
                                         TextButton(
                                             onClick = { if (!vm.fixIssue(i)) platform.toast(T.controllo.nonSiCorregge) },
                                             contentPadding = PaddingValues(horizontal = 0.dp),
