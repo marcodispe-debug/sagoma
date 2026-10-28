@@ -8,10 +8,15 @@ object TestiControlloFr : TestiControllo() {
     override val nessunProblema: String get() = "Aucun problème trouvé."
     override val cosaControlla: String get() =
         "Cherche les pièces superposées ou presque collées, les murs qui se croisent, les portes et fenêtres en double, plus larges ou plus hautes que le mur, " +
-            "les pièces sans porte, la porte d'entrée et les escaliers."
+            "les pièces sans porte, la porte d'entrée, les escaliers et les minimums légaux des pièces (fenêtres, hauteurs, mètres carrés)."
     override val spiega: String get() = "Ils peuvent fausser surfaces, métré et 3D. « Afficher » y amène et le sélectionne."
     override val daCorreggere: String get() = "À corriger"
     override val daControllare: String get() = "À vérifier"
+    override val daNorme: String get() = "Règles pour le logement (Italie)"
+    override val spiegaNorme: String get() =
+        "Minimums du décret italien du 5 juillet 1975 pour les pièces à vivre (chambres, séjour, cuisine, bureau) ; le règlement de la commune " +
+            "peut demander plus. Les fenêtres comptent si elles s'ouvrent et donnent dehors, mesurées sur la baie du mur."
+    override fun nome(n: String): String = "« $n »"
     override val mostra: String get() = "Afficher"
     override val chiudi: String get() = "Fermer"
     override fun troppi(n: Int): String = "Seulement les $n premiers : corrigez-les et vérifiez à nouveau."
@@ -33,4 +38,13 @@ object TestiControlloFr : TestiControllo() {
     override fun piccolissima(a: String, m2: String): String = "$a est minuscule ($m2 m²) : est-ce voulu ou un morceau oublié ?"
     override val scalaSenzaPiano: String get() = "L'escalier monte, mais il n'y a pas d'étage au-dessus : ajoutez l'étage supérieur ou supprimez l'escalier."
     override fun scalaFuori(piano: String): String = "L'escalier arrive hors des pièces de l'étage supérieur ($piano)."
+    override fun pocaLuce(a: String, fin: String, pav: String, frazione: String, serve: String): String =
+        "$a : fenêtres ouvrantes de $fin m² pour $pav m² de sol ($frazione). Une pièce à vivre demande au moins 1/8, soit $serve m²."
+    override fun senzaFinestre(a: String, serve: String): String =
+        "$a n'a pas de fenêtre ouvrante donnant dehors : une pièce à vivre a besoin de lumière et d'air directs, avec au moins $serve m² de fenêtres (1/8 du sol)."
+    override val nessunaFinestra: String get() = "Il n'y a aucune fenêtre à cet étage : ajoutez-les, puis la lumière et l'air des pièces se vérifient ici."
+    override fun soffittoBasso(a: String, h: String): String = "$a : plafond à $h m ; les pièces à vivre demandent au moins 2,70 m."
+    override fun soffittoBassoServizi(a: String, h: String): String = "$a : plafond à $h m ; salles de bains et couloirs demandent au moins 2,40 m."
+    override fun cameraPiccola(a: String, m2: String): String = "$a : $m2 m² ; une chambre doit en avoir au moins 9 (14 pour deux personnes)."
+    override fun soggiornoPiccolo(a: String, m2: String): String = "$a : $m2 m² ; le séjour doit en avoir au moins 14."
 }

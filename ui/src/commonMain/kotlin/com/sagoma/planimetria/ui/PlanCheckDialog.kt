@@ -22,8 +22,8 @@ import com.sagoma.planimetria.editor.PlanCheck
 import com.sagoma.planimetria.testi.T
 
 /**
- * «Controlla la pianta»: l'elenco dei problemi di tutta la casa, prima quelli da correggere e poi quelli da controllare.
- * «Mostra» porta al piano giusto, seleziona e inquadra (la finestra si chiude).
+ * «Controlla la pianta»: l'elenco dei problemi di tutta la casa, prima quelli da correggere, poi quelli da controllare e infine
+ * i minimi delle norme per la casa. «Mostra» porta al piano giusto, seleziona e inquadra (la finestra si chiude).
  */
 @Composable
 fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> Unit) {
@@ -44,13 +44,24 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                     else -> {
                         Text(T.controllo.spiega, style = MaterialTheme.typography.bodySmall)
                         val floors = building.floors.size > 1
-                        for ((title, group) in listOf(T.controllo.daCorreggere to list.filter { it.kind.error }, T.controllo.daControllare to list.filter { !it.kind.error })) {
+                        val groups = listOf(
+                            T.controllo.daCorreggere to list.filter { it.kind.error },
+                            T.controllo.daControllare to list.filter { !it.kind.error && !it.kind.rule },
+                            T.controllo.daNorme to list.filter { it.kind.rule },
+                        )
+                        for ((title, group) in groups) {
                             if (group.isEmpty()) continue
                             Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp))
+                            if (group.first().kind.rule) Text(T.controllo.spiegaNorme, style = MaterialTheme.typography.bodySmall)
                             for (i in group) Row(verticalAlignment = Alignment.CenterVertically) {
                                 val where = if (floors) building.floors.getOrNull(i.floor)?.name?.let { "$it · " } ?: "" else ""
+                                val mark = when {
+                                    i.kind.error -> "⚠ "
+                                    i.kind.rule -> "📏 "
+                                    else -> "? "
+                                }
                                 Text(
-                                    (if (i.kind.error) "⚠ " else "? ") + where + PlanCheck.describe(i, building),
+                                    mark + where + PlanCheck.describe(i, building),
                                     style = MaterialTheme.typography.bodyMedium,
                                     modifier = Modifier.weight(1f),
                                 )

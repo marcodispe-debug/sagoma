@@ -55,6 +55,8 @@ import com.sagoma.planimetria.editor.GuideField
 import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.Ceilings
+import com.sagoma.planimetria.geometry.HousingRules
+import com.sagoma.planimetria.geometry.formatDecimal
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.model.Fixture
@@ -262,7 +264,7 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
                 when (tab) {
                     RoomTab.Measures -> MeasuresTab(room, vm)
                     RoomTab.Finishes -> FinishesTab(room, plan, vm)
-                    RoomTab.Openings -> OpeningsTab(room, vm)
+                    RoomTab.Openings -> OpeningsTab(room, plan, vm)
                     RoomTab.Project -> ProjectTab(room, vm)
                     RoomTab.Photos -> PhotosTab(room, vm)
                 }
@@ -478,7 +480,7 @@ private fun ItemRow(title: String, detail: String, onClick: () -> Unit) {
 
 /** Scheda Porte e impianti: elenco delle aperture e degli impianti della stanza. */
 @Composable
-private fun OpeningsTab(room: Room, vm: EditorViewModel) {
+private fun OpeningsTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
     SectionTitle(T.schedaStanza.aperture(room.openings.size))
     if (room.openings.isEmpty()) {
         Text(T.schedaStanza.nessunaUsaElementiArchitettonici, style = MaterialTheme.typography.bodySmall)
@@ -487,12 +489,37 @@ private fun OpeningsTab(room: Room, vm: EditorViewModel) {
         openingLabel(o),
         T.schedaStanza.muroCm(o.wallIndex + 1, formatCm(o.width), formatCm(o.height)) + (if (o.kind.hasSill) T.schedaStanza.terra(formatCm(o.sillHeight)) else ""),
     ) { vm.selectOpening(room.id, o.id) }
+    LightAndAirLine(room, plan)
 
     SectionTitle(T.schedaStanza.impianti(room.fixtures.size))
     if (room.fixtures.isEmpty()) {
         Text(T.schedaStanza.nessunoUsaElementiArchitettonici, style = MaterialTheme.typography.bodySmall)
     }
     for (f in room.fixtures) ItemRow(f.kind.label, fixtureSummary(f)) { vm.selectFixture(room.id, f.id) }
+}
+
+/**
+ * Luce e aria naturali (rapporto aeroilluminante): finestre apribili che danno fuori rispetto al pavimento, per l'ambiente intero
+ * (il soggiorno con la cucina a vista insieme); nelle stanze da abitare, il minimo italiano di 1/8 se non c'è.
+ */
+@Composable
+private fun LightAndAirLine(room: Room, plan: FloorPlan) {
+    if (room.outdoor) return
+    val space = HousingRules.space(plan, room)
+    val ratio = HousingRules.ratio(plan, space) ?: return
+    val habitable = space.any { HousingRules.habitable(it.type) }
+    if (!habitable && ratio <= 0) return
+    val with = if (space.size > 1) T.schedaStanza.luceAriaInsieme(space.drop(1).joinToString(", ") { T.controllo.nome(it.name.ifBlank { it.type.label }) }) else ""
+    val line = if (ratio > 0) T.schedaStanza.luceAria(formatDecimal(HousingRules.windowArea(plan, space) / 10_000, 2), HousingRules.fraction(ratio))
+    else T.schedaStanza.luceAriaNessuna
+    Text(line + with, style = MaterialTheme.typography.bodySmall)
+    if (habitable && HousingRules.belowMinimum(plan, space)) {
+        Text(
+            T.schedaStanza.luceAriaMinimo(formatDecimal(HousingRules.floorArea(space) * HousingRules.MIN_RATIO / 10_000, 2)),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
 }
 
 /** Scheda Progetto: stato di fatto / progetto di tutti i muri insieme (es. stanza nuova, o tramezzi da demolire). */

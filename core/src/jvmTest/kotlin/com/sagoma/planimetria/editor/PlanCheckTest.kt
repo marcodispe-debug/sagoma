@@ -33,7 +33,9 @@ class PlanCheckTest {
     private val living = rect(1, "Soggiorno", RoomType.Soggiorno, 400.0, 300.0, openings = listOf(entrance, inner, Opening.default(3, OpeningKind.Window2, 2, 200.0)))
     private val kitchen = rect(2, "Cucina", RoomType.Cucina, 300.0, 300.0, Vec2(400.0, 0.0), openings = listOf(Opening.default(4, OpeningKind.Window1, 0, 150.0)))
 
-    private fun check(vararg rooms: Room) = PlanCheck.of(Building.single(FloorPlan(rooms.toList())))
+    /** Errori e cose da controllare; i minimi delle norme per la casa hanno le loro prove (in fondo). */
+    private fun check(vararg rooms: Room) = PlanCheck.of(Building.single(FloorPlan(rooms.toList()))).filter { !it.kind.rule }
+    private fun rules(vararg rooms: Room) = PlanCheck.of(Building.single(FloorPlan(rooms.toList()))).filter { it.kind.rule }
     private fun List<PlanCheck.Issue>.kinds() = map { it.kind }.toSet()
 
     @Test
@@ -176,5 +178,72 @@ class PlanCheckTest {
         val nan = living.copy(points = living.points.map { if (it.x > 0) Vec2(Double.NaN, it.y) else it })
         check(nan, kitchen)
         check(living.copy(wallThickness = Double.POSITIVE_INFINITY), kitchen.copy(points = kitchen.points.map { it * 1e12 }))
+    }
+    @Test
+    fun `norme per la casa - finestre, altezze e metri quadri`() {
+        val window = Opening.default(10, OpeningKind.Window2, 2, 200.0)
+        // Camera 400×400 (14,82 m² dentro i muri) con una finestra 120×120 (1,44 m²): 1/10,3, ne servono 1,85.
+        val bedroom = rect(1, "Camera", RoomType.Camera, 400.0, 400.0, openings = listOf(Opening.default(1, OpeningKind.Door, 0, 200.0).copy(entrance = true), window))
+        val few = rules(bedroom).single()
+        assertEquals(PlanCheck.Kind.FewWindows, few.kind)
+        val b = Building.single(FloorPlan(listOf(bedroom)))
+        assertEquals(
+            "«Camera»: finestre apribili di 1,44 m² per 14,82 m² di pavimento (1/10,3). Per una stanza da abitare serve almeno 1/8, cioè 1,85 m².",
+            PlanCheck.describe(few, b),
+        )
+        // Finestra più alta (120×160 = 1,92 m²): va bene.
+        assertEquals(emptyList(), rules(bedroom.copy(openings = listOf(window.copy(height = 160.0)))))
+        // Senza finestre, soffitto basso, troppo piccola.
+        val study = rect(2, "Studio", RoomType.Studio, 300.0, 300.0, Vec2(400.0, 0.0), openings = listOf(Opening.default(2, OpeningKind.Door, 3, 150.0)))
+        val dark = rules(bedroom.copy(openings = listOf(window.copy(height = 160.0))), study).single()
+        assertEquals(PlanCheck.Kind.NoWindows, dark.kind)
+        assertTrue(PlanCheck.describe(dark, Building.single(FloorPlan(listOf(study)))).startsWith("«Studio» non ha finestre apribili che danno fuori"))
+        val low = rules(bedroom.copy(ceilingHeight = 255.0, openings = listOf(window.copy(height = 160.0)))).single()
+        assertEquals(PlanCheck.Kind.LowCeiling, low.kind)
+        assertEquals("«Camera»: soffitto a 2,55 m; nelle stanze da abitare deve essere almeno a 2,70 m.", PlanCheck.describe(low, b))
+        val small = rect(3, "Cameretta", RoomType.Cameretta, 300.0, 300.0, openings = listOf(Opening.default(3, OpeningKind.Window2, 2, 150.0)))
+        val tiny = rules(small).single()
+        assertEquals(PlanCheck.Kind.SmallBedroom, tiny.kind)
+        assertEquals("«Cameretta»: 8,12 m²; una camera da letto deve averne almeno 9 (14 se è per due persone).", PlanCheck.describe(tiny, Building.single(FloorPlan(listOf(small)))))
+        // Bagni e corridoi: 2,40 m bastano, e niente finestre o metri quadri minimi.
+        val bath = rect(4, "Bagno", RoomType.Bagno, 200.0, 250.0)
+        assertEquals(emptyList(), rules(bath.copy(ceilingHeight = 240.0)))
+        val lowBath = rules(bath.copy(ceilingHeight = 230.0)).single()
+        assertEquals("«Bagno»: soffitto a 2,30 m; in bagni e corridoi deve essere almeno a 2,40 m.", PlanCheck.describe(lowBath, Building.single(FloorPlan(listOf(bath)))))
+        // Mansarda (pareti tagliate dal tetto): l'altezza non si controlla, dipende dalle regole della regione.
+        assertTrue(rules(bedroom.copy(ceilingHeight = 200.0, wallCuts = mapOf(0 to com.sagoma.planimetria.model.WallCut(true, 100.0)), openings = listOf(window.copy(height = 160.0)))).none { it.kind == PlanCheck.Kind.LowCeiling })
+        // Le norme vengono dopo gli errori e dopo le cose da controllare.
+        val all = PlanCheck.of(Building.single(FloorPlan(listOf(bedroom, study, bedroom.copy(id = 9).moved(-100.0)))))
+        val order = all.map { if (it.kind.error) 0 else if (!it.kind.rule) 1 else 2 }
+        assertEquals(order.sorted(), order)
+        assertTrue(2 in order && 0 in order)
+    }
+
+    @Test
+    fun `norme - soggiorno con la cucina a vista e stanze da demolire`() {
+        // Soggiorno 400×300 e cucina 300×300 senza muro in mezzo: un ambiente solo di 19,10 m², e le finestre si sommano.
+        val livingOpen = living.copy(removedWalls = setOf(1), openings = listOf(entrance, Opening.default(3, OpeningKind.Window2, 2, 200.0)))
+        val kitchenOpen = kitchen.copy(removedWalls = setOf(3), openings = listOf(Opening.default(4, OpeningKind.Window2, 0, 150.0)))
+        val issues = rules(livingOpen, kitchenOpen)
+        // 2,88 m² di finestre per 19,10 m²: basta (1/6,6); il soggiorno è piccolo anche con la cucina (meno di 14 m²)? No: 19,10.
+        assertEquals(emptyList(), issues, "$issues")
+        // Muro tolto solo dal soggiorno: la cucina ha ancora il suo, due stanze separate. Il soggiorno da solo è sotto i 14 m².
+        val apart = rules(livingOpen, kitchenOpen.copy(removedWalls = emptySet()))
+        assertEquals(listOf(PlanCheck.Kind.SmallLiving), apart.map { it.kind })
+        // Senza la finestra della cucina: l'ambiente ne ha 1,44 m² su 19,10 (servono 2,39), un avviso solo con tutte e due le stanze.
+        val dim = rules(livingOpen, kitchenOpen.copy(openings = emptyList())).single()
+        assertEquals(PlanCheck.Kind.FewWindows, dim.kind)
+        assertEquals(listOf(1L, 2L), dim.rooms)
+        assertTrue(PlanCheck.describe(dim, Building.single(FloorPlan(listOf(livingOpen, kitchenOpen)))).startsWith("«Soggiorno» + «Cucina»: finestre apribili di 1,44 m² per 19,10 m²"))
+        // Nessuna finestra in tutto il piano (pianta appena letta): un avviso solo, non uno per stanza.
+        val bare = rules(livingOpen.copy(openings = listOf(entrance)), kitchenOpen.copy(openings = emptyList(), removedWalls = emptySet()))
+        assertEquals(listOf(PlanCheck.Kind.NoFloorWindows, PlanCheck.Kind.SmallLiving), bare.map { it.kind })
+        assertEquals(emptyList(), bare.first().rooms)
+        // Stanza tutta da demolire: non c'è più, niente da dire.
+        val gone = rect(5, "Camera", RoomType.Camera, 250.0, 250.0, Vec2(0.0, 400.0)).let { r -> r.copy(wallPhases = (0 until r.wallCount).associateWith { com.sagoma.planimetria.model.Phase.Demolish }) }
+        assertTrue(rules(gone).isEmpty())
+        // In francese i nomi tra « » con gli spazi.
+        T.lingua = com.sagoma.planimetria.testi.fr.Francese
+        assertTrue(PlanCheck.describe(dim, Building.single(FloorPlan(listOf(livingOpen, kitchenOpen)))).startsWith("« Soggiorno » + « Cucina » : fenêtres ouvrantes de 1,44 m²"))
     }
 }

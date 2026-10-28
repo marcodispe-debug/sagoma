@@ -2,6 +2,7 @@ package com.sagoma.planimetria.editor
 
 import com.sagoma.planimetria.geometry.Bounds
 import com.sagoma.planimetria.geometry.Ceilings
+import com.sagoma.planimetria.geometry.HousingRules
 import com.sagoma.planimetria.geometry.Dimensions
 import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.Polygon
@@ -12,12 +13,14 @@ import com.sagoma.planimetria.geometry.expandCurves
 import com.sagoma.planimetria.geometry.formatDecimal
 import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.interiorArea
+import com.sagoma.planimetria.geometry.usableArea
 import com.sagoma.planimetria.geometry.wallShift
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
+import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
@@ -27,12 +30,16 @@ import kotlin.math.roundToInt
 
 /**
  * «Controlla la pianta»: errori di disegno che di solito sfuggono e rovinano metri quadri, computo e 3D (stanze sovrapposte o
- * staccate di pochi centimetri, muri che si incrociano, la stessa porta messa due volte) e cose da controllare (stanze senza
- * porta, casa senza ingresso, scale che non arrivano). Ogni problema dice quale piano e quale zona inquadrare e cosa selezionare.
+ * staccate di pochi centimetri, muri che si incrociano, la stessa porta messa due volte), cose da controllare (stanze senza
+ * porta, casa senza ingresso, scale che non arrivano) e minimi delle norme italiane per le case ([HousingRules]: finestre, altezze,
+ * metri quadri). Ogni problema dice quale piano e quale zona inquadrare e cosa selezionare.
  */
 object PlanCheck {
-    /** Tipi di problema. `error`: di sicuro sbagliato; altrimenti da controllare (può essere voluto). */
-    enum class Kind(val error: Boolean) {
+    /**
+     * Tipi di problema. `error`: di sicuro sbagliato; altrimenti da controllare (può essere voluto). `rule`: sotto un minimo delle
+     * norme italiane per le case (DM 5 luglio 1975).
+     */
+    enum class Kind(val error: Boolean, val rule: Boolean = false) {
         CrossedWalls(true),
         Overlap(true),
         NearWalls(true),
@@ -48,6 +55,12 @@ object PlanCheck {
         TinyRoom(false),
         StairNoFloor(false),
         StairOutside(false),
+        FewWindows(false, rule = true),
+        NoWindows(false, rule = true),
+        NoFloorWindows(false, rule = true),
+        LowCeiling(false, rule = true),
+        SmallBedroom(false, rule = true),
+        SmallLiving(false, rule = true),
     }
 
     /**
@@ -113,6 +126,7 @@ object PlanCheck {
                 openings()
                 doors(below?.let { sane(it.plan) to it.levelHeight }, floor.levelHeight)
                 stairs(floor.levelHeight, above?.let { sane(it.plan) }, f == b.floors.lastIndex)
+                rules()
                 if (leadsOutside) outside = true
                 if (noDoors) doorless = true
             }
@@ -126,16 +140,19 @@ object PlanCheck {
             val plan = sane(b.floors[f].plan)
             plan.rooms.firstOrNull { !it.outdoor }?.let { r -> out += Issue(Kind.NoEntrance, f, listOf(r.id), boundsOf(plan.rooms.flatMap { it.points })) }
         }
-        // Prima gli errori, poi le cose da controllare; ognuno nell'ordine dei piani.
-        return out.sortedWith(compareBy({ !it.kind.error }, { it.floor })).take(MAX_ISSUES)
+        // Prima gli errori, poi le cose da controllare e le norme; ognuno nell'ordine dei piani.
+        return out.sortedWith(compareBy({ !it.kind.error }, { it.kind.rule }, { it.floor })).take(MAX_ISSUES)
     }
 
     /** Testo del problema nella lingua dell'app, con i nomi delle stanze. */
     fun describe(i: Issue, b: Building): String {
         val t = T.controllo
         val plan = b.floors.getOrNull(i.floor)?.plan
-        fun name(k: Int): String = i.rooms.getOrNull(k)?.let { plan?.room(it) }?.let { "«${it.name.ifBlank { it.type.label }}»" } ?: "?"
+        fun name(k: Int): String = i.rooms.getOrNull(k)?.let { plan?.room(it) }?.let { t.nome(it.name.ifBlank { it.type.label }) } ?: "?"
         fun cm(v: Double): String = v.roundToInt().toString()
+        fun m2(v: Double): String = formatDecimal(v, 2)
+        // Ambiente fatto di più stanze (soggiorno con cucina a vista): tutti i nomi.
+        val all = i.rooms.indices.joinToString(" + ") { name(it) }
         val cosa = i.opening?.let { T.lingua.minuscola(it.label) } ?: ""
         return when (i.kind) {
             Kind.CrossedWalls -> t.muriIncrociati(name(0))
@@ -153,6 +170,13 @@ object PlanCheck {
             Kind.TinyRoom -> t.piccolissima(name(0), formatDecimal(i.a, 2))
             Kind.StairNoFloor -> t.scalaSenzaPiano
             Kind.StairOutside -> t.scalaFuori(b.floors.getOrNull(i.floor + 1)?.name ?: "")
+            Kind.FewWindows -> t.pocaLuce(all, m2(i.a), m2(i.b), HousingRules.fraction(i.a / i.b), m2(i.b * HousingRules.MIN_RATIO))
+            Kind.NoWindows -> t.senzaFinestre(all, m2(i.b * HousingRules.MIN_RATIO))
+            Kind.NoFloorWindows -> t.nessunaFinestra
+            Kind.LowCeiling -> if (i.b < HousingRules.MIN_HEIGHT_LIVING_CM) t.soffittoBassoServizi(name(0), formatDecimal(i.a / 100, 2))
+            else t.soffittoBasso(name(0), formatDecimal(i.a / 100, 2))
+            Kind.SmallBedroom -> t.cameraPiccola(name(0), m2(i.a))
+            Kind.SmallLiving -> t.soggiornoPiccolo(all, m2(i.a))
         }
     }
 
@@ -448,6 +472,52 @@ object PlanCheck {
                 val step = end + dir * 20.0
                 val arrives = above.rooms.any { r -> Polygon.contains(r.points, step) || Polygon.contains(r.points, end) }
                 if (!arrives) add(Issue(Kind.StairOutside, floor, emptyList(), box, Selection.Stair(s.id)))
+            }
+        }
+
+        /**
+         * Minimi delle norme italiane per le case, sulla casa come sarà (le stanze tutte da demolire non contano): finestre apribili
+         * di almeno 1/8 del pavimento nelle stanze da abitare (per ambiente: il soggiorno con la cucina a vista insieme), soffitti
+         * alti almeno 2,70 m (2,40 in bagni e corridoi), camere da letto da 9 m² e soggiorno da 14 m². Le misure si confrontano
+         * arrotondate come si leggono (m² al centesimo, cm interi), così non esce «9,00 m², meno di 9 m²».
+         */
+        fun rules() {
+            fun hundredths(cm2: Double) = (cm2 / 100).roundToInt()
+            // Ambienti da abitare (il soggiorno con la cucina a vista insieme), senza le stanze col contorno che si taglia.
+            val spaces = HousingRules.livingSpaces(plan).map { s -> s.filter { it.id !in crossed } }
+                .filter { s -> s.isNotEmpty() && HousingRules.floorArea(s) >= TINY_ROOM_CM2 }
+            fun where(s: List<Room>) = boundsOf(s.flatMap { it.points }).grow(60.0)
+            // Nessuna finestra in tutto il piano (pianta appena ricalcata o letta): un avviso solo, non uno per ambiente.
+            val windowless = rooms.none { r -> r.openings.any { it.kind.glazed } }
+            if (windowless && spaces.isNotEmpty()) add(Issue(Kind.NoFloorWindows, floor, emptyList(), boundsOf(spaces.flatten().flatMap { it.points }).grow(60.0)))
+            if (!windowless) for (s in spaces) {
+                if (!HousingRules.belowMinimum(plan, s)) continue
+                val windows = HousingRules.windowArea(plan, s)
+                add(Issue(if (windows < 1.0) Kind.NoWindows else Kind.FewWindows, floor, s.map { it.id }, where(s), a = windows / 10_000, b = HousingRules.floorArea(s) / 10_000))
+            }
+            for (r in rooms) {
+                if (full()) return
+                if (r.outdoor || r.id in crossed || HousingRules.demolished(r)) continue
+                val area = r.usableArea()
+                if (area < TINY_ROOM_CM2) continue
+                val box = boxes.getValue(r.id).grow(60.0)
+                if (HousingRules.flatCeiling(r)) {
+                    val min = when {
+                        HousingRules.habitable(r.type) -> HousingRules.MIN_HEIGHT_LIVING_CM
+                        HousingRules.service(r.type) -> HousingRules.MIN_HEIGHT_SERVICE_CM
+                        else -> null
+                    }
+                    if (min != null && r.ceilingHeight.roundToInt() < min) add(Issue(Kind.LowCeiling, floor, listOf(r.id), box, a = r.ceilingHeight, b = min))
+                }
+                if ((r.type == RoomType.Camera || r.type == RoomType.Cameretta) && hundredths(area) < hundredths(HousingRules.MIN_BEDROOM_CM2)) {
+                    add(Issue(Kind.SmallBedroom, floor, listOf(r.id), box, a = area / 10_000))
+                }
+            }
+            // Soggiorno: con la cucina a vista conta tutto l'ambiente.
+            for (s in spaces) {
+                if (s.first().type != RoomType.Soggiorno) continue
+                val total = HousingRules.floorArea(s)
+                if (hundredths(total) < hundredths(HousingRules.MIN_LIVING_CM2)) add(Issue(Kind.SmallLiving, floor, s.map { it.id }, where(s), a = total / 10_000))
             }
         }
     }
