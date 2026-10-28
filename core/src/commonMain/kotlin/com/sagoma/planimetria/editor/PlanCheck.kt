@@ -25,6 +25,7 @@ import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.Furniture
 import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
@@ -141,12 +142,146 @@ object PlanCheck {
     /** Un mobile che entra in un muro meno di così (cm) va bene: appoggiato alla parete, a occhio o con l'aggancio. */
     private const val FURNITURE_IN_WALL_CM = 3.0
 
+    /** Muri dritti del piano (mezzeria e mezzo spessore) e vani di porte e finestre, per vedere quanto un mobile ci entra. */
+    private class WallBands(val walls: List<Band>, val gaps: List<Band>) {
+        class Band(val a: Vec2, val b: Vec2, val half: Double)
+
+        /** Quanto entra nei muri (cm dalla faccia, il più a fondo) e in quale; `across`: un lato passa da una parte all'altra. */
+        class Hit(val depth: Double, val wall: Band?, val across: Boolean)
+
+        private fun inGap(q: Vec2) = gaps.any { g -> Polygon.distanceToSegment(q, g.a, g.b) <= g.half }
+
+        /** Il mobile nei muri, o null se non conta (tappeto, misure rovinate) o non ha muri vicini. */
+        fun penetration(f: Furniture): Hit? {
+            if (f.height <= 3.0 || !(f.width > 0.0) || !(f.depth > 0.0) || !f.center.x.isFinite() || !f.center.y.isFinite()) return null
+            val outline = Furnishings.outline(f)
+            // Solo i muri vicini (rettangoli che si toccano): una casa grande ha centinaia di muri e di mobili.
+            val near = boundsOf(outline)
+            val close = walls.filter { w -> boundsOf(listOf(w.a, w.b)).grow(w.half).touches(near) }
+            if (close.isEmpty()) return null
+            val perimeter = outline.indices.sumOf { outline[it].distanceTo(outline[(it + 1) % outline.size]) }
+            val step = max(5.0, perimeter / 400)
+            var depth = 0.0
+            var deepest: Band? = null
+            var across = false
+            for (k in outline.indices) {
+                val a = outline[k]
+                val b = outline[(k + 1) % outline.size]
+                val n = max(1, (a.distanceTo(b) / step).toInt())
+                for (w in close) {
+                    // Un lato del mobile che passa da una parte all'altra del muro (fuori dalle sue punte, dove i muri si
+                    // incontrano negli angoli, e dai vani).
+                    val x = crossing(a, b, w.a, w.b)
+                    if (x != null && x.distanceTo(w.a) > 1.0 && x.distanceTo(w.b) > 1.0 && !inGap(x)) across = true
+                    val dir = w.b - w.a
+                    val len2 = dir dot dir
+                    val home = dir.cross(f.center - w.a)
+                    for (s in 0..n) {
+                        val q = a + (b - a) * (s.toDouble() / n)
+                        val dist = Polygon.distanceToSegment(q, w.a, w.b)
+                        if (dist >= w.half || inGap(q)) continue
+                        // Oltre la mezzeria (dalla parte opposta al centro del mobile) è ancora più dentro: con il lato che la
+                        // passa nel vano di una porta vicina non si vede che il mobile attraversa il muro.
+                        val t = ((q - w.a) dot dir) / len2
+                        val beyond = t in 0.0..1.0 && home * dir.cross(q - w.a) < 0
+                        val d = if (beyond) w.half + dist else w.half - dist
+                        if (d > depth) { depth = d; deepest = w }
+                    }
+                }
+            }
+            return Hit(depth, deepest, across)
+        }
+
+        companion object {
+            fun of(p: FloorPlan): WallBands {
+                val walls = p.rooms.flatMap { r ->
+                    (0 until r.wallCount).filter { !r.isRemoved(it) && r.arcOf(it) == null }.map { i ->
+                        val shift = r.outwardOf(i) * r.wallShift(i)
+                        Band(r.wallStart(i) + shift, r.wallEnd(i) + shift, r.thicknessOf(i) / 2)
+                    }
+                }.filter { it.a.distanceTo(it.b) >= 1.0 && it.half.isFinite() }
+                // Vani di porte e finestre (di tutte e due le stanze del muro in comune): lì il mobile non entra nel muro.
+                val gaps = p.rooms.flatMap { r ->
+                    r.openings.filter { it.wallIndex in 0 until r.wallCount && !r.isRemoved(it.wallIndex) }.map { o ->
+                        val (a, b) = Openings.span(r, o)
+                        Band(a, b, r.thicknessOf(o.wallIndex) / 2 + 1.0)
+                    }
+                }
+                return WallBands(walls, gaps)
+            }
+        }
+    }
+
     /** Coppie di muri da provare per due stanze vicine, al massimo. */
     private const val MAX_WALL_PAIRS = 200_000
 
     /** Aperture da cui si passa: porte, passaggi e porte-finestre. */
     private fun passable(k: OpeningKind) = k == OpeningKind.Door || k == OpeningKind.Door2 || k == OpeningKind.Passage ||
         k == OpeningKind.Balcony1 || k == OpeningKind.Balcony2 || k == OpeningKind.FrenchDoor
+
+    /** Problemi che [fixed] sa correggere da solo: solo per questi c'è «Correggi». */
+    fun canFix(i: Issue): Boolean = when (i.kind) {
+        Kind.FurnitureInWall -> i.b == 0.0
+        Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.OpeningTooWide -> true
+        else -> false
+    }
+
+    /**
+     * La casa con il problema `i` corretto, o null se non si riesce da soli (o la correzione non lo toglie, o non c'è più): il
+     * mobile dentro un muro torna fino alla parete; l'impianto più alto del muro si abbassa; la porta o la finestra più alta del
+     * muro si accorcia, quella più larga del muro si stringe a quanto se ne vede.
+     */
+    fun fixed(b: Building, i: Issue): Building? {
+        if (!canFix(i)) return null
+        val plan = b.floors.getOrNull(i.floor)?.plan ?: return null
+        fun Room.with(o: Opening) = copy(openings = openings.map { if (it.id == o.id) o else it })
+        val out: FloorPlan = when (i.kind) {
+            Kind.FurnitureInWall -> i.furniture?.let { pushedOut(plan, it) }
+            Kind.FixtureOverWall -> (i.selection as? Selection.Fixture)?.let { s ->
+                val r = plan.room(s.roomId) ?: return null
+                val f = r.fixtures.firstOrNull { it.id == s.fixtureId } ?: return null
+                // La cima 2 cm sotto quella del muro.
+                val elevation = kotlin.math.floor(f.elevation - (i.a - i.b) - 2.0)
+                if (elevation < 0) null else plan.replace(r.copy(fixtures = r.fixtures.map { if (it.id == f.id) f.copy(elevation = elevation) else it }))
+            }
+            else -> (i.selection as? Selection.Opening)?.let { s ->
+                val r = plan.room(s.roomId) ?: return null
+                val o = r.openings.firstOrNull { it.id == s.openingId } ?: return null
+                val fixedOpening = if (i.kind == Kind.OpeningOverWall) {
+                    val h = kotlin.math.floor(i.b - o.bottom)
+                    if (h < 20) null else o.copy(height = h)
+                } else {
+                    // Larga quanto la parte che si vede (tutto il muro), con il centro lì.
+                    val len = r.wallLength(o.wallIndex)
+                    val w = kotlin.math.floor(min(o.width, len))
+                    if (w < 20) null else o.copy(width = w, position = Openings.clampPosition(len, w, o.position))
+                }
+                fixedOpening?.let { plan.replace(r.with(it)) }
+            }
+        } ?: return null
+        // Già corretto (l'elenco era vecchio): niente da fare.
+        if (out == plan) return null
+        val result = b.copy(floors = b.floors.mapIndexed { k, f -> if (k == i.floor) f.copy(plan = out).synced() else f })
+        return result.takeIf { of(it).none { x -> x.kind == i.kind && x.floor == i.floor && x.selection == i.selection } }
+    }
+
+    /** Il mobile `id` spostato fuori dai muri in cui entra (in un angolo sono due) fino alla parete, o null se non si riesce. */
+    private fun pushedOut(plan: FloorPlan, id: Long): FloorPlan? {
+        var f = plan.furniture.firstOrNull { it.id == id } ?: return null
+        val walls = WallBands.of(Phases.view(plan, PhaseView.Project))
+        // Senza muri vicini (o con misure rovinate, e allora non si sposta e non si corregge) va bene così.
+        repeat(3) {
+            val hit = walls.penetration(f) ?: return plan.replace(f)
+            if (hit.across) return null
+            val w = hit.wall ?: return plan.replace(f)
+            if (hit.depth < 0.05) return plan.replace(f)
+            // Dalla parte del muro in cui sta il centro del mobile.
+            val n = (w.b - w.a).normalized().perp().let { if (((f.center - w.a) dot it) < 0) it * -1.0 else it }
+            f = f.copy(center = f.center + n * (hit.depth + 0.1))
+        }
+        val last = walls.penetration(f) ?: return plan.replace(f)
+        return if (!last.across && last.depth < FURNITURE_IN_WALL_CM) plan.replace(f) else null
+    }
 
     fun of(b: Building): List<Issue> {
         val out = mutableListOf<Issue>()
@@ -585,53 +720,14 @@ object PlanCheck {
          */
         fun furnitureInWalls() {
             val p = Phases.view(plan, PhaseView.Project)
-            class Band(val a: Vec2, val b: Vec2, val half: Double)
-            val walls = p.rooms.flatMap { r ->
-                (0 until r.wallCount).filter { !r.isRemoved(it) && r.arcOf(it) == null }.map { i ->
-                    val shift = r.outwardOf(i) * r.wallShift(i)
-                    Band(r.wallStart(i) + shift, r.wallEnd(i) + shift, r.thicknessOf(i) / 2)
-                }
-            }.filter { it.a.distanceTo(it.b) >= 1.0 && it.half.isFinite() }
-            // Vani di porte e finestre (di tutte e due le stanze del muro in comune): lì il mobile non entra nel muro.
-            val gaps = p.rooms.flatMap { r ->
-                r.openings.filter { it.wallIndex in 0 until r.wallCount && !r.isRemoved(it.wallIndex) }.map { o ->
-                    val (a, b) = Openings.span(r, o)
-                    Band(a, b, r.thicknessOf(o.wallIndex) / 2 + 1.0)
-                }
-            }
-            fun inGap(q: Vec2) = gaps.any { g -> Polygon.distanceToSegment(q, g.a, g.b) <= g.half }
+            val walls = WallBands.of(p)
             for (f in p.furniture) {
                 if (full()) return
-                if (f.height <= 3.0 || !(f.width > 0.0) || !(f.depth > 0.0) || !f.center.x.isFinite() || !f.center.y.isFinite()) continue
-                val outline = Furnishings.outline(f)
-                // Solo i muri vicini (rettangoli che si toccano): una casa grande ha centinaia di muri e di mobili.
-                val near = boundsOf(outline)
-                val close = walls.filter { w -> boundsOf(listOf(w.a, w.b)).grow(w.half).touches(near) }
-                if (close.isEmpty()) continue
-                val perimeter = outline.indices.sumOf { outline[it].distanceTo(outline[(it + 1) % outline.size]) }
-                val step = max(5.0, perimeter / 400)
-                var depth = 0.0
-                var across = false
-                for (k in outline.indices) {
-                    val a = outline[k]
-                    val b = outline[(k + 1) % outline.size]
-                    val n = max(1, (a.distanceTo(b) / step).toInt())
-                    for (w in close) {
-                        // Un lato del mobile che passa da una parte all'altra del muro (fuori dalle sue punte, dove i muri si
-                        // incontrano negli angoli, e dai vani).
-                        val x = crossing(a, b, w.a, w.b)
-                        if (x != null && x.distanceTo(w.a) > 1.0 && x.distanceTo(w.b) > 1.0 && !inGap(x)) across = true
-                        for (s in 0..n) {
-                            val q = a + (b - a) * (s.toDouble() / n)
-                            val d = w.half - Polygon.distanceToSegment(q, w.a, w.b)
-                            if (d > depth && !inGap(q)) depth = d
-                        }
-                    }
-                }
-                if (!across && depth < FURNITURE_IN_WALL_CM) continue
-                val box = boundsOf(outline).grow(60.0)
+                val hit = walls.penetration(f) ?: continue
+                if (!hit.across && hit.depth < FURNITURE_IN_WALL_CM) continue
+                val box = boundsOf(Furnishings.outline(f)).grow(60.0)
                 val room = p.rooms.firstOrNull { !it.outdoor && Polygon.contains(it.points, f.center) }
-                add(Issue(Kind.FurnitureInWall, floor, listOfNotNull(room?.id), box, Selection.Furniture(f.id), a = depth, b = if (across) 1.0 else 0.0, furniture = f.id))
+                add(Issue(Kind.FurnitureInWall, floor, listOfNotNull(room?.id), box, Selection.Furniture(f.id), a = hit.depth, b = if (hit.across) 1.0 else 0.0, furniture = f.id))
             }
         }
 

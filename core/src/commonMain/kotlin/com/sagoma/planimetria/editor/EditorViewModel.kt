@@ -3174,6 +3174,16 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
      * «Controlla la pianta» → «Mostra»: va al piano del problema, seleziona ciò che lo riguarda (o mette a fuoco la stanza) e
      * inquadra la zona, almeno 5 × 5 m attorno perché si capisca dove si è.
      */
+    /**
+     * «Correggi» in «Controlla la pianta»: la correzione automatica del problema ([PlanCheck.fixed]), che si annulla come le altre
+     * modifiche. False se non si riesce da soli.
+     */
+    fun fixIssue(issue: PlanCheck.Issue): Boolean {
+        val fixed = PlanCheck.fixed(_state.value.fullBuilding, issue) ?: return false
+        commitBuilding { fixed }
+        return true
+    }
+
     fun showIssue(issue: PlanCheck.Issue) {
         selectFloor(issue.floor)
         val plan = _state.value.plan

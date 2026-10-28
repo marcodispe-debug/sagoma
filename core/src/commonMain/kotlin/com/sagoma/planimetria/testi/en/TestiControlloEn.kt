@@ -9,7 +9,7 @@ object TestiControlloEn : TestiControllo() {
     override val cosaControlla: String get() =
         "Looks for overlapping or almost touching rooms, crossing walls, doubled doors and windows, or ones wider or taller than the wall, " +
             "rooms without a door, leaves that hit something when opening, the front door, the stairs, the systems and the legal minimums of the rooms (windows, heights, square metres)."
-    override val spiega: String get() = "They can spoil areas, quantities and 3D. «Show» takes you there and selects it."
+    override val spiega: String get() = "They can spoil areas, quantities and 3D. «Show» takes you there and selects it; «Fix» sorts it out by itself (undo with ↶)."
     override val daCorreggere: String get() = "To fix"
     override val daControllare: String get() = "To check"
     override val daNorme: String get() = "Rules for homes (Italy)"
@@ -26,6 +26,8 @@ object TestiControlloEn : TestiControllo() {
         "The plan has ${if (n == 1) "a drawing mistake" else "$n drawing mistakes"} (⚠): measures, areas and quantities could be wrong in the exported file too."
     override val controlla: String get() = "Check"
     override val esportaLoStesso: String get() = "Export anyway"
+    override val correggi: String get() = "Fix"
+    override val nonSiCorregge: String get() = "This can't be fixed automatically: it needs fixing by hand."
     override val condividi: String get() = "Share"
     override fun oggetto(progetto: String?): String = "Plan check" + (progetto?.let { " · $it" } ?: "")
     override fun muriIncrociati(a: String): String = "$a: the walls cross and the outline cuts itself, so area and 3D come out wrong. Move the corners."

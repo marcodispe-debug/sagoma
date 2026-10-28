@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -26,7 +27,8 @@ import com.sagoma.planimetria.testi.T
 
 /**
  * «Controlla la pianta»: l'elenco dei problemi di tutta la casa, prima quelli da correggere, poi quelli da controllare e infine
- * i minimi delle norme per la casa. «Mostra» porta al piano giusto, seleziona e inquadra (la finestra si chiude). «Condividi»
+ * i minimi delle norme per la casa. «Mostra» porta al piano giusto, seleziona e inquadra (la finestra si chiude). «Correggi», dove
+ * c'è ([PlanCheck.canFix]), sistema il problema da solo e la finestra resta aperta con l'elenco nuovo (si annulla con ↶). «Condividi»
  * manda l'elenco come testo (`projectName` nell'oggetto). Ogni gruppo ha il numero dei problemi e si apre e chiude toccando il
  * titolo; all'inizio sono aperti il primo e quelli corti (al massimo [OPEN_GROUP_MAX]).
  */
@@ -51,9 +53,11 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                         Text(T.controllo.spiega, style = MaterialTheme.typography.bodySmall)
                         val floors = building.floors.size > 1
                         val groups = PlanCheck.groups(list)
-                        val open = remember(issues) { mutableStateMapOf<String, Boolean>().apply { putAll(openAtStart(groups)) } }
+                        // Gruppi aperti e chiusi a mano restano così anche dopo «Correggi» (l'elenco cambia).
+                        val open = remember { mutableStateMapOf<String, Boolean>() }
+                        val atStart = openAtStart(groups)
                         for ((title, group) in groups) {
-                            val expanded = open[title] ?: true
+                            val expanded = open[title] ?: atStart[title] ?: true
                             Text(
                                 (if (expanded) "▾ " else "▸ ") + "$title (${group.size})",
                                 style = MaterialTheme.typography.titleSmall,
@@ -63,11 +67,16 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                             if (group.first().kind.rule) Text(T.controllo.spiegaNorme, style = MaterialTheme.typography.bodySmall)
                             for (i in group) Row(verticalAlignment = Alignment.CenterVertically) {
                                 val where = if (floors) building.floors.getOrNull(i.floor)?.name?.let { "$it · " } ?: "" else ""
-                                Text(
-                                    PlanCheck.mark(i.kind) + " " + where + PlanCheck.describe(i, building),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.weight(1f),
-                                )
+                                Column(Modifier.weight(1f)) {
+                                    Text(PlanCheck.mark(i.kind) + " " + where + PlanCheck.describe(i, building), style = MaterialTheme.typography.bodyMedium)
+                                    // Sotto la frase, allineato al testo: a destra c'è già «Mostra».
+                                    if (PlanCheck.canFix(i)) {
+                                        TextButton(
+                                            onClick = { if (!vm.fixIssue(i)) platform.toast(T.controllo.nonSiCorregge) },
+                                            contentPadding = PaddingValues(horizontal = 0.dp),
+                                        ) { Text("✓ " + T.controllo.correggi) }
+                                    }
+                                }
                                 TextButton(onClick = { vm.showIssue(i); onDismiss() }) { Text(T.controllo.mostra) }
                             }
                         }

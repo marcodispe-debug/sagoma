@@ -15,6 +15,8 @@ import com.sagoma.planimetria.testi.T
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** «Controlla la pianta»: trova gli errori di disegno veri e non disturba con le piante giuste. */
@@ -308,6 +310,70 @@ class PlanCheckTest {
         } finally {
             com.sagoma.planimetria.model.FurnitureCatalog.set(saved)
         }
+    }
+
+    @Test
+    fun `Correggi - mobile fuori dal muro, impianto piu basso, porte e finestre nel muro`() {
+        fun one(b: Building, k: PlanCheck.Kind) = PlanCheck.of(b).single { it.kind == k }
+        fun still(b: Building, k: PlanCheck.Kind) = PlanCheck.of(b).filter { it.kind == k }
+        val saved = com.sagoma.planimetria.model.FurnitureCatalog.items
+        try {
+            com.sagoma.planimetria.model.FurnitureCatalog.set(listOf(com.sagoma.planimetria.model.FurnitureCatalog.Item(model = "armadio", label = "Armadio", category = "Camera", width = 100.0, depth = 60.0, height = 220.0)))
+            fun at(x: Double, y: Double) = com.sagoma.planimetria.model.Furniture(7, "armadio", Vec2(x, y), width = 100.0, depth = 60.0, height = 220.0)
+            // Dentro di 5 cm nel muro 0 del soggiorno (faccia a 7,5): torna appoggiato alla parete.
+            val b = Building.single(FloorPlan(listOf(living, kitchen), furniture = listOf(at(100.0, 32.5))))
+            val i = one(b, PlanCheck.Kind.FurnitureInWall)
+            assertTrue(PlanCheck.canFix(i))
+            val fixed = assertNotNull(PlanCheck.fixed(b, i), "mobile")
+            val moved = fixed.floors[0].plan.furniture.single()
+            assertEquals(37.6, moved.center.y, 0.01)
+            assertEquals(100.0, moved.center.x, 0.01)
+            assertEquals(emptyList(), still(fixed, PlanCheck.Kind.FurnitureInWall))
+            // Nell'angolo (dentro i muri 0 e 3): esce da tutti e due.
+            val corner = Building.single(FloorPlan(listOf(living, kitchen), furniture = listOf(at(54.0, 32.5))))
+            val c = assertNotNull(PlanCheck.fixed(corner, one(corner, PlanCheck.Kind.FurnitureInWall)), "angolo").floors[0].plan.furniture.single()
+            assertTrue(c.center.x >= 57.5 && c.center.y >= 37.5, "${c.center}")
+            // Oltre la mezzeria del muro di 2 cm, con i fianchi nei vani della porta d'ingresso e di una finestra: è dentro di
+            // 9,5 cm (mezzo muro più 2), non di 5,5, e torna alla parete in un colpo.
+            val windowed = living.copy(openings = living.openings + Opening(9, OpeningKind.Window1, 0, 57.5, 75.0, 120.0, sillHeight = 90.0))
+            val past = Building.single(FloorPlan(listOf(windowed, kitchen), furniture = listOf(at(150.0, 28.0))))
+            val deep = one(past, PlanCheck.Kind.FurnitureInWall)
+            assertEquals(9.5, deep.a, 0.01)
+            assertEquals(0.0, deep.b)
+            assertEquals(37.6, assertNotNull(PlanCheck.fixed(past, deep), "oltre").floors[0].plan.furniture.single().center.y, 0.01)
+            // A cavallo del muro non si sa da che parte: niente «Correggi».
+            val across = Building.single(FloorPlan(listOf(living, kitchen), furniture = listOf(at(100.0, 0.0))))
+            val a = one(across, PlanCheck.Kind.FurnitureInWall)
+            assertTrue(!PlanCheck.canFix(a))
+            assertNull(PlanCheck.fixed(across, a))
+        } finally {
+            com.sagoma.planimetria.model.FurnitureCatalog.set(saved)
+        }
+
+        // Plafoniera a parete alta 226 cm sul muro alto 140: scende con la cima 2 cm sotto quella del muro.
+        val light = com.sagoma.planimetria.model.Fixture(1, com.sagoma.planimetria.model.FixtureKind.WallLight, wallIndex = 3, position = 200.0, elevation = 220.0)
+        val attic = Building.single(FloorPlan(listOf(Room(1, "Camera", RoomType.Camera, RoomFactory.rectangle(500.0, 400.0), wallThickness = 30.0, fixtures = listOf(light), wallHeights = mapOf(3 to 140.0)))))
+        val f = one(attic, PlanCheck.Kind.FixtureOverWall)
+        val lowered = assertNotNull(PlanCheck.fixed(attic, f), "impianto")
+        assertEquals(132.0, lowered.floors[0].plan.rooms[0].fixtures.single().elevation)
+        assertEquals(emptyList(), still(lowered, PlanCheck.Kind.FixtureOverWall))
+
+        // Finestra fino a 300 cm sul muro alto 270: si accorcia fino alla cima del muro.
+        val tall = Building.single(FloorPlan(listOf(living.copy(openings = living.openings + Opening(8, OpeningKind.Window1, 3, 150.0, 80.0, 200.0, sillHeight = 100.0)), kitchen)))
+        val shorter = assertNotNull(PlanCheck.fixed(tall, one(tall, PlanCheck.Kind.OpeningOverWall)), "alta")
+        assertEquals(170.0, shorter.floors[0].plan.rooms[0].openings.single { it.id == 8L }.height)
+        assertEquals(emptyList(), still(shorter, PlanCheck.Kind.OpeningOverWall))
+
+        // Porta larga 140 su un muro lungo 100: larga quanto il muro, al centro.
+        val small = rect(5, "Bagno", RoomType.Bagno, 100.0, 200.0, Vec2(0.0, 300.0), openings = listOf(Opening(7, OpeningKind.Door, 0, 30.0, 140.0, 210.0)))
+        val wide = Building.single(FloorPlan(listOf(living, kitchen, small)))
+        val narrow = assertNotNull(PlanCheck.fixed(wide, one(wide, PlanCheck.Kind.OpeningTooWide)), "larga").floors[0].plan.rooms.single { it.id == 5L }.openings.single()
+        assertEquals(100.0, narrow.width)
+        assertEquals(50.0, narrow.position)
+
+        // Gli altri problemi no.
+        val noDoor = PlanCheck.of(Building.single(FloorPlan(listOf(rect(9, "Camera", RoomType.Camera, 400.0, 300.0))))).first { it.kind == PlanCheck.Kind.NoDoor }
+        assertTrue(!PlanCheck.canFix(noDoor))
     }
 
     @Test

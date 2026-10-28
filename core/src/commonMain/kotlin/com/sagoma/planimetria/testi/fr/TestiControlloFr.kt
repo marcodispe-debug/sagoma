@@ -9,7 +9,7 @@ object TestiControlloFr : TestiControllo() {
     override val cosaControlla: String get() =
         "Cherche les pièces superposées ou presque collées, les murs qui se croisent, les portes et fenêtres en double, plus larges ou plus hautes que le mur, " +
             "les pièces sans porte, les vantaux qui heurtent quelque chose en s'ouvrant, la porte d'entrée, les escaliers, les installations et les minimums légaux des pièces (fenêtres, hauteurs, mètres carrés)."
-    override val spiega: String get() = "Ils peuvent fausser surfaces, métré et 3D. « Afficher » y amène et le sélectionne."
+    override val spiega: String get() = "Ils peuvent fausser surfaces, métré et 3D. « Afficher » y amène et le sélectionne ; « Corriger » le règle tout seul (annuler avec ↶)."
     override val daCorreggere: String get() = "À corriger"
     override val daControllare: String get() = "À vérifier"
     override val daNorme: String get() = "Règles pour le logement (Italie)"
@@ -26,6 +26,8 @@ object TestiControlloFr : TestiControllo() {
         "Le plan a ${if (n == 1) "une erreur" else "$n erreurs"} de dessin (⚠) : mesures, surfaces et métré pourraient être faux aussi dans le fichier exporté."
     override val controlla: String get() = "Vérifier"
     override val esportaLoStesso: String get() = "Exporter quand même"
+    override val correggi: String get() = "Corriger"
+    override val nonSiCorregge: String get() = "Impossible de corriger automatiquement : il faut le faire à la main."
     override val condividi: String get() = "Partager"
     override fun oggetto(progetto: String?): String = "Contrôle du plan" + (progetto?.let { " · $it" } ?: "")
     override fun muriIncrociati(a: String): String = "$a : les murs se croisent et le contour se coupe lui-même, la surface et la 3D sont donc fausses. Déplacez les angles."

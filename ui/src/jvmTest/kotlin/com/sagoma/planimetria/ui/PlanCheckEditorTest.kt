@@ -53,4 +53,30 @@ class PlanCheckEditorTest {
         assertEquals(2L, vm.state.value.focusedRoomId)
         assertEquals(null, vm.state.value.selection)
     }
+
+    @Test
+    fun `Correggi corregge sul suo piano e si annulla`() {
+        // Al primo piano una finestra fino a 300 cm sul muro alto 270; si sta guardando il piano terra.
+        val tall = living.copy(openings = living.openings + Opening(8, OpeningKind.Window1, 3, 150.0, 80.0, 200.0, sillHeight = 100.0))
+        val two = Building(listOf(Floor(1, "Piano terra", FloorPlan(listOf(living, kitchen))), Floor(2, "Primo piano", FloorPlan(listOf(tall, kitchen)))))
+        val vm = EditorViewModel(object : PlanStore {
+            override fun load() = two
+            override fun save(building: Building) {}
+        })
+        fun over() = PlanCheck.of(vm.state.value.fullBuilding).filter { it.kind == PlanCheck.Kind.OpeningOverWall }
+        val issue = over().single()
+        assertEquals(true, vm.fixIssue(issue))
+        assertEquals(emptyList(), over())
+        assertEquals(170.0, vm.state.value.fullBuilding.floors[1].plan.rooms[0].openings.single { it.id == 8L }.height)
+        // Il piano terra è rimasto quello di prima, e lo si sta ancora guardando.
+        assertEquals(0, vm.state.value.building.current)
+        assertEquals(two.floors[0].plan.rooms, vm.state.value.fullBuilding.floors[0].plan.rooms)
+        vm.undo()
+        assertEquals(1, over().size)
+        // Già corretto (o non più lì): false, e niente cambia.
+        vm.redo()
+        val after = vm.state.value.fullBuilding
+        assertEquals(false, vm.fixIssue(issue))
+        assertEquals(after, vm.state.value.fullBuilding)
+    }
 }
