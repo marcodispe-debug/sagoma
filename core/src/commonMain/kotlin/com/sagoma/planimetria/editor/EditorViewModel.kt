@@ -2218,6 +2218,46 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     // ---------- Trascinamenti (§2) ----------
 
+    fun toggleWallGaps() = _state.update { it.copy(wallGaps = !it.wallGaps) }
+
+    /**
+     * Distanza da un muro scritta nella scheda: l'oggetto si sposta verso quel muro (o se ne allontana) finché è `value` cm,
+     * senza agganci, con un solo passo di «Annulla».
+     */
+    fun setWallDistance(target: DragTarget, d: com.sagoma.planimetria.geometry.WallDistance, value: Double) {
+        if (value < 0) return
+        nudge(target, d.toward * (d.distance - value))
+        endNudge()
+    }
+
+    /** Spostamento con la tastiera in corso: quanto (cm) dall'inizio; null se non c'è. */
+    private var nudgeTotal: Vec2? = null
+
+    /**
+     * WASD o frecce con un oggetto selezionato: lo sposta di `by` cm, come un trascinamento corto (senza agganci). Finché il
+     * tasto resta giù i passi si sommano e diventano un solo passo di «Annulla», chiuso da [endNudge] al rilascio.
+     */
+    fun nudge(target: DragTarget, by: Vec2) {
+        val total = nudgeTotal
+        if (total == null || dragTarget != target) {
+            if (total != null) endNudge()
+            // Un trascinamento col mouse in corso ha la precedenza.
+            if (dragStartPlan != null) return
+            beginDrag(target, Vec2.Zero)
+            if (dragStartPlan == null) return
+            nudgeTotal = by
+        } else {
+            nudgeTotal = total + by
+        }
+        dragBy(target, nudgeTotal!!)
+    }
+
+    fun endNudge() {
+        if (nudgeTotal == null) return
+        nudgeTotal = null
+        endDrag()
+    }
+
     /** `at` è il punto (cm) in cui è iniziato il trascinamento. */
     fun beginDrag(target: DragTarget, at: Vec2) = collapsingInfoOnNewSelection { startDrag(target, at) }
 
@@ -2488,7 +2528,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     /** Guide dell'aggancio del trascinamento in corso (le imposta [dragBy], le toglie [endDrag]). */
     private var snapGuides: List<SnapGuide> = emptyList()
 
-    private val snapOn get() = _state.value.snapOn
+    // Spostamento fine con la tastiera: niente agganci, se no i pochi centimetri tornerebbero indietro.
+    private val snapOn get() = _state.value.snapOn && nudgeTotal == null
 
     /** Agganci accesi o spenti (pulsante 🧲 nella tendina Info): vale per il disegno e per tutti i trascinamenti. */
     fun setSnapOn(on: Boolean) {
@@ -2499,7 +2540,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     /** Tolleranza dell'aggancio in cm: circa 10 dp sullo schermo, qualunque sia lo zoom. */
     private fun snapTolerance(always: Boolean = false): Double {
         // Agganci spenti: nessun punto è abbastanza vicino da attirare.
-        if (!always && !_state.value.snapOn) return 0.0
+        if (!always && !snapOn) return 0.0
         val dp = if (fitMarginPx > 0f) fitMarginPx / 24f else 2.5f
         return (10f * dp / _state.value.camera.scale).toDouble().coerceIn(2.0, 60.0)
     }

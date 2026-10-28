@@ -79,6 +79,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.DragTarget
+import com.sagoma.planimetria.editor.Selection
 import com.sagoma.planimetria.editor.OpeningPreset
 import com.sagoma.planimetria.editor.PendingOpening
 import com.sagoma.planimetria.editor.Tip
@@ -88,6 +90,7 @@ import com.sagoma.planimetria.editor.TutorialUi
 import androidx.compose.foundation.layout.widthIn
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.Mount
+import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.model.OpeningKind
 import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
@@ -216,6 +219,17 @@ fun EditorScreen(
         val move = e.type == KeyEventType.KeyUp || !e.isCtrlPressed
         // Nel 3D WASD e frecce muovono la vista anche se la tastiera è rimasta su un pulsante.
         if (state.view3d && move && view3dState.onKey(e)) return@handleKey true
+        // Con un oggetto selezionato WASD e frecce spostano lui, di pochi pixel a ogni battuta (con Maiusc di più). Il tasto
+        // lasciato chiude lo spostamento e va comunque alla pianta, che potrebbe averlo visto premere prima della selezione.
+        val nudgeDir = PlanKeyPan.direction(e.key)
+        if (!state.view3d && move && nudgeDir != null) {
+            if (e.type == KeyEventType.KeyUp) vm.endNudge()
+            else nudgeTarget(state.selection)?.takeIf { e.type == KeyEventType.KeyDown }?.let { t ->
+                val cm = (if (e.isShiftPressed) NUDGE_FAST_PX else NUDGE_PX) / state.camera.scale.toDouble()
+                vm.nudge(t, Vec2(-nudgeDir.first * cm, -nudgeDir.second * cm))
+                return@handleKey true
+            }
+        }
         // WASD e frecce spostano la pianta (con Maiusc di più), come la vista 3D.
         if (!state.view3d && move && planKeys.onKey(e)) return@handleKey true
         if (e.type != KeyEventType.KeyDown) return@handleKey false
@@ -1238,3 +1252,11 @@ private fun RoomTabs(rooms: List<Room>, focusedId: Long?, onTap: (Long) -> Unit,
     }
 }
 
+
+/** Pixel sullo schermo di cui un tasto sposta l'oggetto selezionato (con Maiusc [NUDGE_FAST_PX]). */
+private const val NUDGE_PX = 2.0
+private const val NUDGE_FAST_PX = 10.0
+
+/** Oggetto che WASD e frecce spostano: quello selezionato che si può trascinare, muri compresi. */
+internal fun nudgeTarget(sel: Selection?): DragTarget? =
+    if (sel is Selection.Wall) DragTarget.Wall(sel.roomId, sel.index) else selectedDragTarget(sel)

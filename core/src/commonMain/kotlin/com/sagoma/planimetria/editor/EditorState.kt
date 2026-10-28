@@ -291,6 +291,8 @@ data class EditorUiState(
     val dismissedSketchBanners: Set<Long> = emptySet(),
     /** Trascinamento in corso sulla pianta: la vista non va ricentrata mentre il dito si muove. */
     val dragging: Boolean = false,
+    /** Pulsante «Distanze dai muri» nella scheda dell'oggetto: le distanze dell'oggetto selezionato dai muri, sulla pianta e scrivibili. */
+    val wallGaps: Boolean = false,
     /** Faretto a parete che si sta orientando con la maniglia 3D (null altrimenti). */
     val aimDrag: AimDrag? = null,
     val pendingOpening: PendingOpening? = null,

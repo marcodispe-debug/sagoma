@@ -548,7 +548,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
             drawMultiSelection(state, levelHeight = state.levelHeight)
             drawPastePreview(state)
             drawSnapGuides(state.snapGuides, state.camera, measurer)
-            drawOpeningGaps(state, measurer)
+            drawWallGaps(state, measurer, avoid = labels.map { it.rect(state.camera, labelPadPx) })
         }
         // Vicino ai bordi dello schermo i trascinamenti di angoli e metro non devono diventare il gesto "indietro".
         val cam = state.camera
