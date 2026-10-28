@@ -41,4 +41,15 @@ open class TestiComputo {
     open val paretiM22: String get() = "PARETI;m²"
     open val arrediMisureQuantitaDove: String get() = "ARREDI;Misure;Quantità;Dove"
     open val impiantiQuantitaDove: String get() = "IMPIANTI;Quantità;Dove"
+    open val luceAria: String get() = "Luce e aria (finestre / pavimento)"
+    open val finM2: String get() = "Fin. m²"
+    open val rapporto: String get() = "Rapporto"
+    open val almenoUnOttavo: String get() = "≥ 1/8"
+    open val si: String get() = "sì"
+    open val no: String get() = "no"
+    open val notaLuce: String get() =
+        "Stanze da abitare. Finestre apribili che danno fuori, misurate sul vano del muro. In Italia (DM 5 luglio 1975) ne serve almeno 1/8 del pavimento."
+    open val notaLucePdf: String get() = "Finestre apribili verso fuori, sul vano del muro; almeno 1/8 (DM 5/7/1975)."
+    open val luceAria2: String get() = "LUCE E ARIA"
+    open val pianoStanzaLuce: String get() = "Piano;Stanza;Pavimento m²;Finestre apribili m²;Rapporto;Almeno 1/8"
 }

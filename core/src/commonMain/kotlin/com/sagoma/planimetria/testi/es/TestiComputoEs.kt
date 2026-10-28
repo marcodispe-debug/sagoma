@@ -41,5 +41,16 @@ object TestiComputoEs : TestiComputo() {
     override val pavimentiM2M210: String get() = "SUELOS;m²;m² con 10 % de desperdicio"
     override val paretiM22: String get() = "PAREDES;m²"
     override val arrediMisureQuantitaDove: String get() = "MUEBLES;Medidas;Cantidad;Dónde"
+    override val luceAria: String get() = "Luz y aire (ventanas / suelo)"
+    override val finM2: String get() = "Vent. m²"
+    override val rapporto: String get() = "Relación"
+    override val almenoUnOttavo: String get() = "≥ 1/8"
+    override val si: String get() = "sí"
+    override val no: String get() = "no"
+    override val notaLuce: String get() =
+        "Estancias habitables. Ventanas practicables al exterior, medidas en el hueco de la pared. En Italia (decreto del 5 de julio de 1975) se necesita al menos 1/8 del suelo."
+    override val notaLucePdf: String get() = "Ventanas practicables al exterior, en el hueco; al menos 1/8 (DM italiano 5/7/1975)."
+    override val luceAria2: String get() = "LUZ Y AIRE"
+    override val pianoStanzaLuce: String get() = "Planta;Habitación;Superficie útil m²;Ventanas practicables m²;Relación;Al menos 1/8"
     override val impiantiQuantitaDove: String get() = "INSTALACIONES;Cantidad;Dónde"
 }

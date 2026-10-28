@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorUiState
+import com.sagoma.planimetria.geometry.HousingRules
 import com.sagoma.planimetria.geometry.Takeoff
 import com.sagoma.planimetria.persistence.ProjectInfo
 import com.sagoma.planimetria.testi.T
@@ -100,6 +101,17 @@ fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Uni
                 if (res.fixtures.isNotEmpty()) {
                     Section(T.computo.impianti)
                     for (i in res.fixtures) Line("${i.count}× ${i.name}", i.where)
+                }
+                if (res.light.isNotEmpty()) {
+                    Section(T.computo.luceAria)
+                    Column(Modifier.horizontalScroll(rememberScrollState())) {
+                        TableRow(listOf(T.computo.stanza, T.computo.pavM2, T.computo.finM2, T.computo.rapporto, T.computo.almenoUnOttavo), header = true)
+                        val multi = state.fullBuilding.floors.size > 1
+                        for (l in res.light) TableRow(
+                            listOf(if (multi) "${l.rooms} (${l.floor})" else l.rooms, fmt2(l.floorArea), fmt2(l.windowArea), HousingRules.fraction(l.ratio), if (l.enough) T.computo.si else T.computo.no),
+                        )
+                    }
+                    Text(T.computo.notaLuce, style = MaterialTheme.typography.bodySmall)
                 }
             }
         },

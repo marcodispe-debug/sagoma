@@ -125,9 +125,9 @@ object HousingRules {
     fun belowMinimum(plan: FloorPlan, space: List<Room>): Boolean =
         (windowArea(plan, space) / 100).roundToInt() < (floorArea(space) * MIN_RATIO / 100).roundToInt()
 
-    /** Il rapporto come frazione «1/8,5» (una cifra dopo la virgola, intera da 1/100 in giù). */
+    /** Il rapporto come frazione «1/8,5» (una cifra dopo la virgola, intera da 1/100 in giù); «—» senza finestre. */
     fun fraction(ratio: Double): String {
-        if (ratio <= 0) return "0"
+        if (ratio <= 0) return "—"
         val x = 1 / ratio
         return "1/" + if (x >= 100) formatDecimal(x, 0) else formatDecimal(x, 1)
     }

@@ -34,4 +34,16 @@ class PdfTakeoffPagesTest {
             assertEquals(3 + 120 + 3 + 2 + 81, sheets.sumOf { it.size })
         }
     }
+
+    @Test
+    fun tabellaLuceEAria() {
+        val res = result(4, 0).copy(light = listOf(Takeoff.LightLine("Piano terra", "Soggiorno + Cucina", 19.1, 2.88), Takeoff.LightLine("Piano terra", "Camera", 14.82, 1.44)))
+        val lines = PdfExport.takeoffSheets(res, PdfExport.Paper.A4).flatten()
+        val at = lines.indexOfFirst { it.title && it.cells == listOf(com.sagoma.planimetria.testi.T.computo.luceAria) }
+        assertTrue(at >= 0)
+        // Titolo, intestazione, due ambienti e la nota.
+        assertEquals(listOf("Soggiorno + Cucina", "19,10", "2,88", "1/6,6", "sì"), lines[at + 2].cells)
+        assertEquals(listOf("Camera", "14,82", "1,44", "1/10,3", "no"), lines[at + 3].cells)
+        assertEquals(at + 5, lines.size)
+    }
 }

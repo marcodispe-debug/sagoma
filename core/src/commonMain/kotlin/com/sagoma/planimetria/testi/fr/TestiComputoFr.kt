@@ -41,5 +41,16 @@ object TestiComputoFr : TestiComputo() {
     override val pavimentiM2M210: String get() = "SOLS;m²;m² avec 10 % de chutes"
     override val paretiM22: String get() = "MURS;m²"
     override val arrediMisureQuantitaDove: String get() = "MOBILIER;Dimensions;Quantité;Où"
+    override val luceAria: String get() = "Lumière et air (fenêtres / sol)"
+    override val finM2: String get() = "Fen. m²"
+    override val rapporto: String get() = "Rapport"
+    override val almenoUnOttavo: String get() = "≥ 1/8"
+    override val si: String get() = "oui"
+    override val no: String get() = "non"
+    override val notaLuce: String get() =
+        "Pièces à vivre. Fenêtres ouvrantes donnant dehors, mesurées sur la baie du mur. En Italie (décret du 5 juillet 1975), il en faut au moins 1/8 du sol."
+    override val notaLucePdf: String get() = "Fenêtres ouvrantes donnant dehors, sur la baie ; au moins 1/8 (DM italien 5/7/1975)."
+    override val luceAria2: String get() = "LUMIÈRE ET AIR"
+    override val pianoStanzaLuce: String get() = "Étage;Pièce;Surface au sol m²;Fenêtres ouvrantes m²;Rapport;Au moins 1/8"
     override val impiantiQuantitaDove: String get() = "ÉQUIPEMENTS;Quantité;Où"
 }

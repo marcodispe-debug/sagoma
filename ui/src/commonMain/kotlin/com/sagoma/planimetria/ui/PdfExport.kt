@@ -44,6 +44,7 @@ import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.PhaseView
+import com.sagoma.planimetria.geometry.HousingRules
 import com.sagoma.planimetria.geometry.Takeoff
 import com.sagoma.planimetria.geometry.expandCurves
 import com.sagoma.planimetria.model.Building
@@ -304,6 +305,14 @@ object PdfExport {
             title(T.pdf.impianti)
             val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.52f)
             for (i in res.fixtures) row(listOf("${i.count}×", i.name, i.where), w3)
+        }
+        if (res.light.isNotEmpty()) {
+            title(T.computo.luceAria)
+            row(listOf(T.pdf.stanza, T.pdf.pavM2, T.computo.finM2, T.computo.rapporto, T.computo.almenoUnOttavo), w, bold = true, right = nums)
+            for (l in res.light) {
+                row(listOf(if (multi) "${l.rooms} (${l.floor})" else l.rooms, fmt2(l.floorArea), fmt2(l.windowArea), HousingRules.fraction(l.ratio), if (l.enough) T.computo.si else T.computo.no), w, right = nums)
+            }
+            row(listOf(T.computo.notaLucePdf), listOf(colW))
         }
         return sheets.filter { it.isNotEmpty() }
     }

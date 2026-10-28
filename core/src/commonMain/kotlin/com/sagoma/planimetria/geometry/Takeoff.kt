@@ -11,6 +11,7 @@ import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.ProPalette
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.testi.T
+import kotlin.math.roundToInt
 
 /**
  * Computo metrico della casa: per ogni stanza pavimento, pareti da finire (al netto di porte e finestre),
@@ -34,6 +35,16 @@ object Takeoff {
 
     data class Total(val what: String, val quantity: Double, val unit: String)
 
+    /**
+     * Luce e aria di un ambiente da abitare (una stanza, o il soggiorno con la cucina a vista): m² di pavimento e di finestre
+     * apribili che danno fuori ([HousingRules]).
+     */
+    data class LightLine(val floor: String, val rooms: String, val floorArea: Double, val windowArea: Double) {
+        val ratio: Double get() = if (floorArea > 0) windowArea / floorArea else 0.0
+        /** Almeno 1/8, con le misure arrotondate al centesimo come si leggono. */
+        val enough: Boolean get() = (windowArea * 100).roundToInt() >= (floorArea * HousingRules.MIN_RATIO * 100).roundToInt()
+    }
+
     data class Item(val name: String, val size: String, val count: Int, val where: String)
 
     data class Result(
@@ -46,6 +57,8 @@ object Takeoff {
         val ceilings: Double = 0.0,
         /** In casa ci sono parti da demolire o nuove: il computo è quello dello stato di progetto (va detto). */
         val phased: Boolean = false,
+        /** Luce e aria degli ambienti da abitare (rapporto aeroilluminante), nello stato di progetto. */
+        val light: List<LightLine> = emptyList(),
     ) {
         val totalFloor: Double get() = rooms.sumOf { it.floorArea }
         val totalWalls: Double get() = rooms.sumOf { it.wallArea }
@@ -135,7 +148,12 @@ object Takeoff {
         val furniture = LinkedHashMap<Pair<String, String>, Pair<Int, MutableSet<String>>>()
         val fixtures = LinkedHashMap<String, Pair<Int, MutableSet<String>>>()
         var ceilings = 0.0
+        val light = mutableListOf<LightLine>()
         for (fl in building.floors) {
+            // Luce e aria: [HousingRules] guarda da solo la casa come sarà (muri e aperture da demolire non contano).
+            for (s in HousingRules.livingSpaces(fl.plan)) {
+                light += LightLine(fl.name, s.joinToString(" + ") { it.name }, HousingRules.floorArea(s) / 10_000, HousingRules.windowArea(fl.plan, s) / 10_000)
+            }
             // Lo stato di progetto: i muri da demolire sono lati aperti, le aperture da chiudere sono muro pieno.
             val plan = Phases.view(fl.plan, PhaseView.Project)
             // Porte sul muro in comune: il vano buca anche la parete della stanza accanto (che non ha la porta tra le sue).
@@ -172,6 +190,7 @@ object Takeoff {
             fixtures.map { (k, v) -> Item(k, "", v.first, v.second.joinToString(", ")) },
             ceilings,
             building.floors.any { Phases.hasChanges(it.plan) },
+            light,
         )
     }
 
@@ -270,5 +289,11 @@ object Takeoff {
         appendLine()
         head(T.computo.impiantiQuantitaDove)
         for (i in res.fixtures) row(t(i.name), "${i.count}", t(i.where))
+        if (res.light.isNotEmpty()) {
+            appendLine()
+            head(T.computo.luceAria2)
+            head(T.computo.pianoStanzaLuce)
+            for (l in res.light) row(t(l.floor), t(l.rooms), n(l.floorArea), n(l.windowArea), HousingRules.fraction(l.ratio), if (l.enough) T.computo.si else T.computo.no)
+        }
     }
 }
