@@ -712,6 +712,7 @@ class DesktopGlSceneRenderer(
         glUniform3fv(u("uLampColor"), lights.lampColors)
         glUniform4fv(u("uLampBox"), lights.lampBoxes)
         glUniform4fv(u("uLampAxis"), lights.lampAxes)
+        glUniform1fv(u("uLampSame"), lights.lampSame)
         // Finestre: rettangoli di cielo che illuminano la loro stanza.
         glUniform1i(u("uWinCount"), lights.skyWindowCount)
         glUniform4fv(u("uWin"), lights.skyWindows)
