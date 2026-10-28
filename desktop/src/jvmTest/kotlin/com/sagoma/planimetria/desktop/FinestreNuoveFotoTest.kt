@@ -34,6 +34,8 @@ class FinestreNuoveFotoTest {
                 o(3, OpeningKind.Window2, 0, 370.0, OpeningPreset.WoodWindow).copy(sillMaterial = StairMaterial.Wood, splay = 15.0),
                 o(4, OpeningKind.Window1, 0, 520.0, OpeningPreset.RomanShutter).copy(sillMaterial = StairMaterial.Marble),
                 o(5, OpeningKind.Window2, 2, 300.0, OpeningPreset.BayWindow),
+                // Porta d'ingresso sul muro a sinistra, con la soglia di marmo.
+                o(6, OpeningKind.Door, 3, 225.0, OpeningPreset.Armored).copy(sillMaterial = StairMaterial.Marble),
             ),
         )
         // Con il catalogo (se c'è) il prato e i materiali sono quelli fotografici, come nell'app.
@@ -74,6 +76,7 @@ class FinestreNuoveFotoTest {
         shot("10-zanzariera-dentro", Vec3(300.0, 160.0, 800.0), Vec3(300.0, 140.0, 1150.0), 80.0, walking = true)
         // Davanzali: marmo, pietra e legno (con lo sguincio) visti da fuori da vicino, e da dentro.
         shot("11-davanzali-fuori", Vec3(260.0, 150.0, -170.0), Vec3(220.0, 95.0, 0.0), 60.0, walking = false)
+        shot("13-soglia-ingresso", Vec3(-230.0, 140.0, 140.0), Vec3(0.0, 40.0, 225.0), 60.0, walking = false)
         shot("12-davanzale-dentro", Vec3(370.0, 165.0, 110.0), Vec3(370.0, 90.0, 0.0), 75.0, walking = true)
     }
 }

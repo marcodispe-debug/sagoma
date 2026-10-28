@@ -511,5 +511,14 @@ class OpeningTypesTest {
         assertTrue(Openings.description(styled).endsWith("soglia in marmo"), Openings.description(styled))
         val plan = FloorPlan(listOf(room(marble, styled)))
         assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
+        // Anche le porte (es. la soglia di marmo all'ingresso), non quelle da garage.
+        val door = Opening.default(1, OpeningKind.Door, 0, 200.0).copy(sillMaterial = StairMaterial.Marble)
+        // Dal mezzo del vano verso il basso (sopra la porta c'è il coprifilo).
+        val doorSill = assertNotNull(scene(door).hit(Vec3(200.0, 100.0, 0.0), Vec3(0.0, -1.0, 0.0)))
+        assertEquals(Pick.Opening(1, 1), doorSill.pick)
+        assertEquals(0.5, doorSill.point.y, 0.01)
+        assertEquals("Liscia, rovere · soglia in marmo", Openings.description(door))
+        assertNull(OpeningPreset.GarageSectional.apply(door).sill)
+        assertEquals(StairMaterial.Marble, Opening.default(2, OpeningKind.Door2, 1, 150.0).withStyleOf(door).sillMaterial)
     }
 }

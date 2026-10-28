@@ -1002,14 +1002,8 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                     o.awningColor?.let { c0 -> FreeColorPicker(T.pannelli.coloreTenda, c0) { c -> update { it.copy(awningColor = c) } } }
                 }
                 // Davanzale della finestra (soglia del balcone): senza, o una lastra di marmo, pietra o legno.
-                if (!o.isBay && o.shape != WindowShape.Round) Row(Modifier.padding(end = 8.dp)) {
-                    val materials = listOf(null, StairMaterial.Marble, StairMaterial.Stone, StairMaterial.Wood)
-                    Choice(
-                        if (o.kind.isWindow) T.pannelli.davanzale else T.pannelli.soglia,
-                        materials.map { it?.label ?: T.pannelli.senza },
-                        materials.indexOf(o.sillMaterial).coerceAtLeast(0),
-                        Modifier.weight(1f),
-                    ) { i -> update { it.copy(sillMaterial = materials[i]) } }
+                if (!o.isBay && o.shape != WindowShape.Round) {
+                    SillChoice(if (o.kind.isWindow) T.pannelli.davanzale else T.pannelli.soglia, o.sillMaterial) { m -> update { it.copy(sillMaterial = m) } }
                 }
             } else {
                 // Le porte da garage hanno il loro pannello (a doghe o a sezioni): si sceglie solo il colore.
@@ -1022,6 +1016,8 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                         update { it.copy(frameless = i == 1) }
                     }
                 }
+                // Soglia sotto la porta (es. quella di marmo all'ingresso): non per la porta da garage.
+                if (!o.isGarage) SillChoice(T.pannelli.soglia, o.sillMaterial) { m -> update { it.copy(sillMaterial = m) } }
             }
             // Come la pittura dei muri: i colori soliti degli infissi (legni, bianco, grigi) in testa, poi la tavolozza e il colore libero.
             val finishes = Finish.entries
@@ -1128,6 +1124,17 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
             lampPreview(it)
         }
         else -> Unit
+    }
+}
+
+/** Davanzale o soglia: senza, o una lastra di marmo, pietra o legno. */
+@Composable
+private fun SillChoice(label: String, selected: StairMaterial?, onSelect: (StairMaterial?) -> Unit) {
+    val materials = listOf(null, StairMaterial.Marble, StairMaterial.Stone, StairMaterial.Wood)
+    Row(Modifier.padding(end = 8.dp)) {
+        Choice(label, materials.map { it?.label ?: T.pannelli.senza }, materials.indexOf(selected).coerceAtLeast(0), Modifier.weight(1f)) { i ->
+            onSelect(materials[i])
+        }
     }
 }
 

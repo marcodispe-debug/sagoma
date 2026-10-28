@@ -97,6 +97,7 @@ object Openings {
         } else {
             if (o.transomCm > 0) parts += low(T.pannelli.sopraluce)
             if (o.sidelightCm > 0) parts += low(T.pannelli.vetroDiFianco)
+            o.sill?.let { parts += T.pannelli.davanzaleIn(low(it.label), balcony = true) }
         }
         return parts.filter { it.isNotBlank() }.joinToString(" · ")
     }

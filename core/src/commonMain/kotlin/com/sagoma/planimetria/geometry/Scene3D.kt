@@ -1984,6 +1984,8 @@ private class SceneBuilder(
         val pick = Pick.Opening(room.id, o.id)
         val bottom = o.bottom
         val top = min(h, bottom + o.height)
+        // Soglia della porta (quella di finestre e balconi si fa con l'infisso, che può stare spostato nello spessore del muro).
+        if (!o.kind.glazed) o.sill?.let { windowSill(room, o, a, b, u, n, bottom, it, pick) }
 
         when {
             o.kind == OpeningKind.Passage || o.kind == OpeningKind.Niche -> Unit // varco libero, nicchia
@@ -2350,7 +2352,7 @@ private class SceneBuilder(
     private val wroughtIron = Rgba(0.13f, 0.13f, 0.14f)
 
     /**
-     * Davanzale (finestre) o soglia (balconi): lastra di 3 cm sotto l'infisso per tutto lo spessore del muro, che sporge
+     * Davanzale (finestre) o soglia (balconi e porte): lastra di 3 cm sotto l'infisso per tutto lo spessore del muro, che sporge
      * [Openings.SILL_IN] verso la stanza e [Openings.SILL_OUT] fuori, con le «orecchie» di [Openings.SILL_EAR] per lato infilate
      * nei lati del vano ([Openings.sillSize]). Con lo sguincio, verso la stanza si allarga come il vano. Sta mezzo cm sopra il
      * fondo del varco: copre il muro sotto senza sfarfallare.
