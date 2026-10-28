@@ -109,15 +109,21 @@ internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color
     }
     val frame = when (model) {
         WindowModel.Minimal, WindowModel.Loft -> 0.025f
+        WindowModel.Wood -> 0.07f
         else -> 0.05f
     }
     val fc = when {
         model == WindowModel.Minimal && color.red > 0.9f -> Color(0xFF383B3F)
         model == WindowModel.Loft && color.red > 0.9f -> Color(0xFF1A1A1C)
+        model == WindowModel.Wood && color.red > 0.9f && color.blue > 0.9f -> Color(0xFF9E7148)
         else -> color
     }
     box(l, t, r, b, fc)
     box(l + frame, t + frame * 1.3f, r - frame, b - frame * 1.3f, GlassBlue)
+    // Legno: il fermavetro, un filo più scuro attorno al vetro di ogni anta.
+    if (model == WindowModel.Wood) for ((x0, x1) in listOf(l + frame to 0.5f - frame * 0.4f, 0.5f + frame * 0.4f to r - frame)) {
+        box(x0, t + frame * 1.3f, x1, b - frame * 1.3f, fc.shade(0.75f), 1.4f * density)
+    }
     // Montante centrale (due ante).
     drawLine(fc, px(0.5f, t), px(0.5f, b), size.width * frame * 0.8f)
     if (model == WindowModel.English) {
@@ -139,6 +145,13 @@ internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color
         box(l - 0.02f, t - 0.06f, r + 0.02f, t, shadingColor.shade(0.8f))
         var y = t + 0.03f
         while (y < t + (b - t) * 0.66f) { drawLine(shadingColor, px(l, y), px(r, y), 2.2f * density); y += 0.045f }
+    }
+    // Persiana alla romana: il pannello a stecche aperto in fuori copre la parte alta della finestra.
+    if (shading == Shading.RomanShutter) {
+        val bottom = t + (b - t) * 0.7f
+        box(l - 0.03f, t - 0.02f, r + 0.03f, bottom, shadingColor)
+        var y = t + 0.03f
+        while (y < bottom) { drawLine(shadingColor.shade(0.7f), px(l - 0.03f, y), px(r + 0.03f, y), 1f * density); y += 0.05f }
     }
     if (shading == Shading.InteriorShutters) {
         val sc = shadingColor.shade(0.92f)

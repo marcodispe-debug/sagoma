@@ -19,6 +19,29 @@ import kotlin.math.sqrt
 data class WallGap(val roomId: Long, val wallIndex: Int, val a: Vec2, val b: Vec2, val height: Double = 0.0)
 
 object Openings {
+    /** Quanto sporge il bovindo dalla faccia esterna del muro (cm); i fianchi sono a 45°. */
+    const val BAY_DEPTH = 60.0
+
+    /**
+     * Bovindo in pianta: i quattro angoli sulla faccia esterna del muro e davanti, in ordine (inizio del varco sul muro,
+     * davanti, davanti, fine del varco sul muro). La sporgenza si riduce sulle finestre strette, così il davanti resta
+     * largo almeno 30 cm.
+     */
+    fun bayOutline(room: Room, o: Opening): List<Vec2> {
+        val (a, b) = span(room, o)
+        val w = a.distanceTo(b)
+        val u = (b - a) / max(w, 1e-9)
+        val out = inwardNormal(room, o.wallIndex) * -1.0
+        val half = room.thicknessOf(o.wallIndex) / 2
+        val d = bayDepth(w)
+        val a0 = a + out * half
+        val b0 = b + out * half
+        return listOf(a0, a0 + out * d + u * d, b0 + out * d - u * d, b0)
+    }
+
+    /** Sporgenza del bovindo largo `w`: [BAY_DEPTH], meno se la finestra è stretta. */
+    fun bayDepth(w: Double): Double = min(BAY_DEPTH, max(0.0, (w - 30.0) / 2))
+
     /** Perno della porta a bilico: a un quinto della larghezza dal lato del cardine. */
     const val PIVOT_AT = 0.2
 
@@ -107,7 +130,7 @@ object Openings {
 
     /** Sguincio effettivo (cm per lato): solo finestre e balconi, mai più dello spessore del muro. */
     fun splayOf(room: Room, o: Opening): Double =
-        if (o.kind.glazed && o.wallIndex < room.wallCount) o.splay.coerceIn(0.0, room.thicknessOf(o.wallIndex)) else 0.0
+        if (o.kind.glazed && !o.isBay && o.wallIndex < room.wallCount) o.splay.coerceIn(0.0, room.thicknessOf(o.wallIndex)) else 0.0
 
     /**
      * Lato del vano con lo sguincio, dal punto `p` sulla mezzeria (bordo del varco) alla faccia del muro verso la stanza:
@@ -153,7 +176,10 @@ object Openings {
         for (room in plan.rooms) {
             pts += room.points
             for (o in room.openings) {
-                if (o.wallIndex >= room.wallCount || !o.swings || o.opensInward) continue
+                if (o.wallIndex >= room.wallCount) continue
+                // Il bovindo sporge fuori dal muro.
+                if (o.isBay) pts += bayOutline(room, o)
+                if (!o.swings || o.opensInward) continue
                 val (a, b) = span(room, o)
                 val out = inwardNormal(room, o.wallIndex) * -(o.width + room.thicknessOf(o.wallIndex) / 2)
                 pts += a + out

@@ -44,9 +44,11 @@ fun <T> ModelPicker(
 ) {
     Column(modifier.fillMaxWidth()) {
         Text(label, style = MaterialTheme.typography.labelMedium)
+        // Si apre con il modello scelto in vista (preceduto dal suo vicino, per far capire che ce ne sono altri prima).
         ArrowLazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(top = 4.dp, end = 8.dp),
+            firstVisible = (options.indexOf(selected) - 1).coerceAtLeast(0),
         ) {
             itemsIndexed(options) { _, option ->
                 val isSelected = option == selected

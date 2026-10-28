@@ -10,6 +10,7 @@ import com.sagoma.planimetria.model.Finish
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.SashType
+import com.sagoma.planimetria.model.Shading
 import com.sagoma.planimetria.model.WindowModel
 import com.sagoma.planimetria.model.WindowShape
 import com.sagoma.planimetria.model.PassageStyle
@@ -85,7 +86,8 @@ data class PendingOpening(
 
 /** Varianti di porte e finestre offerte dal menu; dopo si cambiano tutte dalla scheda Info. */
 enum class OpeningPreset {
-    None, WallSlide, Folding, Frameless, UnequalLeaves, TiltTurn, Hopper, Fixed, InteriorGlazing, Armored, Pivot, Glazed, PivotSash, ThreeLeaves, FourLeaves, LiftSlide, ArchedWindow, RoundWindow;
+    None, WallSlide, Folding, Frameless, UnequalLeaves, TiltTurn, Hopper, Fixed, InteriorGlazing, Armored, Pivot, Glazed, PivotSash, ThreeLeaves, FourLeaves, LiftSlide, ArchedWindow, RoundWindow,
+    Grille, TopLight, WoodWindow, RomanShutter, BayWindow;
 
     fun apply(o: Opening): Opening = when (this) {
         None -> o
@@ -113,6 +115,12 @@ enum class OpeningPreset {
         // Alzante scorrevole: grande vetrata a profili sottili.
         LiftSlide -> o.copy(sliding = true, liftSlide = true, width = 260.0, windowModel = WindowModel.Minimal)
         Pivot -> o.copy(pivot = true, frameless = true, width = 100.0, height = 240.0, doorModel = DoorModel.Modern)
+        Grille -> o.copy(grille = true)
+        TopLight -> o.copy(topLight = true, height = 160.0)
+        WoodWindow -> o.copy(windowModel = WindowModel.Wood)
+        RomanShutter -> o.copy(shading = Shading.RomanShutter)
+        // Bovindo: largo, così il davanti resta una finestra vera; il davanzale basso fa da seduta.
+        BayWindow -> o.copy(bay = true, width = 180.0, height = 140.0, sillHeight = 50.0)
     }
 }
 

@@ -44,6 +44,8 @@ enum class WindowModel {
     English,
     /** Vetrata stile loft: profili neri sottili e vetro diviso a riquadri. */
     Loft,
+    /** Infisso in legno: telaio più grosso, vetro fermato dai listelli (fermavetro); di solito rovere. */
+    Wood,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
@@ -97,6 +99,8 @@ enum class Shading {
     Venetian,
     /** Scuri interni: ante di legno sulla faccia del muro verso la stanza, aperte ai lati della finestra. */
     InteriorShutters,
+    /** Persiana alla romana (a sporgere): incernierata in alto, aperta in fuori con il fondo staccato dal muro. */
+    RomanShutter,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */

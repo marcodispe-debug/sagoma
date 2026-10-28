@@ -844,7 +844,14 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                     update { if (shapes[i] == WindowShape.Round) it.copy(windowShape = shapes[i], height = it.width) else it.copy(windowShape = shapes[i]) }
                 }
             }
-            if (o.kind.glazed) {
+            // Finestre rettangolari: nel muro o a bovindo (sporgente su tre lati).
+            if (o.kind.isWindow && !o.sliding && o.shape == WindowShape.Rectangle) Row(Modifier.padding(end = 8.dp)) {
+                Choice(T.pannelli.posizioneFinestra, listOf(T.pannelli.nelMuro, T.pannelli.bovindo), if (o.bay) 1 else 0, Modifier.weight(1f)) { i ->
+                    update { it.copy(bay = i == 1) }
+                }
+            }
+            // Il bovindo sta fuori dal muro: posizione dell'infisso e sguincio non contano.
+            if (o.kind.glazed && !o.isBay) {
                 // Nei muri spessi: infisso verso l'esterno e lati del vano inclinati verso la stanza.
                 Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Choice(T.pannelli.infisso, FramePosition.entries.map { it.label }, o.frame.ordinal, Modifier.weight(2f)) { i ->
@@ -895,6 +902,12 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                 if (!o.sliding) Row(Modifier.padding(end = 8.dp)) {
                     Choice(T.pannelli.tipoAnta, sashes.map { it.label }, sashes.indexOf(o.sash).coerceAtLeast(0), Modifier.weight(1f)) { i ->
                         update { it.copy(sash = sashes[i]) }
+                    }
+                }
+                // Sopraluce: traverso in alto e vetro fisso sopra le ante (non nel bovindo).
+                if (!o.sliding && !o.fixed && !o.isBay && o.shape == WindowShape.Rectangle) Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.sopraluce, listOf(T.pannelli.senza, T.pannelli.con), if (o.topLight) 1 else 0, Modifier.weight(1f)) { i ->
+                        update { it.copy(topLight = i == 1) }
                     }
                 }
             } else {
@@ -948,12 +961,18 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                 ModelPicker(T.comuni.modello, WindowModel.entries, o.windowModel, { it.label }, { v -> update { it.copy(windowModel = v) } }) {
                     windowPreview(it, Shading.None, color)
                 }
-                ModelPicker(T.pannelli.oscuranti, Shading.entries, o.shading, { it.label }, { v -> update { it.copy(shading = v) } }) {
+                // Il bovindo non ha oscuranti: sporge dal muro, non c'è dove aprirli.
+                if (!o.isBay) ModelPicker(T.pannelli.oscuranti, Shading.entries, o.shading, { it.label }, { v -> update { it.copy(shading = v) } }) {
                     windowPreview(o.windowModel, it, color, Color(o.copy(shading = it).shadingArgb))
                 }
                 // Colore dell'oscurante: senza scelta resta quello solito (es. persiane verdi con l'infisso bianco).
-                if (o.shading != Shading.None) {
+                if (o.hasShading) {
                     FreeColorPicker(T.pannelli.coloreOscurante, o.shadingArgb) { c -> update { it.copy(shadingColor = c) } }
+                }
+                if (!o.isBay) Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.inferriata, listOf(T.pannelli.senza, T.pannelli.con), if (o.grille) 1 else 0, Modifier.weight(1f)) { i ->
+                        update { it.copy(grille = i == 1) }
+                    }
                 }
             } else {
                 ModelPicker(T.comuni.modello, DoorModel.entries, o.doorModel, { it.label }, { v -> update { it.copy(doorModel = v) } }) {
@@ -972,6 +991,12 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                 val named = finishes.firstOrNull { it.argb == c }
                 update { it.copy(color = named, customColor = if (named == null) c else null) }
             }
+            // Lo stesso aspetto su tutte le finestre (o le porte) del piano: una modifica sola, si annulla con ↶.
+            var copied by remember(o.id) { mutableStateOf<Int?>(null) }
+            OutlinedButton(onClick = { copied = vm.copyOpeningStyle(room.id, o.id) }, modifier = Modifier.padding(top = 4.dp, end = 8.dp)) {
+                Text(if (o.kind.glazed) T.pannelli.copiaStileFinestre else T.pannelli.copiaStilePorte)
+            }
+            copied?.let { n -> Text(if (n == 0) T.pannelli.giaUguali else T.pannelli.stileCopiato(n), style = MaterialTheme.typography.bodySmall) }
         })
         add(InfoTab("progetto", T.schedaStanza.progetto) {
             PhaseChoice(o.phase, PhaseLabels.opening) { vm.setOpeningPhase(room.id, o.id, it) }
@@ -1067,6 +1092,7 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
 internal fun openingLabel(o: Opening): String {
     val name = if (o.leaves > 2) T.pannelli.anteN(o.kind == OpeningKind.Balcony2, o.leaves) else o.kind.label
     return when {
+        o.isBay -> T.editor.bovindo
         o.lifts -> T.pannelli.alzante2(name)
         o.sliding && o.slideOnWall && !o.kind.glazed -> T.pannelli.scorrevoleEsterna2(name)
         o.sliding -> T.pannelli.scorrevole2(name)

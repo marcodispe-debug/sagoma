@@ -768,6 +768,24 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
             for (k in 0 until profile.size - 1) drawLine(color, cam.o(profile[k]), cam.o(profile[k + 1]), strokeWidth = thin)
         } else drawLine(color, cam.o(p - n * half), cam.o(p + n * half), strokeWidth = thin)
     }
+    // Bovindo: il trapezio che sporge fuori dal muro, con il vetro sui tre lati (linea doppia).
+    if (o.isBay) {
+        val poly = Openings.bayOutline(room, o)
+        for (k in 0 until poly.size - 1) {
+            val p0 = poly[k]
+            val p1 = poly[k + 1]
+            val d = (p1 - p0).normalized().perp() * 1.5
+            drawLine(color, cam.o(p0 + d), cam.o(p1 + d), strokeWidth = thin)
+            drawLine(color, cam.o(p0 - d), cam.o(p1 - d), strokeWidth = thin)
+        }
+        return
+    }
+    // Inferriata: fila di puntini appena fuori dalla faccia esterna del muro.
+    if (o.hasGrille) {
+        val out = n * -(half + 4)
+        val dots = PathEffect.dashPathEffect(floatArrayOf(1.5.dp.toPx(), 3.dp.toPx()))
+        drawLine(color, cam.o(a + out), cam.o(b + out), strokeWidth = 2.dp.toPx(), pathEffect = dots)
+    }
     // Infisso a filo esterno o interno: linea doppia dove sta, e le ante partono da lì.
     val frame = Openings.frameOffset(room, o)
     if (frame != 0.0) {

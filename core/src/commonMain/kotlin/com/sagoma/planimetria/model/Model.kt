@@ -205,6 +205,12 @@ data class Opening(
     val liftSlide: Boolean = false,
     /** Finestre e balconi: rettangolari, ad arco o (solo finestre) tonde. */
     val windowShape: WindowShape = WindowShape.Rectangle,
+    /** Finestre e balconi: inferriata di sbarre sulla faccia esterna del muro. */
+    val grille: Boolean = false,
+    /** Finestre e balconi a battente: traverso in alto con un vetro fisso sopra le ante (sopraluce). */
+    val topLight: Boolean = false,
+    /** Finestre rettangolari: bovindo, cioè la finestra sporge dal muro verso fuori su tre lati ([Openings.bayOutline]). */
+    val bay: Boolean = false,
 ) {
     /** Colore effettivo di anta e telaio. */
     val finish: Finish get() = color ?: if (kind.glazed) Finish.White else Finish.Oak
@@ -212,15 +218,43 @@ data class Opening(
     /** Colore di anta e telaio (ARGB): quello libero se c'è, altrimenti quello di [finish]. */
     val frameArgb: Long get() = customColor ?: finish.argb
 
+    /** Inferriata: solo su finestre e balconi (non sul bovindo, che sporge). */
+    val hasGrille: Boolean get() = grille && kind.glazed && !isBay
+    /** Sopraluce della finestra: solo con le ante a battente (non scorrevoli, non fisse), infisso rettangolare e non nel bovindo. */
+    val hasTopLight: Boolean get() = topLight && kind.glazed && !sliding && !fixed && windowShape == WindowShape.Rectangle && !isBay
+    /** Oscurante che si vede: quello scelto, ma non sul bovindo (sporge dal muro, non c'è dove aprirlo). */
+    val hasShading: Boolean get() = shading != Shading.None && !isBay
+    /** Bovindo: solo finestre rettangolari non scorrevoli. */
+    val isBay: Boolean get() = bay && kind.isWindow && !sliding && windowShape == WindowShape.Rectangle
+
+    /**
+     * Stessa famiglia per «copia stile»: le finestre e i balconi (infissi) tra loro, le porte tra loro.
+     * Varchi e nicchie non hanno stile da copiare.
+     */
+    fun sameStyleFamily(other: Opening): Boolean = when {
+        kind.glazed -> other.kind.glazed
+        kind.hasLeaves -> other.kind.hasLeaves && !other.kind.glazed
+        else -> false
+    }
+
+    /**
+     * Questa apertura con l'aspetto di `from` (stessa famiglia, [sameStyleFamily]): modello, colori, oscurante e inferriata
+     * per gli infissi; modello, colore e cornice per le porte. Misure, tipo di apertura e posizione restano come sono.
+     */
+    fun withStyleOf(from: Opening): Opening = if (!sameStyleFamily(from)) this else if (kind.glazed) copy(
+        windowModel = from.windowModel, color = from.color, customColor = from.customColor,
+        shading = from.shading, shadingColor = from.shadingColor, grille = from.grille,
+    ) else copy(doorModel = from.doorModel, color = from.color, customColor = from.customColor, frameless = from.frameless)
+
     /** Nessun colore scelto: restano i colori soliti del modello (es. minimal antracite, loft nero). */
     val defaultColor: Boolean get() = color == null && customColor == null
 
     /**
      * Colore dell'oscurante (ARGB): quello scelto, oppure il solito: persiane verdi con l'infisso bianco e del colore
-     * dell'infisso con gli altri, tapparella grigio chiaro, veneziana grigia, scuri interni del colore dell'infisso.
+     * dell'infisso con gli altri (anche alla romana), tapparella grigio chiaro, veneziana grigia, scuri interni del colore dell'infisso.
      */
     val shadingArgb: Long get() = shadingColor ?: when (shading) {
-        Shading.Shutters -> if (frameArgb == Finish.White.argb) SHUTTER_GREEN else frameArgb
+        Shading.Shutters, Shading.RomanShutter -> if (frameArgb == Finish.White.argb) SHUTTER_GREEN else frameArgb
         Shading.RollerShutter -> ROLLER_GREY
         Shading.Venetian -> VENETIAN_GREY
         Shading.InteriorShutters, Shading.None -> frameArgb

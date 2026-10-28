@@ -1,6 +1,8 @@
 package com.sagoma.planimetria.model
 
 import com.sagoma.planimetria.editor.OpeningPreset
+import com.sagoma.planimetria.geometry.ExteriorChains
+import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.Pick
 import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.Takeoff
@@ -255,5 +257,150 @@ class OpeningTypesTest {
         val plain = Scene3D.build(FloorPlan(listOf(room(minimal))), null, null, ceilings = false)
         val tinted = Scene3D.build(FloorPlan(listOf(room(minimal.copy(customColor = 0xFF8A2C2C)))), null, null, ceilings = false)
         assertTrue(plain.opaque != tinted.opaque)
+    }
+
+    /** Raggio da fuori (y negative) verso il muro 0, nel punto x e all'altezza y. */
+    private fun fromOutside(s: Scene3D, x: Double, y: Double) = s.hit(Vec3(x, y, -200.0), Vec3(0.0, 0.0, 1.0))
+
+    @Test
+    fun `inferriata - sbarre appena fuori dal muro, solo su finestre e balconi`() {
+        val w = Opening.default(1, OpeningKind.Window1, 0, 200.0) // 80 × 120: da 160 a 240, da 90 a 210
+        val grille = OpeningPreset.Grille.apply(w)
+        assertTrue(grille.hasGrille)
+        // Sul piatto in basso (a 100 cm) il raggio da fuori si ferma prima della faccia esterna (−7,5).
+        val bar = assertNotNull(fromOutside(scene(grille), 200.0, 100.0))
+        assertEquals(Pick.Opening(1, 1), bar.pick)
+        assertTrue(bar.point.z < -10.0, "inferriata fuori dal muro: z = ${bar.point.z}")
+        assertTrue(assertNotNull(fromOutside(scene(w), 200.0, 100.0)).point.z > -8.0)
+        // Sulle porte e sul bovindo non c'è.
+        assertFalse(Opening.default(1, OpeningKind.Door, 0, 200.0).copy(grille = true).hasGrille)
+        assertFalse(OpeningPreset.BayWindow.apply(grille).hasGrille)
+        assertTrue(Opening.default(1, OpeningKind.Balcony1, 0, 200.0).copy(grille = true).hasGrille)
+    }
+
+    @Test
+    fun `sopraluce - il traverso divide le ante dal vetro fisso in alto`() {
+        val w = Opening.default(1, OpeningKind.Window1, 0, 200.0).copy(height = 160.0) // da 90 a 250
+        val top = OpeningPreset.TopLight.apply(w)
+        assertTrue(top.hasTopLight)
+        assertEquals(160.0, top.height)
+        // Traverso a 203 cm (vetro da 95 a 245, sopraluce alto il 28%): il profilo sporge verso la stanza, il vetro no.
+        val transom = assertNotNull(fromInside(scene(top), 200.0, 203.0))
+        assertEquals(Pick.Opening(1, 1), transom.pick)
+        assertTrue(transom.point.z > 3.0, "traverso: z = ${transom.point.z}")
+        assertTrue(assertNotNull(fromInside(scene(w), 200.0, 203.0)).point.z < 1.0)
+        // Scorrevole, fissa o tonda: niente sopraluce.
+        assertFalse(top.copy(sliding = true).hasTopLight)
+        assertFalse(top.copy(sash = SashType.Fixed).hasTopLight)
+        assertFalse(top.copy(windowShape = WindowShape.Round).hasTopLight)
+    }
+
+    @Test
+    fun `legno con fermavetro - profili più larghi, rovere se non si sceglie il colore`() {
+        val w = Opening.default(1, OpeningKind.Window1, 0, 200.0) // da 160 a 240
+        val wood = OpeningPreset.WoodWindow.apply(w)
+        assertEquals(WindowModel.Wood, wood.windowModel)
+        // A 6 cm dal bordo il legno (7 cm) è ancora telaio, il classico (5 cm) è già vetro.
+        assertTrue(assertNotNull(fromInside(scene(wood), 166.0, 150.0)).point.z > 4.5)
+        assertTrue(assertNotNull(fromInside(scene(w), 166.0, 150.0)).point.z < 1.0)
+        // Subito dentro il telaio c'è il fermavetro, tra il vetro e la faccia del telaio.
+        val bead = assertNotNull(fromInside(scene(wood), 167.8, 150.0)).point.z
+        assertTrue(bead > 2.0 && bead < 4.5, "fermavetro: z = $bead")
+        // Bianco di serie diventa rovere; con il colore scelto resta quello.
+        val oak = Scene3D.build(FloorPlan(listOf(room(wood))), null, null, ceilings = false)
+        val oakChosen = Scene3D.build(FloorPlan(listOf(room(wood.copy(color = Finish.Oak)))), null, null, ceilings = false)
+        val white = Scene3D.build(FloorPlan(listOf(room(wood.copy(color = Finish.White)))), null, null, ceilings = false)
+        assertTrue(oak.opaque.contentEquals(oakChosen.opaque))
+        assertFalse(oak.opaque.contentEquals(white.opaque))
+    }
+
+    @Test
+    fun `persiana alla romana - incernierata in alto e aperta in fuori`() {
+        val w = Opening.default(1, OpeningKind.Window1, 0, 200.0) // da 90 a 210
+        val roman = OpeningPreset.RomanShutter.apply(w)
+        assertEquals(Shading.RomanShutter, roman.shading)
+        assertEquals(Opening.SHUTTER_GREEN, roman.shadingArgb)
+        // In alto il pannello sta lontano dal muro; sotto il suo bordo (a circa 114 cm) si vede la finestra.
+        val panel = assertNotNull(fromOutside(scene(roman), 200.0, 180.0))
+        assertEquals(Pick.Opening(1, 1), panel.pick)
+        assertTrue(panel.point.z < -15.0, "pannello aperto: z = ${panel.point.z}")
+        assertTrue(assertNotNull(fromOutside(scene(roman), 200.0, 100.0)).point.z > -8.0)
+        assertTrue(assertNotNull(fromOutside(scene(w), 200.0, 180.0)).point.z > -8.0)
+    }
+
+    @Test
+    fun `bovindo - sporge fuori su tre lati con base e tettuccio`() {
+        val bay = OpeningPreset.BayWindow.apply(Opening.default(1, OpeningKind.Window2, 0, 200.0)) // 180 × 140 da 50: da 110 a 290
+        assertTrue(bay.isBay)
+        val outline = Openings.bayOutline(room(bay), bay)
+        val expected = listOf(Vec2(110.0, -7.5), Vec2(170.0, -67.5), Vec2(230.0, -67.5), Vec2(290.0, -7.5))
+        for ((p, e) in outline.zip(expected)) assertTrue(p.distanceTo(e) < 1e-6, "$p invece di $e")
+        // Stretto: sporge meno, il davanti resta largo 30 cm.
+        assertEquals(25.0, Openings.bayDepth(80.0), 1e-9)
+        val s = scene(bay)
+        // Dalla stanza si guarda dentro il bovindo fino al vetro davanti.
+        val front = assertNotNull(fromInside(s, 200.0, 120.0))
+        assertEquals(Pick.Opening(1, 1), front.pick)
+        assertTrue(front.point.z < -60.0, "vetro davanti: z = ${front.point.z}")
+        // Dall'alto si trova il tettuccio sopra la finestra (190 cm + 14).
+        val roof = assertNotNull(s.hit(Vec3(200.0, 400.0, -40.0), Vec3(0.0, -1.0, 0.0)))
+        assertEquals(Pick.Opening(1, 1), roof.pick)
+        assertEquals(204.0, roof.point.y, 0.5)
+        // Fuori dal muro: niente oscuranti, sopraluce e sguincio; le quote esterne e l'ingombro da esportare passano oltre.
+        val extras = bay.copy(shading = Shading.Shutters, topLight = true, splay = 10.0)
+        assertFalse(extras.hasShading || extras.hasTopLight)
+        assertEquals(0.0, Openings.splayOf(room(extras), extras))
+        assertTrue(extras.copy(bay = false).hasShading && extras.copy(bay = false).hasTopLight)
+        val plan = FloorPlan(listOf(room(bay)))
+        assertEquals(67.5, ExteriorChains.of(plan).chains.single { it.out.y < -0.5 }.edge, 1e-6)
+        assertEquals(7.5, ExteriorChains.of(FloorPlan(listOf(room()))).chains.single { it.out.y < -0.5 }.edge, 1e-6)
+        assertEquals(-67.5, assertNotNull(Openings.planBounds(plan)).minY, 1e-6)
+        // Balconi, scorrevoli e finestre ad arco non fanno il bovindo.
+        assertFalse(bay.copy(sliding = true).isBay)
+        assertFalse(bay.copy(windowShape = WindowShape.Arched).isBay)
+        assertFalse(Opening.default(1, OpeningKind.Balcony2, 0, 200.0).copy(bay = true).isBay)
+    }
+
+    @Test
+    fun `copia stile - infissi con infissi e porte con porte, misure e tipo restano`() {
+        val from = Opening.default(1, OpeningKind.Window2, 0, 200.0).copy(
+            windowModel = WindowModel.Wood, customColor = 0xFF5A3A22, shading = Shading.RomanShutter,
+            shadingColor = 0xFF2F4F3A, grille = true, topLight = true, bay = true,
+        )
+        val balcony = Opening.default(2, OpeningKind.Balcony1, 1, 150.0).copy(sliding = true)
+        val styled = balcony.withStyleOf(from)
+        assertEquals(WindowModel.Wood, styled.windowModel)
+        assertEquals(0xFF5A3A22, styled.customColor)
+        assertEquals(Shading.RomanShutter, styled.shading)
+        assertEquals(0xFF2F4F3A, styled.shadingColor)
+        assertTrue(styled.grille)
+        // Sopraluce e bovindo sono il tipo di finestra, non lo stile.
+        assertFalse(styled.topLight || styled.bay)
+        assertEquals(balcony.copy(windowModel = WindowModel.Wood, customColor = 0xFF5A3A22, shading = Shading.RomanShutter, shadingColor = 0xFF2F4F3A, grille = true), styled)
+        // Porte, varchi e nicchie restano come sono.
+        val door = Opening.default(3, OpeningKind.Door, 2, 100.0)
+        assertEquals(door, door.withStyleOf(from))
+        assertEquals(Opening.default(4, OpeningKind.Passage, 2, 100.0), Opening.default(4, OpeningKind.Passage, 2, 100.0).withStyleOf(from))
+        // Le porte prendono modello, colore e cornice dalle porte.
+        val walnut = door.copy(doorModel = DoorModel.Panels, color = Finish.Walnut, frameless = true)
+        val door2 = Opening.default(5, OpeningKind.Door2, 1, 200.0).withStyleOf(walnut)
+        assertEquals(DoorModel.Panels, door2.doorModel)
+        assertEquals(Finish.Walnut, door2.color)
+        assertTrue(door2.frameless)
+        assertEquals(120.0, door2.width)
+        assertEquals(from.copy(id = 9), from.copy(id = 9).withStyleOf(walnut))
+    }
+
+    @Test
+    fun `inferriata, sopraluce, bovindo, legno e romana si salvano e si rileggono`() {
+        val openings = listOf(
+            OpeningPreset.Grille.apply(Opening.default(1, OpeningKind.Window1, 0, 100.0)),
+            OpeningPreset.TopLight.apply(Opening.default(2, OpeningKind.Window2, 1, 150.0)),
+            OpeningPreset.BayWindow.apply(Opening.default(3, OpeningKind.Window2, 2, 200.0)),
+            OpeningPreset.WoodWindow.apply(Opening.default(4, OpeningKind.Balcony2, 3, 150.0)),
+            OpeningPreset.RomanShutter.apply(Opening.default(5, OpeningKind.Window1, 0, 300.0)),
+        )
+        val plan = FloorPlan(listOf(room(*openings.toTypedArray())))
+        assertEquals(openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
     }
 }

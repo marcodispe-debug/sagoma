@@ -1,0 +1,81 @@
+package com.sagoma.planimetria.ui
+
+import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.geometry.RoomFactory
+import com.sagoma.planimetria.model.Building
+import com.sagoma.planimetria.model.DoorModel
+import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.FreeWall
+import com.sagoma.planimetria.model.Opening
+import com.sagoma.planimetria.model.OpeningKind
+import com.sagoma.planimetria.model.Room
+import com.sagoma.planimetria.model.RoomType
+import com.sagoma.planimetria.model.Shading
+import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.model.WindowModel
+import com.sagoma.planimetria.persistence.PlanStore
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+/** «Copia stile su tutte le finestre del piano»: l'aspetto di una finestra passa a tutti gli infissi del piano, in una modifica sola. */
+class CopyOpeningStyleTest {
+    private val kitchen = Room(1, "Cucina", RoomType.Cucina, RoomFactory.rectangle(400.0, 300.0)).copy(
+        openings = listOf(
+            Opening.default(1, OpeningKind.Window2, 0, 200.0).copy(windowModel = WindowModel.Wood, shading = Shading.RomanShutter, grille = true),
+            Opening.default(2, OpeningKind.Window1, 1, 150.0),
+            Opening.default(3, OpeningKind.Door, 2, 100.0),
+            Opening.default(4, OpeningKind.Balcony1, 3, 150.0).copy(sliding = true),
+        ),
+    )
+    private val bedroom = Room(2, "Camera", RoomType.Camera, RoomFactory.rectangle(300.0, 300.0).map { it + Vec2(400.0, 0.0) }).copy(
+        openings = listOf(Opening.default(1, OpeningKind.Window1, 0, 150.0), Opening.default(2, OpeningKind.Door, 3, 100.0).copy(doorModel = DoorModel.Panels)),
+    )
+    private val wall = FreeWall(1, Vec2(0.0, 500.0), Vec2(300.0, 500.0), openings = listOf(Opening.default(1, OpeningKind.Window1, 0, 150.0)))
+
+    private fun vm() = EditorViewModel(object : PlanStore {
+        override fun load() = Building.single(FloorPlan(listOf(kitchen, bedroom), freeWalls = listOf(wall)))
+        override fun save(building: Building) {}
+    })
+
+    @Test
+    fun `lo stile della finestra va su tutte le finestre e i balconi del piano, le porte restano`() {
+        val vm = vm()
+        assertEquals(4, vm.copyOpeningStyle(1, 1))
+        val plan = vm.state.value.plan
+        val glazed = plan.rooms.flatMap { it.openings }.filter { it.kind.glazed } + plan.freeWalls.single().openings
+        assertEquals(5, glazed.size)
+        for (o in glazed) {
+            assertEquals(WindowModel.Wood, o.windowModel)
+            assertEquals(Shading.RomanShutter, o.shading)
+            assertTrue(o.grille)
+        }
+        // Il balcone resta scorrevole e con le sue misure; le porte non cambiano.
+        val balcony = plan.room(1)!!.opening(4)!!
+        assertTrue(balcony.sliding)
+        assertEquals(80.0, balcony.width)
+        assertEquals(DoorModel.Panels, plan.room(2)!!.opening(2)!!.doorModel)
+        assertEquals(kitchen.openings[2], plan.room(1)!!.opening(3))
+        // Di nuovo: niente da cambiare.
+        assertEquals(0, vm.copyOpeningStyle(1, 1))
+    }
+
+    @Test
+    fun `si annulla tutto con un solo passo indietro`() {
+        val vm = vm()
+        val before = vm.state.value.plan
+        vm.copyOpeningStyle(1, 1)
+        vm.undo()
+        assertEquals(before, vm.state.value.plan)
+    }
+
+    @Test
+    fun `dalla porta lo stile va solo sulle porte, anche dal muro singolo`() {
+        val vm = vm()
+        assertEquals(1, vm.copyOpeningStyle(2, 2))
+        assertEquals(DoorModel.Panels, vm.state.value.plan.room(1)!!.opening(3)!!.doorModel)
+        // Dal muro singolo (id negativo) la finestra passa il suo stile (quello di serie) alle altre.
+        assertEquals(1, vm.copyOpeningStyle(FreeWall.hostId(1), 1))
+        assertEquals(WindowModel.Classic, vm.state.value.plan.room(1)!!.opening(1)!!.windowModel)
+    }
+}

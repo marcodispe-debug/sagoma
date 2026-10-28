@@ -147,8 +147,10 @@ object ExteriorChains {
                 if (t.max() > total.endInclusive + 1.0) marks += t.max()
             }
             val sorted = dedupe(marks.sorted())
+            // Il bordo del disegno comprende i bovindi, che sporgono dal muro: le quote passano oltre.
+            val bays = shapes.flatMap { s -> s.room.openings.filter { it.isBay && it.wallIndex < s.n }.flatMap { Openings.bayOutline(s.room, it) } }
             val edge = (shapes.flatMap { it.ext } + plan.rooms.filter { it.outdoor }.flatMap { it.points } +
-                plan.freeWalls.flatMap { listOf(it.start, it.end) }).maxOf { it dot out }
+                plan.freeWalls.flatMap { listOf(it.start, it.end) } + bays).maxOf { it dot out }
             chains += DimensionChain(along, out, edge, sorted, total)
 
             // Stanze la cui misura lungo la facciata è un segmento della catena: dentro non si ripete.

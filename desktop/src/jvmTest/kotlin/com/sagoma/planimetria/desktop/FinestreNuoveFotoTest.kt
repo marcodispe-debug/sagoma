@@ -1,0 +1,57 @@
+package com.sagoma.planimetria.desktop
+
+import com.sagoma.planimetria.editor.OpeningPreset
+import com.sagoma.planimetria.geometry.RoomFactory
+import com.sagoma.planimetria.geometry.Scene3D
+import com.sagoma.planimetria.geometry.Vec3
+import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.MaterialCatalog
+import com.sagoma.planimetria.model.Opening
+import com.sagoma.planimetria.model.OpeningKind
+import com.sagoma.planimetria.model.Room
+import com.sagoma.planimetria.model.RoomType
+import com.sagoma.planimetria.ui.SkiaImages
+import java.io.File
+import kotlin.test.Test
+
+/**
+ * Foto 3D delle finestre nuove: inferriata, sopraluce, legno con fermavetro, persiana alla romana e bovindo, viste da fuori
+ * e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
+ */
+class FinestreNuoveFotoTest {
+    @Test
+    fun foto() {
+        if (System.getenv("SAGOMA_FOTO_FINESTRE") != "true") return
+        val out = File("build/finestre").also { it.mkdirs() }
+        fun o(id: Long, kind: OpeningKind, wall: Int, pos: Double, preset: OpeningPreset) =
+            preset.apply(Opening.default(id, kind, wall, pos)).copy(position = pos)
+        // Muro 0 (davanti, y = 0): inferriata, sopraluce, legno, romana. Muro 2 (dietro, y = 450): bovindo.
+        val room = Room(1, "Camera", RoomType.Camera, RoomFactory.rectangle(600.0, 450.0)).copy(
+            openings = listOf(
+                o(1, OpeningKind.Window1, 0, 90.0, OpeningPreset.Grille),
+                o(2, OpeningKind.Window1, 0, 220.0, OpeningPreset.TopLight),
+                o(3, OpeningKind.Window2, 0, 370.0, OpeningPreset.WoodWindow),
+                o(4, OpeningKind.Window1, 0, 520.0, OpeningPreset.RomanShutter),
+                o(5, OpeningKind.Window2, 2, 300.0, OpeningPreset.BayWindow),
+            ),
+        )
+        // Con il catalogo (se c'è) il prato e i materiali sono quelli fotografici, come nell'app.
+        val assets = File("../catalogo/src/main/assets")
+        fun read(path: String): ByteArray? = File(assets, path).takeIf { it.isFile }?.readBytes()
+        read("materials/materials.json")?.let { MaterialCatalog.load(it.decodeToString()) }
+        val scene = Scene3D.build(FloorPlan(listOf(room)), null, null, ceilings = false)
+        val r = DesktopGlSceneRenderer(::read)
+        r.setScene(scene)
+        r.setDaylight(11f, "auto")
+        fun shot(name: String, eye: Vec3, at: Vec3, fov: Double, walking: Boolean) {
+            r.setCamera(eye, at, Vec3.Up, fov, 5.0, walking = walking)
+            File(out, "$name.png").writeBytes(SkiaImages.encodePng(r.renderNow(1280, 720)!!)!!)
+        }
+        shot("1-fuori-davanti", Vec3(300.0, 170.0, -520.0), Vec3(300.0, 140.0, 0.0), 55.0, walking = false)
+        shot("2-fuori-romana-legno", Vec3(560.0, 150.0, -230.0), Vec3(440.0, 150.0, 0.0), 55.0, walking = false)
+        shot("3-fuori-bovindo", Vec3(520.0, 200.0, 820.0), Vec3(300.0, 120.0, 450.0), 55.0, walking = false)
+        shot("4-dentro-davanti", Vec3(300.0, 160.0, 380.0), Vec3(300.0, 150.0, 0.0), 80.0, walking = true)
+        shot("5-dentro-bovindo", Vec3(300.0, 150.0, 120.0), Vec3(300.0, 120.0, 450.0), 75.0, walking = true)
+        shot("6-dentro-sopraluce-legno", Vec3(300.0, 160.0, 140.0), Vec3(300.0, 170.0, 0.0), 75.0, walking = true)
+    }
+}

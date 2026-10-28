@@ -165,6 +165,8 @@ private fun DrawScope.drawSample(
 /** Parte alta della stanza di prova, dove stanno aperture e impianti a muro. */
 private val TopWall = doubleArrayOf(-10.0, -45.0, 210.0, 105.0)
 private val WholeRoom = doubleArrayOf(-15.0, -15.0, 215.0, 175.0)
+/** Come [TopWall], più in alto: il bovindo sporge fuori dal muro. */
+private val BayFrame = doubleArrayOf(-10.0, -75.0, 210.0, 75.0)
 
 /** Stessi colori della pianta, per il campione della quota disegnato a mano. */
 private val WallSampleColor = androidx.compose.ui.graphics.Color(0xFF3A3F44)
@@ -271,6 +273,11 @@ private val legendSections: List<LegendSection> by lazy {
                 LegendItem(T.editor.finestraFissa, T.legenda.vetroFisso, opening(OpeningKind.Window1, preset = OpeningPreset.Fixed)),
                 LegendItem(T.editor.finestraVasistas, T.legenda.vasistasRibalta, opening(OpeningKind.Window1, preset = OpeningPreset.Hopper)),
                 LegendItem(T.editor.finestraBilico, T.legenda.perniOrizzontale, opening(OpeningKind.Window1, preset = OpeningPreset.PivotSash)),
+                LegendItem(T.editor.finestraInferriata, T.legenda.sbarreFuori, opening(OpeningKind.Window2, preset = OpeningPreset.Grille)),
+                LegendItem(T.editor.bovindo, T.legenda.sporgeTreLati) { m ->
+                    val o = OpeningPreset.BayWindow.apply(Opening.default(1, OpeningKind.Window2, 0, 100.0)).copy(position = 100.0, width = 140.0)
+                    drawSample(sampleRoom(openings = listOf(o)), m, BayFrame)
+                },
                 LegendItem(T.legenda.balconeAd1Anta, T.legenda.portaFinestraFinoTerra, opening(OpeningKind.Balcony1)),
                 LegendItem(T.legenda.balcone2Ante, T.legenda.portaFinestraDueAnte, opening(OpeningKind.Balcony2)),
                 LegendItem(T.legenda.balconeScorrevole, T.legenda.portaFinestraAnteScorrevoli, opening(OpeningKind.Balcony2, sliding = true)),
