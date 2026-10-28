@@ -142,6 +142,7 @@ fun EditorScreen(
     // anche un clic sulla pianta la riprende (vedi PlanCanvas), così le scorciatoie funzionano sempre.
     LaunchedEffect(state.view3d) { if (!state.view3d) keyFocus.requestFocusSafely() }
     val exportPng = rememberPngExporter(state.plan, state.building.layers)
+    val exportDxf = rememberDxfExporter(state)
     // Strumenti professionali: tavola PDF in scala, computo, pianta di sfondo da ricalcare.
     var showPdf by remember { mutableStateOf(false) }
     var showTakeoff by remember { mutableStateOf(false) }
@@ -155,6 +156,7 @@ fun EditorScreen(
         T.editor.livelli to { showLayers = true },
         T.editor.tavolaPdfScala to { showPdf = true },
         T.editor.computoListaArredi to { showTakeoff = true },
+        T.editor.esportaDxf to exportDxf,
         T.editor.piantaSfondo to { showBackground = true },
         T.editor.temaChiaroScuro to { showTheme = true },
         if (state.building.units == LengthUnit.Meters) T.editor.misureInCentimetri to { vm.setUnits(LengthUnit.Centimeters) }

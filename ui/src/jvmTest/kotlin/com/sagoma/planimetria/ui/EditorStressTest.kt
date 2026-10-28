@@ -577,6 +577,14 @@ class EditorStressTest {
             p.rooms.forEach { com.sagoma.planimetria.geometry.LayingPieces.count(it) }
             if (glb) com.sagoma.planimetria.geometry.Glb.fromScene(Scene3D.build(p, null, null, ceilings = true, levelHeight = s.levelHeight, below = below))
             p.rooms.filter { it.outdoor }.forEach { Parapets.segments(p, it) }
+            // Pianta in DXF (com'è e nello stato di progetto): un file intero, con tutti i numeri veri.
+            for (view in listOf(p, com.sagoma.planimetria.geometry.Phases.view(p, PhaseView.Project))) {
+                val lines = com.sagoma.planimetria.dxf.PlanDxf.of(view, s.levelHeight).split('\n').dropLast(1)
+                require(lines.size % 2 == 0 && lines.takeLast(2) == listOf("0", "EOF")) { "DXF tagliato" }
+                for ((code, value) in lines.chunked(2)) {
+                    if (code.trim().toInt() in 10..59) require(value.toDouble().isFinite()) { "DXF con un numero impossibile: $code $value" }
+                }
+            }
             // Vuoti delle scale e loro ringhiere (anche con il pavimento sopra i primi gradini).
             for (st in p.stairs) {
                 require(com.sagoma.planimetria.geometry.Stairs.well(st, s.levelHeight).isNotEmpty()) { "scala senza vuoto nel solaio" }
