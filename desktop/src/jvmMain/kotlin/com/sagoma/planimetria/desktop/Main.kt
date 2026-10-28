@@ -1,7 +1,9 @@
 package com.sagoma.planimetria.desktop
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
@@ -15,6 +17,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.LocalWindowExceptionHandlerFactory
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowDecoration
 import androidx.compose.ui.window.WindowExceptionHandler
 import androidx.compose.ui.window.WindowExceptionHandlerFactory
 import androidx.compose.ui.window.application
@@ -139,15 +142,20 @@ private fun app(remote: RemoteAssets?) = application(exitProcessOnExit = false) 
             title = "Sagoma",
             icon = rememberVectorPainter(Marchio.icona),
             state = rememberWindowState(size = DpSize(1400.dp, 900.dp)),
+            // Senza la barra di Windows: al suo posto [BarraFinestra], scura con la scritta del marchio. I bordi restano trascinabili.
+            decoration = WindowDecoration.Undecorated(),
             // Tasti che nessun elemento ha usato (la tastiera era rimasta su niente): all'editor, così WASD non si blocca.
             onKeyEvent = { platform.unhandledKeys?.invoke(it) == true },
         ) {
             platform.frame = window
-            Box(Modifier.fillMaxSize()) {
-                SagomaApp(platform)
-                platform.message?.let { msg ->
-                    LaunchedEffect(msg) { delay(2500); platform.message = null }
-                    Snackbar(Modifier.align(Alignment.BottomCenter).padding(24.dp)) { Text(msg) }
+            Column(Modifier.fillMaxSize()) {
+                BarraFinestra(onClose = ::exitApplication)
+                Box(Modifier.fillMaxWidth().weight(1f)) {
+                    SagomaApp(platform)
+                    platform.message?.let { msg ->
+                        LaunchedEffect(msg) { delay(2500); platform.message = null }
+                        Snackbar(Modifier.align(Alignment.BottomCenter).padding(24.dp)) { Text(msg) }
+                    }
                 }
             }
         }
