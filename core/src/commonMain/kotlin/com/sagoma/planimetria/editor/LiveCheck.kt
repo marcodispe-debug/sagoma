@@ -28,10 +28,18 @@ object LiveCheck {
      */
     fun key(i: PlanCheck.Issue): Any = listOf(i.kind, i.floor, i.rooms.sorted(), i.selection)
 
-    /** Errori di disegno (⚠) di `now` che in `before` non c'erano: quelli appena fatti, da dire subito. */
+    /**
+     * Errori di disegno (⚠) di `now` che in `before` non c'erano: quelli appena fatti, da dire subito. Conta quanti errori di
+     * ogni tipo ci sono tra le stesse stanze: un errore che resta ma cambia muro selezionato (angolo tolto, muri rinumerati)
+     * non è nuovo.
+     */
     fun newErrors(before: List<PlanCheck.Issue>, now: List<PlanCheck.Issue>): List<PlanCheck.Issue> {
-        val old = before.mapTo(HashSet()) { key(it) }
-        return now.filter { it.kind.error && key(it) !in old }
+        fun group(i: PlanCheck.Issue) = Triple(i.kind, i.floor, i.rooms.toSet())
+        val old = before.filter { it.kind.error }.groupingBy(::group).eachCount()
+        val oldKeys = before.mapTo(HashSet()) { key(it) }
+        val errors = now.filter { it.kind.error }
+        val grown = errors.groupingBy(::group).eachCount().filter { (g, n) -> n > (old[g] ?: 0) }.keys
+        return errors.filter { group(it) in grown && key(it) !in oldKeys }
     }
 
     /** L'avviso `notice` vale ancora (l'errore c'è ancora in `now`): annullato o corretto, l'avviso sparisce. */

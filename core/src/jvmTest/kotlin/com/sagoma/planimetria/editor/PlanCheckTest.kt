@@ -74,6 +74,16 @@ class PlanCheckTest {
         val thick = check(living.copy(wallThickness = 30.0), kitchen.copy(wallThickness = 30.0).moved(20.0)).single { it.kind == PlanCheck.Kind.NearWalls }
         assertEquals(-10.0, thick.a, 1e-9)
         assertTrue(PlanCheck.describe(thick, Building.single(FloorPlan(listOf(living, kitchen)))).contains("si accavallano per 10 cm"))
+        // «Correggi»: il muro della cucina va sulla linea di quello del soggiorno e diventa un muro in comune (la cucina si
+        // allarga di 20 cm verso il soggiorno; il soggiorno non cambia).
+        for ((issue, rooms) in listOf(slit to listOf(living, kitchen.moved(20.0)), thick to listOf(living.copy(wallThickness = 30.0), kitchen.copy(wallThickness = 30.0).moved(20.0)))) {
+            assertTrue(PlanCheck.canFix(issue))
+            val joined = assertNotNull(PlanCheck.fixed(Building.single(FloorPlan(rooms)), issue)).floors[0].plan.rooms
+            assertEquals(rooms[0], joined[0])
+            assertEquals(400.0, joined[1].points.minOf { it.x }, 1e-9)
+            assertEquals(720.0, joined[1].points.maxOf { it.x }, 1e-9)
+            assertTrue(check(*joined.toTypedArray()).none { it.kind == PlanCheck.Kind.NearWalls || it.kind == PlanCheck.Kind.Overlap })
+        }
         // Entro la tolleranza dei muri in comune (12 cm) il muro è uno solo: niente da dire.
         assertTrue(check(living, kitchen.moved(10.0)).none { it.kind == PlanCheck.Kind.NearWalls })
         // Lontane: niente.
@@ -89,14 +99,16 @@ class PlanCheckTest {
         val zero = check(dup, kitchen).single { it.kind == PlanCheck.Kind.ZeroWall }
         assertEquals(Selection.Wall(1, 1), zero.selection)
         assertTrue(PlanCheck.describe(zero, Building.single(FloorPlan(listOf(dup)))).contains("«Unisci al muro dopo»"))
-        // «Correggi»: l'angolo doppio sparisce, la porta del muro lungo zero resta.
-        assertTrue(PlanCheck.canFix(zero))
-        val joined = assertNotNull(PlanCheck.fixed(Building.single(FloorPlan(listOf(dup, kitchen))), zero)).floors[0].plan.rooms[0]
-        assertEquals(living.points, joined.points)
-        assertEquals(3, joined.openings.size)
         // La porta sul muro lungo zero è anche «troppo larga»: lì si corregge il muro, non la porta.
         assertTrue(!PlanCheck.canFix(check(dup, kitchen).single { it.kind == PlanCheck.Kind.OpeningTooWide }))
-        assertTrue(check(joined, kitchen).none { it.kind == PlanCheck.Kind.ZeroWall })
+        // «Correggi»: l'angolo doppio sparisce e la stanza torna com'era.
+        assertTrue(PlanCheck.canFix(zero))
+        val clean = dup.copy(openings = living.openings.map { if (it.wallIndex >= 1) it.copy(wallIndex = it.wallIndex + 1) else it })
+        val z = check(clean, kitchen).single { it.kind == PlanCheck.Kind.ZeroWall }
+        assertEquals(living, assertNotNull(PlanCheck.fixed(Building.single(FloorPlan(listOf(clean, kitchen))), z)).floors[0].plan.rooms[0])
+        // Qui invece la porta del muro lungo zero passerebbe sul muro dopo, sopra la finestra: due aperture nello stesso punto,
+        // un errore nuovo. Allora niente (si sistema a mano).
+        assertNull(PlanCheck.fixed(Building.single(FloorPlan(listOf(dup, kitchen))), zero))
     }
 
     @Test

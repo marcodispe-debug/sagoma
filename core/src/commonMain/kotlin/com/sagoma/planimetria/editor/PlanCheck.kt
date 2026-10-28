@@ -11,6 +11,7 @@ import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.PhaseView
 import com.sagoma.planimetria.geometry.Phases
 import com.sagoma.planimetria.geometry.Polygon
+import com.sagoma.planimetria.geometry.Snapping
 import com.sagoma.planimetria.geometry.Stairs
 import com.sagoma.planimetria.geometry.Swings
 import com.sagoma.planimetria.geometry.Triangulation
@@ -231,7 +232,7 @@ object PlanCheck {
         Kind.FurnitureInWall -> i.b == 0.0
         Kind.DoubleOpening -> i.opening != null && i.opening == i.opening2
         Kind.OpeningTooWide -> i.b >= MIN_FIXED_OPENING_CM
-        Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall -> true
+        Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall, Kind.NearWalls -> true
         else -> false
     }
 
@@ -239,14 +240,16 @@ object PlanCheck {
      * La casa con il problema `i` corretto, o null se non si riesce da soli (o la correzione non lo toglie, o non c'è più): il
      * mobile dentro un muro torna fino alla parete; l'impianto più alto del muro si abbassa; la porta o la finestra più alta del
      * muro si accorcia, quella più larga del muro si stringe a quanto se ne vede; quella messa due volte resta una sola; il muro
-     * lungo zero si unisce al muro dopo (come «Unisci al muro dopo»).
+     * lungo zero si unisce al muro dopo (come «Unisci al muro dopo»); il muro della stanza quasi attaccata a un'altra va sulla
+     * linea del muro dell'altra e diventa un muro in comune (come trascinarlo lì).
      */
     fun fixed(b: Building, i: Issue): Building? {
         if (!canFix(i)) return null
         val plan = b.floors.getOrNull(i.floor)?.plan ?: return null
         fun Room.with(o: Opening) = copy(openings = openings.map { if (it.id == o.id) o else it })
-        val out: FloorPlan = when (i.kind) {
+        val single: FloorPlan? = when (i.kind) {
             Kind.FurnitureInWall -> i.furniture?.let { pushedOut(plan, it) }
+            Kind.NearWalls -> null
             Kind.ZeroWall -> (i.selection as? Selection.Wall)?.let { s ->
                 val r = plan.room(s.roomId)?.takeIf { s.index in 0 until it.wallCount } ?: return null
                 r.removeCorner((s.index + 1) % r.wallCount)?.let(plan::replace)
@@ -276,11 +279,45 @@ object PlanCheck {
                 }
                 fixedOpening?.let { plan.replace(r.with(it)) }
             }
-        } ?: return null
-        // Già corretto (l'elenco era vecchio): niente da fare.
-        if (out == plan) return null
-        val result = b.copy(floors = b.floors.mapIndexed { k, f -> if (k == i.floor) f.copy(plan = out).synced() else f })
-        return result.takeIf { of(it).none { x -> x.kind == i.kind && x.floor == i.floor && x.selection == i.selection } }
+        }
+        // Già corretto (l'elenco era vecchio): niente da fare. Una correzione che crea un errore di disegno nuovo non va.
+        val candidates = (if (i.kind == Kind.NearWalls) nearFixes(plan, i) else listOfNotNull(single)).filter { it != plan }
+        if (candidates.isEmpty()) return null
+        val before = of(b)
+        for (out in candidates) {
+            val result = b.copy(floors = b.floors.mapIndexed { k, f -> if (k == i.floor) f.copy(plan = out).synced() else f })
+            val after = of(result)
+            val gone = after.none { x ->
+                x.kind == i.kind && x.floor == i.floor &&
+                    (if (i.kind == Kind.NearWalls) x.rooms.toSet() == i.rooms.toSet() else x.selection == i.selection)
+            }
+            if (gone && LiveCheck.newErrors(before, after).isEmpty()) return result
+        }
+        return null
+    }
+
+    /**
+     * Stanze quasi attaccate: il muro scelto (della stanza più piccola) sulla linea di quello dell'altra stanza; poi, se così
+     * la stanza va sopra un'altra, il contrario (il muro dell'altra sulla linea di questo). `b`: distanza tra le due linee.
+     */
+    private fun nearFixes(plan: FloorPlan, i: Issue): List<FloorPlan> {
+        val s = i.selection as? Selection.Wall ?: return emptyList()
+        val r = plan.room(s.roomId)?.takeIf { s.index in 0 until it.wallCount && it.arcOf(s.index) == null } ?: return emptyList()
+        val n = r.outwardOf(s.index)
+        val mine = plan.replace(r.copy(points = Snapping.moveWall(r.points, s.index, n * i.b)))
+        val a = r.wallStart(s.index)
+        val u = (r.wallEnd(s.index) - a).normalized()
+        val len = r.wallLength(s.index)
+        val theirs = plan.room(i.rooms.firstOrNull { it != r.id })?.let { o ->
+            // Il muro di fronte: parallelo, rivolto verso questo, con la linea a quella distanza e un tratto affacciato.
+            (0 until o.wallCount).firstOrNull { j ->
+                val t0 = (o.wallStart(j) - a) dot u
+                val t1 = (o.wallEnd(j) - a) dot u
+                o.arcOf(j) == null && !o.isRemoved(j) && (o.outwardOf(j) dot n) < -0.99 &&
+                    abs(((o.wallStart(j) - a) dot n) - i.b) < 0.5 && min(max(t0, t1), len) - max(min(t0, t1), 0.0) >= NEAR_MIN_RUN_CM
+            }?.let { j -> plan.replace(o.copy(points = Snapping.moveWall(o.points, j, o.outwardOf(j) * i.b))) }
+        }
+        return listOfNotNull(mine, theirs)
     }
 
     /** Il mobile `id` spostato fuori dai muri in cui entra (in un angolo sono due) fino alla parete, o null se non si riesce. */

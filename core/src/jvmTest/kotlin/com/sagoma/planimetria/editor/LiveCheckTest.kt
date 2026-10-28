@@ -50,6 +50,11 @@ class LiveCheckTest {
         assertTrue(updated.a > fresh.single().a)
         // Rimessa a posto (o annullato): l'avviso sparisce.
         assertNull(LiveCheck.stillThere(fresh.single(), ok))
+        // Un errore che resta ma cambia muro selezionato (un angolo tolto più indietro rinumera i muri) non è nuovo.
+        val near = issues(living, kitchen.moved(20.0)).single { it.kind == PlanCheck.Kind.NearWalls }
+        val renumbered = near.copy(selection = Selection.Wall(2, 2))
+        assertEquals(emptyList(), LiveCheck.newErrors(listOf(near), listOf(renumbered)))
+        assertEquals(listOf(near), LiveCheck.newErrors(emptyList(), listOf(near)))
         // Cose da controllare e norme nuove non fanno avviso: c'è il segnale.
         val alone = issues(kitchen)
         assertTrue(alone.any { !it.kind.error })
