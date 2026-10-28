@@ -10,6 +10,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.LocalWindowExceptionHandlerFactory
@@ -29,6 +30,7 @@ import com.sagoma.planimetria.persistence.FileTipStore
 import com.sagoma.planimetria.reading.HttpPlanReader
 import com.sagoma.planimetria.testi.T
 import com.sagoma.planimetria.ui.FurnitureAssets
+import com.sagoma.planimetria.ui.Marchio
 import com.sagoma.planimetria.ui.SagomaApp
 import kotlinx.coroutines.delay
 import java.io.File
@@ -135,6 +137,7 @@ private fun app(remote: RemoteAssets?) = application(exitProcessOnExit = false) 
         Window(
             onCloseRequest = ::exitApplication,
             title = "Sagoma",
+            icon = rememberVectorPainter(Marchio.icona),
             state = rememberWindowState(size = DpSize(1400.dp, 900.dp)),
             // Tasti che nessun elemento ha usato (la tastiera era rimasta su niente): all'editor, così WASD non si blocca.
             onKeyEvent = { platform.unhandledKeys?.invoke(it) == true },
