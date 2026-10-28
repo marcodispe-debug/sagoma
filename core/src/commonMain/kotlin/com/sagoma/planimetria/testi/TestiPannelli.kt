@@ -180,6 +180,10 @@ open class TestiPannelli {
     open val aRighe: String get() = "A righe"
     open val tintaUnita: String get() = "Tinta unita"
     open val coloreTenda: String get() = "Colore tenda"
+    open val davanzale: String get() = "Davanzale"
+    open val soglia: String get() = "Soglia"
+    /** Nell'elenco del computo: «davanzale in marmo», «soglia in pietra». `m`: il materiale già in minuscolo. */
+    open fun davanzaleIn(m: String, balcony: Boolean): String = if (balcony) "soglia in $m" else "davanzale in $m"
     open val giaUguali: String get() = "Hanno già tutte questo stile."
     open fun stileCopiato(n: Any?): String = if (n == 1) "Stile copiato su 1 apertura (↶ per annullare)." else "Stile copiato su $n aperture (↶ per annullare)."
     open val lampadarioSoffittoTrascinaloSpostarlo: String get() = "Lampadario a soffitto: trascinalo per spostarlo."

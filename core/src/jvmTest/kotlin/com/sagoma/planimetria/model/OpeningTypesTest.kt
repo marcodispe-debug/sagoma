@@ -477,4 +477,39 @@ class OpeningTypesTest {
         val plan = FloorPlan(listOf(room(from, styled)))
         assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
     }
+
+    @Test
+    fun `davanzale e soglia - lastra sotto l'infisso che sporge dentro e fuori`() {
+        val w = Opening.default(1, OpeningKind.Window1, 0, 200.0) // 80 × 120: da 160 a 240, davanzale a 90
+        val marble = w.copy(sillMaterial = StairMaterial.Marble)
+        assertEquals(StairMaterial.Marble, marble.sill)
+        assertNull(w.sill)
+        // Il bovindo ha la sua seduta e l'oblò il fondo tondo: niente lastra.
+        assertNull(OpeningPreset.BayWindow.apply(marble).sill)
+        assertNull(OpeningPreset.RoundWindow.apply(marble).sill)
+        fun down(s: Scene3D, x: Double, z: Double) = s.hit(Vec3(x, 400.0, z), Vec3(0.0, -1.0, 0.0))
+        // Dall'alto, appena fuori dalla faccia esterna (z = −7,5) e appena dentro quella interna (z = 7,5), si trova la lastra.
+        for (z in listOf(-9.0, 8.5)) {
+            val top = assertNotNull(down(scene(marble), 200.0, z), "z = $z")
+            assertEquals(Pick.Opening(1, 1), top.pick)
+            assertEquals(90.5, top.point.y, 0.01)
+            assertTrue(down(scene(w), 200.0, z)?.let { it.pick == Pick.Opening(1, 1) && it.point.y > 80 } != true, "senza davanzale, z = $z")
+        }
+        // Le orecchie: fuori sporge anche ai lati del vano.
+        assertEquals(Pick.Opening(1, 1), assertNotNull(down(scene(marble), 158.5, -9.0)).pick)
+        // Con lo sguincio verso la stanza si allarga come il vano.
+        val splayed = marble.copy(splay = 15.0)
+        assertEquals(Pick.Opening(1, 1), assertNotNull(down(scene(splayed), 148.0, 8.5)).pick)
+        // Soglia del balcone: a terra, mezzo cm sopra il pavimento.
+        val threshold = assertNotNull(down(scene(Opening.default(1, OpeningKind.Balcony1, 0, 200.0).copy(sillMaterial = StairMaterial.Stone)), 200.0, -9.0))
+        assertEquals(Pick.Opening(1, 1), threshold.pick)
+        assertEquals(0.5, threshold.point.y, 0.01)
+        // Fa parte dello stile, va nell'elenco del computo e si salva.
+        val styled = Opening.default(2, OpeningKind.Balcony1, 1, 150.0).withStyleOf(marble)
+        assertEquals(StairMaterial.Marble, styled.sillMaterial)
+        assertTrue(Openings.description(marble).endsWith("davanzale in marmo"), Openings.description(marble))
+        assertTrue(Openings.description(styled).endsWith("soglia in marmo"), Openings.description(styled))
+        val plan = FloorPlan(listOf(room(marble, styled)))
+        assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
+    }
 }

@@ -1001,6 +1001,16 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                     }
                     o.awningColor?.let { c0 -> FreeColorPicker(T.pannelli.coloreTenda, c0) { c -> update { it.copy(awningColor = c) } } }
                 }
+                // Davanzale della finestra (soglia del balcone): senza, o una lastra di marmo, pietra o legno.
+                if (!o.isBay && o.shape != WindowShape.Round) Row(Modifier.padding(end = 8.dp)) {
+                    val materials = listOf(null, StairMaterial.Marble, StairMaterial.Stone, StairMaterial.Wood)
+                    Choice(
+                        if (o.kind.isWindow) T.pannelli.davanzale else T.pannelli.soglia,
+                        materials.map { it?.label ?: T.pannelli.senza },
+                        materials.indexOf(o.sillMaterial).coerceAtLeast(0),
+                        Modifier.weight(1f),
+                    ) { i -> update { it.copy(sillMaterial = materials[i]) } }
+                }
             } else {
                 // Le porte da garage hanno il loro pannello (a doghe o a sezioni): si sceglie solo il colore.
                 if (!o.isGarage) ModelPicker(T.comuni.modello, DoorModel.entries, o.doorModel, { it.label }, { v -> update { it.copy(doorModel = v) } }) {

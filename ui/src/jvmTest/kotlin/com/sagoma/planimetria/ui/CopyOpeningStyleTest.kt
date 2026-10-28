@@ -1,6 +1,8 @@
 package com.sagoma.planimetria.ui
 
+import com.sagoma.planimetria.editor.DragTarget
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.PendingOpening
 import com.sagoma.planimetria.geometry.RoomFactory
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.DoorModel
@@ -12,6 +14,7 @@ import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Shading
+import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.model.WindowModel
 import com.sagoma.planimetria.persistence.PlanStore
@@ -104,5 +107,16 @@ class CopyOpeningStyleTest {
         assertEquals(0, vm.state.value.fullBuilding.current)
         vm.undo()
         assertEquals(before, vm.state.value.fullBuilding)
+    }
+
+    @Test
+    fun `finestre e balconi nuovi con il davanzale di marmo, le porte no`() {
+        val vm = vm()
+        for ((kind, at) in listOf(OpeningKind.Window1 to 300.0, OpeningKind.Balcony2 to 100.0, OpeningKind.Door to 200.0)) {
+            vm.startPlacingOpening(PendingOpening(kind))
+            vm.onTap(DragTarget.Wall(2, 0), Vec2(400.0 + at, 0.0))
+        }
+        val added = vm.state.value.plan.room(2)!!.openings.drop(2)
+        assertEquals(listOf(StairMaterial.Marble, StairMaterial.Marble, null), added.map { it.sill })
     }
 }

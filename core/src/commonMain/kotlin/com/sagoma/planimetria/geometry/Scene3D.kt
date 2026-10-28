@@ -6,6 +6,7 @@ import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Stair
 import com.sagoma.planimetria.model.StairKind
+import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.Mount
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
@@ -113,6 +114,11 @@ private val NEARLY_STRAIGHT_COS = cos(PI / 6)
 
 /** Di quanto il muro sotto il vano di una porta resta sotto il pavimento (cm), con un piano sotto. */
 private const val THRESHOLD_SINK = 0.5
+/** Davanzale e soglia: spessore della lastra, quanto sporge verso la stanza e fuori, e le orecchie nei lati del vano (cm). */
+private const val SILL_THICKNESS = 3.0
+private const val SILL_IN = 2.0
+private const val SILL_OUT = 3.0
+private const val SILL_EAR = 3.0
 
 /**
  * Scena 3D costruita dalla pianta: triangoli opachi e trasparenti (vetri) pronti per la GPU, triangoli
@@ -1653,8 +1659,9 @@ private class SceneBuilder(
                     val p1 = profile[k + 1]
                     if (p0.distanceTo(p1) < 1e-6) continue
                     val n = (p1 - p0).perp().normalized().let { if ((it dot (u * -toward)) < 0) it * -1.0 else it }
+                    // Solo la faccia verso il vano: quella rivolta dentro il muro non si vede mai, e sul computer (che disegna
+                    // tutte e due le facce) le due facce sovrapposte facevano strisce bianche e nere sul lato del vano.
                     quad(p0.at(g.bottom), p1.at(g.bottom), p1.at(g.top), p0.at(g.top), Vec3(n.x, 0.0, n.y), color, g.pick)
-                    quad(p1.at(g.bottom), p0.at(g.bottom), p0.at(g.top), p1.at(g.top), Vec3(-n.x, 0.0, -n.y), color, g.pick)
                 }
             }
         }
@@ -1990,6 +1997,7 @@ private class SceneBuilder(
                 // Infisso a filo esterno o interno: spostato nello spessore del muro.
                 val f = n * Openings.frameOffset(room, o)
                 window(a + f, b + f, u, n, bottom, top, o, pick)
+                o.sill?.let { windowSill(room, o, a, b, u, n, bottom, it, pick) }
                 if (o.hasGrille) grille(a, b, u, n * -(room.thicknessOf(o.wallIndex) / 2 + 4.0), bottom, top, pick)
                 if (o.hasInsectScreen) insectScreen(a, b, u, n, bottom, top, o, pick)
                 if (o.hasAwning && !room.outdoor) awning(a, b, u, n, top, h, o, pick)
@@ -2345,6 +2353,26 @@ private class SceneBuilder(
     }
 
     private val wroughtIron = Rgba(0.13f, 0.13f, 0.14f)
+
+    /**
+     * Davanzale (finestre) o soglia (balconi): lastra di 3 cm sotto l'infisso per tutto lo spessore del muro, che sporge
+     * [SILL_IN] verso la stanza e [SILL_OUT] fuori, con le «orecchie» di [SILL_EAR] per lato infilate nei lati del vano. Con lo
+     * sguincio, verso la stanza si allarga come il vano. Sta mezzo cm sopra il fondo del varco: copre il muro sotto senza
+     * sfarfallare.
+     */
+    private fun windowSill(room: Room, o: Opening, a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, m: StairMaterial, pick: Pick) {
+        val splay = Openings.splayOf(room, o)
+        val ear = SILL_EAR
+        val inner = n * (half + SILL_IN)
+        val outer = n * -(half + SILL_OUT)
+        val poly = if (splay < 0.5) listOf(a - u * ear + outer, b + u * ear + outer, b + u * ear + inner, a - u * ear + inner)
+        else listOf(
+            a - u * ear + outer, b + u * ear + outer, b + u * ear, b + u * (splay + ear) + n * half,
+            b + u * (splay + ear) + inner, a - u * (splay + ear) + inner, a - u * (splay + ear) + n * half, a - u * ear,
+        )
+        val c = tint(Rgba.argb(m.argb), pick)
+        solid(poly, bottom - SILL_THICKNESS + 0.5, bottom + 0.5, c, c, pick)
+    }
 
     /**
      * Zanzariera avvolgibile nel vano: la rete grigia (trasparente) dal davanzale al cassonetto in alto, con le guide ai

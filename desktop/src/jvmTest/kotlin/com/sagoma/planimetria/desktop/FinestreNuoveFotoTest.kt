@@ -10,6 +10,7 @@ import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
+import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.ui.SkiaImages
 import java.io.File
 import kotlin.test.Test
@@ -28,10 +29,10 @@ class FinestreNuoveFotoTest {
         // Muro 0 (davanti, y = 0): inferriata, sopraluce, legno, romana. Muro 2 (dietro, y = 450): bovindo.
         val room = Room(1, "Camera", RoomType.Camera, RoomFactory.rectangle(600.0, 450.0)).copy(
             openings = listOf(
-                o(1, OpeningKind.Window1, 0, 90.0, OpeningPreset.Grille),
-                o(2, OpeningKind.Window1, 0, 220.0, OpeningPreset.TopLight),
-                o(3, OpeningKind.Window2, 0, 370.0, OpeningPreset.WoodWindow),
-                o(4, OpeningKind.Window1, 0, 520.0, OpeningPreset.RomanShutter),
+                o(1, OpeningKind.Window1, 0, 90.0, OpeningPreset.Grille).copy(sillMaterial = StairMaterial.Marble),
+                o(2, OpeningKind.Window1, 0, 220.0, OpeningPreset.TopLight).copy(sillMaterial = StairMaterial.Stone),
+                o(3, OpeningKind.Window2, 0, 370.0, OpeningPreset.WoodWindow).copy(sillMaterial = StairMaterial.Wood, splay = 15.0),
+                o(4, OpeningKind.Window1, 0, 520.0, OpeningPreset.RomanShutter).copy(sillMaterial = StairMaterial.Marble),
                 o(5, OpeningKind.Window2, 2, 300.0, OpeningPreset.BayWindow),
             ),
         )
@@ -49,8 +50,8 @@ class FinestreNuoveFotoTest {
         // Soggiorno dietro: zanzariere e tende da sole (a righe sul balcone, rossa sulla finestra).
         val living = Room(3, "Soggiorno", RoomType.Soggiorno, RoomFactory.rectangle(600.0, 450.0).map { it + com.sagoma.planimetria.model.Vec2(0.0, 700.0) }).copy(
             openings = listOf(
-                o(1, OpeningKind.Window2, 2, 150.0, OpeningPreset.None).copy(insectScreen = true, awning = true, awningColor = 0xFF9C2F2F),
-                o(2, OpeningKind.Balcony2, 2, 420.0, OpeningPreset.None).copy(insectScreen = true, awning = true),
+                o(1, OpeningKind.Window2, 2, 150.0, OpeningPreset.None).copy(insectScreen = true, awning = true, awningColor = 0xFF9C2F2F, sillMaterial = StairMaterial.Marble),
+                o(2, OpeningKind.Balcony2, 2, 420.0, OpeningPreset.None).copy(insectScreen = true, awning = true, sillMaterial = StairMaterial.Marble),
             ),
         )
         val scene = Scene3D.build(FloorPlan(listOf(room, garage, living)), null, null, ceilings = false)
@@ -71,5 +72,8 @@ class FinestreNuoveFotoTest {
         shot("8-garage-dentro", Vec3(1100.0, 170.0, 430.0), Vec3(1100.0, 150.0, 0.0), 80.0, walking = true)
         shot("9-tende-fuori", Vec3(120.0, 260.0, 1750.0), Vec3(300.0, 150.0, 1150.0), 55.0, walking = false)
         shot("10-zanzariera-dentro", Vec3(300.0, 160.0, 800.0), Vec3(300.0, 140.0, 1150.0), 80.0, walking = true)
+        // Davanzali: marmo, pietra e legno (con lo sguincio) visti da fuori da vicino, e da dentro.
+        shot("11-davanzali-fuori", Vec3(260.0, 150.0, -170.0), Vec3(220.0, 95.0, 0.0), 60.0, walking = false)
+        shot("12-davanzale-dentro", Vec3(370.0, 165.0, 110.0), Vec3(370.0, 90.0, 0.0), 75.0, walking = true)
     }
 }

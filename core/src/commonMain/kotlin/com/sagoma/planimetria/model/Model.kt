@@ -219,6 +219,11 @@ data class Opening(
     val awning: Boolean = false,
     /** Colore della tenda da sole (ARGB); null = a righe verdi e panna ([AWNING_GREEN]). */
     val awningColor: Long? = null,
+    /**
+     * Finestre e balconi: davanzale (finestre) o soglia (balconi), la lastra sotto l'infisso che sporge dalle facce del muro;
+     * del materiale dei gradini (marmo, pietra, legno…). null = niente lastra, come nei progetti fatti prima.
+     */
+    val sillMaterial: StairMaterial? = null,
 ) {
     /** Colore effettivo di anta e telaio. */
     val finish: Finish get() = color ?: if (kind.glazed || isGarage) Finish.White else Finish.Oak
@@ -232,6 +237,8 @@ data class Opening(
     val hasTopLight: Boolean get() = topLight && kind.glazed && !sliding && !fixed && windowShape == WindowShape.Rectangle && !isBay
     /** Zanzariera: finestre e balconi rettangolari, non nel bovindo. */
     val hasInsectScreen: Boolean get() = insectScreen && kind.glazed && !isBay && windowShape == WindowShape.Rectangle
+    /** Davanzale o soglia che si vede: finestre e balconi, non il bovindo (ha la sua seduta) né l'oblò (il fondo è tondo). */
+    val sill: StairMaterial? get() = if (kind.glazed && !isBay && shape != WindowShape.Round) sillMaterial else null
     /** Tenda da sole: finestre e balconi, non sul bovindo (ha il suo tettuccio). */
     val hasAwning: Boolean get() = awning && kind.glazed && !isBay
     /** Porta da garage effettiva: solo porte non scorrevoli, a libro o a bilico. */
@@ -254,13 +261,13 @@ data class Opening(
 
     /**
      * Questa apertura con l'aspetto di `from` (stessa famiglia, [sameStyleFamily]): modello, colori, oscurante, inferriata,
-     * zanzariera e tenda da sole per gli infissi; modello, colore e cornice per le porte. Misure, tipo di apertura e
+     * zanzariera, tenda da sole e davanzale per gli infissi; modello, colore e cornice per le porte. Misure, tipo di apertura e
      * posizione restano come sono.
      */
     fun withStyleOf(from: Opening): Opening = if (!sameStyleFamily(from)) this else if (kind.glazed) copy(
         windowModel = from.windowModel, color = from.color, customColor = from.customColor,
         shading = from.shading, shadingColor = from.shadingColor, grille = from.grille,
-        insectScreen = from.insectScreen, awning = from.awning, awningColor = from.awningColor,
+        insectScreen = from.insectScreen, awning = from.awning, awningColor = from.awningColor, sillMaterial = from.sillMaterial,
     ) else copy(doorModel = from.doorModel, color = from.color, customColor = from.customColor, frameless = from.frameless)
 
     /** Nessun colore scelto: restano i colori soliti del modello (es. minimal antracite, loft nero). */

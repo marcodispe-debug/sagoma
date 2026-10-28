@@ -50,8 +50,8 @@ object Openings {
     }
 
     /**
-     * Aspetto dell'apertura per chi deve fare il preventivo: modello e colore, forma, sopraluce, oscurante e accessori
-     * («Legno con fermavetro, rovere · persiane · inferriata»). Vuoto per varchi e nicchie.
+     * Aspetto dell'apertura per chi deve fare il preventivo: modello e colore, forma, sopraluce, oscurante, accessori e
+     * davanzale («Legno con fermavetro, rovere · persiane · inferriata · davanzale in marmo»). Vuoto per varchi e nicchie.
      */
     fun description(o: Opening): String {
         if (!o.kind.hasLeaves) return ""
@@ -78,6 +78,7 @@ object Openings {
             if (o.hasGrille) parts += low(T.pannelli.inferriata)
             if (o.hasInsectScreen) parts += low(T.pannelli.zanzariera)
             if (o.hasAwning) parts += low(T.pannelli.tendaDaSole)
+            o.sill?.let { parts += T.pannelli.davanzaleIn(low(it.label), balcony = !o.kind.isWindow) }
         } else {
             if (o.transomCm > 0) parts += low(T.pannelli.sopraluce)
             if (o.sidelightCm > 0) parts += low(T.pannelli.vetroDiFianco)
