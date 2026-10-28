@@ -16,7 +16,7 @@ import kotlin.test.Test
 
 /**
  * Foto 3D delle finestre nuove (inferriata, sopraluce, legno con fermavetro, persiana alla romana e bovindo) e delle porte
- * da garage (basculante e sezionale), viste da fuori e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
+ * da garage (basculante e sezionale), zanzariere e tende da sole, viste da fuori e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
  */
 class FinestreNuoveFotoTest {
     @Test
@@ -46,7 +46,14 @@ class FinestreNuoveFotoTest {
                 o(2, OpeningKind.Door, 0, 450.0, OpeningPreset.GarageSectional),
             ),
         )
-        val scene = Scene3D.build(FloorPlan(listOf(room, garage)), null, null, ceilings = false)
+        // Soggiorno dietro: zanzariere e tende da sole (a righe sul balcone, rossa sulla finestra).
+        val living = Room(3, "Soggiorno", RoomType.Soggiorno, RoomFactory.rectangle(600.0, 450.0).map { it + com.sagoma.planimetria.model.Vec2(0.0, 700.0) }).copy(
+            openings = listOf(
+                o(1, OpeningKind.Window2, 2, 150.0, OpeningPreset.None).copy(insectScreen = true, awning = true, awningColor = 0xFF9C2F2F),
+                o(2, OpeningKind.Balcony2, 2, 420.0, OpeningPreset.None).copy(insectScreen = true, awning = true),
+            ),
+        )
+        val scene = Scene3D.build(FloorPlan(listOf(room, garage, living)), null, null, ceilings = false)
         val r = DesktopGlSceneRenderer(::read)
         r.setScene(scene)
         r.setDaylight(11f, "auto")
@@ -62,5 +69,7 @@ class FinestreNuoveFotoTest {
         shot("6-dentro-sopraluce-legno", Vec3(300.0, 160.0, 140.0), Vec3(300.0, 170.0, 0.0), 75.0, walking = true)
         shot("7-garage-fuori", Vec3(1100.0, 180.0, -560.0), Vec3(1100.0, 120.0, 0.0), 55.0, walking = false)
         shot("8-garage-dentro", Vec3(1100.0, 170.0, 430.0), Vec3(1100.0, 150.0, 0.0), 80.0, walking = true)
+        shot("9-tende-fuori", Vec3(120.0, 260.0, 1750.0), Vec3(300.0, 150.0, 1150.0), 55.0, walking = false)
+        shot("10-zanzariera-dentro", Vec3(300.0, 160.0, 800.0), Vec3(300.0, 140.0, 1150.0), 80.0, walking = true)
     }
 }

@@ -53,6 +53,12 @@ object Openings {
         GarageDoor.None -> 0.0
     }
 
+    /**
+     * Quanto sporge dal muro la tenda da sole (cm): sui balconi è una tenda a bracci che copre il terrazzo, sulle finestre
+     * una tenda a caduta poco sporgente.
+     */
+    fun awningReach(o: Opening): Double = if (o.bottom <= 0.0) 200.0 else min(80.0, o.height * 0.6)
+
     /** Perno della porta a bilico: a un quinto della larghezza dal lato del cardine. */
     const val PIVOT_AT = 0.2
 

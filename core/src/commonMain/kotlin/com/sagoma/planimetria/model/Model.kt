@@ -213,6 +213,12 @@ data class Opening(
     val bay: Boolean = false,
     /** Porte: da garage, basculante o sezionale (il pannello va in alto dentro la stanza, [Openings.garageReach]). */
     val garage: GarageDoor = GarageDoor.None,
+    /** Finestre e balconi: zanzariera avvolgibile nel vano, con il cassonetto in alto e le guide ai lati. */
+    val insectScreen: Boolean = false,
+    /** Finestre e balconi: tenda da sole fuori, sopra l'apertura ([Openings.awningReach]). */
+    val awning: Boolean = false,
+    /** Colore della tenda da sole (ARGB); null = a righe verdi e panna ([AWNING_GREEN]). */
+    val awningColor: Long? = null,
 ) {
     /** Colore effettivo di anta e telaio. */
     val finish: Finish get() = color ?: if (kind.glazed || isGarage) Finish.White else Finish.Oak
@@ -224,6 +230,10 @@ data class Opening(
     val hasGrille: Boolean get() = grille && kind.glazed && !isBay
     /** Sopraluce della finestra: solo con le ante a battente (non scorrevoli, non fisse), infisso rettangolare e non nel bovindo. */
     val hasTopLight: Boolean get() = topLight && kind.glazed && !sliding && !fixed && windowShape == WindowShape.Rectangle && !isBay
+    /** Zanzariera: finestre e balconi rettangolari, non nel bovindo. */
+    val hasInsectScreen: Boolean get() = insectScreen && kind.glazed && !isBay && windowShape == WindowShape.Rectangle
+    /** Tenda da sole: finestre e balconi, non sul bovindo (ha il suo tettuccio). */
+    val hasAwning: Boolean get() = awning && kind.glazed && !isBay
     /** Porta da garage effettiva: solo porte non scorrevoli, a libro o a bilico. */
     val garageDoor: GarageDoor get() = if (!kind.glazed && kind.hasLeaves && !sliding && !folding && !pivot) garage else GarageDoor.None
     val isGarage: Boolean get() = garageDoor != GarageDoor.None
@@ -243,12 +253,14 @@ data class Opening(
     }
 
     /**
-     * Questa apertura con l'aspetto di `from` (stessa famiglia, [sameStyleFamily]): modello, colori, oscurante e inferriata
-     * per gli infissi; modello, colore e cornice per le porte. Misure, tipo di apertura e posizione restano come sono.
+     * Questa apertura con l'aspetto di `from` (stessa famiglia, [sameStyleFamily]): modello, colori, oscurante, inferriata,
+     * zanzariera e tenda da sole per gli infissi; modello, colore e cornice per le porte. Misure, tipo di apertura e
+     * posizione restano come sono.
      */
     fun withStyleOf(from: Opening): Opening = if (!sameStyleFamily(from)) this else if (kind.glazed) copy(
         windowModel = from.windowModel, color = from.color, customColor = from.customColor,
         shading = from.shading, shadingColor = from.shadingColor, grille = from.grille,
+        insectScreen = from.insectScreen, awning = from.awning, awningColor = from.awningColor,
     ) else copy(doorModel = from.doorModel, color = from.color, customColor = from.customColor, frameless = from.frameless)
 
     /** Nessun colore scelto: restano i colori soliti del modello (es. minimal antracite, loft nero). */
@@ -312,6 +324,9 @@ data class Opening(
         const val SHUTTER_GREEN = 0xFF46704F
         const val ROLLER_GREY = 0xFFC7C9CC
         const val VENETIAN_GREY = 0xFF8C9199
+        /** Tenda da sole di serie: righe verdi alternate al panna ([AWNING_CREAM]). */
+        const val AWNING_GREEN = 0xFF2F6B4F
+        const val AWNING_CREAM = 0xFFF1EBDC
 
         fun default(id: Long, kind: OpeningKind, wallIndex: Int, position: Double) = when (kind) {
             OpeningKind.Door -> Opening(id, kind, wallIndex, position, width = 80.0, height = 210.0)

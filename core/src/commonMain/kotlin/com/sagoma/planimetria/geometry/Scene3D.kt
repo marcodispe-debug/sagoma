@@ -1991,6 +1991,8 @@ private class SceneBuilder(
                 val f = n * Openings.frameOffset(room, o)
                 window(a + f, b + f, u, n, bottom, top, o, pick)
                 if (o.hasGrille) grille(a, b, u, n * -(room.thicknessOf(o.wallIndex) / 2 + 4.0), bottom, top, pick)
+                if (o.hasInsectScreen) insectScreen(a, b, u, n, bottom, top, o, pick)
+                if (o.hasAwning && !room.outdoor) awning(a, b, u, n, top, h, o, pick)
             }
             o.isGarage -> garageDoor(a, b, u, n, bottom, top, h, o, pick)
             o.sliding && o.slideOnWall -> {
@@ -2343,6 +2345,67 @@ private class SceneBuilder(
     }
 
     private val wroughtIron = Rgba(0.13f, 0.13f, 0.14f)
+
+    /**
+     * Zanzariera avvolgibile nel vano: la rete grigia (trasparente) dal davanzale al cassonetto in alto, con le guide ai
+     * lati. Sta verso fuori; con l'infisso a filo esterno sta verso la stanza.
+     */
+    private fun insectScreen(a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, top: Double, o: Opening, pick: Pick) {
+        val side = if (o.frame == com.sagoma.planimetria.model.FramePosition.Outside) 1.0 else -1.0
+        val at = n * (side * (half - 1.5))
+        val frame = tint(Rgba.argb(if (o.defaultColor) Finish.White.argb else o.frameArgb), pick)
+        val box = 7.0
+        pane(a + at, b + at, bottom + 1, top - box, tint(Rgba(0.22f, 0.23f, 0.24f), pick).copy(a = 0.38f), pick)
+        box(a + at, b + at, 3.0, top - box, top, frame, pick)
+        box(a + at, a + u * 2.5 + at, 1.6, bottom, top - box, frame, pick)
+        box(b - u * 2.5 + at, b + at, 1.6, bottom, top - box, frame, pick)
+        // Barra in fondo alla rete, appena sopra il davanzale.
+        box(a + u * 2.5 + at, b - u * 2.5 + at, 1.2, bottom + 1, bottom + 4, frame, pick)
+    }
+
+    /**
+     * Tenda da sole sopra l'apertura, fuori: telo a righe (o del colore scelto) dal cassonetto sul muro fino al terminale,
+     * con la mantovana e i bracci. Sui balconi sporge [Openings.awningReach] quasi in piano; sulle finestre scende a caduta.
+     */
+    private fun awning(a: Vec2, b: Vec2, u: Vec2, n: Vec2, top: Double, wallTop: Double, o: Opening, pick: Pick) {
+        val out = n * -1.0
+        val reach = Openings.awningReach(o)
+        val balcony = o.bottom <= 0.0
+        val y0 = min(top + 18, wallTop - 4)
+        val drop = if (balcony) reach * 0.25 else reach * 1.1
+        val valance = if (balcony) 22.0 else 14.0
+        val p0 = a - u * 12.0 + out * (half + 8)
+        val p1 = b + u * 12.0 + out * (half + 8)
+        val w = p0.distanceTo(p1)
+        val front = out * reach
+        val colors = o.awningColor?.let { listOf(Rgba.argb(it)) } ?: listOf(Rgba.argb(Opening.AWNING_GREEN), Rgba.argb(Opening.AWNING_CREAM))
+        val stripes = if (colors.size == 1) 1 else maxOf(2, kotlin.math.round(w / 16.0).toInt())
+        val up = ((p1 - p0).dir() cross (front.dir() - Vec3(0.0, drop, 0.0))).normalized().let { if (it.y < 0) it * -1.0 else it }
+        for (k in 0 until stripes) {
+            val c = tint(colors[k % colors.size], pick)
+            val s0 = p0 + (p1 - p0) * (k.toDouble() / stripes)
+            val s1 = p0 + (p1 - p0) * ((k + 1).toDouble() / stripes)
+            // Telo, con il sotto appena staccato (le due facce non nello stesso piano).
+            val t0 = s0.at(y0); val t1 = s1.at(y0)
+            val f0 = (s0 + front).at(y0 - drop); val f1 = (s1 + front).at(y0 - drop)
+            quad(t0, t1, f1, f0, up, c, pick)
+            val dn = up * -0.6
+            quad(t0 + dn, t1 + dn, f1 + dn, f0 + dn, up * -1.0, c.mix(Rgba(0f, 0f, 0f), 0.12f), pick)
+            // Mantovana davanti, che pende.
+            val outward = out.dir()
+            quad(f0, f1, f1 - Vec3(0.0, valance, 0.0), f0 - Vec3(0.0, valance, 0.0), outward, c, pick)
+            quad(f0 - outward * 0.5, f1 - outward * 0.5, f1 - outward * 0.5 - Vec3(0.0, valance, 0.0), f0 - outward * 0.5 - Vec3(0.0, valance, 0.0), outward * -1.0, c, pick)
+        }
+        val metal = tint(Rgba(0.86f, 0.86f, 0.85f), pick)
+        // Cassonetto sul muro e terminale davanti.
+        box(p0 - out * 6.0, p1 - out * 6.0, 6.0, y0 - 4, y0 + 8, metal, pick)
+        box(p0 + front, p1 + front, 2.0, y0 - drop - 3, y0 - drop + 1, metal, pick)
+        // Bracci: dai lati sul muro, più in basso, fino al terminale.
+        for (s in listOf(p0 + u * 6.0, p1 - u * 6.0)) {
+            val from = (s - out * 6.0).at(if (balcony) y0 - 35 else y0 - drop - 25)
+            beam(from, (s + front).at(y0 - drop - 1), 1.5, metal, pick)
+        }
+    }
 
     /** Inferriata: sbarre tonde ogni 12 cm e tre piatti orizzontali, appena fuori dalla faccia esterna (`out`). */
     private fun grille(a: Vec2, b: Vec2, u: Vec2, out: Vec2, bottom: Double, top: Double, pick: Pick) {

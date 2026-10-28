@@ -982,6 +982,25 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                         update { it.copy(grille = i == 1) }
                     }
                 }
+                // Accessori: zanzariera nel vano e tenda da sole fuori (a righe o a tinta unita del colore scelto).
+                if (!o.isBay && o.shape == WindowShape.Rectangle) Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.zanzariera, listOf(T.pannelli.senza, T.pannelli.con), if (o.insectScreen) 1 else 0, Modifier.weight(1f)) { i ->
+                        update { it.copy(insectScreen = i == 1) }
+                    }
+                }
+                if (!o.isBay) Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.tendaDaSole, listOf(T.pannelli.senza, T.pannelli.con), if (o.awning) 1 else 0, Modifier.weight(1f)) { i ->
+                        update { it.copy(awning = i == 1) }
+                    }
+                }
+                if (o.hasAwning) {
+                    Row(Modifier.padding(end = 8.dp)) {
+                        Choice(T.pannelli.telo, listOf(T.pannelli.aRighe, T.pannelli.tintaUnita), if (o.awningColor == null) 0 else 1, Modifier.weight(1f)) { i ->
+                            update { it.copy(awningColor = if (i == 0) null else it.awningColor ?: Opening.AWNING_GREEN) }
+                        }
+                    }
+                    o.awningColor?.let { c0 -> FreeColorPicker(T.pannelli.coloreTenda, c0) { c -> update { it.copy(awningColor = c) } } }
+                }
             } else {
                 // Le porte da garage hanno il loro pannello (a doghe o a sezioni): si sceglie solo il colore.
                 if (!o.isGarage) ModelPicker(T.comuni.modello, DoorModel.entries, o.doorModel, { it.label }, { v -> update { it.copy(doorModel = v) } }) {

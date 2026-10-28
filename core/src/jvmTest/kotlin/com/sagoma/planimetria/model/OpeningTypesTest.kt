@@ -441,4 +441,40 @@ class OpeningTypesTest {
         val plan = FloorPlan(listOf(room(up, sec.copy(id = 2, wallIndex = 2))))
         assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
     }
+
+    @Test
+    fun `zanzariera nel vano e tenda da sole fuori`() {
+        val w = Opening.default(1, OpeningKind.Window1, 0, 200.0) // 80 × 120: da 160 a 240, da 90 a 210
+        val screen = w.copy(insectScreen = true)
+        assertTrue(screen.hasInsectScreen)
+        assertFalse(OpeningPreset.BayWindow.apply(screen).hasInsectScreen || OpeningPreset.RoundWindow.apply(screen).hasInsectScreen)
+        // La rete sta verso fuori nel vano (il vetro a metà muro); con l'infisso a filo esterno sta verso la stanza.
+        val net = assertNotNull(fromOutside(scene(screen), 200.0, 150.0))
+        assertEquals(Pick.Opening(1, 1), net.pick)
+        assertTrue(net.point.z < -5.0 && net.point.z > -7.6, "rete: z = ${net.point.z}")
+        assertTrue(assertNotNull(fromOutside(scene(w), 200.0, 150.0)).point.z > -1.0)
+        val inner = assertNotNull(fromInside(scene(screen.copy(frame = FramePosition.Outside)), 200.0, 150.0))
+        assertTrue(inner.point.z > 5.0 && inner.point.z < 7.6, "rete dentro: z = ${inner.point.z}")
+        // Tenda sulla finestra: a caduta, sporge fino a 72 cm; dall'alto si trova il telo sopra la finestra.
+        val awning = w.copy(awning = true)
+        assertTrue(awning.hasAwning)
+        assertEquals(72.0, Openings.awningReach(awning), 1e-9)
+        val cloth = assertNotNull(scene(awning).hit(Vec3(200.0, 400.0, -7.5 - 8 - 36), Vec3(0.0, -1.0, 0.0)))
+        assertEquals(Pick.Opening(1, 1), cloth.pick)
+        assertTrue(cloth.point.y > 150.0 && cloth.point.y < 229.0, "telo a ${cloth.point.y}")
+        // Sul balcone: tenda a bracci quasi in piano che sporge 2 m.
+        val balcony = Opening.default(1, OpeningKind.Balcony2, 0, 200.0).copy(awning = true) // alto 240
+        assertEquals(200.0, Openings.awningReach(balcony), 1e-9)
+        val over = assertNotNull(scene(balcony).hit(Vec3(200.0, 400.0, -7.5 - 8 - 100), Vec3(0.0, -1.0, 0.0)))
+        assertEquals(Pick.Opening(1, 1), over.pick)
+        assertEquals(233.0, over.point.y, 1.0)
+        assertFalse(OpeningPreset.BayWindow.apply(awning).hasAwning)
+        // Fanno parte dello stile; si salvano e si rileggono.
+        val from = w.copy(insectScreen = true, awning = true, awningColor = 0xFF8A2C2C)
+        val styled = Opening.default(2, OpeningKind.Balcony1, 1, 150.0).withStyleOf(from)
+        assertTrue(styled.insectScreen && styled.awning)
+        assertEquals(0xFF8A2C2C, styled.awningColor)
+        val plan = FloorPlan(listOf(room(from, styled)))
+        assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
+    }
 }
