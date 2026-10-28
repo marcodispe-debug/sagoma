@@ -29,6 +29,9 @@ class TakeoffPhasesTest {
         assertEquals(0, closed.doors)
         // Nuova: si toglie come una porta che c'è già.
         assertEquals(line(room.copy(openings = listOf(door))), line(room.copy(openings = listOf(door.copy(phase = Phase.New)))))
+        // Il computo dice che è lo stato di progetto solo quando c'è qualcosa da demolire o di nuovo.
+        assertEquals(true, Takeoff.of(Building.single(FloorPlan(listOf(room.copy(openings = listOf(door.copy(phase = Phase.New))))))).phased)
+        assertEquals(false, Takeoff.of(Building.single(FloorPlan(listOf(room.copy(openings = listOf(door)))))).phased)
     }
 
     @Test

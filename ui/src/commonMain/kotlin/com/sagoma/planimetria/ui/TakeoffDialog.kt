@@ -28,7 +28,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorUiState
-import com.sagoma.planimetria.geometry.Phases
 import com.sagoma.planimetria.geometry.Takeoff
 import com.sagoma.planimetria.persistence.ProjectInfo
 import com.sagoma.planimetria.testi.T
@@ -89,7 +88,7 @@ fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Uni
                     T.computo.paretiSuperficieInternaNetto,
                     style = MaterialTheme.typography.bodySmall,
                 )
-                if (state.fullBuilding.floors.any { Phases.hasChanges(it.plan) }) Text(T.computo.statoDiProgetto, style = MaterialTheme.typography.bodySmall)
+                if (res.phased) Text(T.computo.statoDiProgetto, style = MaterialTheme.typography.bodySmall)
                 Section(T.computo.pavimentiOrdinare)
                 for (t in res.floorMaterials) Line(t.what, "${fmt2(t.quantity)} m²  (+10% ${fmt2(t.quantity * 1.1)})")
                 Section(T.computo.finiturePareti)

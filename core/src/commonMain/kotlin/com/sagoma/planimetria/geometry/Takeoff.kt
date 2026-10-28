@@ -44,6 +44,8 @@ object Takeoff {
         val fixtures: List<Item>,
         /** m² dei soffitti da dipingere (in mansarda la falda vera, più grande della pianta). */
         val ceilings: Double = 0.0,
+        /** In casa ci sono parti da demolire o nuove: il computo è quello dello stato di progetto (va detto). */
+        val phased: Boolean = false,
     ) {
         val totalFloor: Double get() = rooms.sumOf { it.floorArea }
         val totalWalls: Double get() = rooms.sumOf { it.wallArea }
@@ -80,7 +82,7 @@ object Takeoff {
         val openings = r.openings.filter { it.wallIndex == i && it.kind != OpeningKind.Niche }
         val gaps = induced.filter { it.roomId == r.id && it.wallIndex == i }
         fun holesBetween(lo: Double, hi: Double) = openings.sumOf { o -> Openings.holeArea(r, o, lo, hi) } +
-            gaps.sumOf { g -> g.a.distanceTo(g.b) * ((minOf(g.height, hi) - maxOf(0.0, lo)).coerceAtLeast(0.0)) }
+            gaps.sumOf { g -> gapArea(r, g, lo, hi) }
         fun area(lo: Double, hi: Double) = ((wallBetween(r, i, length, lo, hi) - holesBetween(lo, hi)) / 10_000.0).coerceAtLeast(0.0)
         val paint = paintName(f.argb)
         if (f.covering == Covering.None) return listOf(paint to area(0.0, height))
@@ -102,6 +104,19 @@ object Takeoff {
         var sum = 0.0
         for (k in 0 until n) sum += (minOf(hi, Ceilings.wallTopAt(r, i, len * (k + 0.5) / n)) - lo).coerceAtLeast(0.0)
         return length * sum / n
+    }
+
+    /**
+     * Varco della porta della stanza accanto sul muro `g.wallIndex` di `r`, tra le quote `lo` e `hi` (cm²): mai più alto della
+     * parete in quel punto (in mansarda scende).
+     */
+    private fun gapArea(r: Room, g: WallGap, lo: Double = 0.0, hi: Double = Double.MAX_VALUE): Double {
+        val s = r.wallStart(g.wallIndex)
+        val dir = r.wallEnd(g.wallIndex) - s
+        val len = dir.length
+        val t = if (len < 1e-6) 0.0 else (((g.a + g.b) / 2.0 - s) dot dir) / len
+        val top = minOf(g.height, Ceilings.wallTopAt(r, g.wallIndex, t.coerceIn(0.0, len)), hi)
+        return g.a.distanceTo(g.b) * (top - maxOf(0.0, lo)).coerceAtLeast(0.0)
     }
 
     /** Somma `v` al totale della voce `key`. */
@@ -156,6 +171,7 @@ object Takeoff {
             furniture.map { (k, v) -> Item(k.first, k.second, v.first, v.second.joinToString(", ")) }.sortedBy { it.name },
             fixtures.map { (k, v) -> Item(k, "", v.first, v.second.joinToString(", ")) },
             ceilings,
+            building.floors.any { Phases.hasChanges(it.plan) },
         )
     }
 
@@ -176,7 +192,7 @@ object Takeoff {
         for (o in openings) if (o.wallIndex < r.wallCount && !r.isRemoved(o.wallIndex)) holes += Openings.holeArea(r, o) / 10_000.0
         // Varchi delle porte della stanza accanto sul muro in comune (sui muri eliminati non c'è parete da togliere).
         val gaps = induced.filter { it.roomId == r.id && it.wallIndex < r.wallCount && !r.isRemoved(it.wallIndex) }
-        if (!r.outdoor) for (g in gaps) holes += g.a.distanceTo(g.b) * minOf(g.height, r.wallHeight(g.wallIndex)) / 10_000.0
+        if (!r.outdoor) for (g in gaps) holes += gapArea(r, g) / 10_000.0
         // Il battiscopa si interrompe davanti a porte, porte-finestre e varchi (tutto ciò che arriva a terra), anche quelli
         // delle porte della stanza accanto.
         // Una porta rimasta su un muro eliminato non conta: quel lato è già tolto tutto (altrimenti si toglieva due volte).

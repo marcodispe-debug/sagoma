@@ -43,6 +43,7 @@ import com.sagoma.planimetria.access.Rights
 import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.geometry.Openings
+import com.sagoma.planimetria.geometry.PhaseView
 import com.sagoma.planimetria.geometry.Takeoff
 import com.sagoma.planimetria.geometry.expandCurves
 import com.sagoma.planimetria.model.Building
@@ -281,7 +282,8 @@ object PdfExport {
         val w = listOf(colW * 0.30f, colW * 0.13f, colW * 0.15f, colW * 0.14f, colW * 0.28f)
         val multi = res.rooms.map { it.floor }.distinct().size > 1
         val nums = setOf(1, 2, 3)
-        title(T.pdf.stanze)
+        // Con demolizioni o parti nuove il computo è quello dello stato di progetto, anche in una tavola dello stato di fatto.
+        title(if (res.phased) "${T.pdf.stanze} · ${PhaseView.Project.title}" else T.pdf.stanze)
         row(listOf(T.pdf.stanza, T.pdf.pavM2, T.pdf.paretiM2, T.pdf.battiscM, T.pdf.pavimento), w, bold = true, right = nums)
         for (l in res.rooms) row(listOf(if (multi) "${l.room} (${l.floor})" else l.room, fmt2(l.floorArea), fmt2(l.wallArea), fmt2(l.skirting), l.floorFinish), w, right = nums)
         row(listOf(T.pdf.totale, fmt2(res.totalFloor), fmt2(res.totalWalls), fmt2(res.totalSkirting), ""), w, bold = true, right = nums)
