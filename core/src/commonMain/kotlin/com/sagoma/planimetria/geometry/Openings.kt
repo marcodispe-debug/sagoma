@@ -30,6 +30,21 @@ object Openings {
     /** Quanto sporge il bovindo dalla faccia esterna del muro (cm); i fianchi sono a 45°. */
     const val BAY_DEPTH = 60.0
 
+    /** Davanzale e soglia: spessore della lastra, quanto sporge verso la stanza e fuori, e le orecchie nei lati del vano (cm). */
+    const val SILL_THICKNESS = 3.0
+    const val SILL_IN = 2.0
+    const val SILL_OUT = 3.0
+    const val SILL_EAR = 3.0
+
+    /**
+     * Lastra del davanzale (o della soglia) da ordinare, in cm: lunghezza, con le orecchie e, con lo sguincio, larga quanto il vano
+     * verso la stanza; profondità, tutto il muro più quanto sporge dentro e fuori.
+     */
+    fun sillSize(room: Room, o: Opening): Pair<Double, Double> {
+        val (a, b) = span(room, o)
+        return (a.distanceTo(b) + 2 * (SILL_EAR + splayOf(room, o))) to (room.thicknessOf(o.wallIndex) + SILL_IN + SILL_OUT)
+    }
+
     /** Nome dell'apertura negli elenchi e nei titoli: «Finestra 2 ante, vasistas», «Porta ad 1 anta scorrevole», «Bovindo». */
     fun label(o: Opening): String {
         val name = if (o.leaves > 2) T.pannelli.anteN(o.kind == OpeningKind.Balcony2, o.leaves) else o.kind.label

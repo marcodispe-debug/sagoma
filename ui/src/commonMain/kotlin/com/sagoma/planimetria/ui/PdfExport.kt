@@ -301,6 +301,11 @@ object PdfExport {
                 if (i.details.isNotEmpty()) row(listOf("", i.details), listOf(w3[0], colW - w3[0]))
             }
         }
+        if (res.sills.isNotEmpty()) {
+            title(T.pdf.davanzaliSoglie)
+            val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.24f, colW * 0.28f)
+            for (i in res.sills) row(listOf("${i.count}×", i.name, i.size, i.where), w3, right = setOf(2))
+        }
         if (res.furniture.isNotEmpty()) {
             title(T.pdf.arredi)
             val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.24f, colW * 0.28f)

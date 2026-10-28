@@ -13,6 +13,7 @@ import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Shading
+import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.model.WindowModel
 import com.sagoma.planimetria.testi.T
@@ -108,5 +109,34 @@ class TakeoffOpeningsTest {
         val big = Takeoff.of(two).openings.single { it.size == "120×140 cm" }
         assertEquals(3, big.count)
         assertEquals("Cucina (Piano terra), Camera (Piano terra), Studio (Primo piano)", big.where)
+    }
+
+    @Test
+    fun `davanzali e soglie - lastre uguali insieme, con le misure da ordinare`() {
+        val marble = window.copy(sillMaterial = StairMaterial.Marble)
+        val plan = FloorPlan(
+            listOf(
+                // Muri da 15: la lastra è profonda 15 + 2 dentro + 3 fuori; lunga il vano più 3 + 3 di orecchie.
+                room(1, "Cucina", 0.0, marble, Opening.default(2, OpeningKind.Balcony2, 2, 200.0).copy(sillMaterial = StairMaterial.Stone)),
+                // Con lo sguincio di 10 cm per lato la lastra è più lunga di 20.
+                room(2, "Camera", 500.0, marble, marble.copy(id = 2, wallIndex = 2, splay = 10.0), window.copy(id = 3, wallIndex = 1)),
+            ),
+            // Muro singolo da 10.
+            freeWalls = listOf(FreeWall(1, Vec2(0.0, 600.0), Vec2(300.0, 600.0), thickness = 10.0, openings = listOf(Opening.default(1, OpeningKind.Window1, 0, 150.0).copy(sillMaterial = StairMaterial.Marble)))),
+        )
+        val sills = Takeoff.of(Building.single(plan)).sills
+        assertEquals(
+            listOf(
+                Takeoff.Item("Davanzale in marmo", "126×20×3 cm", 2, "Cucina, Camera"),
+                Takeoff.Item("Davanzale in marmo", "146×20×3 cm", 1, "Camera"),
+                Takeoff.Item("Davanzale in marmo", "86×15×3 cm", 1, "Muro singolo"),
+                Takeoff.Item("Soglia in pietra", "126×20×3 cm", 1, "Cucina"),
+            ).sortedBy { it.name },
+            sills,
+        )
+        assertTrue(Takeoff.csv(Takeoff.of(Building.single(plan))).contains("DAVANZALI E SOGLIE;Misure;Quantità;Dove\nDavanzale in marmo;126×20×3 cm;2;Cucina, Camera"))
+        // Senza lastre la sezione non c'è.
+        assertTrue(Takeoff.of(house).sills.isEmpty())
+        assertTrue(!Takeoff.csv(Takeoff.of(house)).contains("DAVANZALI"))
     }
 }

@@ -114,11 +114,6 @@ private val NEARLY_STRAIGHT_COS = cos(PI / 6)
 
 /** Di quanto il muro sotto il vano di una porta resta sotto il pavimento (cm), con un piano sotto. */
 private const val THRESHOLD_SINK = 0.5
-/** Davanzale e soglia: spessore della lastra, quanto sporge verso la stanza e fuori, e le orecchie nei lati del vano (cm). */
-private const val SILL_THICKNESS = 3.0
-private const val SILL_IN = 2.0
-private const val SILL_OUT = 3.0
-private const val SILL_EAR = 3.0
 
 /**
  * Scena 3D costruita dalla pianta: triangoli opachi e trasparenti (vetri) pronti per la GPU, triangoli
@@ -2356,22 +2351,22 @@ private class SceneBuilder(
 
     /**
      * Davanzale (finestre) o soglia (balconi): lastra di 3 cm sotto l'infisso per tutto lo spessore del muro, che sporge
-     * [SILL_IN] verso la stanza e [SILL_OUT] fuori, con le «orecchie» di [SILL_EAR] per lato infilate nei lati del vano. Con lo
-     * sguincio, verso la stanza si allarga come il vano. Sta mezzo cm sopra il fondo del varco: copre il muro sotto senza
-     * sfarfallare.
+     * [Openings.SILL_IN] verso la stanza e [Openings.SILL_OUT] fuori, con le «orecchie» di [Openings.SILL_EAR] per lato infilate
+     * nei lati del vano ([Openings.sillSize]). Con lo sguincio, verso la stanza si allarga come il vano. Sta mezzo cm sopra il
+     * fondo del varco: copre il muro sotto senza sfarfallare.
      */
     private fun windowSill(room: Room, o: Opening, a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, m: StairMaterial, pick: Pick) {
         val splay = Openings.splayOf(room, o)
-        val ear = SILL_EAR
-        val inner = n * (half + SILL_IN)
-        val outer = n * -(half + SILL_OUT)
+        val ear = Openings.SILL_EAR
+        val inner = n * (half + Openings.SILL_IN)
+        val outer = n * -(half + Openings.SILL_OUT)
         val poly = if (splay < 0.5) listOf(a - u * ear + outer, b + u * ear + outer, b + u * ear + inner, a - u * ear + inner)
         else listOf(
             a - u * ear + outer, b + u * ear + outer, b + u * ear, b + u * (splay + ear) + n * half,
             b + u * (splay + ear) + inner, a - u * (splay + ear) + inner, a - u * (splay + ear) + n * half, a - u * ear,
         )
         val c = tint(Rgba.argb(m.argb), pick)
-        solid(poly, bottom - SILL_THICKNESS + 0.5, bottom + 0.5, c, c, pick)
+        solid(poly, bottom - Openings.SILL_THICKNESS + 0.5, bottom + 0.5, c, c, pick)
     }
 
     /**

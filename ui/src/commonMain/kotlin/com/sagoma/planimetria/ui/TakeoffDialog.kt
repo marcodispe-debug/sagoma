@@ -97,6 +97,11 @@ fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Uni
                     for (i in res.openings) Line("${i.count}× ${i.name}", "${i.size}\n${i.where}", i.details)
                     Text(T.computo.porteFinestreNota, style = MaterialTheme.typography.bodySmall)
                 }
+                if (res.sills.isNotEmpty()) {
+                    Section(T.computo.davanzaliSoglie)
+                    for (i in res.sills) Line("${i.count}× ${i.name}", "${i.size}\n${i.where}")
+                    Text(T.computo.davanzaliSoglieNota, style = MaterialTheme.typography.bodySmall)
+                }
                 Section(T.computo.arredi)
                 if (res.furniture.isEmpty()) Text(T.computo.nessunArredo, style = MaterialTheme.typography.bodySmall)
                 for (i in res.furniture) Line("${i.count}× ${i.name}", "${i.size}\n${i.where}")

@@ -43,4 +43,7 @@ object TestiComputoEn : TestiComputo() {
     override val porteFinestreNota: String get() = "Opening sizes (width × height), to be checked by whoever quotes them. Openings to be filled in are left out."
     override fun misuraVano(w: Any?, h: Any?): String = "$w×$h cm"
     override val porteFinestreCsv: String get() = "DOORS AND WINDOWS;Look;Opening size;Quantity;Where"
+    override val davanzaliSoglie: String get() = "Sills and thresholds"
+    override val davanzaliSoglieNota: String get() = "Slabs to order: length × depth × thickness, including the parts set into the sides of the opening and those projecting from the wall."
+    override val davanzaliSoglieCsv: String get() = "SILLS AND THRESHOLDS;Size;Quantity;Where"
 }

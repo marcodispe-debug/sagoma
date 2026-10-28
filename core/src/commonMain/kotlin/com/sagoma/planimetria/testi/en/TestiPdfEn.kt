@@ -31,6 +31,7 @@ object TestiPdfEn : TestiPdf() {
     override val arredi: String get() = "Furniture"
     override val impianti: String get() = "Fixtures"
     override val porteFinestre: String get() = "Doors and windows"
+    override val davanzaliSoglie: String get() = "Sills and thresholds"
     override val tavolaPdfNonDisponibile: String get() = "PDF sheet not available on this platform"
     override val esportazioneNonRiuscita: String get() = "Export failed"
     override val tavolaPdfSalvataMarchio: String get() = "PDF sheet saved with the Sagoma watermark"

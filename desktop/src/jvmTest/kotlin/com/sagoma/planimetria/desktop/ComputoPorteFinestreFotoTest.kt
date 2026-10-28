@@ -3,6 +3,7 @@ package com.sagoma.planimetria.desktop
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
 import com.sagoma.planimetria.editor.EditorViewModel
@@ -16,6 +17,7 @@ import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Shading
+import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.model.WindowModel
 import com.sagoma.planimetria.persistence.FileProjectRepository
@@ -39,7 +41,7 @@ class ComputoPorteFinestreFotoTest {
     fun foto() {
         if (System.getenv("SAGOMA_FOTO_COMPUTO") != "true") return
         val out = File("build/computo").also { it.mkdirs() }
-        val window = Opening.default(1, OpeningKind.Window2, 0, 200.0).copy(width = 120.0, height = 140.0, shading = Shading.Shutters, grille = true)
+        val window = Opening.default(1, OpeningKind.Window2, 0, 200.0).copy(width = 120.0, height = 140.0, shading = Shading.Shutters, grille = true, sillMaterial = StairMaterial.Marble)
         val plan = FloorPlan(
             listOf(
                 Room(1, "Cucina", RoomType.Cucina, RoomFactory.rectangle(400.0, 300.0)).copy(
@@ -49,7 +51,7 @@ class ComputoPorteFinestreFotoTest {
                     openings = listOf(
                         window,
                         Opening.default(2, OpeningKind.Window1, 1, 150.0).copy(windowModel = WindowModel.Wood, shading = Shading.RomanShutter, insectScreen = true),
-                        Opening.default(3, OpeningKind.Balcony2, 2, 200.0).copy(awning = true, insectScreen = true),
+                        Opening.default(3, OpeningKind.Balcony2, 2, 200.0).copy(awning = true, insectScreen = true, sillMaterial = StairMaterial.Stone),
                     ),
                 ),
                 Room(3, "Garage", RoomType.Altro, RoomFactory.rectangle(400.0, 600.0).map { it + Vec2(800.0, 0.0) }).copy(
@@ -75,6 +77,11 @@ class ComputoPorteFinestreFotoTest {
                     var t = 0L
                     repeat(20) { t += 50_000_000L; scene.render(t) }
                     File(out, "$nome-porte-finestre.png").writeBytes(scene.render(t + 50_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+                    // In fondo all'elenco (rotella del mouse sul computo): davanzali e soglie.
+                    val center = androidx.compose.ui.geometry.Offset(w / 2f, h / 2f)
+                    repeat(30) { scene.sendPointerEvent(PointerEventType.Scroll, center, scrollDelta = androidx.compose.ui.geometry.Offset(0f, 3f)) }
+                    repeat(20) { t += 50_000_000L; scene.render(t) }
+                    File(out, "$nome-davanzali.png").writeBytes(scene.render(t + 50_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes)
                 }
             }
         } finally {

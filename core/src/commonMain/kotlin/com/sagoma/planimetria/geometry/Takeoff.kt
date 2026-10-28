@@ -12,6 +12,7 @@ import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.model.ProPalette
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.testi.T
+import kotlin.math.ceil
 
 /**
  * Computo metrico della casa: per ogni stanza pavimento, pareti da finire (al netto di porte e finestre),
@@ -47,6 +48,8 @@ object Takeoff {
         val fixtures: List<Item>,
         /** Porte e finestre della casa (anche dei muri singoli), senza quelle da chiudere: prima le porte, poi gli infissi. */
         val openings: List<OpeningItem> = emptyList(),
+        /** Lastre di davanzali e soglie uguali (materiale e misure), per il marmista. */
+        val sills: List<Item> = emptyList(),
     ) {
         val totalFloor: Double get() = rooms.sumOf { it.floorArea }
         val totalWalls: Double get() = rooms.sumOf { it.wallArea }
@@ -113,12 +116,20 @@ object Takeoff {
         // Chiave: ordine del tipo (prima le porte, poi finestre e balconi), nome, aspetto e misure del vano.
         val openings = LinkedHashMap<OpeningKey, Pair<Int, MutableSet<String>>>()
         val multi = building.floors.size > 1
-        fun addOpening(o: Opening, where: String) {
+        val sills = LinkedHashMap<Pair<String, String>, Pair<Int, MutableSet<String>>>()
+        fun addOpening(host: Room, o: Opening, where: String) {
             // Le aperture da chiudere (tamponare) nel progetto non ci sono; varchi e nicchie non si ordinano.
             if (!o.kind.hasLeaves || o.phase == Phase.Demolish) return
             val k = OpeningKey(o.kind.ordinal, Openings.label(o), Openings.description(o), o.width, o.height)
             val e = openings.getOrPut(k) { 0 to mutableSetOf() }
             openings[k] = (e.first + 1) to e.second.also { it += where }
+            // La lastra del davanzale o della soglia: misure arrotondate al cm in su, come si ordinano.
+            val m = o.sill ?: return
+            val (length, depth) = Openings.sillSize(host, o)
+            val name = T.pannelli.davanzaleIn(T.lingua.minuscola(m.label), balcony = !o.kind.isWindow).replaceFirstChar { it.uppercaseChar() }
+            val size = T.computo.cm(cm(ceil(length - 1e-6)), cm(ceil(depth - 1e-6)), cm(Openings.SILL_THICKNESS))
+            val s = sills.getOrPut(name to size) { 0 to mutableSetOf() }
+            sills[name to size] = (s.first + 1) to s.second.also { it += where }
         }
         for (fl in building.floors) {
             val plan = fl.plan
@@ -138,10 +149,10 @@ object Takeoff {
                 }
                 // Su un muro eliminato (lato aperto) o da demolire la porta non c'è più.
                 for (o in r.openings) if (o.wallIndex < r.wallCount && !r.isRemoved(o.wallIndex) && r.phaseOf(o.wallIndex) != Phase.Demolish) {
-                    addOpening(o, if (multi) "${r.name} (${fl.name})" else r.name)
+                    addOpening(r, o, if (multi) "${r.name} (${fl.name})" else r.name)
                 }
             }
-            for (w in plan.freeWalls) if (w.phase != Phase.Demolish) for (o in w.openings) addOpening(o, if (multi) "${T.vari.muroSingolo} (${fl.name})" else T.vari.muroSingolo)
+            for (w in plan.freeWalls) if (w.phase != Phase.Demolish) for (o in w.openings) addOpening(w.host, o, if (multi) "${T.vari.muroSingolo} (${fl.name})" else T.vari.muroSingolo)
             for (f in plan.furniture) {
                 val name = FurnitureCatalog.item(f.model)?.nome ?: T.computo.arredo
                 val size = T.computo.cm(cm(f.width), cm(f.depth), cm(f.height))
@@ -158,6 +169,7 @@ object Takeoff {
             fixtures.map { (k, v) -> Item(k, "", v.first, v.second.joinToString(", ")) },
             openings.entries.sortedWith(compareBy({ it.key.order }, { it.key.name }, { it.key.details }, { it.key.width }, { it.key.height }))
                 .map { (k, v) -> OpeningItem(k.name, k.details, T.computo.misuraVano(cm(k.width), cm(k.height)), v.first, v.second.joinToString(", ")) },
+            sills.map { (k, v) -> Item(k.first, k.second, v.first, v.second.joinToString(", ")) }.sortedBy { it.name },
         )
     }
 
@@ -225,6 +237,11 @@ object Takeoff {
         head(T.computo.porteFinestreCsv)
         for (i in res.openings) row(t(i.name), t(i.details), t(i.size), "${i.count}", t(i.where))
         appendLine()
+        if (res.sills.isNotEmpty()) {
+            head(T.computo.davanzaliSoglieCsv)
+            for (i in res.sills) row(t(i.name), t(i.size), "${i.count}", t(i.where))
+            appendLine()
+        }
         head(T.computo.arrediMisureQuantitaDove)
         for (i in res.furniture) row(t(i.name), t(i.size), "${i.count}", t(i.where))
         appendLine()
