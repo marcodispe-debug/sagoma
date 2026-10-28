@@ -17,6 +17,7 @@ import com.sagoma.planimetria.ifc.StepWriter.Companion.num
 import com.sagoma.planimetria.ifc.StepWriter.Companion.str
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.Floor
+import com.sagoma.planimetria.model.GarageDoor
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Phase
@@ -45,6 +46,9 @@ import kotlin.math.tan
 object IfcExport {
     /** Nome dell'insieme di proprietà con gli id di sagoma. */
     const val PSET = "Sagoma"
+
+    /** Modo di aprirsi della porta basculante (USERDEFINED: l'IFC4 non ha un nome per lei). */
+    const val UP_AND_OVER = "UPANDOVER"
 
     /**
      * Testo del file .ifc. `name`: nome del progetto; `timestamp`: data e ora da scrivere nell'intestazione (ISO 8601);
@@ -482,7 +486,7 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
         val fill = if (isWindow) {
             val partitioning = partitioning(o.leaves)
             val window = w.add(
-                "IFCWINDOW", guid("$baseKey/fill"), NULL, str(o.kind.label), NULL, NULL, fillPlacement, shape(bodyRep(listOf(panel))), NULL,
+                "IFCWINDOW", guid("$baseKey/fill"), NULL, str(Openings.label(o)), NULL, NULL, fillPlacement, shape(bodyRep(listOf(panel))), NULL,
                 heightMm, widthMm, ".WINDOW.", ".$partitioning.", userPartitioning(o.leaves),
             )
             // Come si aprono le ante: nell'IFC4 sta nel tipo della finestra (IfcWindowType con IfcWindowPanelProperties).
@@ -490,8 +494,8 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
             window
         } else {
             w.add(
-                "IFCDOOR", guid("$baseKey/fill"), NULL, str(o.kind.label), NULL, NULL, fillPlacement, shape(bodyRep(listOf(panel))), NULL,
-                heightMm, widthMm, ".DOOR.", ".${doorOperation(o)}.", NULL,
+                "IFCDOOR", guid("$baseKey/fill"), NULL, str(Openings.label(o)), NULL, NULL, fillPlacement, shape(bodyRep(listOf(panel))), NULL,
+                heightMm, widthMm, ".DOOR.", ".${doorOperation(o)}.", if (o.garageDoor == GarageDoor.UpAndOver) "'${IfcExport.UP_AND_OVER}'" else NULL,
             )
         }
         w.add("IFCRELFILLSELEMENT", newGuid(), NULL, NULL, NULL, opening, fill)
@@ -538,6 +542,14 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
             if (o.leafCount != 0) add("LeafCount" to int(o.leafCount.toLong()))
             if (o.liftSlide) add("LiftSlide" to bool(true))
             if (o.windowShape != d.windowShape) add("WindowShape" to label(o.windowShape.name))
+            if (o.grille) add("Grille" to bool(true))
+            if (o.topLight) add("TopLight" to bool(true))
+            if (o.bay) add("Bay" to bool(true))
+            if (o.garage != d.garage) add("Garage" to label(o.garage.name))
+            if (o.insectScreen) add("InsectScreen" to bool(true))
+            if (o.awning) add("Awning" to bool(true))
+            o.awningColor?.let { add("AwningColor" to int(it)) }
+            o.sillMaterial?.let { add("SillMaterial" to label(it.name)) }
         }
     }
 
@@ -546,6 +558,9 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
         val side = if (o.hingeLeft) "LEFT" else "RIGHT"
         val two = o.leaves >= 2
         return when {
+            // Porte da garage: la sezionale si arrotola in alto (ROLLINGUP), la basculante ha il suo nome (USERDEFINED).
+            o.garageDoor == GarageDoor.Sectional -> "ROLLINGUP"
+            o.isGarage -> "USERDEFINED"
             // Alzante: un'anta fissa e una che scorre.
             o.sliding -> if (two && !o.lifts) "DOUBLE_DOOR_SLIDING" else "SLIDING_TO_$side"
             o.folds -> if (two) "DOUBLE_DOOR_FOLDING" else "FOLDING_TO_$side"

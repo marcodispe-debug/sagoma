@@ -2,6 +2,7 @@ package com.sagoma.planimetria.ifc
 
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.Floor
+import com.sagoma.planimetria.model.GarageDoor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
@@ -13,6 +14,7 @@ import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.model.WindowModel
 import com.sagoma.planimetria.model.DoorModel
 import com.sagoma.planimetria.model.Shading
+import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.WindowShape
 import java.io.File
 import kotlin.math.abs
@@ -221,5 +223,38 @@ class IfcOpeningTypesTest {
         // Da un altro programma: 4 ante dal tipo.
         val back = IfcImport.read(f.let { IfcExport.export(house(listOf(four)), "4 ante", key = "g4").replace("'Sagoma'", "'Altro'") })
         assertEquals(4, back.building.floors.single().plan.rooms.single().openings.single().leafCount)
+    }
+
+    /** Terzo gruppo: finestre e porte nuove della notte del 28/10 (inferriata, sopraluce, bovindo, legno, romana, scorrevoli, vetromattone, garage, tutto vetro, zanzariera, tenda, davanzali). */
+    private val group3 = listOf(
+        Opening(1, OpeningKind.Window1, 0, 100.0, 80.0, 120.0, sillHeight = 90.0, grille = true, sillMaterial = StairMaterial.Marble, shading = Shading.SlidingShutters),
+        Opening(2, OpeningKind.Window1, 0, 250.0, 80.0, 160.0, sillHeight = 90.0, topLight = true, windowModel = WindowModel.Wood, shading = Shading.RomanShutter, insectScreen = true),
+        Opening(3, OpeningKind.Window2, 0, 450.0, 140.0, 140.0, sillHeight = 90.0, bay = true),
+        Opening(4, OpeningKind.Window1, 0, 650.0, 76.0, 114.0, sillHeight = 100.0, windowModel = WindowModel.GlassBlock, sash = SashType.Fixed),
+        Opening(5, OpeningKind.Door, 2, 150.0, 250.0, 210.0, garage = GarageDoor.UpAndOver),
+        Opening(6, OpeningKind.Door, 2, 450.0, 250.0, 215.0, garage = GarageDoor.Sectional),
+        Opening(7, OpeningKind.Door, 2, 680.0, 80.0, 210.0, doorModel = DoorModel.AllGlass, sillMaterial = StairMaterial.Stone),
+        Opening(8, OpeningKind.Balcony2, 3, 250.0, 120.0, 240.0, awning = true, awningColor = 0xFF9C2F2F, insectScreen = true, sillMaterial = StairMaterial.Wood),
+    )
+
+    private fun look3(o: Opening) = look2(o) + listOf(o.grille, o.topLight, o.bay, o.garage, o.insectScreen, o.awning, o.awningColor, o.sillMaterial)
+
+    @Test
+    fun `terzo gruppo - garage con i nomi standard, il resto torna uguale`() {
+        val house3 = house(listOf(big.copy(openings = group3)))
+        val text = IfcExport.export(house3, "Gruppo 3", key = "g3").also { save("gruppo-3.ifc", it) }
+        val f = StepFile.parse(text)
+        // Sezionale: si arrotola in alto; basculante: USERDEFINED con il suo nome.
+        val doors = f.ofType("IFCDOOR").map { it.enum(11) to it.str(12) }
+        assertTrue("ROLLINGUP" to null in doors, doors.toString())
+        assertTrue("USERDEFINED" to IfcExport.UP_AND_OVER in doors, doors.toString())
+        // Il nome dice che cos'è, come nel computo.
+        val names = (f.ofType("IFCDOOR") + f.ofType("IFCWINDOW")).mapNotNull { it.str(2) }.toSet()
+        assertTrue(names.containsAll(listOf("Porta basculante (garage)", "Porta sezionale (garage)", "Vetromattone", "Bovindo (finestra sporgente)")), names.toString())
+        val back = IfcImport.read(text).building.floors.single().plan.rooms.single()
+        assertEquals(group3.associate { it.id to look3(it) }, back.openings.associate { it.id to look3(it) })
+        // Da un altro programma (senza le proprietà di sagoma) le porte da garage si riconoscono dal modo di aprirsi.
+        val other = IfcImport.read(text.replace("'Sagoma'", "'Altro'")).building.floors.single().plan.rooms.single().openings
+        assertEquals(setOf(GarageDoor.UpAndOver, GarageDoor.Sectional), other.map { it.garage }.filter { it != GarageDoor.None }.toSet())
     }
 }
