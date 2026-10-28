@@ -225,10 +225,10 @@ class IfcOpeningTypesTest {
         assertEquals(4, back.building.floors.single().plan.rooms.single().openings.single().leafCount)
     }
 
-    /** Terzo gruppo: finestre e porte nuove della notte del 28/10 (inferriata, sopraluce, bovindo, legno, romana, scorrevoli, vetromattone, garage, tutto vetro, zanzariera, tenda, davanzali). */
+    /** Terzo gruppo: finestre e porte nuove della notte del 28/10 (inferriata, sopraluce, bovindo, legno, romana, scorrevoli, vetromattone, garage, tutto vetro, zanzariera, tenda, davanzali, vetro satinato). */
     private val group3 = listOf(
         Opening(1, OpeningKind.Window1, 0, 100.0, 80.0, 120.0, sillHeight = 90.0, grille = true, sillMaterial = StairMaterial.Marble, shading = Shading.SlidingShutters),
-        Opening(2, OpeningKind.Window1, 0, 250.0, 80.0, 160.0, sillHeight = 90.0, topLight = true, windowModel = WindowModel.Wood, shading = Shading.RomanShutter, insectScreen = true),
+        Opening(2, OpeningKind.Window1, 0, 250.0, 80.0, 160.0, sillHeight = 90.0, topLight = true, windowModel = WindowModel.Wood, shading = Shading.RomanShutter, insectScreen = true, frosted = true),
         Opening(3, OpeningKind.Window2, 0, 450.0, 140.0, 140.0, sillHeight = 90.0, bay = true),
         Opening(4, OpeningKind.Window1, 0, 650.0, 76.0, 114.0, sillHeight = 100.0, windowModel = WindowModel.GlassBlock, sash = SashType.Fixed),
         Opening(5, OpeningKind.Door, 2, 150.0, 250.0, 210.0, garage = GarageDoor.UpAndOver),
@@ -237,7 +237,7 @@ class IfcOpeningTypesTest {
         Opening(8, OpeningKind.Balcony2, 3, 250.0, 120.0, 240.0, awning = true, awningColor = 0xFF9C2F2F, insectScreen = true, sillMaterial = StairMaterial.Wood),
     )
 
-    private fun look3(o: Opening) = look2(o) + listOf(o.grille, o.topLight, o.bay, o.garage, o.insectScreen, o.awning, o.awningColor, o.sillMaterial)
+    private fun look3(o: Opening) = look2(o) + listOf(o.grille, o.topLight, o.bay, o.garage, o.insectScreen, o.awning, o.awningColor, o.sillMaterial, o.frosted)
 
     @Test
     fun `terzo gruppo - garage con i nomi standard, il resto torna uguale`() {

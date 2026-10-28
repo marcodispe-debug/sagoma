@@ -356,6 +356,7 @@ internal class IfcReader(val f: StepFile) {
             insectScreen = b("InsectScreen"), awning = b("Awning"),
             awningColor = propNum(h.id, IfcExport.PSET, "AwningColor")?.toLong(),
             sillMaterial = e("SillMaterial", StairMaterial.entries),
+            frosted = b("FrostedGlass"),
         )
         if (h.kind != null) return o
         // File non uscito da sagoma: il modo di aprirsi dai nomi dell'IFC.

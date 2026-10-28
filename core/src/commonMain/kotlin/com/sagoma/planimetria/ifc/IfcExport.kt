@@ -550,6 +550,7 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
             if (o.awning) add("Awning" to bool(true))
             o.awningColor?.let { add("AwningColor" to int(it)) }
             o.sillMaterial?.let { add("SillMaterial" to label(it.name)) }
+            if (o.frosted) add("FrostedGlass" to bool(true))
         }
     }
 
