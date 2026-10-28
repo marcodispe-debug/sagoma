@@ -36,6 +36,24 @@ object Takeoff {
     data class Total(val what: String, val quantity: Double, val unit: String)
 
     /**
+     * Superfici di un piano (m², [FloorAreas]): utile (il pavimento delle stanze al chiuso), lorda (con i muri), balconi e
+     * terrazze; per la superficie commerciale anche le zone non calpestabili, la parte dei muri esterni oltre 50 cm e se è
+     * interrato.
+     */
+    data class AreaLine(
+        val floor: String,
+        val usable: Double,
+        val gross: Double,
+        val outdoor: Double,
+        val excluded: Double = 0.0,
+        val extraWall: Double = 0.0,
+        val basement: Boolean = false,
+    ) {
+        /** Quello che conta nella superficie commerciale, prima del peso degli interrati. */
+        val counted: Double get() = (gross - excluded - extraWall).coerceAtLeast(0.0)
+    }
+
+    /**
      * Luce e aria di un ambiente da abitare (una stanza, o il soggiorno con la cucina a vista): m² di pavimento e di finestre
      * apribili che danno fuori ([HousingRules]).
      */
@@ -59,7 +77,12 @@ object Takeoff {
         val phased: Boolean = false,
         /** Luce e aria degli ambienti da abitare (rapporto aeroilluminante), nello stato di progetto. */
         val light: List<LightLine> = emptyList(),
+        /** Superfici dei piani, nello stato di progetto. */
+        val areas: List<AreaLine> = emptyList(),
     ) {
+        /** Superficie commerciale indicativa di tutta la casa (m², DPR 138/1998). */
+        val commercial: Double
+            get() = FloorAreas.commercial(areas.filter { !it.basement }.sumOf { it.counted }, areas.filter { it.basement }.sumOf { it.counted }, areas.sumOf { it.outdoor })
         val totalFloor: Double get() = rooms.sumOf { it.floorArea }
         val totalWalls: Double get() = rooms.sumOf { it.wallArea }
         val totalSkirting: Double get() = rooms.sumOf { it.skirting }
@@ -149,7 +172,8 @@ object Takeoff {
         val fixtures = LinkedHashMap<String, Pair<Int, MutableSet<String>>>()
         var ceilings = 0.0
         val light = mutableListOf<LightLine>()
-        for (fl in building.floors) {
+        val areas = mutableListOf<AreaLine>()
+        for ((index, fl) in building.floors.withIndex()) {
             // Luce e aria: [HousingRules] guarda da solo la casa come sarà (muri e aperture da demolire non contano).
             for (s in HousingRules.livingSpaces(fl.plan)) {
                 light += LightLine(fl.name, s.joinToString(" + ") { it.name }, HousingRules.floorArea(s) / 10_000, HousingRules.windowArea(fl.plan, s) / 10_000)
@@ -172,6 +196,19 @@ object Takeoff {
                     fixtures[f.kind.label] = (e.first + 1) to e.second.also { it += r.name }
                 }
             }
+            // Superfici del piano (quella utile come nella tabella delle stanze, con o senza le zone non calpestabili).
+            if (plan.rooms.isNotEmpty()) {
+                val indoor = plan.rooms.filter { !it.outdoor }
+                areas += AreaLine(
+                    fl.name,
+                    indoor.sumOf { if (withoutZones) it.usableArea() else it.interiorArea() } / 10_000,
+                    FloorAreas.gross(plan) / 10_000,
+                    FloorAreas.outdoor(plan) / 10_000,
+                    FloorAreas.excluded(plan) / 10_000,
+                    FloorAreas.extraWall(plan) / 10_000,
+                    index < building.ground,
+                )
+            }
             // Muri singoli (tramezzi, muretti): una riga per piano, con le pareti dei due lati.
             freeWallsLine(fl, plan, wallTot)?.let { lines += it }
             for (f in plan.furniture) {
@@ -191,6 +228,7 @@ object Takeoff {
             ceilings,
             building.floors.any { Phases.hasChanges(it.plan) },
             light,
+            areas,
         )
     }
 
@@ -276,6 +314,13 @@ object Takeoff {
         head(T.computo.pianoStanzaPavimentoM2)
         for (l in res.rooms) row(t(l.floor), t(l.room), n(l.floorArea), n(l.perimeter), n(l.wallArea), n(l.openingsArea), n(l.skirting), t(l.floorFinish), t(l.wallFinish), "${l.doors}", "${l.windows}")
         head(T.computo.totale2(n(res.totalFloor), n(res.totalWalls), n(res.totalSkirting)))
+        if (res.areas.isNotEmpty()) {
+            appendLine()
+            head(T.computo.superfici2)
+            head(T.computo.pianoSuperfici)
+            for (a in res.areas) row(t(a.floor), n(a.usable), n(a.gross), n(a.outdoor))
+            row(t(T.computo.commercialeCsv), n(res.commercial))
+        }
         appendLine()
         head(T.computo.pavimentiM2M210)
         for (x in res.floorMaterials) row(t(x.what), n(x.quantity), n(x.quantity * 1.1))

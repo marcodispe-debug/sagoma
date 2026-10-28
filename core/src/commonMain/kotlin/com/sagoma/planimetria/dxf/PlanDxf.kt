@@ -129,7 +129,7 @@ object PlanDxf {
      * Pezzi di muro della stanza, uno per muro (i muri eliminati no), tra il filo esterno e quello interno: negli angoli si
      * incontrano in diagonale; dove un muro cambia spessore restando allineato, con uno scalino.
      */
-    private fun wallPieces(r: Room): List<List<Vec2>> {
+    internal fun wallPieces(r: Room): List<List<Vec2>> {
         val n = r.wallCount
         val inner = corners(r.points, r.innerThicknesses.map { it / 2 })
         val outer = corners(r.points, r.outerThicknesses.map { -it / 2 })

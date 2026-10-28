@@ -50,6 +50,19 @@ open class TestiComputo {
     open val notaLuce: String get() =
         "Stanze da abitare. Finestre apribili che danno fuori, misurate sul vano del muro. In Italia (DM 5 luglio 1975) ne serve almeno 1/8 del pavimento."
     open val notaLucePdf: String get() = "Finestre apribili verso fuori, sul vano del muro; almeno 1/8 (DM 5/7/1975)."
+    open val superfici: String get() = "Superfici"
+    open val piano: String get() = "Piano"
+    open val utileM2: String get() = "Utile m²"
+    open val lordaM2: String get() = "Lorda m²"
+    open val balconiM2: String get() = "Balc. m²"
+    open val commerciale: String get() = "Superficie commerciale (indicativa)"
+    open val notaSuperfici: String get() =
+        "Utile: il pavimento delle stanze. Lorda: con i muri. Commerciale (DPR 138/1998): muri esterni fino a 50 cm (quelli in comune " +
+            "con altri appartamenti andrebbero a metà), senza le zone non calpestabili, interrati al 50%, balconi e terrazze al 30% fino a 25 m² e al 10% oltre."
+    open val notaSuperficiPdf: String get() = "DPR 138/1998: muri esterni ≤ 50 cm, interrati 50%, balconi 30% (10% oltre 25 m²)."
+    open val superfici2: String get() = "SUPERFICI"
+    open val pianoSuperfici: String get() = "Piano;Utile m²;Lorda m²;Balconi e terrazze m²"
+    open val commercialeCsv: String get() = "Superficie commerciale indicativa"
     open val luceAria2: String get() = "LUCE E ARIA"
     open val pianoStanzaLuce: String get() = "Piano;Stanza;Pavimento m²;Finestre apribili m²;Rapporto;Almeno 1/8"
 }

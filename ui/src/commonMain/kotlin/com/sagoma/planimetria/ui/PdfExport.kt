@@ -290,6 +290,13 @@ object PdfExport {
         row(listOf(T.pdf.totale, fmt2(res.totalFloor), fmt2(res.totalWalls), fmt2(res.totalSkirting), ""), w, bold = true, right = nums)
         val w2 = listOf(colW * 0.55f, colW * 0.2f, colW * 0.25f)
         val nums2 = setOf(1, 2)
+        if (res.areas.isNotEmpty()) {
+            title(T.computo.superfici)
+            row(listOf(T.computo.piano, T.computo.utileM2, T.computo.lordaM2, T.computo.balconiM2, ""), w, bold = true, right = nums)
+            for (a in res.areas) row(listOf(a.floor, fmt2(a.usable), fmt2(a.gross), fmt2(a.outdoor), ""), w, right = nums)
+            row(listOf(T.computo.commerciale, fmt2(res.commercial), ""), w2, bold = true, right = nums2)
+            row(listOf(T.computo.notaSuperficiPdf), listOf(colW))
+        }
         title(T.pdf.pavimenti)
         row(listOf(T.pdf.materiale, "m²", T.pdf.n10Sfrido), w2, bold = true, right = nums2)
         for (t in res.floorMaterials) row(listOf(t.what, fmt2(t.quantity), fmt2(t.quantity * 1.1)), w2, right = nums2)

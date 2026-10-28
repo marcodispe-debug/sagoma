@@ -193,7 +193,20 @@ object WallOutline {
         }
     }
 
-    fun boundary(pieces: List<List<Vec2>>): List<Pair<Vec2, Vec2>> {
+    fun boundary(pieces: List<List<Vec2>>): List<Pair<Vec2, Vec2>> = merge(edges(pieces))
+
+    /**
+     * Superficie (cm²) dell'unione dei pezzi convessi, dal suo bordo girato con l'unione a sinistra (formula di Gauss): due pezzi
+     * che si sovrappongono contano una volta sola.
+     */
+    fun unionArea(pieces: List<List<Vec2>>): Double {
+        var s = 0.0
+        for ((a, b) in mergeDirected(edges(pieces))) s += a.x * b.y - b.x * a.y
+        return s / 2
+    }
+
+    /** I pezzi del bordo dell'unione, ognuno girato con l'unione alla sua sinistra (doppioni compresi). */
+    private fun edges(pieces: List<List<Vec2>>): List<Pair<Vec2, Vec2>> {
         val ps = pieces.filter { pc -> pc.size >= 3 && pc.all { it.x.isFinite() && it.y.isFinite() } && abs(signedArea(pc)) > 1e-4 }
             .map { Piece(it) }
         // I lati, con il pezzo da cui vengono.
@@ -287,10 +300,47 @@ object WallOutline {
                 // Da una parte di solito c'è il pezzo del lato stesso: si guarda prima lui.
                 val left = own.holds(mx + nx, my + ny) || inside(mx + nx, my + ny)
                 val right = own.holds(mx - nx, my - ny) || inside(mx - nx, my - ny)
-                if (left != right) kept += Vec2(ax[index] + dx * t0, ay[index] + dy * t0) to Vec2(ax[index] + dx * t1, ay[index] + dy * t1)
+                if (left == right) continue
+                val p0 = Vec2(ax[index] + dx * t0, ay[index] + dy * t0)
+                val p1 = Vec2(ax[index] + dx * t1, ay[index] + dy * t1)
+                kept += if (left) p0 to p1 else p1 to p0
             }
         }
-        return merge(kept)
+        return kept
+    }
+
+    /**
+     * Come [merge], ma tiene il verso: pezzi sulla stessa linea e nello stesso verso che si toccano o si sovrappongono diventano
+     * uno solo (i doppioni, dove due pezzi hanno un lato in comune, non contano due volte nell'area).
+     */
+    private fun mergeDirected(segments: List<Pair<Vec2, Vec2>>): List<Pair<Vec2, Vec2>> {
+        class Line(val angle: Double, val offset: Double, val intervals: MutableList<Pair<Double, Double>> = mutableListOf())
+        val lines = LinkedHashMap<Pair<Long, Long>, Line>()
+        for ((a, b) in segments) {
+            val d = (b - a).normalized()
+            var angle = atan2(d.y, d.x)
+            // −180° e 180° sono lo stesso verso.
+            if (angle <= -kotlin.math.PI + 1e-7) angle += 2 * kotlin.math.PI
+            val offset = d.x * a.y - d.y * a.x
+            val key = round(angle * 1e5).toLong() to round(offset * 100).toLong()
+            val line = lines.getOrPut(key) { Line(angle, offset) }
+            line.intervals += (a dot d) to (b dot d)
+        }
+        val out = mutableListOf<Pair<Vec2, Vec2>>()
+        for (l in lines.values) {
+            val d = Vec2(kotlin.math.cos(l.angle), kotlin.math.sin(l.angle))
+            val n = Vec2(-d.y, d.x)
+            fun at(t: Double) = d * t + n * l.offset
+            val sorted = l.intervals.sortedBy { it.first }
+            var s = sorted.first().first
+            var e = sorted.first().second
+            for ((x, y) in sorted.drop(1)) {
+                if (x <= e + 0.01) e = max(e, y)
+                else { out += at(s) to at(e); s = x; e = y }
+            }
+            out += at(s) to at(e)
+        }
+        return out
     }
 
     /** Pezzi sulla stessa linea che si toccano o si sovrappongono diventano una linea sola (e i doppioni spariscono). */

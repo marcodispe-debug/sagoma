@@ -50,6 +50,19 @@ object TestiComputoEs : TestiComputo() {
     override val notaLuce: String get() =
         "Estancias habitables. Ventanas practicables al exterior, medidas en el hueco de la pared. En Italia (decreto del 5 de julio de 1975) se necesita al menos 1/8 del suelo."
     override val notaLucePdf: String get() = "Ventanas practicables al exterior, en el hueco; al menos 1/8 (DM italiano 5/7/1975)."
+    override val superfici: String get() = "Superficies"
+    override val piano: String get() = "Planta"
+    override val utileM2: String get() = "Útil m²"
+    override val lordaM2: String get() = "Constr. m²"
+    override val balconiM2: String get() = "Balc. m²"
+    override val commerciale: String get() = "Superficie comercial (orientativa)"
+    override val notaSuperfici: String get() =
+        "Útil: el suelo de las habitaciones. Construida: con las paredes. Comercial (DPR italiano 138/1998): paredes exteriores hasta 50 cm (las " +
+            "medianeras con otras viviendas contarían la mitad), sin las zonas no transitables, sótanos al 50 %, balcones y terrazas al 30 % hasta 25 m² y al 10 % a partir de ahí."
+    override val notaSuperficiPdf: String get() = "DPR 138/1998 (Italia): paredes ext. ≤ 50 cm, sótanos 50 %, balcones 30 % (10 % > 25 m²)."
+    override val superfici2: String get() = "SUPERFICIES"
+    override val pianoSuperfici: String get() = "Planta;Útil m²;Construida m²;Balcones y terrazas m²"
+    override val commercialeCsv: String get() = "Superficie comercial orientativa"
     override val luceAria2: String get() = "LUZ Y AIRE"
     override val pianoStanzaLuce: String get() = "Planta;Habitación;Superficie útil m²;Ventanas practicables m²;Relación;Al menos 1/8"
     override val impiantiQuantitaDove: String get() = "INSTALACIONES;Cantidad;Dónde"

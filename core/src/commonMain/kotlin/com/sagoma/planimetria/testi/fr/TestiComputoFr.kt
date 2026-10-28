@@ -50,6 +50,19 @@ object TestiComputoFr : TestiComputo() {
     override val notaLuce: String get() =
         "Pièces à vivre. Fenêtres ouvrantes donnant dehors, mesurées sur la baie du mur. En Italie (décret du 5 juillet 1975), il en faut au moins 1/8 du sol."
     override val notaLucePdf: String get() = "Fenêtres ouvrantes donnant dehors, sur la baie ; au moins 1/8 (DM italien 5/7/1975)."
+    override val superfici: String get() = "Surfaces"
+    override val piano: String get() = "Étage"
+    override val utileM2: String get() = "Utile m²"
+    override val lordaM2: String get() = "Brute m²"
+    override val balconiM2: String get() = "Balc. m²"
+    override val commerciale: String get() = "Surface commerciale (indicative)"
+    override val notaSuperfici: String get() =
+        "Utile : le sol des pièces. Brute : avec les murs. Commerciale (DPR italien 138/1998) : murs extérieurs jusqu'à 50 cm (ceux mitoyens " +
+            "avec d'autres logements compteraient à moitié), sans les zones non praticables, sous-sols à 50 %, balcons et terrasses à 30 % jusqu'à 25 m² et 10 % au-delà."
+    override val notaSuperficiPdf: String get() = "DPR 138/1998 (Italie) : murs ext. ≤ 50 cm, sous-sols 50 %, balcons 30 % (10 % > 25 m²)."
+    override val superfici2: String get() = "SURFACES"
+    override val pianoSuperfici: String get() = "Étage;Utile m²;Brute m²;Balcons et terrasses m²"
+    override val commercialeCsv: String get() = "Surface commerciale indicative"
     override val luceAria2: String get() = "LUMIÈRE ET AIR"
     override val pianoStanzaLuce: String get() = "Étage;Pièce;Surface au sol m²;Fenêtres ouvrantes m²;Rapport;Au moins 1/8"
     override val impiantiQuantitaDove: String get() = "ÉQUIPEMENTS;Quantité;Où"

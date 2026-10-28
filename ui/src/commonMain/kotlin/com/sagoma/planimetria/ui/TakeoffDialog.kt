@@ -90,6 +90,15 @@ fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Uni
                     style = MaterialTheme.typography.bodySmall,
                 )
                 if (res.phased) Text(T.computo.statoDiProgetto, style = MaterialTheme.typography.bodySmall)
+                if (res.areas.isNotEmpty()) {
+                    Section(T.computo.superfici)
+                    Column(Modifier.horizontalScroll(rememberScrollState())) {
+                        TableRow(listOf(T.computo.piano, T.computo.utileM2, T.computo.lordaM2, T.computo.balconiM2, ""), header = true)
+                        for (a in res.areas) TableRow(listOf(a.floor, fmt2(a.usable), fmt2(a.gross), fmt2(a.outdoor), ""))
+                    }
+                    Line(T.computo.commerciale, "${fmt2(res.commercial)} m²")
+                    Text(T.computo.notaSuperfici, style = MaterialTheme.typography.bodySmall)
+                }
                 Section(T.computo.pavimentiOrdinare)
                 for (t in res.floorMaterials) Line(t.what, "${fmt2(t.quantity)} m²  (+10% ${fmt2(t.quantity * 1.1)})")
                 Section(T.computo.finiturePareti)

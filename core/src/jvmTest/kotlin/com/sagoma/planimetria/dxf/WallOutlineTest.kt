@@ -144,5 +144,32 @@ class WallOutlineTest {
         val over = listOf(Vec2(50.0, 10.0), Vec2(150.0, 10.0), Vec2(150.0, 30.0), Vec2(50.0, 30.0))
         // Contorno a 8 lati, nessuno dentro.
         assertEquals(8, WallOutline.boundary(listOf(doubled, over)).size)
+        assertEquals(2000.0 + 2000.0 - 500.0, WallOutline.unionArea(listOf(doubled, over)), 1e-6)
+    }
+
+    @Test
+    fun `superficie dell'unione come una griglia fitta`() {
+        val random = Random(7)
+        repeat(20) { round ->
+            val pieces = (0 until 12).map {
+                val a = Vec2(random.nextDouble(0.0, 300.0), random.nextDouble(0.0, 300.0))
+                val dir = random.nextDouble(0.0, 6.3).let { Vec2(cos(it), sin(it)) }
+                // Girati nei due versi: la superficie non cambia.
+                band(a, a + dir * random.nextDouble(20.0, 200.0), random.nextDouble(5.0, 40.0)).let { if (random.nextBoolean()) it.reversed() else it }
+            }
+            var inside = 0
+            var y = -250.0 + 0.37
+            while (y < 550) {
+                var x = -250.0 + 0.41
+                while (x < 550) {
+                    val q = Vec2(x, y)
+                    if (pieces.any { p -> val sign = if (area(p) >= 0) 1.0 else -1.0; p.indices.all { k -> val a = p[k]; val b = p[(k + 1) % p.size]; ((b.x - a.x) * (q.y - a.y) - (b.y - a.y) * (q.x - a.x)) * sign > 0 } }) inside++
+                    x += 1.0
+                }
+                y += 1.0
+            }
+            val got = WallOutline.unionArea(pieces)
+            assertTrue(abs(got - inside) <= 0.01 * inside, "giro $round: $got contro $inside")
+        }
     }
 }
