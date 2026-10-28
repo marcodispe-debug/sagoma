@@ -60,4 +60,15 @@ class LiveCheckTest {
         assertTrue(alone.any { !it.kind.error })
         assertEquals(emptyList(), LiveCheck.newErrors(emptyList(), alone))
     }
+
+    @Test
+    fun `niente avviso per un errore tolto dalla pianta`() {
+        val ok = issues(living, kitchen)
+        val b = Building.single(FloorPlan(listOf(living, kitchen.moved(-100.0))))
+        val over = PlanCheck.of(b)
+        val overlap = over.single { it.kind == PlanCheck.Kind.Overlap }
+        assertEquals(overlap, LiveCheck.notice(ok, over, b))
+        // Tolto dalla pianta (la cucina era già sovrapposta, rimessa a posto e sovrapposta di nuovo): l'avviso non si ripete.
+        assertNull(LiveCheck.notice(ok, over, b.copy(hiddenChecks = setOf(PlanCheck.hideKey(b, overlap)))))
+    }
 }

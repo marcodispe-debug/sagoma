@@ -143,8 +143,8 @@ internal const val OPEN_GROUP_MAX = 8
 internal fun openAtStart(groups: List<Pair<String, List<PlanCheck.Issue>>>): Map<String, Boolean> =
     groups.withIndex().associate { (k, g) -> g.first to (k == 0 || g.second.size <= OPEN_GROUP_MAX) }
 
-/** Errori di disegno (⚠) della casa: prima di esportare si avvisa se ce ne sono. */
-fun drawingErrors(b: Building): Int = runCatching { PlanCheck.of(b).count { it.kind.error } }.getOrDefault(0)
+/** Errori di disegno (⚠) della casa: prima di esportare si avvisa se ce ne sono. Non quelli tolti dalla pianta (già visti). */
+fun drawingErrors(b: Building): Int = runCatching { PlanCheck.of(b).count { it.kind.error && !PlanCheck.hidden(b, it) } }.getOrDefault(0)
 
 /**
  * Prima di esportare (tavola PDF, DXF) con degli errori di disegno nella pianta: «Controlla» apre «Controlla la pianta», «Esporta lo

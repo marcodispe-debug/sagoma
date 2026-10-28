@@ -172,9 +172,9 @@ fun EditorScreen(
         val before = liveIssues
         liveIssues = now
         // Annullato o corretto, l'avviso sparisce. Appena aperto il progetto solo il segnale; durante la guida niente avvisi
-        // (ha già le sue schede).
+        // (ha già le sue schede); niente avviso per un errore già tolto dalla pianta.
         val still = liveNotice?.let { LiveCheck.stillThere(it, now) }
-        val fresh = if (before != null && state.course == null && state.tutorial == null) LiveCheck.newErrors(before, now).firstOrNull() else null
+        val fresh = if (before != null && state.course == null && state.tutorial == null) LiveCheck.notice(before, now, liveBuilding) else null
         liveNotice = fresh ?: still
         // Nella scheda di un «!» restano i problemi che ci sono ancora; un errore appena fatto la chiude.
         openMark = if (fresh != null) null else openMark?.mapNotNull { LiveCheck.stillThere(it, now) }?.takeIf { it.isNotEmpty() }

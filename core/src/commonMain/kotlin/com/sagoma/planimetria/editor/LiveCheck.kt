@@ -1,5 +1,7 @@
 package com.sagoma.planimetria.editor
 
+import com.sagoma.planimetria.model.Building
+
 /**
  * «Controlla la pianta» in tempo reale, mentre si disegna: quanti problemi ci sono (il segnale sulla pianta, che apre l'elenco) e
  * quali errori di disegno (⚠) sono appena comparsi con una modifica (l'avviso breve con «Mostra» e «Correggi»).
@@ -41,6 +43,13 @@ object LiveCheck {
         val grown = errors.groupingBy(::group).eachCount().filter { (g, n) -> n > (old[g] ?: 0) }.keys
         return errors.filter { group(it) in grown && key(it) !in oldKeys }
     }
+
+    /**
+     * L'errore appena fatto da dire con l'avviso ([newErrors]): il primo, ma non uno tolto dalla pianta nella casa `b` (quella di
+     * `now`), che si è già visto.
+     */
+    fun notice(before: List<PlanCheck.Issue>, now: List<PlanCheck.Issue>, b: Building): PlanCheck.Issue? =
+        newErrors(before, now).firstOrNull { !PlanCheck.hidden(b, it) }
 
     /** L'avviso `notice` vale ancora (l'errore c'è ancora in `now`): annullato o corretto, l'avviso sparisce. */
     fun stillThere(notice: PlanCheck.Issue, now: List<PlanCheck.Issue>): PlanCheck.Issue? {

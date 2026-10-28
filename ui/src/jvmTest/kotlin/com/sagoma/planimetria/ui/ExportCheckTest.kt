@@ -3,6 +3,7 @@ package com.sagoma.planimetria.ui
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.use
+import com.sagoma.planimetria.editor.PlanCheck
 import com.sagoma.planimetria.geometry.RoomFactory
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FloorPlan
@@ -17,6 +18,7 @@ import java.io.File
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /** Prima di esportare: quanti errori di disegno ha la pianta, e la finestra che lo dice (foto in build/prima-di-esportare-*.png). */
 class ExportCheckTest {
@@ -32,7 +34,11 @@ class ExportCheckTest {
         assertEquals(0, drawingErrors(Building.single(FloorPlan(listOf(living, kitchen)))))
         // La cucina spostata di un metro dentro il soggiorno: stanze sovrapposte.
         val over = kitchen.copy(points = kitchen.points.map { it - Vec2(100.0, 0.0) })
-        kotlin.test.assertTrue(drawingErrors(Building.single(FloorPlan(listOf(living, over)))) >= 1)
+        val wrong = Building.single(FloorPlan(listOf(living, over)))
+        assertTrue(drawingErrors(wrong) >= 1)
+        // Tolti dalla pianta (già visti, voluti così): non si contano.
+        val seen = wrong.copy(hiddenChecks = PlanCheck.of(wrong).filter { it.kind.error }.mapTo(HashSet()) { PlanCheck.hideKey(wrong, it) })
+        assertEquals(0, drawingErrors(seen))
         assertEquals("La pianta ha un errore di disegno (⚠): misure, metri quadri e computo potrebbero essere sbagliati anche nel file esportato.", T.controllo.primaDiEsportare(1))
         for ((name, lingua) in listOf("it" to Italiano, "en" to Inglese)) {
             T.lingua = lingua
