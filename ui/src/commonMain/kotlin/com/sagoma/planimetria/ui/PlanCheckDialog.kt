@@ -19,6 +19,7 @@ import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.editor.PlanCheck
+import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.testi.T
 
 /**
@@ -70,5 +71,23 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                 TextButton(onClick = { platform.shareText(T.controllo.oggetto(projectName), PlanCheck.report(building, issues)) }) { Text(T.controllo.condividi) }
             }
         },
+    )
+}
+
+/** Errori di disegno (⚠) della casa: prima di esportare si avvisa se ce ne sono. */
+fun drawingErrors(b: Building): Int = runCatching { PlanCheck.of(b).count { it.kind.error } }.getOrDefault(0)
+
+/**
+ * Prima di esportare (tavola PDF, DXF) con degli errori di disegno nella pianta: «Controlla» apre «Controlla la pianta», «Esporta lo
+ * stesso» va avanti.
+ */
+@Composable
+fun ExportCheckDialog(errors: Int, onCheck: () -> Unit, onExport: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(T.controllo.primaDiEsportareTitolo) },
+        text = { Text(T.controllo.primaDiEsportare(errors)) },
+        confirmButton = { TextButton(onClick = onCheck) { Text(T.controllo.controlla) } },
+        dismissButton = { TextButton(onClick = onExport) { Text(T.controllo.esportaLoStesso) } },
     )
 }

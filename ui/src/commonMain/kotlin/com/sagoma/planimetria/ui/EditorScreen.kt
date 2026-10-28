@@ -152,13 +152,21 @@ fun EditorScreen(
     var showTheme by remember { mutableStateOf(false) }
     var showLanguage by remember { mutableStateOf(false) }
     var showSite by remember { mutableStateOf(false) }
+    // Prima di esportare (tavola PDF, DXF): se la pianta ha errori di disegno lo dice, e si può controllare o andare avanti; dopo
+    // «Esporta lo stesso» non lo chiede più finché il progetto resta aperto.
+    var exportAnyway by remember { mutableStateOf(false) }
+    var pendingExport by remember { mutableStateOf<Pair<Int, () -> Unit>?>(null) }
+    fun checked(action: () -> Unit): () -> Unit = {
+        val errors = if (exportAnyway) 0 else drawingErrors(vm.state.value.fullBuilding)
+        if (errors == 0) action() else pendingExport = errors to action
+    }
     val extraMenu = listOf(
         T.editor.progetti to { vm.saveNow(); onOpenProjects() },
         T.editor.livelli to { showLayers = true },
-        T.editor.tavolaPdfScala to { showPdf = true },
+        T.editor.tavolaPdfScala to checked { showPdf = true },
         T.editor.computoListaArredi to { showTakeoff = true },
         T.controllo.voceMenu to { showCheck = true },
-        T.editor.esportaDxf to exportDxf,
+        T.editor.esportaDxf to checked(exportDxf),
         T.editor.piantaSfondo to { showBackground = true },
         T.editor.temaChiaroScuro to { showTheme = true },
         if (state.building.units == LengthUnit.Meters) T.editor.misureInCentimetri to { vm.setUnits(LengthUnit.Centimeters) }
@@ -170,6 +178,14 @@ fun EditorScreen(
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
     if (showCheck) PlanCheckDialog(state, vm, onDismiss = { showCheck = false; vm.planCheckClosed() }, projectName = projects.info(projectId)?.name)
+    pendingExport?.let { (errors, action) ->
+        ExportCheckDialog(
+            errors,
+            onCheck = { pendingExport = null; showCheck = true },
+            onExport = { pendingExport = null; exportAnyway = true; action() },
+            onDismiss = { pendingExport = null },
+        )
+    }
     // "Ricalca una piantina" al posto della prima stanza: la finestra resta aperta finché non si carica e si tara la piantina.
     val tracingSetup = state.tracing != null && state.underlayTool == null
     if (showBackground || tracingSetup) BackgroundDialog(state, vm, projectId, tracing = state.tracing != null, onDismiss = {

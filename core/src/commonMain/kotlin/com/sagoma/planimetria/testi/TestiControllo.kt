@@ -21,6 +21,11 @@ open class TestiControllo {
     open val mostra: String get() = "Mostra"
     open val chiudi: String get() = "Chiudi"
     open fun troppi(n: Int): String = "Solo i primi $n: correggi questi e controlla di nuovo."
+    open val primaDiEsportareTitolo: String get() = "Prima di esportare"
+    open fun primaDiEsportare(n: Int): String =
+        "La pianta ha ${if (n == 1) "un errore" else "$n errori"} di disegno (⚠): misure, metri quadri e computo potrebbero essere sbagliati anche nel file esportato."
+    open val controlla: String get() = "Controlla"
+    open val esportaLoStesso: String get() = "Esporta lo stesso"
     open val condividi: String get() = "Condividi"
     open fun oggetto(progetto: String?): String = "Controllo della pianta" + (progetto?.let { " · $it" } ?: "")
     open fun muriIncrociati(a: String): String = "$a: i muri si incrociano e il contorno si taglia da solo, così area e 3D vengono sbagliati. Sposta gli angoli."

@@ -21,6 +21,11 @@ object TestiControlloEn : TestiControllo() {
     override val mostra: String get() = "Show"
     override val chiudi: String get() = "Close"
     override fun troppi(n: Int): String = "Only the first $n: fix these and check again."
+    override val primaDiEsportareTitolo: String get() = "Before exporting"
+    override fun primaDiEsportare(n: Int): String =
+        "The plan has ${if (n == 1) "a drawing mistake" else "$n drawing mistakes"} (⚠): measures, areas and quantities could be wrong in the exported file too."
+    override val controlla: String get() = "Check"
+    override val esportaLoStesso: String get() = "Export anyway"
     override val condividi: String get() = "Share"
     override fun oggetto(progetto: String?): String = "Plan check" + (progetto?.let { " · $it" } ?: "")
     override fun muriIncrociati(a: String): String = "$a: the walls cross and the outline cuts itself, so area and 3D come out wrong. Move the corners."
