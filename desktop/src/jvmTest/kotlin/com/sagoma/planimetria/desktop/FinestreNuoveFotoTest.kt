@@ -18,7 +18,7 @@ import kotlin.test.Test
 
 /**
  * Foto 3D delle finestre nuove (inferriata, sopraluce, legno con fermavetro, persiana alla romana e bovindo) e delle porte
- * da garage (basculante e sezionale), zanzariere, tende da sole, vetromattone e persiane scorrevoli, viste da fuori e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
+ * da garage (basculante e sezionale), zanzariere, tende da sole, vetromattone, persiane scorrevoli e porta tutto vetro, viste da fuori e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
  */
 class FinestreNuoveFotoTest {
     @Test
@@ -61,6 +61,8 @@ class FinestreNuoveFotoTest {
                 o(3, OpeningKind.Window1, 0, 150.0, OpeningPreset.GlassBlock).copy(sillMaterial = StairMaterial.Marble),
                 // Balcone con le persiane scorrevoli (antracite) sul muro a destra.
                 o(4, OpeningKind.Balcony2, 1, 225.0, OpeningPreset.None).copy(shading = Shading.SlidingShutters, sillMaterial = StairMaterial.Marble),
+                // Porta tutto vetro sul muro a sinistra.
+                o(5, OpeningKind.Door, 3, 225.0, OpeningPreset.AllGlass),
             ),
         )
         val scene = Scene3D.build(FloorPlan(listOf(room, garage, living)), null, null, ceilings = false)
@@ -89,5 +91,6 @@ class FinestreNuoveFotoTest {
         shot("15-vetromattone-dentro", Vec3(230.0, 160.0, 960.0), Vec3(150.0, 155.0, 700.0), 70.0, walking = true)
         shot("16-scorrevoli-balcone", Vec3(1000.0, 180.0, 1150.0), Vec3(600.0, 120.0, 925.0), 55.0, walking = false)
         shot("17-scorrevoli-finestra", Vec3(780.0, 160.0, 380.0), Vec3(600.0, 140.0, 225.0), 70.0, walking = false)
+        shot("18-porta-tutto-vetro", Vec3(200.0, 150.0, 1110.0), Vec3(20.0, 110.0, 900.0), 70.0, walking = true)
     }
 }

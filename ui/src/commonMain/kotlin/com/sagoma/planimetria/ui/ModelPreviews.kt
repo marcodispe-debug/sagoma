@@ -34,6 +34,7 @@ private val WallBack = Color(0xFFE9E6E0)
 private val Metal = Color(0xFF4A4E53)
 private val Mortar = Color(0xFFD4D1C9)
 private val FrostedGlass = Color(0xFFCFE2E8)
+private val SatinGlass = Color(0xFFDDE8EA)
 
 /** Stesso colore, più scuro (`k` < 1) o più chiaro (`k` > 1). */
 internal fun Color.shade(k: Float): Color =
@@ -78,6 +79,12 @@ internal fun DrawScope.doorPreview(model: DoorModel, color: Color) {
         DoorModel.Modern -> {
             for (y in listOf(0.3f, 0.55f, 0.8f)) drawLine(line, px(l + 0.03f, y), px(r - 0.03f, y), thin)
             drawLine(Metal, px(r - 0.07f, 0.35f), px(r - 0.07f, 0.75f), 2.5f * density, cap = StrokeCap.Round)
+        }
+        DoorModel.AllGlass -> {
+            // Lastra satinata con le cerniere di metallo.
+            box(l, t, r, b, SatinGlass)
+            box(l, t, r, b, color.shade(0.72f), thin)
+            for (y in listOf(0.2f, 0.82f)) box(l, y, l + 0.03f, y + 0.06f, Metal)
         }
         DoorModel.Armored -> {
             // Tre bugne quadrate, serratura e spioncino.

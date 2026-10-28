@@ -42,6 +42,7 @@ object NomiFr : Nomi() {
         DoorModel.Planks -> "À lames"
         DoorModel.Modern -> "Moderne"
         DoorModel.Armored -> "Blindée"
+        DoorModel.AllGlass -> "Tout verre"
     }
 
     override fun finish(v: Finish): String = when (v) {

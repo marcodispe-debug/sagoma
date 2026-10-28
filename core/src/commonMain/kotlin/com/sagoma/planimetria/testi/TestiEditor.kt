@@ -53,6 +53,7 @@ open class TestiEditor {
     open val portaALibro: String get() = "Porta a libro"
     open val portaFiloMuro: String get() = "Porta filo muro"
     open val portaBlindata: String get() = "Porta blindata (ingresso)"
+    open val portaTuttoVetro: String get() = "Porta tutto vetro (satinato)"
     open val portaConSopraluce: String get() = "Porta con sopraluce e vetro di fianco"
     open val portaABilico: String get() = "Porta a bilico"
     open val porta2AnteDisuguali: String get() = "Porta a 2 ante disuguali"

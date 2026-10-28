@@ -511,6 +511,9 @@ private class SceneBuilder(
     private val frame = Rgba(0.97f, 0.97f, 0.97f)
     /** Vetro: trasparenza 0,35. Nel 3D del computer i trasparenti più coprenti sono un velo (zanzariera, vetromattone; vedi PbrShaders). */
     private val glass = Rgba(0.55f, 0.78f, 0.92f, 0.35f)
+
+    /** Vetro satinato delle porte: un velo bianco (tra 0,36 e 0,5 sul computer non lascia passare la luce del cielo). */
+    private val satinGlass = Rgba(0.88f, 0.92f, 0.93f, 0.48f)
     private val wood = Rgba(0.62f, 0.44f, 0.29f)
     private val ceilingColor = Rgba(0.97f, 0.97f, 0.96f)
     /** Tetto piano sopra i piani di sotto (dove il piano di sopra non li copre): guaina grigio chiaro. */
@@ -2176,6 +2179,15 @@ private class SceneBuilder(
             DoorModel.Modern -> {
                 part(0.0, 1.0, 0.0, height, thick, color)
                 for (y in listOf(0.3, 0.55, 0.8)) part(0.04, 0.96, height * y - 0.4, height * y + 0.4, thick + 0.25, relief)
+            }
+            DoorModel.AllGlass -> {
+                // Lastra di vetro satinato (un velo sul computer, vedi PbrShaders) con le due cerniere dal lato opposto alla maniglia e la
+                // serratura di metallo.
+                pane(start, start + dir * length, 0.5, height, tint(satinGlass, pick).copy(a = satinGlass.a), pick)
+                val hinge = if (handleAtEnd) 0.0 else 0.94
+                for (y in listOf(20.0, height - 32.0)) part(hinge, hinge + 0.06, y, y + 12.0, thick * 0.4 + 0.8, metal)
+                val lockAt = if (handleAtEnd) 0.84 else 0.04
+                part(lockAt, lockAt + 0.12, 92.0, 110.0, thick * 0.4 + 0.6, metal)
             }
             DoorModel.Armored -> {
                 // Anta più spessa, bugne quadrate in rilievo, serratura sopra la maniglia e spioncino.

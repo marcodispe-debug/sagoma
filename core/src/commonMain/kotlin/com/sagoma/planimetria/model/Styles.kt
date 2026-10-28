@@ -17,6 +17,8 @@ enum class DoorModel {
     Modern,
     /** Blindata: anta spessa con le bugne, serratura e spioncino. */
     Armored,
+    /** Tutto vetro: anta di vetro temperato satinato, senza telaio, con le cerniere e la maniglia di metallo. */
+    AllGlass,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */

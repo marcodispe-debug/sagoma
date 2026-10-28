@@ -307,8 +307,9 @@ object PbrShaders {
             rough = clamp(rough, 0.06, 1.0);
             vec3 albedo = base.rgb;
             vec3 V = normalize(uEye - vPos);
-            // Velo: la rete della zanzariera e il vetro smerigliato (vetromattone), che hanno il colore più coprente dei vetri
-            // normali (0,35): coprono quanto dice il loro colore. Lo smerigliato (oltre 0,5) in più lascia passare la luce.
+            // Velo: la rete della zanzariera, il vetro satinato delle porte e il vetro smerigliato (vetromattone), che hanno il colore
+            // più coprente dei vetri normali (0,35): coprono quanto dice il loro colore. Lo smerigliato (oltre 0,5) in più lascia
+            // passare la luce del cielo.
             bool veil = uGlass > 0.5 && base.a > 0.36;
             bool frosted = veil && base.a > 0.5;
             if (uGlass > 0.5) {

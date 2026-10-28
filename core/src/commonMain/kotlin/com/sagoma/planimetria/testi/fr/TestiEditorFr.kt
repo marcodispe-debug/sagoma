@@ -54,6 +54,7 @@ object TestiEditorFr : TestiEditor() {
     override val portaALibro: String get() = "Porte pliante"
     override val portaFiloMuro: String get() = "Porte affleurante"
     override val portaBlindata: String get() = "Porte blindée (entrée)"
+    override val portaTuttoVetro: String get() = "Porte tout verre (dépoli)"
     override val portaConSopraluce: String get() = "Porte avec imposte et vitrage latéral"
     override val portaABilico: String get() = "Porte pivotante"
     override val porta2AnteDisuguali: String get() = "Porte double, vantaux inégaux"

@@ -88,7 +88,7 @@ data class PendingOpening(
 /** Varianti di porte e finestre offerte dal menu; dopo si cambiano tutte dalla scheda Info. */
 enum class OpeningPreset {
     None, WallSlide, Folding, Frameless, UnequalLeaves, TiltTurn, Hopper, Fixed, InteriorGlazing, Armored, Pivot, Glazed, PivotSash, ThreeLeaves, FourLeaves, LiftSlide, ArchedWindow, RoundWindow,
-    Grille, TopLight, WoodWindow, RomanShutter, BayWindow, GarageUpAndOver, GarageSectional, GlassBlock;
+    Grille, TopLight, WoodWindow, RomanShutter, BayWindow, GarageUpAndOver, GarageSectional, GlassBlock, AllGlass;
 
     fun apply(o: Opening): Opening = when (this) {
         None -> o
@@ -127,6 +127,8 @@ enum class OpeningPreset {
         GarageSectional -> o.copy(garage = GarageDoor.Sectional, width = 250.0, height = 215.0)
         // Vetromattone: 4 × 6 blocchi da 19 cm, alto da terra come nei bagni.
         GlassBlock -> o.withWindowModel(WindowModel.GlassBlock).copy(width = 76.0, height = 114.0, sillHeight = 100.0)
+        // Porta tutto vetro: il telaio bianco, come di solito.
+        AllGlass -> o.copy(doorModel = DoorModel.AllGlass, color = Finish.White)
     }
 }
 

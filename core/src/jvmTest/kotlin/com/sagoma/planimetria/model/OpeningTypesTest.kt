@@ -598,4 +598,21 @@ class OpeningTypesTest {
         val plan = FloorPlan(listOf(room(w, single.copy(id = 2, wallIndex = 2))))
         assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
     }
+
+    @Test
+    fun `porta tutto vetro - lastra satinata con le cerniere, telaio bianco`() {
+        val d = OpeningPreset.AllGlass.apply(Opening.default(1, OpeningKind.Door, 0, 200.0))
+        assertEquals(DoorModel.AllGlass, d.doorModel)
+        // Scorrevole sul muro: l'anta di vetro si colpisce (e si sceglie) ed è tra i trasparenti.
+        val slide = OpeningPreset.WallSlide.apply(d)
+        val hit = assertNotNull(fromInside(scene(slide), if (slide.hingeLeft) 170.0 else 230.0, 60.0))
+        assertEquals(Pick.Opening(1, 1), hit.pick)
+        assertTrue(hit.point.z > 9.0, "z = ${hit.point.z}")
+        assertTrue(scene(slide).transparent.size > scene(slide.copy(doorModel = DoorModel.Flush)).transparent.size)
+        assertEquals("Tutto vetro, bianco", Openings.description(d))
+        // «Copia stile» tra porte: il modello passa; si salva e si rilegge.
+        assertEquals(DoorModel.AllGlass, Opening.default(2, OpeningKind.Door2, 1, 150.0).withStyleOf(d).doorModel)
+        val plan = FloorPlan(listOf(room(d, slide.copy(id = 2, wallIndex = 2))))
+        assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
+    }
 }

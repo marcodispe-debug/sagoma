@@ -42,6 +42,7 @@ open class Nomi {
         DoorModel.Planks -> "A doghe"
         DoorModel.Modern -> "Moderna"
         DoorModel.Armored -> "Blindata"
+        DoorModel.AllGlass -> "Tutto vetro"
     }
 
     open fun finish(v: Finish): String = when (v) {
