@@ -227,9 +227,9 @@ object PlanCheck {
     /**
      * Problemi che [fixed] sa correggere da solo: solo per questi c'è «Correggi». La stessa apertura messa due volte solo se le due
      * sono dello stesso tipo (una porta e una finestra nello stesso punto: quale togliere lo sceglie chi disegna). L'apertura su un
-     * muro lungo quasi zero no: si corregge il muro (l'apertura passa su quello dopo). Le ante che urtano, le stanze sovrapposte e
-     * quelle senza porta qui sì, ma girarle, spostarle o trovare dove mettere la porta non sempre si può: [canFix] con la casa
-     * lo prova ([triesFirst]).
+     * muro lungo quasi zero no: si corregge il muro (l'apertura passa su quello dopo). Le ante che urtano, le stanze sovrapposte,
+     * quelle senza porta e la casa senza ingresso qui sì, ma girarle, spostarle o trovare dove mettere la porta non sempre si può:
+     * [canFix] con la casa lo prova ([triesFirst]).
      */
     fun canFix(i: Issue): Boolean = when (i.kind) {
         Kind.FurnitureInWall -> i.b == 0.0
@@ -238,6 +238,7 @@ object PlanCheck {
         Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall, Kind.NearWalls, Kind.OpeningOnRemovedWall -> true
         Kind.Overlap -> i.rooms.size == 2
         Kind.NoDoor, Kind.TinyRoom -> i.rooms.size == 1
+        Kind.NoEntrance -> true
         Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall -> i.selection is Selection.Opening
         else -> false
     }
@@ -248,7 +249,7 @@ object PlanCheck {
     private val BY_ROOMS = setOf(Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.TinyRoom)
 
     /** Problemi che [canFix] con la casa prova a correggere davvero prima di offrire «Correggi» ([triesFirst]). */
-    private val TRIES_FIRST = SWINGS + Kind.Overlap + Kind.NoDoor
+    private val TRIES_FIRST = SWINGS + Kind.Overlap + Kind.NoDoor + Kind.NoEntrance
 
     /**
      * Chiave del problema `i` tra quelli tolti dalla pianta ([Building.hiddenChecks]): tipo, piano (il suo id, che non cambia
@@ -307,7 +308,7 @@ object PlanCheck {
 
     /**
      * Problemi che prima di offrire «Correggi» si prova a correggere davvero ([canFix] con la casa): le ante che urtano, le stanze
-     * sovrapposte e quelle senza porta.
+     * sovrapposte, quelle senza porta e la casa senza porta d'ingresso.
      */
     fun triesFirst(i: Issue): Boolean = i.kind in TRIES_FIRST && canFix(i)
 
@@ -339,7 +340,8 @@ object PlanCheck {
      * un muro tolto (lato aperto) si toglie; il muro lungo zero si unisce al muro dopo (come «Unisci al muro dopo»); il muro
      * della stanza quasi attaccata a un'altra va sulla linea del muro dell'altra e diventa un muro in comune (come trascinarlo
      * lì); delle due stanze sovrapposte una si sposta fuori dall'altra fino al muro in comune, o se no si accorcia
-     * ([overlapFixes]); alla stanza senza porta se ne mette una verso la stanza accanto ([doorFixes]); la stanza piccolissima
+     * ([overlapFixes]); alla stanza senza porta se ne mette una verso la stanza accanto ([doorFixes]), alla casa senza ingresso
+     * una porta blindata su un muro che dà fuori ([entranceFixes]); la stanza piccolissima
      * (un pezzo rimasto) si toglie, se il piano ne ha altre; l'anta che urta si gira ([swingFixes]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
      */
     fun fixed(b: Building, i: Issue): Building? {
@@ -349,7 +351,7 @@ object PlanCheck {
         fun Room.with(o: Opening) = copy(openings = openings.map { if (it.id == o.id) o else it })
         val single: FloorPlan? = when (i.kind) {
             Kind.FurnitureInWall -> i.furniture?.let { pushedOut(plan, it) }
-            Kind.NearWalls, Kind.Overlap, Kind.NoDoor -> null
+            Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.NoEntrance -> null
             Kind.TinyRoom -> i.rooms.singleOrNull()?.takeIf { id -> plan.room(id) != null && plan.rooms.size > 1 }?.let { id ->
                 plan.copy(rooms = plan.rooms.filter { it.id != id })
             }
@@ -393,6 +395,13 @@ object PlanCheck {
             val result = b.copy(floors = b.floors.mapIndexed { k, f -> if (k == i.floor) f.copy(plan = out).synced() else f })
             val after = of(result)
             return if (after.none(::same) && LiveCheck.newErrors(before, after).isEmpty()) result to after else null
+        }
+        if (i.kind == Kind.NoEntrance) {
+            // Prima i posti dove l'anta non urta niente di nuovo (si prova solo quello, è veloce), a pari la stanza migliore e il
+            // tratto di muro più lungo; il primo che va.
+            fun swings(p: FloorPlan) = mutableListOf<Issue>().also { FloorCheck(sane(p), i.floor, it).swings() }
+            val old = swings(plan).mapTo(HashSet()) { LiveCheck.key(it) }
+            return entranceFixes(plan).sortedBy { p -> swings(p).count { LiveCheck.key(it) !in old } }.firstNotNullOfOrNull { accepted(it)?.first }
         }
         if (i.kind == Kind.NoDoor) {
             // Tra le porte che vanno, quella con meno problemi nuovi (anta che urta, bagno che si apre sul soggiorno); a pari, la
@@ -618,6 +627,90 @@ object PlanCheck {
                     .map { plan.replace(r.copy(openings = r.openings + it)) }
             }
     }
+
+    /** Tratto libero di muro verso fuori che serve per la porta d'ingresso da 90 (cm): la porta e 15 cm per parte. */
+    private const val ENTRANCE_RUN_CM = 120.0
+
+    /**
+     * Per sapere se un muro dà fuori: si guarda tanto (cm) oltre la sua faccia esterna, ogni [PROBE_STEP_CM] lungo il muro. Lì
+     * c'è un'altra stanza anche quando in mezzo c'è il suo muro (fino a 80 cm), o il muro spesso disegnato tra le due.
+     */
+    private const val NEIGHBOUR_PROBE_CM = 40.0
+    private const val PROBE_STEP_CM = 10.0
+
+    /**
+     * Casa senza porta d'ingresso: dove mettere una porta blindata (come «Porta blindata» del menu: 90 cm), nell'ordine in cui
+     * provarle. Su un muro che dà fuori (non toccato da altre stanze, nemmeno balconi e terrazzi), in un tratto libero da porte e
+     * finestre: nel mezzo e, se il tratto è lungo, anche ai due capi (lì di solito non ci sono mobili). Prima nell'ingresso, poi
+     * nei corridoi, nel soggiorno, in cucina, nelle altre stanze, per ultime le camere (al massimo quattro stanze, due tratti per
+     * stanza, prima il più lungo); mai in bagno o nei ripostigli. Per ogni posto l'anta come viene e girata.
+     */
+    private fun entranceFixes(plan: FloorPlan): List<FloorPlan> {
+        // Tratto libero: muro, inizio e fine lungo il muro.
+        data class Run(val wall: Int, val lo: Double, val hi: Double)
+        val id = plan.nextOpeningId
+        val half = ENTRANCE_RUN_CM / 2
+        return plan.rooms.filter { !it.outdoor && entranceFrom(it) != null }.sortedBy { entranceFrom(it) }.take(4).flatMap { r ->
+            val runs = mutableListOf<Run>()
+            for (k in 0 until r.wallCount) {
+                if (r.isRemoved(k) || r.arcOf(k) != null) continue
+                val a = r.wallStart(k)
+                val len = r.wallLength(k)
+                if (len < ENTRANCE_RUN_CM) continue
+                val u = (r.wallEnd(k) - a) / len
+                val n = r.outwardOf(k)
+                fun onLine(p: Vec2) = abs((p - a) dot n) <= Openings.SHARED_WALL_TOLERANCE_CM
+                // Già occupato: porte e finestre su questa linea; dove poco fuori dal muro c'è un'altra stanza (anche con un muro
+                // spesso in mezzo, o il suo muro contro questo).
+                val taken = plan.openingHosts.flatMap { h ->
+                    h.openings.filter { it.wallIndex in 0 until h.wallCount && h.arcOf(it.wallIndex) == null }.mapNotNull { o ->
+                        val (p, q) = Openings.span(h, o)
+                        if (onLine(p) && onLine(q)) min((p - a) dot u, (q - a) dot u) to max((p - a) dot u, (q - a) dot u) else null
+                    }
+                }.toMutableList()
+                val out = n * (r.thicknessOf(k) / 2 + NEIGHBOUR_PROBE_CM)
+                var t = 0.0
+                while (t <= len) {
+                    val p = a + u * t + out
+                    if (plan.rooms.any { it.id != r.id && Polygon.contains(it.points, p) }) taken += (t - PROBE_STEP_CM) to (t + PROBE_STEP_CM)
+                    t += PROBE_STEP_CM
+                }
+                // I tratti liberi tra quelli occupati.
+                var from = 0.0
+                for ((x0, x1) in taken.sortedBy { it.first } + (len to len)) {
+                    if (min(x0, len) - from >= ENTRANCE_RUN_CM) runs += Run(k, from, min(x0, len))
+                    from = max(from, x1)
+                }
+            }
+            runs.sortedByDescending { it.hi - it.lo }.take(2).flatMap { run ->
+                val at = listOf((run.lo + run.hi) / 2) + if (run.hi - run.lo >= 2 * ENTRANCE_RUN_CM) listOf(run.lo + half, run.hi - half) else emptyList()
+                at.flatMap { c ->
+                    val d = OpeningPreset.Armored.apply(Opening.default(id, OpeningKind.Door, run.wall, c))
+                    listOf(d, d.copy(hingeLeft = false)).map { plan.replace(r.copy(openings = r.openings + it)) }
+                }
+            }
+        }
+    }
+
+    /**
+     * Da quale stanza è meglio entrare in casa (prima il numero più basso), o null se non da questa: l'ingresso (dal nome), i
+     * corridoi, il soggiorno, la cucina, le altre stanze, le camere; non bagni e ripostigli.
+     */
+    private fun entranceFrom(r: Room): Int? {
+        val name = r.name.lowercase()
+        return when {
+            ENTRANCE_NAMES.any { it in name } -> 0
+            r.type == RoomType.Bagno || CLOSET_NAMES.any { it in name } -> null
+            r.type == RoomType.Corridoio || PASSAGE_NAMES.any { it in name } -> 1
+            r.type == RoomType.Soggiorno -> 2
+            r.type == RoomType.Cucina -> 3
+            r.type == RoomType.Camera || r.type == RoomType.Cameretta -> 5
+            else -> 4
+        }
+    }
+
+    /** Nomi dell'ingresso di casa (in minuscolo, nelle lingue dell'app). */
+    private val ENTRANCE_NAMES = listOf("ingresso", "atrio", "entrance", "entry", "lobby", "entrée", "recibidor", "vestíbulo", "entrada")
 
     /** Nomi di stanze di passaggio e di ripostigli (in minuscolo, nelle lingue dell'app): per scegliere dove va una porta. */
     private val PASSAGE_NAMES = listOf(

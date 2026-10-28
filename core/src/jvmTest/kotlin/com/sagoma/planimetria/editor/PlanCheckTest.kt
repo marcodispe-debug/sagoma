@@ -498,10 +498,45 @@ class PlanCheckTest {
         assertEquals(100.0, narrow.width)
         assertEquals(50.0, narrow.position)
 
-        // Gli altri problemi no (la camera da sola: non si sa dove va la porta d'ingresso, né quella della camera).
+        // Gli altri problemi no (la finestra verso un'altra stanza: non si sa se va tolta; la camera da sola: non si sa dove va
+        // la sua porta).
+        val inner = Building.single(FloorPlan(listOf(living, kitchen.copy(openings = listOf(Opening.default(6, OpeningKind.Window1, 3, 60.0))))))
+        assertTrue(!PlanCheck.canFix(PlanCheck.of(inner).first { it.kind == PlanCheck.Kind.InnerWindow }))
         val lone = Building.single(FloorPlan(listOf(rect(9, "Camera", RoomType.Camera, 400.0, 300.0))))
-        assertTrue(!PlanCheck.canFix(PlanCheck.of(lone).first { it.kind == PlanCheck.Kind.NoEntrance }))
         assertTrue(!PlanCheck.canFix(lone, PlanCheck.of(lone).first { it.kind == PlanCheck.Kind.NoDoor }))
+    }
+
+    @Test
+    fun `Correggi - porta d'ingresso che manca`() {
+        // Soggiorno e cucina con la porta in mezzo, nessuna che dà fuori: la porta blindata va nel soggiorno, nel mezzo del muro
+        // libero più lungo (in alto, 400 cm; in basso c'è la finestra, a destra la cucina).
+        val b = Building.single(FloorPlan(listOf(living.copy(openings = living.openings.filter { !it.entrance }), kitchen)))
+        val i = PlanCheck.of(b).single { it.kind == PlanCheck.Kind.NoEntrance }
+        assertTrue(PlanCheck.triesFirst(i))
+        assertTrue(PlanCheck.canFix(b, i))
+        val fixed = assertNotNull(PlanCheck.fixed(b, i), "ingresso")
+        val door = fixed.floors[0].plan.rooms.single { it.id == 1L }.openings.single { it.id !in living.openings.map { o -> o.id } }
+        assertTrue(door.entrance)
+        assertEquals(OpeningKind.Door, door.kind)
+        assertEquals(90.0, door.width)
+        assertEquals(0, door.wallIndex)
+        assertEquals(200.0, door.position, 1e-9)
+        assertTrue(PlanCheck.of(fixed).none { it.kind == PlanCheck.Kind.NoEntrance })
+        // Già corretto (l'elenco è vecchio): niente.
+        assertNull(PlanCheck.fixed(fixed, i))
+        // Con l'ingresso (anche solo dal nome) va lì: muro in alto, il primo dei due liberi più lunghi.
+        val hall = rect(3, "Ingresso", RoomType.Altro, 250.0, 200.0, Vec2(-250.0, 0.0), openings = listOf(Opening.default(9, OpeningKind.Door, 1, 150.0)))
+        val withHall = Building.single(FloorPlan(listOf(living.copy(openings = living.openings.filter { !it.entrance }), kitchen, hall)))
+        val h = assertNotNull(PlanCheck.fixed(withHall, PlanCheck.of(withHall).single { it.kind == PlanCheck.Kind.NoEntrance }), "dall'ingresso")
+        val front = h.floors[0].plan.rooms.single { it.id == 3L }.openings.single { it.entrance }
+        assertEquals(0, front.wallIndex)
+        assertEquals(125.0, front.position, 1e-9)
+        assertEquals(living.openings.filter { !it.entrance }, h.floors[0].plan.rooms.single { it.id == 1L }.openings)
+        // Mai in bagno: la casa che è solo un bagno non si corregge.
+        val bath = Building.single(FloorPlan(listOf(rect(9, "Bagno", RoomType.Bagno, 200.0, 200.0))))
+        val nb = PlanCheck.of(bath).single { it.kind == PlanCheck.Kind.NoEntrance }
+        assertTrue(!PlanCheck.canFix(bath, nb))
+        assertNull(PlanCheck.fixed(bath, nb))
     }
 
     @Test
@@ -528,8 +563,8 @@ class PlanCheckTest {
         assertEquals(setOf(PlanCheck.Kind.OpeningTooWide), PlanCheck.of(fixed).filter { it.kind.error }.kinds())
         assertEquals(emptyList(), LiveCheck.newErrors(PlanCheck.of(seen), PlanCheck.of(fixed)))
         // Quelli che non si correggono da soli si saltano.
-        val lone = Building.single(FloorPlan(listOf(rect(9, "Camera", RoomType.Camera, 400.0, 300.0))))
-        assertEquals(lone to 0, PlanCheck.fixedAll(lone, PlanCheck.of(lone)))
+        val onlyBath = Building.single(FloorPlan(listOf(rect(9, "Bagno", RoomType.Bagno, 200.0, 200.0))))
+        assertEquals(onlyBath to 0, PlanCheck.fixedAll(onlyBath, PlanCheck.of(onlyBath)))
     }
 
     @Test
