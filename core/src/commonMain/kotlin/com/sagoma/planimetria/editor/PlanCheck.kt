@@ -359,7 +359,8 @@ object PlanCheck {
      * se ne mette una nuova su un muro che dà fuori ([windowFixes]), al piano senza nessuna finestra in ogni ambiente da abitare
      * ([allWindows]), al bagno senza finestra una su un muro che dà fuori ([bathWindows]); alla stanza con meno punti presa o punti luce di quelli della norma si mettono quelli che mancano
      * ([pointFixes]); la stanza piccolissima
-     * (un pezzo rimasto) si toglie, se il piano ne ha altre; l'anta che urta si gira ([swingFixes]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
+     * (un pezzo rimasto) si toglie, se il piano ne ha altre; l'anta che urta si gira ([swingFixes]). Nel piano con stato di fatto e di progetto le porte e le finestre messe sono
+     * nuove ([added]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
      */
     fun fixed(b: Building, i: Issue): Building? {
         if (!canFix(i)) return null
@@ -623,7 +624,7 @@ object PlanCheck {
         val r = plan.room(i.rooms.singleOrNull() ?: return emptyList())?.takeIf { !it.outdoor } ?: return emptyList()
         val id = plan.nextOpeningId
         return doorSpots(plan, r).sortedBy { (_, _, o) -> doorTowards(o) }.distinctBy { it.third.id }.take(3).flatMap { (k, c, _) ->
-                val d = Opening.default(id, OpeningKind.Door, k, c)
+                val d = added(plan, Opening.default(id, OpeningKind.Door, k, c))
                 listOf(d, d.copy(hingeLeft = false), d.copy(opensInward = false), d.copy(hingeLeft = false, opensInward = false))
                     .map { plan.replace(r.copy(openings = r.openings + it)) }
             }
@@ -652,7 +653,7 @@ object PlanCheck {
             // Tra i posti verso le stanze migliori (nel mezzo del muro in comune o ai capi) e i versi dell'anta, quello che urta meno.
             val now = out
             out = spots.flatMap { (k, c, _) ->
-                val d = Opening.default(now.nextOpeningId, OpeningKind.Door, k, c)
+                val d = added(plan, Opening.default(now.nextOpeningId, OpeningKind.Door, k, c))
                 listOf(d, d.copy(hingeLeft = false), d.copy(opensInward = false), d.copy(hingeLeft = false, opensInward = false))
             }.map { now.replace(r.copy(openings = r.openings + it)) }.minBy(::clashes)
             linked += r.id
@@ -751,7 +752,7 @@ object PlanCheck {
             runs.sortedByDescending { it.hi - it.lo }.take(2).flatMap { run ->
                 val at = listOf((run.lo + run.hi) / 2) + if (run.hi - run.lo >= 2 * ENTRANCE_RUN_CM) listOf(run.lo + half, run.hi - half) else emptyList()
                 at.flatMap { c ->
-                    val d = OpeningPreset.Armored.apply(Opening.default(id, OpeningKind.Door, run.wall, c))
+                    val d = added(plan, OpeningPreset.Armored.apply(Opening.default(id, OpeningKind.Door, run.wall, c)))
                     listOf(d, d.copy(hingeLeft = false)).map { plan.replace(r.copy(openings = r.openings + it)) }
                 }
             }
@@ -853,6 +854,12 @@ object PlanCheck {
     /** Finestre nuove al massimo per un ambiente. */
     private const val MAX_NEW_WINDOWS = 4
 
+    /**
+     * Porta o finestra che mette «Correggi» nel piano `plan`: con stato di fatto e di progetto ([Phases.hasChanges]) è nuova, da
+     * aprire (conta nelle opere del computo e nello stato di fatto non c'è); se no come quelle del menu.
+     */
+    private fun added(plan: FloorPlan, o: Opening): Opening = if (Phases.hasChanges(plan)) o.copy(phase = Phase.New) else o
+
     /** Finestra nuova: come quella a due ante del menu (alta 120, davanzale a 90), larga `width` (fino a 90 a un'anta). */
     private fun newWindow(id: Long, wall: Int, at: Double, width: Double): Opening =
         Opening.default(id, if (width <= 90.0) OpeningKind.Window1 else OpeningKind.Window2, wall, at).copy(width = width)
@@ -891,7 +898,7 @@ object PlanCheck {
             val count = kotlin.math.ceil(left / (MAX_WINDOW_CM * probe.height))
             val width = ceil10(left / count / probe.height).coerceIn(MIN_WINDOW_CM, min(MAX_WINDOW_CM, floor10(hi - lo - 2 * WINDOW_GAP_CM)))
             val r = out.room(roomId) ?: continue
-            out = out.replace(r.copy(openings = r.openings + newWindow(id++, k, (lo + hi) / 2, width)))
+            out = out.replace(r.copy(openings = r.openings + added(plan, newWindow(id++, k, (lo + hi) / 2, width))))
             left -= width * probe.height
         }
         return out.takeIf { left <= 0 }
@@ -908,8 +915,13 @@ object PlanCheck {
         if (space.isEmpty() || space.any { it.outdoor }) return emptyList()
         val need = missingLight(plan, space)
         if (need <= 0) return emptyList()
+        // Nel piano con stato di fatto e di progetto la finestra che c'è già non si allarga (sarebbe da chiudere e da riaprire):
+        // se ne mette una nuova.
+        val phased = Phases.hasChanges(plan)
         val widened = space.flatMap { r ->
-            HousingRules.windows(plan, r).filter { it.kind.isWindow && r.arcOf(it.wallIndex) == null && it.height > 0 }.sortedByDescending { it.width }.mapNotNull { o ->
+            HousingRules.windows(plan, r).filter {
+                it.kind.isWindow && r.arcOf(it.wallIndex) == null && it.height > 0 && (!phased || it.phase == Phase.New)
+            }.sortedByDescending { it.width }.mapNotNull { o ->
                 // Fino a 180 cm, o un quarto in più per una finestra già larga.
                 val width = ceil10(o.width + need / o.height)
                 if (width > max(MAX_WINDOW_CM, ceil10(o.width * 1.25))) return@mapNotNull null
@@ -968,7 +980,7 @@ object PlanCheck {
             freeRuns(blocks, r.wallLength(k), need).map { (lo, hi) -> Triple(k, lo, hi) }
         }.sortedByDescending { it.third - it.second }.take(3).map { (k, lo, hi) ->
             val width = min(BATH_WINDOW_CM, floor10(hi - lo - 2 * WINDOW_GAP_CM))
-            plan.replace(r.copy(openings = r.openings + newWindow(plan.nextOpeningId, k, (lo + hi) / 2, width)))
+            plan.replace(r.copy(openings = r.openings + added(plan, newWindow(plan.nextOpeningId, k, (lo + hi) / 2, width))))
         }
     }
 

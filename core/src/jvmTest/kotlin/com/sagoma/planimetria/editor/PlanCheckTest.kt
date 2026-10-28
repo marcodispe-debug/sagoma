@@ -776,6 +776,39 @@ class PlanCheckTest {
     }
 
     @Test
+    fun `Correggi - nel piano con stato di fatto e di progetto porte e finestre messe sono nuove`() {
+        // Ristrutturazione: la porta tra soggiorno e cucina è da chiudere; la cucina resta senza porta e «Correggi» ne apre una
+        // nuova sullo stesso muro, accanto.
+        val b = Building.single(FloorPlan(listOf(living.copy(openings = listOf(entrance, inner.copy(phase = Phase.Demolish), living.openings[2])), kitchen)))
+        val shut = PlanCheck.of(b).single { it.kind == PlanCheck.Kind.NoDoor && it.rooms == listOf(2L) }
+        val fixed = assertNotNull(PlanCheck.fixed(b, shut))
+        val plan = fixed.floors[0].plan
+        val door = (plan.rooms.flatMap { it.openings } - b.floors[0].plan.rooms.flatMap { it.openings }.toSet()).single()
+        assertEquals(Phase.New, door.phase)
+        val works = com.sagoma.planimetria.geometry.Phases.works(plan)
+        assertEquals(1, works.openingsNew)
+        assertEquals(1, works.openingsClosed)
+        // Camera con una finestra da chiudere e una da 120 che resta: quella che resta non si allarga, se ne apre una nuova.
+        val window = Opening.default(10, OpeningKind.Window2, 2, 200.0)
+        val bedroom = rect(1, "Camera", RoomType.Camera, 400.0, 400.0, openings = listOf(
+            Opening.default(1, OpeningKind.Door, 0, 200.0).copy(entrance = true), window,
+            Opening.default(11, OpeningKind.Window1, 1, 200.0).copy(phase = Phase.Demolish),
+        ))
+        val dark = Building.single(FloorPlan(listOf(bedroom)))
+        val few = PlanCheck.of(dark).single { it.kind == PlanCheck.Kind.FewWindows }
+        val lit = assertNotNull(PlanCheck.fixed(dark, few)).floors[0].plan.rooms.single()
+        assertEquals(window, lit.openings.single { it.id == 10L })
+        val opened = lit.openings.single { it.id !in setOf(1L, 10L, 11L) }
+        assertEquals(Phase.New, opened.phase)
+        assertTrue(opened.kind.glazed)
+        // Senza stato di fatto e di progetto restano come quelle del menu (e la finestra si allarga).
+        val plain = Building.single(FloorPlan(listOf(bedroom.copy(openings = bedroom.openings.dropLast(1)))))
+        val wide = assertNotNull(PlanCheck.fixed(plain, PlanCheck.of(plain).single { it.kind == PlanCheck.Kind.FewWindows })).floors[0].plan.rooms.single()
+        assertEquals(Phase.Existing, wide.openings.single { it.id == 10L }.phase)
+        assertTrue(wide.openings.single { it.id == 10L }.width > 120.0)
+    }
+
+    @Test
     fun `Correggi tutti - gli errori di un gruppo insieme`() {
         // Finestra più alta del muro, porta più larga del muro del bagno, cucina sovrapposta al soggiorno: tre errori (⚠) che si
         // correggono da soli.
