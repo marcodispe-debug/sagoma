@@ -262,7 +262,13 @@ class PlanCheckTest {
         assertEquals(listOf(2L, 1L), w.rooms)
         // Stanza minuscola (60 × 60 con muri da 15: 0,20 m² dentro).
         val tiny = rect(7, "Cavedio", RoomType.Altro, 60.0, 60.0, Vec2(1000.0, 0.0), openings = listOf(Opening.default(8, OpeningKind.Passage, 0, 30.0).copy(width = 30.0)))
-        assertEquals(0.2025, check(living, kitchen, tiny).single { it.kind == PlanCheck.Kind.TinyRoom }.a, 1e-6)
+        val t = check(living, kitchen, tiny).single { it.kind == PlanCheck.Kind.TinyRoom }
+        assertEquals(0.2025, t.a, 1e-6)
+        // «Correggi» la toglie (un pezzo rimasto); da sola nel piano no.
+        assertTrue(PlanCheck.canFix(t))
+        assertEquals(listOf(living, kitchen), assertNotNull(PlanCheck.fixed(Building.single(FloorPlan(listOf(living, kitchen, tiny))), t)).floors[0].plan.rooms)
+        val onlyTiny = Building.single(FloorPlan(listOf(tiny)))
+        assertNull(PlanCheck.fixed(onlyTiny, PlanCheck.of(onlyTiny).single { it.kind == PlanCheck.Kind.TinyRoom }))
     }
 
     @Test

@@ -237,15 +237,15 @@ object PlanCheck {
         Kind.OpeningTooWide -> i.b >= MIN_FIXED_OPENING_CM
         Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall, Kind.NearWalls, Kind.OpeningOnRemovedWall -> true
         Kind.Overlap -> i.rooms.size == 2
-        Kind.NoDoor -> i.rooms.size == 1
+        Kind.NoDoor, Kind.TinyRoom -> i.rooms.size == 1
         Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall -> i.selection is Selection.Opening
         else -> false
     }
 
     private val SWINGS = setOf(Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall)
 
-    /** Problemi con [Issue.rooms] che dicono di quali stanze si parla (non cosa selezionare): corretti quando tra loro non c'è più. */
-    private val BETWEEN_ROOMS = setOf(Kind.NearWalls, Kind.Overlap, Kind.NoDoor)
+    /** Problemi che si riconoscono dalle stanze di [Issue.rooms] (non da cosa selezionare): corretti quando lì non c'è più. */
+    private val BY_ROOMS = setOf(Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.TinyRoom)
 
     /** Problemi che [canFix] con la casa prova a correggere davvero prima di offrire «Correggi» ([triesFirst]). */
     private val TRIES_FIRST = SWINGS + Kind.Overlap + Kind.NoDoor
@@ -321,8 +321,8 @@ object PlanCheck {
      * un muro tolto (lato aperto) si toglie; il muro lungo zero si unisce al muro dopo (come «Unisci al muro dopo»); il muro
      * della stanza quasi attaccata a un'altra va sulla linea del muro dell'altra e diventa un muro in comune (come trascinarlo
      * lì); delle due stanze sovrapposte una si sposta fuori dall'altra fino al muro in comune, o se no si accorcia
-     * ([overlapFixes]); alla stanza senza porta se ne mette una verso la stanza accanto ([doorFixes]); l'anta che urta si gira
-     * ([swingFixes]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
+     * ([overlapFixes]); alla stanza senza porta se ne mette una verso la stanza accanto ([doorFixes]); la stanza piccolissima
+     * (un pezzo rimasto) si toglie, se il piano ne ha altre; l'anta che urta si gira ([swingFixes]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
      */
     fun fixed(b: Building, i: Issue): Building? {
         if (!canFix(i)) return null
@@ -332,6 +332,9 @@ object PlanCheck {
         val single: FloorPlan? = when (i.kind) {
             Kind.FurnitureInWall -> i.furniture?.let { pushedOut(plan, it) }
             Kind.NearWalls, Kind.Overlap, Kind.NoDoor -> null
+            Kind.TinyRoom -> i.rooms.singleOrNull()?.takeIf { id -> plan.room(id) != null && plan.rooms.size > 1 }?.let { id ->
+                plan.copy(rooms = plan.rooms.filter { it.id != id })
+            }
             Kind.ZeroWall -> (i.selection as? Selection.Wall)?.let { s ->
                 val r = plan.room(s.roomId)?.takeIf { s.index in 0 until it.wallCount } ?: return null
                 r.removeCorner((s.index + 1) % r.wallCount)?.let(plan::replace)
@@ -366,7 +369,7 @@ object PlanCheck {
         // Già corretto (l'elenco era vecchio): niente da fare. Una correzione che crea un errore di disegno nuovo non va.
         val before by lazy { of(b) }
         fun same(x: Issue) = x.kind == i.kind && x.floor == i.floor &&
-            (if (i.kind in BETWEEN_ROOMS) x.rooms.toSet() == i.rooms.toSet() else x.selection == i.selection)
+            (if (i.kind in BY_ROOMS) x.rooms.toSet() == i.rooms.toSet() else x.selection == i.selection)
         fun accepted(out: FloorPlan): Pair<Building, List<Issue>>? {
             if (out == plan || before.none(::same)) return null
             val result = b.copy(floors = b.floors.mapIndexed { k, f -> if (k == i.floor) f.copy(plan = out).synced() else f })
