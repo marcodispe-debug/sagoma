@@ -162,6 +162,42 @@ class PlanCheckTest {
     }
 
     @Test
+    fun `Correggi - porta alla stanza senza porta`() {
+        // Corridoio in alto (con l'ingresso); sotto il bagno senza porta e la camera con la porta sul corridoio.
+        val hall = rect(1, "Corridoio", RoomType.Corridoio, 400.0, 120.0, openings = listOf(Opening.default(1, OpeningKind.Door, 1, 60.0).copy(entrance = true)))
+        val bath = rect(2, "Bagno", RoomType.Bagno, 200.0, 200.0, Vec2(0.0, 120.0))
+        val bedroom = rect(3, "Camera", RoomType.Camera, 200.0, 200.0, Vec2(200.0, 120.0), openings = listOf(Opening.default(2, OpeningKind.Door, 0, 100.0)))
+        val b = Building.single(FloorPlan(listOf(hall, bath, bedroom)))
+        val i = PlanCheck.of(b).single { it.kind == PlanCheck.Kind.NoDoor }
+        assertEquals(listOf(2L), i.rooms)
+        assertTrue(PlanCheck.triesFirst(i))
+        assertTrue(PlanCheck.canFix(b, i))
+        // La porta va sul muro in comune con il corridoio, nel mezzo; nient'altro cambia.
+        val fixed = assertNotNull(PlanCheck.fixed(b, i)).floors[0].plan
+        val door = fixed.rooms[1].openings.single()
+        assertEquals(OpeningKind.Door, door.kind)
+        assertEquals(0, door.wallIndex)
+        assertEquals(100.0, door.position, 1e-9)
+        assertEquals(3L, door.id)
+        assertEquals(listOf(hall, bedroom), listOf(fixed.rooms[0], fixed.rooms[2]))
+        assertTrue(PlanCheck.of(Building.single(fixed)).none { it.kind == PlanCheck.Kind.NoDoor || it.kind.error })
+        // Già corretto: niente.
+        assertNull(PlanCheck.fixed(Building.single(fixed), i))
+        // Una nicchia nel mezzo del muro verso il corridoio: lì la porta non ci sta, va verso la camera.
+        val niche = bath.copy(openings = listOf(Opening.default(9, OpeningKind.Niche, 0, 100.0)))
+        val b2 = Building.single(FloorPlan(listOf(hall, niche, bedroom)))
+        val toBedroom = assertNotNull(PlanCheck.fixed(b2, PlanCheck.of(b2).single { it.kind == PlanCheck.Kind.NoDoor })).floors[0].plan.rooms[1].openings.last()
+        assertEquals(1, toBedroom.wallIndex)
+        // Una stanza da sola, senza muri in comune: non si sa dove mettere la porta, niente «Correggi».
+        val alone = rect(4, "Studio", RoomType.Studio, 300.0, 300.0, Vec2(1000.0, 0.0))
+        val b3 = Building.single(FloorPlan(listOf(hall, bath.copy(openings = listOf(Opening.default(5, OpeningKind.Door, 0, 100.0))), bedroom, alone)))
+        val i3 = PlanCheck.of(b3).single { it.kind == PlanCheck.Kind.NoDoor }
+        assertEquals(listOf(4L), i3.rooms)
+        assertNull(PlanCheck.fixed(b3, i3))
+        assertEquals(false, PlanCheck.canFix(b3, i3))
+    }
+
+    @Test
     fun `porte e finestre doppie, troppo larghe, oltre il muro, su un muro tolto`() {
         // La stessa porta messa anche dalla cucina.
         val twice = kitchen.copy(openings = kitchen.openings + Opening.default(6, OpeningKind.Door, 3, 150.0))
@@ -456,9 +492,10 @@ class PlanCheckTest {
         assertEquals(100.0, narrow.width)
         assertEquals(50.0, narrow.position)
 
-        // Gli altri problemi no.
-        val noDoor = PlanCheck.of(Building.single(FloorPlan(listOf(rect(9, "Camera", RoomType.Camera, 400.0, 300.0))))).first { it.kind == PlanCheck.Kind.NoDoor }
-        assertTrue(!PlanCheck.canFix(noDoor))
+        // Gli altri problemi no (la camera da sola: non si sa dove va la porta d'ingresso, né quella della camera).
+        val lone = Building.single(FloorPlan(listOf(rect(9, "Camera", RoomType.Camera, 400.0, 300.0))))
+        assertTrue(!PlanCheck.canFix(PlanCheck.of(lone).first { it.kind == PlanCheck.Kind.NoEntrance }))
+        assertTrue(!PlanCheck.canFix(lone, PlanCheck.of(lone).first { it.kind == PlanCheck.Kind.NoDoor }))
     }
 
     @Test

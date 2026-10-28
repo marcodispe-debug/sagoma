@@ -227,8 +227,9 @@ object PlanCheck {
     /**
      * Problemi che [fixed] sa correggere da solo: solo per questi c'è «Correggi». La stessa apertura messa due volte solo se le due
      * sono dello stesso tipo (una porta e una finestra nello stesso punto: quale togliere lo sceglie chi disegna). L'apertura su un
-     * muro lungo quasi zero no: si corregge il muro (l'apertura passa su quello dopo). Le ante che urtano e le stanze sovrapposte
-     * qui sì, ma girarle o spostarle non sempre basta: [canFix] con la casa lo prova ([triesFirst]).
+     * muro lungo quasi zero no: si corregge il muro (l'apertura passa su quello dopo). Le ante che urtano, le stanze sovrapposte e
+     * quelle senza porta qui sì, ma girarle, spostarle o trovare dove mettere la porta non sempre si può: [canFix] con la casa
+     * lo prova ([triesFirst]).
      */
     fun canFix(i: Issue): Boolean = when (i.kind) {
         Kind.FurnitureInWall -> i.b == 0.0
@@ -236,6 +237,7 @@ object PlanCheck {
         Kind.OpeningTooWide -> i.b >= MIN_FIXED_OPENING_CM
         Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall, Kind.NearWalls, Kind.OpeningOnRemovedWall -> true
         Kind.Overlap -> i.rooms.size == 2
+        Kind.NoDoor -> i.rooms.size == 1
         Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall -> i.selection is Selection.Opening
         else -> false
     }
@@ -243,7 +245,10 @@ object PlanCheck {
     private val SWINGS = setOf(Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall)
 
     /** Problemi con [Issue.rooms] che dicono di quali stanze si parla (non cosa selezionare): corretti quando tra loro non c'è più. */
-    private val BETWEEN_ROOMS = setOf(Kind.NearWalls, Kind.Overlap)
+    private val BETWEEN_ROOMS = setOf(Kind.NearWalls, Kind.Overlap, Kind.NoDoor)
+
+    /** Problemi che [canFix] con la casa prova a correggere davvero prima di offrire «Correggi» ([triesFirst]). */
+    private val TRIES_FIRST = SWINGS + Kind.Overlap + Kind.NoDoor
 
     /**
      * Chiave del problema `i` tra quelli tolti dalla pianta ([Building.hiddenChecks]): tipo, piano (il suo id, che non cambia
@@ -301,12 +306,12 @@ object PlanCheck {
     }
 
     /**
-     * Problemi che prima di offrire «Correggi» si prova a correggere davvero ([canFix] con la casa): le ante che urtano e le stanze
-     * sovrapposte.
+     * Problemi che prima di offrire «Correggi» si prova a correggere davvero ([canFix] con la casa): le ante che urtano, le stanze
+     * sovrapposte e quelle senza porta.
      */
-    fun triesFirst(i: Issue): Boolean = (i.kind in SWINGS || i.kind == Kind.Overlap) && canFix(i)
+    fun triesFirst(i: Issue): Boolean = i.kind in TRIES_FIRST && canFix(i)
 
-    /** Come [canFix], ma le ante che urtano e le stanze sovrapposte si provano a correggere: «Correggi» solo se serve a qualcosa. */
+    /** Come [canFix], ma i problemi di [triesFirst] si provano a correggere: «Correggi» solo se serve a qualcosa. */
     fun canFix(b: Building, i: Issue): Boolean = canFix(i) && (!triesFirst(i) || fixed(b, i) != null)
 
     /**
@@ -316,7 +321,8 @@ object PlanCheck {
      * un muro tolto (lato aperto) si toglie; il muro lungo zero si unisce al muro dopo (come «Unisci al muro dopo»); il muro
      * della stanza quasi attaccata a un'altra va sulla linea del muro dell'altra e diventa un muro in comune (come trascinarlo
      * lì); delle due stanze sovrapposte una si sposta fuori dall'altra fino al muro in comune, o se no si accorcia
-     * ([overlapFixes]); l'anta che urta si gira ([swingFixes]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
+     * ([overlapFixes]); alla stanza senza porta se ne mette una verso la stanza accanto ([doorFixes]); l'anta che urta si gira
+     * ([swingFixes]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
      */
     fun fixed(b: Building, i: Issue): Building? {
         if (!canFix(i)) return null
@@ -325,7 +331,7 @@ object PlanCheck {
         fun Room.with(o: Opening) = copy(openings = openings.map { if (it.id == o.id) o else it })
         val single: FloorPlan? = when (i.kind) {
             Kind.FurnitureInWall -> i.furniture?.let { pushedOut(plan, it) }
-            Kind.NearWalls, Kind.Overlap -> null
+            Kind.NearWalls, Kind.Overlap, Kind.NoDoor -> null
             Kind.ZeroWall -> (i.selection as? Selection.Wall)?.let { s ->
                 val r = plan.room(s.roomId)?.takeIf { s.index in 0 until it.wallCount } ?: return null
                 r.removeCorner((s.index + 1) % r.wallCount)?.let(plan::replace)
@@ -359,15 +365,20 @@ object PlanCheck {
         }
         // Già corretto (l'elenco era vecchio): niente da fare. Una correzione che crea un errore di disegno nuovo non va.
         val before by lazy { of(b) }
+        fun same(x: Issue) = x.kind == i.kind && x.floor == i.floor &&
+            (if (i.kind in BETWEEN_ROOMS) x.rooms.toSet() == i.rooms.toSet() else x.selection == i.selection)
         fun accepted(out: FloorPlan): Pair<Building, List<Issue>>? {
-            if (out == plan) return null
+            if (out == plan || before.none(::same)) return null
             val result = b.copy(floors = b.floors.mapIndexed { k, f -> if (k == i.floor) f.copy(plan = out).synced() else f })
             val after = of(result)
-            val gone = after.none { x ->
-                x.kind == i.kind && x.floor == i.floor &&
-                    (if (i.kind in BETWEEN_ROOMS) x.rooms.toSet() == i.rooms.toSet() else x.selection == i.selection)
-            }
-            return if (gone && LiveCheck.newErrors(before, after).isEmpty()) result to after else null
+            return if (after.none(::same) && LiveCheck.newErrors(before, after).isEmpty()) result to after else null
+        }
+        if (i.kind == Kind.NoDoor) {
+            // Tra le porte che vanno, quella con meno problemi nuovi (anta che urta, bagno che si apre sul soggiorno); a pari, la
+            // prima (verso corridoio o soggiorno).
+            val keys by lazy { before.mapTo(HashSet()) { LiveCheck.key(it) } }
+            return doorFixes(plan, i).mapNotNull { out -> accepted(out)?.let { (result, after) -> result to after.count { LiveCheck.key(it) !in keys } } }
+                .minByOrNull { it.second }?.first
         }
         if (i.kind == Kind.Overlap) {
             // Tra gli spostamenti che vanno, quello con meno problemi nuovi e poi con la stanza spostata che si attacca di più alle
@@ -534,6 +545,81 @@ object PlanCheck {
             }
         }
         return total
+    }
+
+    /** Tratto libero di muro in comune che serve per mettere una porta da 80 (cm): la porta e 10 cm per parte. */
+    private const val DOOR_RUN_CM = 100.0
+
+    /**
+     * Stanza senza porta: una porta (80 cm) sul muro in comune con un'altra stanza al chiuso, dove il muro è libero da altre porte
+     * e finestre (nel mezzo del tratto, se no a un capo), prima verso corridoio e soggiorno, poi le altre stanze (al massimo
+     * tre); per ognuna l'anta come viene e girata (cardine dall'altra parte, verso l'altra stanza).
+     */
+    private fun doorFixes(plan: FloorPlan, i: Issue): List<FloorPlan> {
+        val r = plan.room(i.rooms.singleOrNull() ?: return emptyList())?.takeIf { !it.outdoor } ?: return emptyList()
+        // Dove mettere la porta: muro di `r`, centro della porta lungo il muro, stanza dall'altra parte.
+        val spots = mutableListOf<Triple<Int, Double, Room>>()
+        for (k in 0 until r.wallCount) {
+            if (r.isRemoved(k) || r.arcOf(k) != null) continue
+            val a = r.wallStart(k)
+            val len = r.wallLength(k)
+            if (len < DOOR_RUN_CM) continue
+            val u = (r.wallEnd(k) - a) / len
+            val n = r.outwardOf(k)
+            fun onLine(p: Vec2) = abs((p - a) dot n) <= Openings.SHARED_WALL_TOLERANCE_CM
+            // Porte e finestre già su questa linea (di questa stanza, delle altre, dei muri singoli): lì la porta non va.
+            val taken = plan.openingHosts.flatMap { h ->
+                h.openings.filter { it.wallIndex in 0 until h.wallCount && h.arcOf(it.wallIndex) == null }.mapNotNull { o ->
+                    val (p, q) = Openings.span(h, o)
+                    if (onLine(p) && onLine(q)) min((p - a) dot u, (q - a) dot u) to max((p - a) dot u, (q - a) dot u) else null
+                }
+            }
+            for (o in plan.rooms) {
+                if (o.id == r.id || o.outdoor) continue
+                for (j in 0 until o.wallCount) {
+                    if (o.isRemoved(j) || o.arcOf(j) != null || (n dot o.outwardOf(j)) > -0.99 || !onLine(o.wallStart(j))) continue
+                    val t0 = (o.wallStart(j) - a) dot u
+                    val t1 = (o.wallEnd(j) - a) dot u
+                    val lo = max(min(t0, t1), 0.0)
+                    val hi = min(max(t0, t1), len)
+                    if (hi - lo < DOOR_RUN_CM) continue
+                    val half = (DOOR_RUN_CM / 2)
+                    listOf((lo + hi) / 2, lo + half, hi - half).firstOrNull { c ->
+                        taken.none { (x0, x1) -> x1 > c - half && x0 < c + half }
+                    }?.let { spots += Triple(k, it, o) }
+                }
+            }
+        }
+        val id = plan.nextOpeningId
+        return spots.sortedBy { (_, _, o) -> doorTowards(o) }.distinctBy { it.third.id }.take(3).flatMap { (k, c, _) ->
+                val d = Opening.default(id, OpeningKind.Door, k, c)
+                listOf(d, d.copy(hingeLeft = false), d.copy(opensInward = false), d.copy(hingeLeft = false, opensInward = false))
+                    .map { plan.replace(r.copy(openings = r.openings + it)) }
+            }
+    }
+
+    /** Nomi di stanze di passaggio e di ripostigli (in minuscolo, nelle lingue dell'app): per scegliere dove va una porta. */
+    private val PASSAGE_NAMES = listOf(
+        "corridoio", "disimpegno", "antibagno", "ingresso", "atrio", "corridor", "hall", "entrance", "lobby", "couloir", "entrée",
+        "dégagement", "pasillo", "recibidor", "distribuidor", "vestíbulo",
+    )
+    private val CLOSET_NAMES = listOf(
+        "armadio", "ripostiglio", "guardaroba", "lavanderia", "dispensa", "closet", "storage", "pantry", "laundry", "dressing",
+        "placard", "cellier", "buanderie", "trastero", "vestidor", "despensa", "lavadero",
+    )
+
+    /**
+     * Verso quale stanza va meglio la porta di una stanza che non ne ha (prima il numero più basso): corridoi, disimpegni e
+     * ingressi (anche dal nome), poi il soggiorno, poi le altre; per ultimi bagni, ripostigli e cabine armadio.
+     */
+    private fun doorTowards(o: Room): Int {
+        val name = o.name.lowercase()
+        return when {
+            o.type == RoomType.Corridoio || PASSAGE_NAMES.any { it in name } -> 0
+            o.type == RoomType.Soggiorno -> 1
+            o.type == RoomType.Bagno || CLOSET_NAMES.any { it in name } -> 3
+            else -> 2
+        }
     }
 
     /** Il mobile `id` spostato fuori dai muri in cui entra (in un angolo sono due) fino alla parete, o null se non si riesce. */
