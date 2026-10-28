@@ -163,7 +163,8 @@ fun EditorScreen(
     var liveNotice by remember(vm) { mutableStateOf<PlanCheck.Issue?>(null) }
     // I problemi del «!» toccato sulla pianta, nella scheda in alto.
     var openMark by remember(vm) { mutableStateOf<List<PlanCheck.Issue>?>(null) }
-    val liveBuilding = state.fullBuilding
+    // La casa intera si ricostruisce solo quando cambia (a ogni spostamento della vista no): i confronti dopo sono istantanei.
+    val liveBuilding = remember(state.building, state.plan) { state.fullBuilding }
     LaunchedEffect(liveBuilding, state.dragging) {
         if (state.dragging) return@LaunchedEffect
         delay(LiveCheck.DELAY_MS)
