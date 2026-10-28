@@ -44,4 +44,14 @@ object TestiSfondoEn : TestiSfondo() {
     override val letturaNonRaggiungibile: String get() = "The reading service is not responding (internet needed): trace the plan by hand."
     override val troppeLetture: String get() = "You have already read many plans today: try again tomorrow or trace it by hand."
     override val nonUnaPiantina: String get() = "The image doesn't look like a floor plan: trace it by hand or try another image."
+    override val dxf: String get() = "📐 DXF (CAD)"
+    override val dxfDwg: String get() = "DWG files can't be opened: save the plan as DXF from your CAD program."
+    override val dxfBinario: String get() = "This DXF is binary: save it as a text (ASCII) DXF from your CAD program."
+    override val dxfVuoto: String get() = "There is nothing to draw in this DXF file (or all its layers are off)."
+    override fun dxfInScala(larghezza: String, altezza: String): String = "DXF plan loaded already to scale ($larghezza × $altezza m): no calibration needed."
+    override fun dxfUnita(cmPerUnita: Double): String =
+        "The file doesn't state its unit: I read it in " + when (cmPerUnita) { 100.0 -> "meters"; 0.1 -> "millimeters"; else -> "centimeters" } +
+            ". If the measurements look wrong, use «Calibrate»."
+    override val dxfSpiega: String get() = "DXF from AutoCAD or another CAD program (for example your architect's plan): already to scale, no calibration."
+    override val dxfParziale: String get() = "Very large drawing: only part of its lines was loaded."
 }

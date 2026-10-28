@@ -44,4 +44,14 @@ object TestiSfondoEs : TestiSfondo() {
     override val letturaNonRaggiungibile: String get() = "El servicio de lectura no responde (hace falta internet): calca el plano a mano."
     override val troppeLetture: String get() = "Hoy ya has leído muchos planos: vuelve a intentarlo mañana o cálcalo a mano."
     override val nonUnaPiantina: String get() = "La imagen no parece un plano: cálcalo a mano o prueba otra imagen."
+    override val dxf: String get() = "📐 DXF (CAD)"
+    override val dxfDwg: String get() = "Los archivos DWG no se pueden abrir: guarda el plano como DXF desde tu programa CAD."
+    override val dxfBinario: String get() = "Este DXF es binario: guárdalo como DXF de texto (ASCII) desde tu programa CAD."
+    override val dxfVuoto: String get() = "En este archivo DXF no hay nada que dibujar (o todas sus capas están apagadas)."
+    override fun dxfInScala(larghezza: String, altezza: String): String = "Plano DXF cargado ya a escala ($larghezza × $altezza m): sin calibración."
+    override fun dxfUnita(cmPerUnita: Double): String =
+        "El archivo no indica su unidad: lo he leído en " + when (cmPerUnita) { 100.0 -> "metros"; 0.1 -> "milímetros"; else -> "centímetros" } +
+            ". Si las medidas no cuadran, usa «Calibrar»."
+    override val dxfSpiega: String get() = "DXF de AutoCAD o de otro programa CAD (por ejemplo el plano del arquitecto): ya a escala, sin calibración."
+    override val dxfParziale: String get() = "Dibujo muy grande: solo se ha cargado una parte de las líneas."
 }

@@ -44,4 +44,14 @@ object TestiSfondoFr : TestiSfondo() {
     override val letturaNonRaggiungibile: String get() = "Le service de lecture ne répond pas (internet nécessaire) : décalquez le plan à la main."
     override val troppeLetture: String get() = "Vous avez déjà lu beaucoup de plans aujourd'hui : réessayez demain ou décalquez-le à la main."
     override val nonUnaPiantina: String get() = "L'image ne ressemble pas à un plan : décalquez-le à la main ou essayez une autre image."
+    override val dxf: String get() = "📐 DXF (CAO)"
+    override val dxfDwg: String get() = "Les fichiers DWG ne s'ouvrent pas : enregistrez le plan en DXF depuis votre logiciel de CAO."
+    override val dxfBinario: String get() = "Ce DXF est binaire : enregistrez-le en DXF texte (ASCII) depuis votre logiciel de CAO."
+    override val dxfVuoto: String get() = "Il n'y a rien à dessiner dans ce fichier DXF (ou tous ses calques sont éteints)."
+    override fun dxfInScala(larghezza: String, altezza: String): String = "Plan DXF chargé déjà à l'échelle ($larghezza × $altezza m) : pas d'étalonnage."
+    override fun dxfUnita(cmPerUnita: Double): String =
+        "Le fichier n'indique pas son unité : je l'ai lu en " + when (cmPerUnita) { 100.0 -> "mètres"; 0.1 -> "millimètres"; else -> "centimètres" } +
+            ". Si les mesures ne sont pas bonnes, utilisez «Étalonner»."
+    override val dxfSpiega: String get() = "DXF d'AutoCAD ou d'un autre logiciel de CAO (par exemple le plan de l'architecte) : déjà à l'échelle, sans étalonnage."
+    override val dxfParziale: String get() = "Dessin très grand : seule une partie des lignes a été chargée."
 }

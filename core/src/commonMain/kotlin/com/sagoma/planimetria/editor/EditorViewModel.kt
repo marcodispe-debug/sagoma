@@ -2901,6 +2901,16 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         }
     }
 
+    /**
+     * Sfondo già in scala (la pianta DXF di un CAD): niente taratura. `move`: non sta sopra la pianta, lo si sposta subito con il
+     * dito; altrimenti resta dov'è (stesse coordinate della pianta, come quella esportata da qui e rimandata dal professionista).
+     */
+    fun setScaledUnderlay(u: Underlay, move: Boolean) {
+        setUnderlay(u)
+        tutorialEvent(TutorialEvent.Calibrated)
+        if (move) setUnderlayTool(UnderlayTool.Move) else endTracing()
+    }
+
     fun setUnderlayOpacity(opacity: Double) = commit { p -> p.underlay?.let { p.copy(underlay = it.copy(opacity = opacity.coerceIn(0.05, 1.0))) } ?: p }
 
     fun setUnderlayVisible(visible: Boolean) {

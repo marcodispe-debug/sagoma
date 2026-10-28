@@ -94,6 +94,7 @@ class DesktopPlatform(
         "image/png" -> listOf("png")
         "image/*" -> listOf("png", "jpg", "jpeg", "webp", "bmp")
         "application/pdf" -> listOf("pdf")
+        "application/dxf" -> listOf("dxf")
         "text/csv" -> listOf("csv")
         else -> emptyList()
     }
