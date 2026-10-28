@@ -32,18 +32,30 @@ internal class GlResources(private val readAsset: (String) -> ByteArray?) {
 
     /**
      * Texture di un materiale fotografico (`kind`: color, normal, orm) nella definizione `resolution` se c'è già (dal server
-     * arriva dopo), altrimenti quella 1K dell'app. Quando arriva la più definita, l'1K si toglie dalla scheda grafica.
+     * arriva dopo), altrimenti la più definita sotto di lei che c'è (per i render 4K: il 2K), altrimenti quella 1K dell'app.
+     * Quando arriva una più definita, l'1K si toglie dalla scheda grafica.
      */
     fun material(id: String, kind: String, resolution: MaterialResolution = MaterialResolution.K1): Int {
         val low = "mat:$id:$kind"
-        if (resolution != MaterialResolution.K1) {
-            val t = texture("$low:${resolution.side}", { readAsset(AssetPaths.materialMap(id, kind, resolution)) }, maxSide = resolution.side)
+        for (r in MaterialResolution.entries.reversed()) {
+            if (r == MaterialResolution.K1 || r.side > resolution.side) continue
+            val t = texture("$low:${r.side}", { readAsset(AssetPaths.materialMap(id, kind, r)) }, maxSide = r.side)
             if (t != 0) {
                 textures.remove(low)?.let { if (it != 0) glDeleteTextures(it) }
                 return t
             }
         }
         return texture(low, { readAsset(AssetPaths.materialMap(id, kind)) })
+    }
+
+    /**
+     * Toglie dalla scheda grafica le mappe del materiale `id` in definizione `resolution` (anche quelle che mancavano, così si
+     * riprovano). Le foto 4K le usano un materiale alla volta: tre mappe 4K pesano quasi 300 MB.
+     */
+    fun dropMaterial(id: String, resolution: MaterialResolution) {
+        val prefix = "mat:$id:"
+        val suffix = ":${resolution.side}"
+        textures.keys.filter { it.startsWith(prefix) && it.endsWith(suffix) }.forEach { k -> textures.remove(k)?.let { if (it != 0) glDeleteTextures(it) } }
     }
 
     /**
