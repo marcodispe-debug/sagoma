@@ -99,7 +99,7 @@ object PlanExport {
             )
             if (shown(com.sagoma.planimetria.model.Layer.Rulers)) for (r in plan.rulers) drawRuler(RulerGeom(r, cam, density), cam, rotating = false, measurer, showHandles = false)
             drawText(note, topLeft = Offset(margin, planH.toFloat()))
-            if (watermark) with(Watermark) { drawWatermark(measurer, Watermark.exportLetterPx(size.width, size.height)) }
+            if (watermark) with(Watermark) { drawWatermark(Watermark.exportLetterPx(size.width, size.height)) }
         }
         return bitmap
     }

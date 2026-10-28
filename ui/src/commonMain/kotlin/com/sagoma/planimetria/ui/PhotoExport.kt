@@ -7,7 +7,6 @@ import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.LayoutDirection
 import com.sagoma.planimetria.access.OutputFormat
 import com.sagoma.planimetria.access.Rights
@@ -41,7 +40,6 @@ private const val PHOTO_QUIET_MS = 20_000L
 fun rememberPhoto4k(state: EditorUiState, view: View3DState): () -> Unit {
     val platform = LocalPlatform.current
     val density = LocalDensity.current
-    val measurer = rememberTextMeasurer()
     val scope = rememberCoroutineScope()
     return action@{
         if (view.photoBusy) return@action
@@ -74,7 +72,7 @@ fun rememberPhoto4k(state: EditorUiState, view: View3DState): () -> Unit {
                 }
                 // 3. Marchio del piano gratuito, come sulle altre esportazioni (la vista 3D è un'uscita a sé).
                 val watermark = !Rights.cleanOutput(platform.account, OutputFormat.View3D, state.plan.rooms.map { it.id })
-                val image = if (watermark) withWatermark(shot, measurer, density) else shot
+                val image = if (watermark) withWatermark(shot, density) else shot
                 val png = platform.encodePng(image)
                 if (png == null) {
                     platform.toast(T.vista3D.fotoNonRiuscita)
@@ -98,11 +96,11 @@ fun rememberPhoto4k(state: EditorUiState, view: View3DState): () -> Unit {
 }
 
 /** La foto con sopra il marchio, in proporzione all'immagine come nelle altre esportazioni. */
-private fun withWatermark(shot: ImageBitmap, measurer: androidx.compose.ui.text.TextMeasurer, density: androidx.compose.ui.unit.Density): ImageBitmap {
+private fun withWatermark(shot: ImageBitmap, density: androidx.compose.ui.unit.Density): ImageBitmap {
     val out = ImageBitmap(shot.width, shot.height)
     CanvasDrawScope().draw(density, LayoutDirection.Ltr, Canvas(out), Size(shot.width.toFloat(), shot.height.toFloat())) {
         drawImage(shot)
-        with(Watermark) { drawWatermark(measurer, Watermark.exportLetterPx(size.width, size.height)) }
+        with(Watermark) { drawWatermark(Watermark.exportLetterPx(size.width, size.height)) }
     }
     return out
 }

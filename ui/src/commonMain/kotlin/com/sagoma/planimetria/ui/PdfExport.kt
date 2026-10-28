@@ -97,13 +97,13 @@ object PdfExport {
         val result = floors.mapIndexed { i, fl ->
             PdfPage(o.paper.w, o.paper.h) {
                 drawPlanSheet(fl, info, o, measurer, i + 1, sheets, date, building.layers)
-                if (o.watermark) with(Watermark) { drawWatermark(measurer, Watermark.exportLetterPx(size.width, size.height)) }
+                if (o.watermark) with(Watermark) { drawWatermark(Watermark.exportLetterPx(size.width, size.height)) }
             }
         }.toMutableList()
         takeoff.forEachIndexed { k, lines ->
             result += PdfPage(o.paper.w, o.paper.h) {
                 drawTakeoffSheet(lines, info, o.paper, floors.size + k + 1, sheets, measurer, date)
-                if (o.watermark) with(Watermark) { drawWatermark(measurer, Watermark.exportLetterPx(size.width, size.height)) }
+                if (o.watermark) with(Watermark) { drawWatermark(Watermark.exportLetterPx(size.width, size.height)) }
             }
         }
         return result

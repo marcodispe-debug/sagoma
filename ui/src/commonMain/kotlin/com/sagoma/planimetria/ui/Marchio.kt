@@ -11,6 +11,11 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.graphics.vector.toPath
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.unit.dp
 
@@ -50,6 +55,23 @@ object Marchio {
             .addPath(addPathNodes(STANZA), stroke = SolidColor(lettere), strokeLineWidth = MURO)
             .addPath(addPathNodes(PORTA), stroke = SolidColor(Terracotta), strokeLineWidth = ARCO, strokeLineCap = StrokeCap.Round)
             .build()
+
+    private val tracciatoLettere by lazy { addPathNodes(LETTERE).toPath() }
+    private val tracciatoStanza by lazy { addPathNodes(STANZA).toPath() }
+    private val tracciatoPorta by lazy { addPathNodes(PORTA).toPath() }
+
+    /**
+     * La scritta disegnata direttamente (per la filigrana, ripetuta tante volte): in alto a sinistra in [topLeft], alta
+     * [altezza] pixel, lettere e muri della stanza di colore [lettere], arco della porta di colore [porta].
+     */
+    fun DrawScope.drawScritta(topLeft: Offset, altezza: Float, lettere: Color, porta: Color) {
+        val s = altezza / ALTEZZA
+        withTransform({ translate(topLeft.x, topLeft.y); scale(s, s, Offset.Zero) }) {
+            drawPath(tracciatoLettere, lettere)
+            drawPath(tracciatoStanza, lettere, style = Stroke(MURO))
+            drawPath(tracciatoPorta, porta, style = Stroke(ARCO, cap = StrokeCap.Round))
+        }
+    }
 
     /** L'icona: la «o» bianca su un quadrato inchiostro con gli angoli arrotondati (finestra e barra delle applicazioni del PC). */
     val icona: ImageVector by lazy {
