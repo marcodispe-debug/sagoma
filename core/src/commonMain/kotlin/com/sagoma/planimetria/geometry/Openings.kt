@@ -3,10 +3,12 @@ package com.sagoma.planimetria.geometry
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
+import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.FramePosition
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.model.WindowShape
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -57,6 +59,47 @@ object Openings {
                 top - rise + rise * sqrt(1 - k * k)
             }
         }
+    }
+
+    /**
+     * Superficie (cm²) del vano dell'apertura `o` tra le quote `lo` e `hi` da terra, con la sua forma (ad arco, tonda) e senza
+     * passare la cima del muro (in mansarda): quella che si toglie dalla parete nel computo.
+     */
+    fun holeArea(room: Room, o: Opening, lo: Double = 0.0, hi: Double = Double.MAX_VALUE): Double {
+        if (o.wallIndex >= room.wallCount) return 0.0
+        val len = room.wallLength(o.wallIndex)
+        val w = min(o.width, len)
+        if (w <= 0) return 0.0
+        val bottom = o.bottom
+        val center = clampPosition(len, w, o.position)
+        val wallTop = Ceilings.wallTopAt(room, o.wallIndex, center)
+        val top = min(bottom + o.height, wallTop)
+        val round = o.shape == WindowShape.Round
+        val style = when {
+            o.kind == OpeningKind.Passage -> o.style
+            o.shape == WindowShape.Arched -> PassageStyle.Arched
+            else -> PassageStyle.Square
+        }
+        val sloped = Ceilings.effectiveCut(room, o.wallIndex) != null
+        if (!round && !style.arched && !sloped) return w * (min(top, hi) - max(bottom, lo)).coerceAtLeast(0.0)
+        // Bordo curvo o muro che scende (mansarda): a strisce verticali sottili. L'oblò è un cerchio largo quanto l'apertura
+        // (come nel 3D); sopra la cima del muro non c'è parete da togliere.
+        val n = 128
+        val c = w / 2
+        var sum = 0.0
+        for (k in 0 until n) {
+            val x = -c + w * (k + 0.5) / n
+            val dy = sqrt(max(0.0, c * c - x * x))
+            val b = if (round) bottom + c - dy else bottom
+            val t = when {
+                round -> bottom + c + dy
+                style.arched -> archTop(style, -c, c, bottom, top, x)
+                else -> top
+            }
+            val roof = if (sloped) Ceilings.wallTopAt(room, o.wallIndex, center + x) else wallTop
+            sum += (minOf(t, roof, hi) - max(b, lo)).coerceAtLeast(0.0)
+        }
+        return sum * w / n
     }
 
     /** Centro dell'apertura limitato al muro, così l'apertura non ne esce mai (anche dopo averlo accorciato). */

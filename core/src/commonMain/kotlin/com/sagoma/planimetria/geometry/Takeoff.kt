@@ -75,17 +75,29 @@ object Takeoff {
         // La nicchia non buca la parete: si dipinge anche lei.
         val openings = r.openings.filter { it.wallIndex == i && it.kind != OpeningKind.Niche }
         val gaps = induced.filter { it.roomId == r.id && it.wallIndex == i }
-        fun holesBetween(lo: Double, hi: Double) = openings.sumOf { o ->
-            val bottom = o.bottom
-            minOf(o.width, r.wallLength(i)) * ((minOf(bottom + o.height, hi) - maxOf(bottom, lo)).coerceAtLeast(0.0))
-        } + gaps.sumOf { g -> g.a.distanceTo(g.b) * ((minOf(g.height, hi) - maxOf(0.0, lo)).coerceAtLeast(0.0)) }
-        fun area(lo: Double, hi: Double) = ((length * (hi - lo) - holesBetween(lo, hi)) / 10_000.0).coerceAtLeast(0.0)
+        fun holesBetween(lo: Double, hi: Double) = openings.sumOf { o -> Openings.holeArea(r, o, lo, hi) } +
+            gaps.sumOf { g -> g.a.distanceTo(g.b) * ((minOf(g.height, hi) - maxOf(0.0, lo)).coerceAtLeast(0.0)) }
+        fun area(lo: Double, hi: Double) = ((wallBetween(r, i, length, lo, hi) - holesBetween(lo, hi)) / 10_000.0).coerceAtLeast(0.0)
         val paint = paintName(f.argb)
         if (f.covering == Covering.None) return listOf(paint to area(0.0, height))
         val cover = if (f.covering == Covering.Material) MaterialCatalog.item(f.material)?.nome ?: T.computo.rivestimento else f.covering.label
         val h = f.coverHeight?.coerceAtMost(height) ?: height
         if (h >= height) return listOf(cover to area(0.0, height))
         return listOf(T.computo.finoCm(cover, h.toInt()) to area(0.0, h), paint to area(h, height))
+    }
+
+    /**
+     * Parete `i` tra le quote `lo` e `hi` (cm²), lunga `length` sul filo interno: alta come il muro o, in mansarda, tagliata in
+     * diagonale come nel 3D ([Ceilings.wallTopAt]).
+     */
+    private fun wallBetween(r: Room, i: Int, length: Double, lo: Double, hi: Double): Double {
+        val len = r.wallLength(i)
+        if (Ceilings.effectiveCut(r, i) == null || len < 1e-6) return length * (minOf(hi, r.wallHeight(i)) - lo).coerceAtLeast(0.0)
+        // La cima è dritta e poi scende in linea retta: a strisce sottili lo scarto è di frazioni di cm².
+        val n = 256
+        var sum = 0.0
+        for (k in 0 until n) sum += (minOf(hi, Ceilings.wallTopAt(r, i, len * (k + 0.5) / n)) - lo).coerceAtLeast(0.0)
+        return length * sum / n
     }
 
     /** Somma `v` al totale della voce `key`. */
@@ -145,16 +157,13 @@ object Takeoff {
         var wall = 0.0
         var holes = 0.0
         // I muri eliminati (lati aperti) non si dipingono e non hanno battiscopa.
-        if (!r.outdoor) for (i in 0 until r.wallCount) if (!r.isRemoved(i)) wall += lengths[i] * r.wallHeight(i) / 10_000.0
+        if (!r.outdoor) for (i in 0 until r.wallCount) if (!r.isRemoved(i)) wall += wallBetween(r, i, lengths[i], 0.0, Double.MAX_VALUE) / 10_000.0
         val openSides = (0 until r.wallCount).filter { r.isRemoved(it) }.sumOf { lengths[it] } / 100.0
         // La nicchia non buca la parete e non è né una porta né una finestra.
         val openings = r.openings.filter { it.kind != OpeningKind.Niche }
-        // Il vano non è mai più largo del muro né più alto della parete (una misura scritta per sbaglio, es. 2100 invece di 210).
-        for (o in openings) if (o.wallIndex < r.wallCount && !r.isRemoved(o.wallIndex)) {
-            val bottom = o.bottom
-            val h = (minOf(bottom + o.height, r.wallHeight(o.wallIndex)) - bottom).coerceAtLeast(0.0)
-            holes += minOf(o.width, r.wallLength(o.wallIndex)) * h / 10_000.0
-        }
+        // Il vano, con la sua forma (ad arco, tonda), non è mai più largo del muro né più alto della parete (una misura scritta
+        // per sbaglio, es. 2100 invece di 210; in mansarda la parete scende).
+        for (o in openings) if (o.wallIndex < r.wallCount && !r.isRemoved(o.wallIndex)) holes += Openings.holeArea(r, o) / 10_000.0
         // Varchi delle porte della stanza accanto sul muro in comune (sui muri eliminati non c'è parete da togliere).
         val gaps = induced.filter { it.roomId == r.id && it.wallIndex < r.wallCount && !r.isRemoved(it.wallIndex) }
         if (!r.outdoor) for (g in gaps) holes += g.a.distanceTo(g.b) * minOf(g.height, r.wallHeight(g.wallIndex)) / 10_000.0
