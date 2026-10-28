@@ -435,9 +435,14 @@ private class SceneBuilder(
         val n = side.dir()
         /** Punto della faccia a `t` lungo il muro e `-q.y` d'altezza (il riquadro della posa ha y verso il basso, come le foto). */
         fun at(q: Vec2) = (s + u * q.x + off).at(-q.y)
+        // Riquadro tra i due bordi (se a un capo il bordo alto scende sotto quello basso, lì non c'è niente da coprire).
+        var region = listOf(Vec2(t0, -max(y1, y1End)), Vec2(t1, -max(y1, y1End)), Vec2(t1, -min(y0, y0End)), Vec2(t0, -min(y0, y0End)))
+        region = clipAbove(region) { q -> -q.y - (y0 + (y0End - y0) * (q.x - t0) / (t1 - t0)) }
+        region = clipAbove(region) { q -> (y1 + (y1End - y1) * (q.x - t0) / (t1 - t0)) + q.y }
+        if (region.size < 3 || abs(Polygon.signedArea(region)) < 0.01) return
         val laying = layout.laying?.takeIf { MaterialPieces.canLay(material) }?.let { LayingPieces.normalized(it) }
         if (laying != null) {
-            val rect = listOf(Vec2(t0, -y1), Vec2(t1, -y1End), Vec2(t1, -y0End), Vec2(t0, -y0))
+            val rect = region
             // La fuga di ogni pezzo sta dal lato verso terra: spostando la partenza di una fuga la prima fila poggia a terra.
             val anchor = Vec2(if (laying.start == LayingStart.Centro) wallLength / 2 else 0.0, laying.joint)
             val pieces = LayingPieces.cover(laying, layout.rotation, anchor, rect)
@@ -452,12 +457,9 @@ private class SceneBuilder(
                 return
             }
         }
-        val a = s + u * t0 + off
-        val b = s + u * t1 + off
         // La foto si ripete ogni `size` cm, dritta (v cresce verso il basso come nelle immagini), girata e ingrandita come scelto.
-        fun uv(t: Double, y: Double) = layout.uv(t, -y, size)
-        texTri(material, a.at(y0), b.at(y0End), b.at(y1End), uv(t0, y0), uv(t1, y0End), uv(t1, y1End), n)
-        texTri(material, a.at(y0), b.at(y1End), a.at(y1), uv(t0, y0), uv(t1, y1End), uv(t0, y1), n)
+        fun uv(q: Vec2) = layout.uv(q.x, q.y, size)
+        for (k in 1 until region.size - 1) texTri(material, at(region[0]), at(region[k]), at(region[k + 1]), uv(region[0]), uv(region[k]), uv(region[k + 1]), n)
     }
 
     /** Solido invisibile (solo per il tocco) sul contorno `poly`, da `y0` a `y1`. */
@@ -1721,7 +1723,13 @@ private class SceneBuilder(
         val gaps = if (splayed.isEmpty()) faceGaps else faceGaps.map { g -> if (g in splayed) g.widened() else g }
         for (g in splayed) splayReveal(g, s, u, side, range, tint(paint, g.pick))
         val coverTop = finish.coverHeight ?: Double.MAX_VALUE
-        fun topFn(t: Double) = Ceilings.wallTopAt(room, i, t.coerceIn(0.0, len))
+        // Mansarda: il soffitto sale dalla mezzeria del muro basso, e sulla faccia verso la stanza sta già più in alto della cima
+        // del muro. Con il soffitto disegnato la parete arriva fin lì, altrimenti in cima resta una fessura scura.
+        val underSlope = interior && ceilings && current && Ceilings.hasSlope(room)
+        fun topFn(t: Double): Double {
+            val top = Ceilings.wallTopAt(room, i, t.coerceIn(0.0, len))
+            return if (underSlope) max(top, Ceilings.heightAt(room, s + u * t.coerceIn(0.0, len) + side * half)) else top
+        }
         val cuts = mutableSetOf(range.start, range.endInclusive)
         fun add(t: Double) { if (t > range.start && t < range.endInclusive) cuts += t }
         // Parete tagliata: il bordo superiore fa uno spigolo alle estremità e dove inizia a scendere.
@@ -1885,20 +1893,41 @@ private class SceneBuilder(
     private fun coveringPattern(
         f: WallFinish, s: Vec2, u: Vec2, side: Vec2, dist: Double, t0: Double, t1: Double, y0: Double, y1: Double, pick: Pick,
         wallLength: Double, seed: Int,
-        /** Bordo basso e alto a `t1` (riquadro inclinato): il materiale li segue, i disegni di prima restano nel riquadro dritto. */
+        /**
+         * Bordo basso e alto a `t1` (riquadro inclinato: fettina sopra un arco, sotto un oblò o sotto il soffitto in pendenza):
+         * i pezzi si tagliano sui bordi inclinati, senza scalini né pezzi che sporgono.
+         */
         y0End: Double = y0, y1End: Double = y1,
     ) {
         if (f.covering == Covering.Material) {
             f.material?.let { texturedWallFace(it, f.layout, s, u, side, dist, t0, t1, y0, y1, wallLength, seed, y0End, y1End) }
             return
         }
-        if (t1 - t0 < 0.05 || y1 - y0 < 0.05) return
+        val low = min(y0, y0End)
+        val high = max(y1, y1End)
+        if (t1 - t0 < 0.05 || high - low < 0.05) return
         val cover = Rgba.argb(f.coverArgb)
-        /** Riquadro tagliato sul riquadro da disegnare. */
-        fun cell(a0: Double, a1: Double, b0: Double, b1: Double, color: Rgba) =
-            wallFace(s, u, side, dist, max(a0, t0), min(a1, t1), max(b0, y0), min(b1, y1), tint(color, pick))
+        val sloped = abs(y0End - y0) > 1e-6 || abs(y1End - y1) > 1e-6
+        /** Bordi inclinati nel punto `t`: sopra quello basso, sotto quello alto (dove si incrociano non resta niente). */
+        fun bottomAt(t: Double) = y0 + (y0End - y0) * (t - t0) / (t1 - t0)
+        fun topAt(t: Double) = y1 + (y1End - y1) * (t - t0) / (t1 - t0)
+        /** Riquadro tagliato sul riquadro da disegnare (sul trapezio, se i bordi sono inclinati). */
+        fun cell(a0: Double, a1: Double, b0: Double, b1: Double, color: Rgba) {
+            if (!sloped) return wallFace(s, u, side, dist, max(a0, t0), min(a1, t1), max(b0, y0), min(b1, y1), tint(color, pick))
+            val lo = max(a0, t0)
+            val hi = min(a1, t1)
+            if (hi - lo < 0.05 || min(b1, high) - max(b0, low) < 0.05) return
+            var q = listOf(Vec2(lo, b0), Vec2(hi, b0), Vec2(hi, b1), Vec2(lo, b1))
+            q = clipAbove(q) { p -> p.y - bottomAt(p.x) }
+            q = clipAbove(q) { p -> topAt(p.x) - p.y }
+            if (q.size < 3 || abs(Polygon.signedArea(q)) < 0.01) return
+            val off = side * (dist + 0.15)
+            val c = tint(color, pick)
+            fun at(p: Vec2) = (s + u * p.x + off).at(p.y)
+            for (k in 1 until q.size - 1) tri(at(q[0]), at(q[k]), at(q[k + 1]), side.dir(), c, null)
+        }
         fun columnsIn(step: Double, shift: Double = 0.0) = (kotlin.math.floor((t0 - shift) / step).toInt() - 1)..(((t1 - shift) / step).toInt() + 1)
-        fun rowsIn(step: Double) = max(0, (y0 / step).toInt() - 1)..((y1 / step).toInt() + 1)
+        fun rowsIn(step: Double) = max(0, (low / step).toInt() - 1)..((high / step).toInt() + 1)
         fun shade(c: Rgba, k: Double) = if (k >= 0) c.mix(Rgba.White, k.toFloat()) else c.mix(Rgba(0f, 0f, 0f), (-k).toFloat())
         when (f.covering) {
             Covering.None -> Unit
@@ -1906,8 +1935,8 @@ private class SceneBuilder(
             Covering.Wallpaper -> {
                 // Righe verticali: una larga e una sottile ogni 16 cm.
                 for (k in columnsIn(16.0)) {
-                    cell(k * 16.0, k * 16.0 + 5.0, y0, y1, cover)
-                    cell(k * 16.0 + 9.0, k * 16.0 + 10.0, y0, y1, cover)
+                    cell(k * 16.0, k * 16.0 + 5.0, low, high, cover)
+                    cell(k * 16.0 + 9.0, k * 16.0 + 10.0, low, high, cover)
                 }
             }
             Covering.Tiles, Covering.Metro -> {
@@ -1927,8 +1956,8 @@ private class SceneBuilder(
             Covering.Boards -> {
                 val joint = cover.mix(Rgba(0f, 0f, 0f), 0.3f)
                 for (k in columnsIn(10.0)) {
-                    cell(k * 10.0 - 0.3, k * 10.0 + 0.3, y0, y1, joint)
-                    cell(k * 10.0 + 0.3, k * 10.0 + 1.5, y0, y1, shade(cover, 0.12))
+                    cell(k * 10.0 - 0.3, k * 10.0 + 0.3, low, high, joint)
+                    cell(k * 10.0 + 0.3, k * 10.0 + 1.5, low, high, shade(cover, 0.12))
                 }
             }
             Covering.Wainscot -> {
@@ -1960,9 +1989,9 @@ private class SceneBuilder(
                 // Conci di pietra di altezze e lunghezze diverse (sempre le stesse per lo stesso muro).
                 var yb = 0.0
                 var r = 0
-                while (yb < y1) {
+                while (yb < high) {
                     val rh = 14.0 + hash(r, 999) * 12.0
-                    if (yb + rh > y0) {
+                    if (yb + rh > low) {
                         var ta = -60.0 - hash(r, -1) * 30.0
                         var k = 0
                         while (ta < t1) {
@@ -1976,6 +2005,18 @@ private class SceneBuilder(
                     r++
                 }
             }
+        }
+    }
+
+    /** Parte del poligono convesso `poly` dove `f` (lineare) è ≥ 0. */
+    private fun clipAbove(poly: List<Vec2>, f: (Vec2) -> Double): List<Vec2> = buildList {
+        for (i in poly.indices) {
+            val p = poly[i]
+            val q = poly[(i + 1) % poly.size]
+            val fp = f(p)
+            val fq = f(q)
+            if (fp >= 0) add(p)
+            if ((fp >= 0) != (fq >= 0)) add(p + (q - p) * (fp / (fp - fq)))
         }
     }
 
