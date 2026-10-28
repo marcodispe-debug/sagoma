@@ -15,7 +15,8 @@ object TestiControlloEs : TestiControllo() {
     override val daNorme: String get() = "Normas para la vivienda (Italia)"
     override val spiegaNorme: String get() =
         "Mínimos del decreto italiano del 5 de julio de 1975 para las estancias habitables (dormitorios, salón, cocina, estudio) y los baños; la normativa " +
-            "del municipio puede pedir más. Las ventanas cuentan si se abren y dan al exterior, medidas en el hueco de la pared."
+            "del municipio puede pedir más. Las ventanas cuentan si se abren y dan al exterior, medidas en el hueco de la pared. Si colocas enchufes, " +
+            "también los puntos de enchufe y de luz de una instalación eléctrica básica (CEI 64-8, nivel 1)."
     override fun nome(n: String): String = "«$n»"
     override val mostra: String get() = "Mostrar"
     override val chiudi: String get() = "Cerrar"
@@ -73,4 +74,16 @@ object TestiControlloEs : TestiControllo() {
         "La vivienda tiene $m2 m² para $persone personas (contadas por las camas); necesita al menos $min (14 m² por persona para las 4 primeras, 10 para las demás)."
     override fun monolocalePiccolo(m2: String, min: String, perDue: Boolean): String =
         "Estudio de $m2 m²: necesita al menos $min para ${if (perDue) "dos personas" else "una persona"}, baño incluido."
+    override fun impiantoScarso(a: String, prese: String, luci: String, minPrese: String, minLuci: String): String =
+        "$a: $prese y $luci. Para una instalación eléctrica básica (norma italiana CEI 64-8, nivel 1) hacen falta al menos $minPrese y $minLuci."
+    override fun puntiPresa(n: Int): String = when (n) {
+        0 -> "ningún punto de enchufe"
+        1 -> "1 punto de enchufe"
+        else -> "$n puntos de enchufe"
+    }
+    override fun puntiLuce(n: Int): String = when (n) {
+        0 -> "ningún punto de luz"
+        1 -> "1 punto de luz"
+        else -> "$n puntos de luz"
+    }
 }

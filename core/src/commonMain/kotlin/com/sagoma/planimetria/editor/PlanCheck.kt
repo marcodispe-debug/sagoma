@@ -4,6 +4,7 @@ import com.sagoma.planimetria.geometry.Bounds
 import com.sagoma.planimetria.geometry.Ceilings
 import com.sagoma.planimetria.geometry.HousingRules
 import com.sagoma.planimetria.geometry.Dimensions
+import com.sagoma.planimetria.geometry.ElectricRules
 import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.PhaseView
 import com.sagoma.planimetria.geometry.Phases
@@ -40,7 +41,8 @@ import kotlin.math.roundToInt
  * staccate di pochi centimetri, muri che si incrociano, la stessa porta messa due volte), cose da controllare (stanze senza
  * porta, casa senza ingresso, scale che non arrivano, ripide, strette o con poca altezza sopra la testa, ante che aprendosi
  * urtano altre ante, mobili o muri) e minimi delle
- * norme italiane per le case ([HousingRules]: finestre, altezze, metri quadri). Ogni problema dice quale piano e quale zona
+ * norme italiane per le case ([HousingRules]: finestre, altezze, metri quadri; [ElectricRules]: punti presa e luce, se nella casa
+ * si stanno mettendo le prese). Ogni problema dice quale piano e quale zona
  * inquadrare e cosa selezionare.
  */
 object PlanCheck {
@@ -80,6 +82,7 @@ object PlanCheck {
         BathIncomplete(false, rule = true),
         SmallHome(false, rule = true),
         SmallStudio(false, rule = true),
+        FewPoints(false, rule = true),
     }
 
     /**
@@ -139,11 +142,12 @@ object PlanCheck {
         var outside = false
         var anyIndoor = false
         var doorless = false
+        val wired = ElectricRules.wired(b.floors.flatMap { it.plan.rooms })
         for ((f, floor) in b.floors.withIndex()) {
             val plan = sane(floor.plan)
             val below = b.floors.getOrNull(f - 1)
             val above = b.floors.getOrNull(f + 1)
-            FloorCheck(plan, f, out).run {
+            FloorCheck(plan, f, out, wired).run {
                 walls()
                 pairs()
                 openings()
@@ -260,6 +264,7 @@ object PlanCheck {
             )
             Kind.SmallHome -> t.casaPiccola(m2(i.a), i.count, formatDecimal(i.b, 0))
             Kind.SmallStudio -> t.monolocalePiccolo(m2(i.a), formatDecimal(i.b, 0), i.count >= 2)
+            Kind.FewPoints -> t.impiantoScarso(name(0), t.puntiPresa(i.a.roundToInt()), t.puntiLuce(i.b.roundToInt()), t.puntiPresa(i.count / 10), t.puntiLuce(i.count % 10))
             Kind.SmallLiving -> t.soggiornoPiccolo(all, m2(i.a))
         }
     }
@@ -311,7 +316,8 @@ object PlanCheck {
         return if (t > eps && t < 1 - eps && u > eps && u < 1 - eps) a + r * t else null
     }
 
-    private class FloorCheck(val plan: FloorPlan, val floor: Int, val out: MutableList<Issue>) {
+    /** Controlli di un piano. `wired`: nella casa ci sono delle prese, si guarda anche l'impianto elettrico. */
+    private class FloorCheck(val plan: FloorPlan, val floor: Int, val out: MutableList<Issue>, val wired: Boolean = false) {
         val expanded = plan.expandCurves().plan
         val rooms = plan.rooms
         val boxes: Map<Long, Bounds> = rooms.associate { it.id to Polygon.bounds(it.points) }
@@ -662,6 +668,16 @@ object PlanCheck {
                 if (s.first().type != RoomType.Soggiorno) continue
                 val total = HousingRules.floorArea(s)
                 if (hundredths(total) < hundredths(HousingRules.MIN_LIVING_CM2)) add(Issue(Kind.SmallLiving, floor, s.map { it.id }, where(s), a = total / 10_000))
+            }
+            // Impianto elettrico di base, solo se nella casa si stanno mettendo le prese: punti presa e punti luce di ogni stanza.
+            if (wired) for (r in rooms) {
+                if (full()) return
+                if (r.id in crossed || HousingRules.demolished(r)) continue
+                val min = ElectricRules.minimum(plan, r) ?: continue
+                val has = ElectricRules.points(r)
+                if (has.outlets >= min.outlets && has.lights >= min.lights) continue
+                val box = boxes.getValue(r.id).grow(60.0)
+                add(Issue(Kind.FewPoints, floor, listOf(r.id), box, a = has.outlets.toDouble(), b = has.lights.toDouble(), count = min.outlets * 10 + min.lights))
             }
         }
     }

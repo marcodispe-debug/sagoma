@@ -365,4 +365,28 @@ class PlanCheckTest {
         assertTrue(PlanCheck.describe(low, two(stair)).startsWith("Sopra la scala restano 94 cm fino al solaio del piano di sopra"))
         assertEquals(emptyList(), issues(stair.copy(coveredSteps = 3)))
     }
+
+    @Test
+    fun `impianto elettrico solo se si mettono le prese`() {
+        val window = Opening.default(1, OpeningKind.Window2, 2, 200.0).copy(height = 160.0)
+        // Camera 400×400 (14,82 m² dentro i muri da 15): 4 punti presa e 1 punto luce.
+        val bedroom = rect(1, "Camera", RoomType.Camera, 400.0, 400.0, openings = listOf(window))
+        fun outlets(n: Int) = (1..n).map { com.sagoma.planimetria.model.Fixture.default(it.toLong(), com.sagoma.planimetria.model.FixtureKind.Outlet) }
+        val light = com.sagoma.planimetria.model.Fixture.default(9, com.sagoma.planimetria.model.FixtureKind.CeilingLight)
+        fun rulesOf(r: Room) = PlanCheck.of(Building.single(FloorPlan(listOf(r)))).filter { it.kind.rule }
+        // Senza prese non si guarda (la casa non ha ancora l'impianto); con una luce sola nemmeno.
+        assertEquals(emptyList(), rulesOf(bedroom))
+        assertEquals(emptyList(), rulesOf(bedroom.copy(fixtures = listOf(light))))
+        val few = rulesOf(bedroom.copy(fixtures = outlets(2))).single()
+        assertEquals(PlanCheck.Kind.FewPoints, few.kind)
+        assertEquals(
+            "«Camera»: 2 punti presa e nessun punto luce. Per l'impianto elettrico di base (CEI 64-8, livello 1) servono almeno 4 punti presa e 1 punto luce.",
+            PlanCheck.describe(few, Building.single(FloorPlan(listOf(bedroom)))),
+        )
+        assertEquals(emptyList(), rulesOf(bedroom.copy(fixtures = outlets(4) + light)))
+        // Le prese messe in un'altra stanza bastano per guardare anche questa.
+        val other = rect(2, "Camera 2", RoomType.Camera, 400.0, 400.0, Vec2(400.0, 0.0), openings = listOf(window.copy(id = 2)))
+        val b = Building.single(FloorPlan(listOf(bedroom.copy(fixtures = outlets(4) + light), other)))
+        assertEquals(listOf(2L), PlanCheck.of(b).filter { it.kind == PlanCheck.Kind.FewPoints }.map { it.rooms.single() })
+    }
 }

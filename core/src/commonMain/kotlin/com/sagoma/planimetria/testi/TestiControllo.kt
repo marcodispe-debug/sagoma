@@ -14,7 +14,8 @@ open class TestiControllo {
     open val daNorme: String get() = "Norme per la casa (Italia)"
     open val spiegaNorme: String get() =
         "Minimi del DM 5 luglio 1975 per le stanze da abitare (camere, soggiorno, cucina, studio) e i bagni; il regolamento edilizio del comune " +
-            "può chiedere di più. Le finestre contano se si aprono e danno fuori, misurate sul vano del muro."
+            "può chiedere di più. Le finestre contano se si aprono e danno fuori, misurate sul vano del muro. Se metti le prese, anche i punti presa " +
+            "e luce dell'impianto elettrico di base (CEI 64-8, livello 1)."
     /** Nome di una stanza dentro un testo. */
     open fun nome(n: String): String = "«$n»"
     open val mostra: String get() = "Mostra"
@@ -73,4 +74,16 @@ open class TestiControllo {
         "La casa ha $m2 m² per $persone persone (contate dai letti); ne servono almeno $min (14 m² a testa per le prime 4, 10 per le altre)."
     open fun monolocalePiccolo(m2: String, min: String, perDue: Boolean): String =
         "Monolocale di $m2 m²: ne servono almeno $min per ${if (perDue) "due persone" else "una persona"}, bagno compreso."
+    open fun impiantoScarso(a: String, prese: String, luci: String, minPrese: String, minLuci: String): String =
+        "$a: $prese e $luci. Per l'impianto elettrico di base (CEI 64-8, livello 1) servono almeno $minPrese e $minLuci."
+    open fun puntiPresa(n: Int): String = when (n) {
+        0 -> "nessun punto presa"
+        1 -> "1 punto presa"
+        else -> "$n punti presa"
+    }
+    open fun puntiLuce(n: Int): String = when (n) {
+        0 -> "nessun punto luce"
+        1 -> "1 punto luce"
+        else -> "$n punti luce"
+    }
 }
