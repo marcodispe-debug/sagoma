@@ -540,6 +540,53 @@ class PlanCheckTest {
     }
 
     @Test
+    fun `Correggi - calorifero e punto acqua che mancano`() {
+        // Il soggiorno ha il calorifero e il bagno (a parte) il punto acqua; la cucina ha il lavello sotto la finestra.
+        val radiator = Fixture(1, FixtureKind.Radiator, wallIndex = 3, position = 150.0, length = 80.0, height = 60.0, elevation = 12.0)
+        val water = Fixture(2, FixtureKind.WaterPoint, wallIndex = 0, position = 50.0, elevation = 50.0)
+        val bath = rect(5, "Bagno", RoomType.Bagno, 200.0, 200.0, Vec2(1000.0, 0.0)).copy(fixtures = listOf(water))
+        val sink = com.sagoma.planimetria.model.Furniture(7, "cucina:lavello:bianco:legno", Vec2(550.0, 37.5), width = 80.0, depth = 60.0, height = 90.0)
+        fun house(kitchenFixtures: List<Fixture> = emptyList(), furniture: List<com.sagoma.planimetria.model.Furniture> = listOf(sink)) =
+            Building.single(FloorPlan(listOf(living.copy(fixtures = listOf(radiator)), kitchen.copy(fixtures = kitchenFixtures), bath), furniture = furniture))
+        val b = house()
+        fun one(b: Building, k: PlanCheck.Kind, room: Long) = PlanCheck.of(b).single { it.kind == k && it.rooms == listOf(room) }
+        fun added(b: Building, room: Long) = b.floors[0].plan.rooms.single { it.id == room }.fixtures.last()
+
+        // Cucina: sotto la finestra c'è il lavello, il calorifero va nel mezzo del muro libero più lungo (a destra).
+        val cold = one(b, PlanCheck.Kind.NoHeating, 2)
+        assertTrue(PlanCheck.triesFirst(cold) && PlanCheck.canFix(b, cold))
+        val warm = assertNotNull(PlanCheck.fixed(b, cold), "calorifero")
+        val r = added(warm, 2)
+        assertEquals(FixtureKind.Radiator, r.kind)
+        assertEquals(1, r.wallIndex)
+        assertEquals(150.0, r.position, 1e-9)
+        assertTrue(PlanCheck.of(warm).none { it.kind == PlanCheck.Kind.NoHeating && it.rooms == listOf(2L) })
+        assertNull(PlanCheck.fixed(warm, cold), "già corretto")
+        // Senza il lavello va sotto la finestra.
+        val free = house(furniture = emptyList())
+        val under = added(assertNotNull(PlanCheck.fixed(free, one(free, PlanCheck.Kind.NoHeating, 2))), 2)
+        assertEquals(0, under.wallIndex)
+        assertEquals(150.0, under.position, 1e-9)
+        // Bagno: uno scaldasalviette sul muro libero.
+        val towel = added(assertNotNull(PlanCheck.fixed(b, one(b, PlanCheck.Kind.NoHeating, 5))), 5)
+        assertEquals(com.sagoma.planimetria.model.RadiatorModel.TowelRail, towel.radiatorModel)
+        assertEquals(120.0, towel.height)
+        assertEquals(1, towel.wallIndex)
+
+        // Punto acqua della cucina: sul muro dietro al lavello.
+        val dry = one(b, PlanCheck.Kind.NoWater, 2)
+        assertTrue(PlanCheck.canFix(b, dry))
+        val wet = added(assertNotNull(PlanCheck.fixed(b, dry), "punto acqua"), 2)
+        assertEquals(FixtureKind.WaterPoint, wet.kind)
+        assertEquals(0, wet.wallIndex)
+        assertEquals(150.0, wet.position, 1e-9)
+        assertEquals(50.0, wet.elevation)
+        // Senza lavello non si sa dove va.
+        val noSink = house(furniture = emptyList())
+        assertTrue(!PlanCheck.canFix(noSink, one(noSink, PlanCheck.Kind.NoWater, 2)))
+    }
+
+    @Test
     fun `Correggi tutti - gli errori di un gruppo insieme`() {
         // Finestra più alta del muro, porta più larga del muro del bagno, cucina sovrapposta al soggiorno: tre errori (⚠) che si
         // correggono da soli.
