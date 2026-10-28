@@ -7,7 +7,7 @@ open class TestiControllo {
     open val nessunProblema: String get() = "Nessun problema trovato."
     open val cosaControlla: String get() =
         "Cerca stanze sovrapposte o quasi attaccate, muri che si incrociano, porte e finestre doppie, più larghe del muro o più alte, " +
-            "stanze senza porta, la porta d'ingresso, le scale e i minimi di legge delle stanze (finestre, altezze, metri quadri)."
+            "stanze senza porta, ante che urtano aprendosi, la porta d'ingresso, le scale e i minimi di legge delle stanze (finestre, altezze, metri quadri)."
     open val spiega: String get() = "Possono sbagliare metri quadri, computo e 3D. «Mostra» porta lì e lo seleziona."
     open val daCorreggere: String get() = "Da correggere"
     open val daControllare: String get() = "Da controllare"
@@ -38,6 +38,12 @@ open class TestiControllo {
     open fun piccolissima(a: String, m2: String): String = "$a è piccolissima ($m2 m²): è voluta o è un pezzo rimasto?"
     open val scalaSenzaPiano: String get() = "La scala sale, ma sopra non c'è un piano: aggiungi il piano di sopra o togli la scala."
     open fun scalaFuori(piano: String): String = "La scala arriva fuori dalle stanze del piano di sopra ($piano)."
+    open fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =
+        "$stanze: due ante si urtano aprendosi ($cosa e $cosa2). Cambia il lato del cardine o il verso di apertura."
+    open fun antaUrta(a: String, cosa: String, cosa2: String): String =
+        "$a: aprendosi, l'anta urta $cosa2 ($cosa). Sposta $cosa2 o cambia il lato del cardine o il verso di apertura."
+    open fun antaUrtaMuro(a: String, cosa: String): String =
+        "$a: l'anta non si apre del tutto, urta un muro o un pilastro ($cosa). Sposta l'apertura o cambia il lato del cardine o il verso di apertura."
     open fun pocaLuce(a: String, fin: String, pav: String, frazione: String, serve: String): String =
         "$a: finestre apribili di $fin m² per $pav m² di pavimento ($frazione). Per una stanza da abitare serve almeno 1/8, cioè $serve m²."
     open fun senzaFinestre(a: String, serve: String): String =

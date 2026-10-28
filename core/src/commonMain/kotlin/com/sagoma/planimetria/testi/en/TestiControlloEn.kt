@@ -8,7 +8,7 @@ object TestiControlloEn : TestiControllo() {
     override val nessunProblema: String get() = "No problems found."
     override val cosaControlla: String get() =
         "Looks for overlapping or almost touching rooms, crossing walls, doubled doors and windows, or ones wider or taller than the wall, " +
-            "rooms without a door, the front door, the stairs and the legal minimums of the rooms (windows, heights, square metres)."
+            "rooms without a door, leaves that hit something when opening, the front door, the stairs and the legal minimums of the rooms (windows, heights, square metres)."
     override val spiega: String get() = "They can spoil areas, quantities and 3D. «Show» takes you there and selects it."
     override val daCorreggere: String get() = "To fix"
     override val daControllare: String get() = "To check"
@@ -38,6 +38,12 @@ object TestiControlloEn : TestiControllo() {
     override fun piccolissima(a: String, m2: String): String = "$a is tiny ($m2 m²): is it intended or a leftover piece?"
     override val scalaSenzaPiano: String get() = "The stairs go up, but there is no floor above: add the floor above or remove the stairs."
     override fun scalaFuori(piano: String): String = "The stairs arrive outside the rooms of the floor above ($piano)."
+    override fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =
+        "$stanze: two leaves hit each other when opening ($cosa and $cosa2). Swap the hinge side or the opening direction."
+    override fun antaUrta(a: String, cosa: String, cosa2: String): String =
+        "$a: when opening, the leaf hits $cosa2 ($cosa). Move $cosa2 or swap the hinge side or the opening direction."
+    override fun antaUrtaMuro(a: String, cosa: String): String =
+        "$a: the leaf can't open fully, it hits a wall or a column ($cosa). Move the opening or swap the hinge side or the opening direction."
     override fun pocaLuce(a: String, fin: String, pav: String, frazione: String, serve: String): String =
         "$a: $fin m² of opening windows for $pav m² of floor ($frazione). A living space needs at least 1/8, that is $serve m²."
     override fun senzaFinestre(a: String, serve: String): String =

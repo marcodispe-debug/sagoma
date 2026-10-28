@@ -8,7 +8,7 @@ object TestiControlloFr : TestiControllo() {
     override val nessunProblema: String get() = "Aucun problème trouvé."
     override val cosaControlla: String get() =
         "Cherche les pièces superposées ou presque collées, les murs qui se croisent, les portes et fenêtres en double, plus larges ou plus hautes que le mur, " +
-            "les pièces sans porte, la porte d'entrée, les escaliers et les minimums légaux des pièces (fenêtres, hauteurs, mètres carrés)."
+            "les pièces sans porte, les vantaux qui heurtent quelque chose en s'ouvrant, la porte d'entrée, les escaliers et les minimums légaux des pièces (fenêtres, hauteurs, mètres carrés)."
     override val spiega: String get() = "Ils peuvent fausser surfaces, métré et 3D. « Afficher » y amène et le sélectionne."
     override val daCorreggere: String get() = "À corriger"
     override val daControllare: String get() = "À vérifier"
@@ -38,6 +38,12 @@ object TestiControlloFr : TestiControllo() {
     override fun piccolissima(a: String, m2: String): String = "$a est minuscule ($m2 m²) : est-ce voulu ou un morceau oublié ?"
     override val scalaSenzaPiano: String get() = "L'escalier monte, mais il n'y a pas d'étage au-dessus : ajoutez l'étage supérieur ou supprimez l'escalier."
     override fun scalaFuori(piano: String): String = "L'escalier arrive hors des pièces de l'étage supérieur ($piano)."
+    override fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =
+        "$stanze : deux vantaux se heurtent en s'ouvrant ($cosa et $cosa2). Changez le côté des paumelles ou le sens d'ouverture."
+    override fun antaUrta(a: String, cosa: String, cosa2: String): String =
+        "$a : en s'ouvrant, le vantail heurte $cosa2 ($cosa). Déplacez $cosa2 ou changez le côté des paumelles ou le sens d'ouverture."
+    override fun antaUrtaMuro(a: String, cosa: String): String =
+        "$a : le vantail ne s'ouvre pas complètement, il heurte un mur ou un poteau ($cosa). Déplacez l'ouverture ou changez le côté des paumelles ou le sens d'ouverture."
     override fun pocaLuce(a: String, fin: String, pav: String, frazione: String, serve: String): String =
         "$a : fenêtres ouvrantes de $fin m² pour $pav m² de sol ($frazione). Une pièce à vivre demande au moins 1/8, soit $serve m²."
     override fun senzaFinestre(a: String, serve: String): String =

@@ -5,8 +5,11 @@ import com.sagoma.planimetria.geometry.Ceilings
 import com.sagoma.planimetria.geometry.HousingRules
 import com.sagoma.planimetria.geometry.Dimensions
 import com.sagoma.planimetria.geometry.Openings
+import com.sagoma.planimetria.geometry.PhaseView
+import com.sagoma.planimetria.geometry.Phases
 import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.Stairs
+import com.sagoma.planimetria.geometry.Swings
 import com.sagoma.planimetria.geometry.Triangulation
 import com.sagoma.planimetria.geometry.arcOf
 import com.sagoma.planimetria.geometry.expandCurves
@@ -16,7 +19,9 @@ import com.sagoma.planimetria.geometry.interiorArea
 import com.sagoma.planimetria.geometry.usableArea
 import com.sagoma.planimetria.geometry.wallShift
 import com.sagoma.planimetria.model.Building
+import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
@@ -31,8 +36,9 @@ import kotlin.math.roundToInt
 /**
  * «Controlla la pianta»: errori di disegno che di solito sfuggono e rovinano metri quadri, computo e 3D (stanze sovrapposte o
  * staccate di pochi centimetri, muri che si incrociano, la stessa porta messa due volte), cose da controllare (stanze senza
- * porta, casa senza ingresso, scale che non arrivano) e minimi delle norme italiane per le case ([HousingRules]: finestre, altezze,
- * metri quadri). Ogni problema dice quale piano e quale zona inquadrare e cosa selezionare.
+ * porta, casa senza ingresso, scale che non arrivano, ante che aprendosi urtano altre ante, mobili o muri) e minimi delle
+ * norme italiane per le case ([HousingRules]: finestre, altezze, metri quadri). Ogni problema dice quale piano e quale zona
+ * inquadrare e cosa selezionare.
  */
 object PlanCheck {
     /**
@@ -55,6 +61,9 @@ object PlanCheck {
         TinyRoom(false),
         StairNoFloor(false),
         StairOutside(false),
+        SwingClash(false),
+        SwingHitsThing(false),
+        SwingHitsWall(false),
         FewWindows(false, rule = true),
         NoWindows(false, rule = true),
         NoFloorWindows(false, rule = true),
@@ -66,7 +75,8 @@ object PlanCheck {
     /**
      * Un problema al piano `floor` (indice in [Building.floors]). `rooms`: le stanze coinvolte, nell'ordine del testo; `area`: la
      * zona da inquadrare (cm); `selection`: cosa selezionare (null: la prima stanza a fuoco). `a`, `b`: misure per il testo (m² o
-     * cm); `opening`: tipo dell'apertura di cui si parla.
+     * cm); `opening`: tipo dell'apertura di cui si parla (`opening2` dell'altra); `furniture`: il mobile urtato (senza: il
+     * calorifero).
      */
     data class Issue(
         val kind: Kind,
@@ -77,6 +87,8 @@ object PlanCheck {
         val a: Double = 0.0,
         val b: Double = 0.0,
         val opening: OpeningKind? = null,
+        val opening2: OpeningKind? = null,
+        val furniture: Long? = null,
     )
 
     /** Oltre questi non si cerca altro: una pianta così ha bisogno di essere ridisegnata, non di un elenco infinito. */
@@ -124,6 +136,7 @@ object PlanCheck {
                 walls()
                 pairs()
                 openings()
+                swings()
                 doors(below?.let { sane(it.plan) to it.levelHeight }, floor.levelHeight)
                 stairs(floor.levelHeight, above?.let { sane(it.plan) }, f == b.floors.lastIndex)
                 rules()
@@ -170,6 +183,13 @@ object PlanCheck {
             Kind.TinyRoom -> t.piccolissima(name(0), formatDecimal(i.a, 2))
             Kind.StairNoFloor -> t.scalaSenzaPiano
             Kind.StairOutside -> t.scalaFuori(b.floors.getOrNull(i.floor + 1)?.name ?: "")
+            Kind.SwingClash -> t.anteSiUrtano(i.rooms.indices.joinToString(" / ") { name(it) }, cosa, i.opening2?.let { T.lingua.minuscola(it.label) } ?: "")
+            Kind.SwingHitsThing -> {
+                val thing = i.furniture?.let { id -> plan?.furniture?.firstOrNull { it.id == id } }
+                    ?.let { f -> FurnitureCatalog.item(f.model)?.nome?.substringBefore(" · ") ?: T.computo.arredo } ?: FixtureKind.Radiator.label
+                t.antaUrta(name(0), cosa, t.nome(thing))
+            }
+            Kind.SwingHitsWall -> t.antaUrtaMuro(name(0), cosa)
             Kind.FewWindows -> t.pocaLuce(all, m2(i.a), m2(i.b), HousingRules.fraction(i.a / i.b), m2(i.b * HousingRules.MIN_RATIO))
             Kind.NoWindows -> t.senzaFinestre(all, m2(i.b * HousingRules.MIN_RATIO))
             Kind.NoFloorWindows -> t.nessunaFinestra
@@ -407,6 +427,48 @@ object PlanCheck {
                     }
                 } ?: continue
                 add(Issue(Kind.InnerWindow, floor, listOf(s.room.id, other.id), boundsOf(listOf(s.a, s.b)).grow(80.0), Selection.Opening(s.room.id, s.o.id), opening = s.o.kind))
+            }
+        }
+
+        /**
+         * Ante a battente che aprendosi si urtano tra loro, urtano un mobile o un calorifero, o non si aprono del tutto per un muro o
+         * un pilastro; nella casa come sarà (senza muri e aperture da demolire).
+         */
+        fun swings() {
+            val p = Phases.view(plan, PhaseView.Project)
+            val sweeps = Swings.sweeps(p)
+            if (sweeps.isEmpty()) return
+            fun box(s: List<Swings.Sweep>) = s.map { it.box }.reduce { x, y -> x.union(y) }.grow(60.0)
+            // Due ante che si urtano: ogni coppia di aperture una volta sola (le ante della stessa apertura non si urtano).
+            val pairs = mutableSetOf<List<Long>>()
+            for ((k, x) in sweeps.withIndex()) for (m in k + 1 until sweeps.size) {
+                if (full()) return
+                val y = sweeps[m]
+                if (x.room.id == y.room.id && x.opening.id == y.opening.id) continue
+                val key = listOf(x.room.id, x.opening.id, y.room.id, y.opening.id)
+                if (key in pairs || Swings.overlap(x, y) < Swings.MIN_OVERLAP_CM2) continue
+                pairs += key
+                add(
+                    Issue(
+                        Kind.SwingClash, floor, listOf(x.room.id, y.room.id).distinct(), box(listOf(x, y)), Selection.Opening(y.room.id, y.opening.id),
+                        opening = x.opening.kind, opening2 = y.opening.kind,
+                    ),
+                )
+            }
+            val things = Swings.things(p)
+            val walls = Swings.walls(p)
+            for (group in sweeps.groupBy { it.room.id to it.opening.id }.values) {
+                if (full()) return
+                val s = group.first()
+                val sel = Selection.Opening(s.room.id, s.opening.id)
+                // Il mobile (o calorifero) urtato di più.
+                val hit = things.map { t -> t to group.sumOf { Swings.overlap(it, t) } }.maxByOrNull { it.second }
+                if (hit != null && hit.second >= Swings.MIN_OVERLAP_CM2) {
+                    val f = hit.first.id.takeIf { hit.first.kind == Swings.ObstacleKind.Furniture }
+                    add(Issue(Kind.SwingHitsThing, floor, listOf(s.room.id), box(group), sel, opening = s.opening.kind, furniture = f))
+                }
+                val wall = walls.any { w -> group.sumOf { Swings.overlap(it, w) } >= Swings.MIN_OVERLAP_CM2 && group.none { Swings.ownWall(it, w) } }
+                if (wall) add(Issue(Kind.SwingHitsWall, floor, listOf(s.room.id), box(group), sel, opening = s.opening.kind))
             }
         }
 
