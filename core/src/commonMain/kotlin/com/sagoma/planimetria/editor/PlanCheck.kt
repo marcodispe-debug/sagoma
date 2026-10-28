@@ -34,6 +34,7 @@ import com.sagoma.planimetria.model.FurnitureSymbol
 import com.sagoma.planimetria.model.Mount
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
+import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.model.RadiatorModel
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
@@ -232,8 +233,9 @@ object PlanCheck {
      * Problemi che [fixed] sa correggere da solo: solo per questi c'è «Correggi». La stessa apertura messa due volte solo se le due
      * sono dello stesso tipo (una porta e una finestra nello stesso punto: quale togliere lo sceglie chi disegna). L'apertura su un
      * muro lungo quasi zero no: si corregge il muro (l'apertura passa su quello dopo). Le ante che urtano, le stanze sovrapposte,
-     * quelle senza porta, calorifero o punto acqua e la casa senza ingresso qui sì, ma girarle, spostarle o trovare dove mettere
-     * la porta o l'impianto non sempre si può: [canFix] con la casa lo prova ([triesFirst]).
+     * quelle senza porta, calorifero o punto acqua, la casa senza ingresso e le stanze con poche finestre qui sì, ma girarle,
+     * spostarle o trovare dove mettere la porta, l'impianto o la finestra non sempre si può: [canFix] con la casa lo prova
+     * ([triesFirst]).
      */
     fun canFix(i: Issue): Boolean = when (i.kind) {
         Kind.FurnitureInWall -> i.b == 0.0
@@ -242,7 +244,8 @@ object PlanCheck {
         Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall, Kind.NearWalls, Kind.OpeningOnRemovedWall -> true
         Kind.Overlap -> i.rooms.size == 2
         Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater -> i.rooms.size == 1
-        Kind.NoEntrance, Kind.NoDoors -> true
+        Kind.NoEntrance, Kind.NoDoors, Kind.NoFloorWindows -> true
+        Kind.NoWindows, Kind.FewWindows -> i.rooms.isNotEmpty()
         Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall -> i.selection is Selection.Opening
         else -> false
     }
@@ -250,10 +253,14 @@ object PlanCheck {
     private val SWINGS = setOf(Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall)
 
     /** Problemi che si riconoscono dalle stanze di [Issue.rooms] (non da cosa selezionare): corretti quando lì non c'è più. */
-    private val BY_ROOMS = setOf(Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater)
+    private val BY_ROOMS = setOf(Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater, Kind.NoWindows, Kind.FewWindows)
+
+    /** Finestre sotto 1/8 del pavimento: «senza» e «poche» sono lo stesso problema (una finestra piccola non lo corregge). */
+    private val FEW_WINDOWS = setOf(Kind.NoWindows, Kind.FewWindows)
 
     /** Problemi che [canFix] con la casa prova a correggere davvero prima di offrire «Correggi» ([triesFirst]). */
-    private val TRIES_FIRST = SWINGS + Kind.Overlap + Kind.NoDoor + Kind.NoDoors + Kind.NoEntrance + Kind.NoHeating + Kind.NoWater
+    private val TRIES_FIRST = SWINGS + FEW_WINDOWS + Kind.Overlap + Kind.NoDoor + Kind.NoDoors + Kind.NoEntrance + Kind.NoHeating + Kind.NoWater +
+        Kind.NoFloorWindows
 
     /**
      * Chiave del problema `i` tra quelli tolti dalla pianta ([Building.hiddenChecks]): tipo, piano (il suo id, che non cambia
@@ -347,7 +354,9 @@ object PlanCheck {
      * ([overlapFixes]); alla stanza senza porta se ne mette una verso la stanza accanto ([doorFixes]), alla casa senza ingresso
      * una porta blindata su un muro che dà fuori ([entranceFixes]); alla stanza senza calorifero se ne mette uno ([heatFixes]),
      * alla cucina o al bagno senza punto acqua uno dietro il lavello ([waterFixes]); al piano senza nessuna porta una porta
-     * per stanza e quella d'ingresso ([allDoors]); la stanza piccolissima
+     * per stanza e quella d'ingresso ([allDoors]); all'ambiente con finestre sotto 1/8 del pavimento si allarga una finestra o
+     * se ne mette una nuova su un muro che dà fuori ([windowFixes]), al piano senza nessuna finestra in ogni ambiente da abitare
+     * ([allWindows]); la stanza piccolissima
      * (un pezzo rimasto) si toglie, se il piano ne ha altre; l'anta che urta si gira ([swingFixes]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
      */
     fun fixed(b: Building, i: Issue): Building? {
@@ -360,7 +369,7 @@ object PlanCheck {
             Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.NoEntrance, Kind.NoHeating, Kind.NoWater -> null
             // Il piano senza nessuna porta (appena ricalcato): una porta per stanza e quella d'ingresso; se l'ingresso non trova
             // posto, solo le porte.
-            Kind.NoDoors -> null
+            Kind.NoDoors, Kind.NoFloorWindows -> null
             Kind.TinyRoom -> i.rooms.singleOrNull()?.takeIf { id -> plan.room(id) != null && plan.rooms.size > 1 }?.let { id ->
                 plan.copy(rooms = plan.rooms.filter { it.id != id })
             }
@@ -397,7 +406,7 @@ object PlanCheck {
         }
         // Già corretto (l'elenco era vecchio): niente da fare. Una correzione che crea un errore di disegno nuovo non va.
         val before by lazy { of(b) }
-        fun same(x: Issue) = x.kind == i.kind && x.floor == i.floor &&
+        fun same(x: Issue) = (x.kind == i.kind || (i.kind in FEW_WINDOWS && x.kind in FEW_WINDOWS)) && x.floor == i.floor &&
             (if (i.kind in BY_ROOMS) x.rooms.toSet() == i.rooms.toSet() else x.selection == i.selection)
         fun accepted(out: FloorPlan): Pair<Building, List<Issue>>? {
             if (out == plan || before.none(::same)) return null
@@ -412,14 +421,16 @@ object PlanCheck {
             val old = swings(plan).mapTo(HashSet()) { LiveCheck.key(it) }
             return entranceFixes(plan).sortedBy { p -> swings(p).count { LiveCheck.key(it) !in old } }.firstNotNullOfOrNull { accepted(it)?.first }
         }
-        if (i.kind == Kind.NoDoor || i.kind == Kind.NoHeating || i.kind == Kind.NoWater) {
-            // Tra le porte (o i caloriferi, i punti acqua) che vanno, quella con meno problemi nuovi (anta che urta, bagno che si
-            // apre sul soggiorno); a pari, la prima (verso corridoio o soggiorno; sotto la finestra; dietro il lavello).
+        if (i.kind == Kind.NoDoor || i.kind == Kind.NoHeating || i.kind == Kind.NoWater || i.kind in FEW_WINDOWS) {
+            // Tra le porte (o i caloriferi, i punti acqua, le finestre) che vanno, quella con meno problemi nuovi (anta che urta,
+            // bagno che si apre sul soggiorno); a pari, la prima (verso corridoio o soggiorno; sotto la finestra; dietro il
+            // lavello; la finestra che c'è allargata).
             val keys by lazy { before.mapTo(HashSet()) { LiveCheck.key(it) } }
             val fixes = when (i.kind) {
                 Kind.NoDoor -> doorFixes(plan, i)
                 Kind.NoHeating -> heatFixes(plan, i)
-                else -> waterFixes(plan, i)
+                Kind.NoWater -> waterFixes(plan, i)
+                else -> windowFixes(plan, i.rooms.mapNotNull(plan::room))
             }
             return fixes.mapNotNull { out -> accepted(out)?.let { (result, after) -> result to after.count { LiveCheck.key(it) !in keys } } }
                 .minByOrNull { it.second }?.first
@@ -439,6 +450,7 @@ object PlanCheck {
         val candidates = when (i.kind) {
             Kind.NearWalls -> nearFixes(plan, i)
             Kind.NoDoors -> allDoors(plan, i.floor)?.let { doors -> entranceFixes(doors).take(2) + doors }.orEmpty()
+            Kind.NoFloorWindows -> listOfNotNull(allWindows(plan))
             else -> listOfNotNull(single)
         }
         return candidates.firstNotNullOfOrNull { accepted(it)?.first }
@@ -718,21 +730,13 @@ object PlanCheck {
                 val u = (r.wallEnd(k) - a) / len
                 val n = r.outwardOf(k)
                 fun onLine(p: Vec2) = abs((p - a) dot n) <= Openings.SHARED_WALL_TOLERANCE_CM
-                // Già occupato: porte e finestre su questa linea; dove poco fuori dal muro c'è un'altra stanza (anche con un muro
-                // spesso in mezzo, o il suo muro contro questo).
+                // Già occupato: porte e finestre su questa linea; dove poco fuori dal muro c'è un'altra stanza.
                 val taken = plan.openingHosts.flatMap { h ->
                     h.openings.filter { it.wallIndex in 0 until h.wallCount && h.arcOf(it.wallIndex) == null }.mapNotNull { o ->
                         val (p, q) = Openings.span(h, o)
                         if (onLine(p) && onLine(q)) min((p - a) dot u, (q - a) dot u) to max((p - a) dot u, (q - a) dot u) else null
                     }
-                }.toMutableList()
-                val out = n * (r.thicknessOf(k) / 2 + NEIGHBOUR_PROBE_CM)
-                var t = 0.0
-                while (t <= len) {
-                    val p = a + u * t + out
-                    if (plan.rooms.any { it.id != r.id && Polygon.contains(it.points, p) }) taken += (t - PROBE_STEP_CM) to (t + PROBE_STEP_CM)
-                    t += PROBE_STEP_CM
-                }
+                } + neighbours(plan, r, k, outdoor = true)
                 // I tratti liberi tra quelli occupati.
                 var from = 0.0
                 for ((x0, x1) in taken.sortedBy { it.first } + (len to len)) {
@@ -750,6 +754,25 @@ object PlanCheck {
         }
     }
 
+    /**
+     * Tratti del muro `k` della stanza `r` (inizio e fine lungo il muro) dove poco fuori c'è un'altra stanza al chiuso (anche con un
+     * muro spesso in mezzo, o il suo muro contro questo); con `outdoor` anche balconi e terrazze.
+     */
+    private fun neighbours(plan: FloorPlan, r: Room, k: Int, outdoor: Boolean): List<Pair<Double, Double>> {
+        val a = r.wallStart(k)
+        val len = r.wallLength(k)
+        val u = (r.wallEnd(k) - a) / len
+        val out = r.outwardOf(k) * (r.thicknessOf(k) / 2 + NEIGHBOUR_PROBE_CM)
+        val taken = mutableListOf<Pair<Double, Double>>()
+        var t = 0.0
+        while (t <= len) {
+            val p = a + u * t + out
+            if (plan.rooms.any { it.id != r.id && (outdoor || !it.outdoor) && Polygon.contains(it.points, p) }) taken += (t - PROBE_STEP_CM) to (t + PROBE_STEP_CM)
+            t += PROBE_STEP_CM
+        }
+        return taken
+    }
+
     /** Fascia davanti a un muro (cm, oltre la faccia interna) dove un mobile o un impianto è addossato al muro. */
     private const val WALL_BAND_CM = 25.0
 
@@ -761,9 +784,10 @@ object PlanCheck {
 
     /**
      * Tratti del muro `k` della stanza `r` già occupati (inizio e fine lungo il muro): porte e finestre su quella linea (solo con
-     * `openings`), impianti a muro e mobili addossati.
+     * `openings`), impianti a muro e mobili addossati (con `above`, solo quelli che arrivano più su: sotto una finestra il
+     * calorifero o il divano vanno bene).
      */
-    private fun wallBlocks(plan: FloorPlan, r: Room, k: Int, openings: Boolean): List<Pair<Double, Double>> {
+    private fun wallBlocks(plan: FloorPlan, r: Room, k: Int, openings: Boolean, above: Double = -1.0): List<Pair<Double, Double>> {
         val a = r.wallStart(k)
         val len = r.wallLength(k)
         val u = (r.wallEnd(k) - a) / len
@@ -778,12 +802,13 @@ object PlanCheck {
                 if (onLine(p) && onLine(q)) out += min(along(p), along(q)) to max(along(p), along(q))
             }
         }
-        for (f in r.fixtures) if (f.kind.mount == Mount.Wall && f.wallIndex == k) {
+        for (f in r.fixtures) if (f.kind.mount == Mount.Wall && f.wallIndex == k && f.elevation + f.height > above) {
             val half = max(f.length, FIXTURE_GAP_CM) / 2
             out += (f.position - half) to (f.position + half)
         }
         val band = r.thicknessOf(k) / 2 + WALL_BAND_CM
         for (f in plan.furniture) {
+            if (f.elevation + f.height <= above) continue
             val pts = Furnishings.outline(f)
             val inward = pts.map { -((it - a) dot n) }
             if (inward.max() < -1.0 || inward.min() > band) continue
@@ -792,6 +817,105 @@ object PlanCheck {
             out += t.min() to t.max()
         }
         return out
+    }
+
+    /** Spazio (cm) che una finestra messa o allargata da «Correggi» lascia dagli spigoli, dalle altre aperture e dai mobili alti. */
+    private const val WINDOW_GAP_CM = 30.0
+
+    /** Larghezza (cm) della finestra più stretta e di quella più larga che «Correggi» mette o allarga. */
+    private const val MIN_WINDOW_CM = 80.0
+    private const val MAX_WINDOW_CM = 180.0
+
+    /** Finestre nuove al massimo per un ambiente. */
+    private const val MAX_NEW_WINDOWS = 4
+
+    /** Finestra nuova: come quella a due ante del menu (alta 120, davanzale a 90), larga `width` (fino a 90 a un'anta). */
+    private fun newWindow(id: Long, wall: Int, at: Double, width: Double): Opening =
+        Opening.default(id, if (width <= 90.0) OpeningKind.Window1 else OpeningKind.Window2, wall, at).copy(width = width)
+
+    private fun ceil10(cm: Double) = kotlin.math.ceil(cm / 10 - 1e-9) * 10
+    private fun floor10(cm: Double) = kotlin.math.floor(cm / 10 + 1e-9) * 10
+
+    /** Quanto (cm²) mancano le finestre dell'ambiente a 1/8 del pavimento, con un centesimo di m² in più per l'arrotondamento. */
+    private fun missingLight(plan: FloorPlan, space: List<Room>): Double =
+        HousingRules.floorArea(space) * HousingRules.MIN_RATIO - HousingRules.windowArea(plan, space) + 100.0
+
+    /**
+     * Finestre nuove nell'ambiente `space` per `need` cm² (vedi [windowFixes]), partendo dal tratto libero `first` (indice tra
+     * quelli più lunghi); null se non bastano i muri che danno fuori.
+     */
+    private fun addedWindows(plan: FloorPlan, space: List<Room>, need: Double, first: Int = 0): FloorPlan? {
+        val probe = newWindow(0, 0, 0.0, MAX_WINDOW_CM)
+        // Tratti liberi di muri dritti che danno fuori (anche su un balcone), alti abbastanza: stanza, muro, inizio e fine.
+        val runs = space.flatMap { r ->
+            (0 until r.wallCount).filter { k ->
+                !r.isRemoved(k) && r.arcOf(k) == null && r.phaseOf(k) != Phase.Demolish && r.wallHeight(k) >= probe.bottom + probe.height + 10.0 &&
+                    r.wallLength(k) >= MIN_WINDOW_CM + 2 * WINDOW_GAP_CM
+            }.flatMap { k ->
+                val blocks = wallBlocks(plan, r, k, openings = true, above = probe.bottom) + neighbours(plan, r, k, outdoor = false)
+                freeRuns(blocks, r.wallLength(k), MIN_WINDOW_CM + 2 * WINDOW_GAP_CM).map { (lo, hi) -> Triple(r.id, k, lo to hi) }
+            }
+        }.sortedByDescending { it.third.second - it.third.first }
+        if (first >= runs.size) return null
+        var out = plan
+        var left = need
+        var id = plan.nextOpeningId
+        for ((roomId, k, run) in listOf(runs[first]) + runs.filterIndexed { n, _ -> n != first }) {
+            if (left <= 0 || id - plan.nextOpeningId >= MAX_NEW_WINDOWS) break
+            val (lo, hi) = run
+            // Se ne servono più d'una, larghe uguali (due da 100 invece di una da 180 e una da 20).
+            val count = kotlin.math.ceil(left / (MAX_WINDOW_CM * probe.height))
+            val width = ceil10(left / count / probe.height).coerceIn(MIN_WINDOW_CM, min(MAX_WINDOW_CM, floor10(hi - lo - 2 * WINDOW_GAP_CM)))
+            val r = out.room(roomId) ?: continue
+            out = out.replace(r.copy(openings = r.openings + newWindow(id++, k, (lo + hi) / 2, width)))
+            left -= width * probe.height
+        }
+        return out.takeIf { left <= 0 }
+    }
+
+    /**
+     * Ambiente da abitare con finestre apribili sotto 1/8 del pavimento (o senza): le correzioni, nell'ordine in cui provare.
+     * Prima una finestra che c'è allargata quanto serve (fino a 180 cm, o un quarto in più se è già più larga), nel suo tratto di
+     * muro libero da porte, finestre e mobili alti; poi finestre nuove, alte 120 col davanzale a 90 come quella del menu, larghe
+     * quanto serve (fino a 180 cm, se ne servono di più larghe uguali), nel mezzo dei tratti più lunghi dei muri che danno fuori
+     * (al massimo quattro).
+     */
+    private fun windowFixes(plan: FloorPlan, space: List<Room>): List<FloorPlan> {
+        if (space.isEmpty() || space.any { it.outdoor }) return emptyList()
+        val need = missingLight(plan, space)
+        if (need <= 0) return emptyList()
+        val widened = space.flatMap { r ->
+            HousingRules.windows(plan, r).filter { it.kind.isWindow && r.arcOf(it.wallIndex) == null && it.height > 0 }.sortedByDescending { it.width }.mapNotNull { o ->
+                // Fino a 180 cm, o un quarto in più per una finestra già larga.
+                val width = ceil10(o.width + need / o.height)
+                if (width > max(MAX_WINDOW_CM, ceil10(o.width * 1.25))) return@mapNotNull null
+                // Il tratto libero dove sta, senza di lei.
+                val without = r.copy(openings = r.openings.filter { it.id != o.id })
+                val k = o.wallIndex
+                val len = r.wallLength(k)
+                val blocks = wallBlocks(plan.replace(without), without, k, openings = true, above = o.bottom) + neighbours(plan, r, k, outdoor = false)
+                val (lo, hi) = freeRuns(blocks, len, width + 2 * WINDOW_GAP_CM).firstOrNull { (lo, hi) -> o.position in lo..hi } ?: return@mapNotNull null
+                val at = o.position.coerceIn(lo + WINDOW_GAP_CM + width / 2, hi - WINDOW_GAP_CM - width / 2)
+                val kind = if (o.kind == OpeningKind.Window1 && width > 90.0) OpeningKind.Window2 else o.kind
+                plan.replace(r.copy(openings = r.openings.map { if (it.id == o.id) o.copy(kind = kind, width = width, position = at) else it }))
+            }
+        }
+        return widened.take(2) + (0 until 3).mapNotNull { addedWindows(plan, space, need, it) }
+    }
+
+    /**
+     * Piano senza nessuna finestra (pianta appena ricalcata o letta): in ogni ambiente da abitare le finestre per arrivare a 1/8
+     * del pavimento ([windowFixes]), dove ci sono muri che danno fuori; null se non se ne mette nessuna.
+     */
+    private fun allWindows(plan: FloorPlan): FloorPlan? {
+        var out = plan
+        for (space in HousingRules.livingSpaces(plan)) {
+            val now = space.mapNotNull { out.room(it.id) }
+            if (now.isEmpty() || HousingRules.floorArea(now) < TINY_ROOM_CM2) continue
+            val need = missingLight(out, now)
+            out = (0 until 3).firstNotNullOfOrNull { addedWindows(out, now, need, it) } ?: continue
+        }
+        return out.takeIf { it != plan }
     }
 
     /** I tratti liberi (inizio e fine) di un muro lungo `len`, tra i tratti occupati `blocks`, lunghi almeno `need`. */

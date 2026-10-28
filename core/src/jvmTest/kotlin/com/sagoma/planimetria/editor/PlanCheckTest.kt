@@ -623,6 +623,49 @@ class PlanCheckTest {
     }
 
     @Test
+    fun `Correggi - finestre sotto 1 ottavo del pavimento`() {
+        val door = Opening.default(1, OpeningKind.Door, 0, 200.0).copy(entrance = true)
+        val window = Opening.default(10, OpeningKind.Window2, 2, 200.0)
+        // Camera 400×400 (14,82 m²) con la finestra 120×120 (1,44 m²; ne servono 1,85): si allarga a 160 (1,92 m²), al suo posto.
+        val bedroom = rect(1, "Camera", RoomType.Camera, 400.0, 400.0, openings = listOf(door, window))
+        val b = Building.single(FloorPlan(listOf(bedroom)))
+        val few = PlanCheck.of(b).single { it.kind == PlanCheck.Kind.FewWindows }
+        assertTrue(PlanCheck.triesFirst(few) && PlanCheck.canFix(b, few))
+        val wider = assertNotNull(PlanCheck.fixed(b, few)).floors[0].plan.rooms.single().openings.single { it.id == 10L }
+        assertEquals(160.0, wider.width)
+        assertEquals(200.0, wider.position)
+        // Lo studio accanto, senza finestre: una nuova da 90 (1,08 m² su 8,12), su un muro che dà fuori, non su quello in comune.
+        val study = rect(2, "Studio", RoomType.Studio, 300.0, 300.0, Vec2(400.0, 0.0), openings = listOf(Opening.default(2, OpeningKind.Door, 3, 150.0)))
+        val two = Building.single(FloorPlan(listOf(bedroom.copy(openings = listOf(door, window.copy(height = 160.0))), study)))
+        val dark = PlanCheck.of(two).single { it.kind == PlanCheck.Kind.NoWindows }
+        val lit = assertNotNull(PlanCheck.fixed(two, dark))
+        val added = lit.floors[0].plan.rooms.single { it.id == 2L }.openings.single { it.kind.glazed }
+        assertEquals(OpeningKind.Window1, added.kind)
+        assertEquals(90.0, added.width)
+        assertTrue(added.wallIndex != 3, "non sul muro in comune con la camera")
+        assertTrue(PlanCheck.of(lit).none { it.kind.rule && it.kind != PlanCheck.Kind.SmallBedroom && it.rooms.contains(2L) }, "${PlanCheck.of(lit).map { it.kind }}")
+        // Il piano senza nessuna finestra (pianta appena letta): le finestre in tutte e due le stanze.
+        val bare = Building.single(FloorPlan(listOf(bedroom.copy(openings = listOf(door)), study)))
+        val none = PlanCheck.of(bare).single { it.kind == PlanCheck.Kind.NoFloorWindows }
+        assertTrue(PlanCheck.triesFirst(none) && PlanCheck.canFix(bare, none))
+        val all = assertNotNull(PlanCheck.fixed(bare, none))
+        val after = PlanCheck.of(all)
+        assertTrue(after.none { it.kind == PlanCheck.Kind.NoFloorWindows || it.kind == PlanCheck.Kind.NoWindows || it.kind == PlanCheck.Kind.FewWindows }, "${after.map { it.kind }}")
+        assertEquals(emptyList(), after.filter { it.kind.error })
+        // Stanza chiusa tra le altre, senza muri che danno fuori: niente «Correggi».
+        val inner = rect(3, "Studio", RoomType.Studio, 300.0, 300.0, Vec2(300.0, 300.0), openings = listOf(Opening.default(3, OpeningKind.Door, 0, 150.0)))
+        val around = listOf(
+            rect(4, "Camera", RoomType.Camera, 900.0, 300.0, openings = listOf(door, window.copy(height = 160.0), window.copy(id = 11, wallIndex = 0, position = 700.0, height = 160.0))),
+            rect(5, "Camera", RoomType.Camera, 300.0, 300.0, Vec2(0.0, 300.0), openings = listOf(window.copy(id = 12, wallIndex = 3, height = 160.0))),
+            rect(6, "Camera", RoomType.Camera, 300.0, 300.0, Vec2(600.0, 300.0), openings = listOf(window.copy(id = 13, wallIndex = 1, height = 160.0))),
+            rect(7, "Camera", RoomType.Camera, 900.0, 300.0, Vec2(0.0, 600.0), openings = listOf(window.copy(id = 14, height = 160.0))),
+        )
+        val closed = Building.single(FloorPlan(around + inner))
+        val shut = PlanCheck.of(closed).single { it.kind == PlanCheck.Kind.NoWindows && it.rooms == listOf(3L) }
+        assertTrue(!PlanCheck.canFix(closed, shut))
+    }
+
+    @Test
     fun `Correggi tutti - gli errori di un gruppo insieme`() {
         // Finestra più alta del muro, porta più larga del muro del bagno, cucina sovrapposta al soggiorno: tre errori (⚠) che si
         // correggono da soli.
