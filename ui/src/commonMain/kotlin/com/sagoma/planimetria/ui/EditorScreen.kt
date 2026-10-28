@@ -421,14 +421,16 @@ fun EditorScreen(
             }
             // Marchio del piano gratuito sopra pianta e 3D (non sui pulsanti), così resta anche in uno screenshot.
             WatermarkOverlay(Modifier.fillMaxSize())
-            // «!» sulla pianta dove c'è un problema (non quelli tolti dalla pianta; non durante la guida, che ha le sue schede, né
-            // mentre si disegna o si mette qualcosa, dove il tocco serve alla pianta): il tocco apre la scheda di quel punto.
+            // «!» sulla pianta dove c'è un problema (non quelli tolti dalla pianta; non durante la guida, che ha le sue schede, tranne
+            // nella lezione sul controllo della pianta, né mentre si disegna o si mette qualcosa, dove il tocco serve alla pianta): il
+            // tocco apre la scheda di quel punto.
             val drawing = state.creation != null || state.wallDraw != null || state.pendingOpening != null || state.pendingFixture != null ||
                 state.pasting || state.measure != null || state.underlayTool != null || state.selectMode
-            if (!state.view3d && !drawing && state.course == null && state.tutorial == null) liveIssues?.let { issues ->
+            val guided = state.course != null && state.course?.step?.lesson != Lesson.Check
+            if (!state.view3d && !drawing && !guided && state.tutorial == null) liveIssues?.let { issues ->
                 val floor = state.building.current
                 val marks = remember(issues, state.plan, liveBuilding.hiddenChecks, floor) { checkMarks(issues, liveBuilding, floor, state.plan) }
-                CheckMarkers(marks, state.camera, onOpen = { m -> liveNotice = null; openMark = m.issues }, modifier = Modifier.fillMaxSize())
+                CheckMarkers(marks, state.camera, onOpen = { m -> liveNotice = null; openMark = m.issues; vm.checkMarkOpened() }, modifier = Modifier.fillMaxSize())
             }
             // Suggerimento durante il posizionamento di un'apertura o di un impianto.
             val placingHint = state.pendingOpening?.let { T.editor.toccaMuroCuiPosizionare(T.lingua.minuscola(it.kind.label)) }

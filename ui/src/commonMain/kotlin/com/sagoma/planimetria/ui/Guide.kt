@@ -414,7 +414,7 @@ private fun CourseBubble(course: CourseUi, hint: GuideHint?, vm: EditorViewModel
                         TextButton(onClick = { vm.finishCourse(completed = false) }) { Text(T.editor.noGrazie, color = quiet) }
                         TextButton(onClick = vm::nextCourseStep) { Text(T.editor.inizia) }
                     }
-                    CourseStep.ElementsDone -> {
+                    CourseStep.CheckDone -> {
                         TextButton(onClick = { vm.finishCourse() }) { Text(c.bastaCosi, color = quiet) }
                         TextButton(onClick = { vm.leaveCourse(); onLesson(Lesson.OverPlan) }) { Text(c.apriProgettoNuovo) }
                     }

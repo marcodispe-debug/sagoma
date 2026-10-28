@@ -21,10 +21,11 @@ import kotlin.math.roundToInt
  * indica cosa cliccare ([GuideHint]) e va avanti da sola quando l'azione è fatta. Le lezioni prima dell'ultima costruiscono la
  * casa della piantina della guida ([GuidePlan]), ogni cosa al suo posto: lo studio, il soggiorno attaccato sopra, la camera a
  * destra, il bagno sotto la camera, l'ingresso nello spazio che resta, il tramezzo della cabina armadio nella camera, poi porte,
- * finestre e il resto. L'ultima («Sopra la tua planimetria») si fa in un secondo progetto, sopra l'immagine della stessa piantina.
+ * finestre e il resto; poi il controllo della pianta, sulla casa fatta. L'ultima («Sopra la tua planimetria») si fa in un secondo
+ * progetto, sopra l'immagine della stessa piantina.
  */
 enum class Lesson {
-    Square, LShape, Rectangle, Survey, Walls, FreeWall, Elements, OverPlan;
+    Square, LShape, Rectangle, Survey, Walls, FreeWall, Elements, Check, OverPlan;
 
     /** La stanza della piantina che si disegna nella lezione (null: nessuna). */
     val planRoom: GuidePlan.Room?
@@ -86,8 +87,14 @@ enum class CourseStep(val lesson: Lesson, val action: Boolean = true) {
     Light(Lesson.Elements),
     Stair(Lesson.Elements),
     Info(Lesson.Elements),
-    Check(Lesson.Elements),
     ElementsDone(Lesson.Elements, action = false),
+
+    CheckOpen(Lesson.Check),
+    CheckFix(Lesson.Check),
+    CheckClose(Lesson.Check),
+    CheckMark(Lesson.Check),
+    CheckHide(Lesson.Check),
+    CheckDone(Lesson.Check, action = false),
 
     TraceStart(Lesson.OverPlan),
     TraceLoad(Lesson.OverPlan),
@@ -167,6 +174,14 @@ sealed interface GuideTarget {
     data object CheckItem : GuideTarget
     /** «Chiudi» nella finestra «Controlla la pianta». */
     data object CheckClose : GuideTarget
+    /** Il primo «✓ Correggi tutti» della finestra «Controlla la pianta». */
+    data object CheckFixAll : GuideTarget
+    /** Il primo «✓ Correggi» della finestra «Controlla la pianta». */
+    data object CheckFix : GuideTarget
+    /** Un «!» sulla pianta (il primo, il più grave): il tocco apre la sua scheda. */
+    data object CheckMark : GuideTarget
+    /** «Togli dalla pianta» nella scheda di un «!» (il primo problema). */
+    data object CheckHide : GuideTarget
 }
 
 /**
@@ -249,7 +264,12 @@ class Course {
             CourseStep.Radiator, CourseStep.Light -> e == TutorialEvent.FixtureAdded
             CourseStep.Stair -> e == TutorialEvent.StairAdded
             CourseStep.Info -> e == TutorialEvent.InfoOpened
-            CourseStep.Check -> e == TutorialEvent.PlanChecked
+            // Il controllo della pianta: elenco aperto, qualcosa corretto, elenco chiuso, un «!» toccato e tolto dalla pianta.
+            CourseStep.CheckOpen -> e == TutorialEvent.PlanCheckOpened
+            CourseStep.CheckFix -> e == TutorialEvent.IssuesFixed
+            CourseStep.CheckClose -> e == TutorialEvent.PlanChecked
+            CourseStep.CheckMark -> e == TutorialEvent.CheckMarkOpened
+            CourseStep.CheckHide -> e == TutorialEvent.CheckHidden
             CourseStep.TraceStart -> e == TutorialEvent.TracingStarted
             CourseStep.TraceLoad -> e == TutorialEvent.UnderlayLoaded
             // Durante la taratura il passo segue i punti toccati: il terzo tocco ricomincia da A, e la guida torna indietro.
@@ -388,6 +408,8 @@ private class CourseHints(private val s: EditorUiState) {
     private fun menu(first: String, vararg items: Pair<GuideMenu, String>): List<GuideHint> =
         listOf(hint(GuideTarget.Elements, first)) + items.map { (m, t) -> hint(GuideTarget.Menu(m), t) }
 
+    private fun reopenCheck() = listOf(hint(GuideTarget.More, c.controlloRiapri), hint(GuideTarget.CheckItem, c.controlloVoce))
+
     /** Scelta della forma: nella finestra se è aperta, altrimenti prima la si apre da «Elementi architettonici» → «Stanza». */
     private fun pick(choice: ShapeChoice, text: String, open: String = c.apriElementi): List<GuideHint> =
         if (s.creation is CreationStep.PickShape) listOf(hint(GuideTarget.Shape(choice), text))
@@ -399,7 +421,7 @@ private class CourseHints(private val s: EditorUiState) {
 
     fun of(step: CourseStep): List<GuideHint> = when (step) {
         CourseStep.Welcome, CourseStep.SquareDone, CourseStep.RectDone, CourseStep.LDone, CourseStep.SurveyDone,
-        CourseStep.WallsDone, CourseStep.ElementsDone, CourseStep.InnerFace, CourseStep.Finished -> emptyList()
+        CourseStep.WallsDone, CourseStep.ElementsDone, CourseStep.CheckDone, CourseStep.InnerFace, CourseStep.Finished -> emptyList()
 
         CourseStep.SquarePick -> pick(ShapeChoice.Square, c.scegliQuadrato)
         CourseStep.SquareMeasures -> measures(ShapeChoice.Square, c.scegliQuadrato) {
@@ -501,7 +523,14 @@ private class CourseHints(private val s: EditorUiState) {
         else listOf(mark(c.cliccaStanzaLuce, PlanMark(listOf(lightSpot()))))
         CourseStep.Stair -> stairHints()
         CourseStep.Info -> listOf(hint(GuideTarget.Info, c.info))
-        CourseStep.Check -> listOf(hint(GuideTarget.More, c.controlloMenu), hint(GuideTarget.CheckItem, c.controlloVoce), hint(GuideTarget.CheckClose, c.controlloChiudi))
+
+        // Con la finestra «Controlla la pianta» chiusa a metà passo, prima la si riapre.
+        CourseStep.CheckOpen -> listOf(hint(GuideTarget.More, c.controlloMenu), hint(GuideTarget.CheckItem, c.controlloVoce))
+        CourseStep.CheckFix -> reopenCheck() + hint(GuideTarget.CheckFixAll, c.controlloCorreggiTutti) + hint(GuideTarget.CheckFix, c.controlloCorreggi)
+        CourseStep.CheckClose -> reopenCheck() + hint(GuideTarget.CheckClose, c.controlloChiudi)
+        CourseStep.CheckMark -> listOf(hint(GuideTarget.CheckMark, c.controlloSegno))
+        // Scheda del «!» chiusa senza togliere niente: di nuovo un «!».
+        CourseStep.CheckHide -> listOf(hint(GuideTarget.CheckHide, c.controlloTogli), hint(GuideTarget.CheckMark, c.controlloSegnoDiNuovo))
 
         CourseStep.TraceStart -> listOf(hint(GuideTarget.Shape(ShapeChoice.Trace), c.ricalca))
         CourseStep.TraceLoad -> listOf(hint(GuideTarget.GuidePlanImage, c.usaPiantinaGuida))
@@ -1059,7 +1088,7 @@ private class CourseHints(private val s: EditorUiState) {
             val pts = GuidePlan.ingresso.points.map { it - GuidePlan.ingresso.points[0] + st }
             pad(b.union(Polygon.bounds(pts)), 40.0)
         }
-        CourseStep.FreeWallPick, CourseStep.FreeWallDone -> roomsBounds()?.let { pad(it, 60.0) }
+        CourseStep.FreeWallPick, CourseStep.FreeWallDone, CourseStep.CheckMark -> roomsBounds()?.let { pad(it, 60.0) }
         CourseStep.FreeWallMove, CourseStep.FreeWallEnd, CourseStep.FreeWallInfo -> room(RoomType.Camera)?.let { pad(Polygon.bounds(it.points), 60.0) }
         CourseStep.CalibA -> plan.underlay?.let { u -> Bounds(u.origin.x, u.origin.y, u.origin.x + u.widthCm, u.origin.y + u.heightCm) }
         CourseStep.InnerFace, CourseStep.MoveRoom, CourseStep.Stretch -> withGoal(indoor(RoomType.Camera, 0), GuidePlan.camera, 60.0)

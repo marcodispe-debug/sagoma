@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sagoma.planimetria.editor.Camera
+import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.editor.PlanCheck
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FloorPlan
@@ -128,9 +129,15 @@ internal fun CheckMarkers(marks: List<CheckMark>, camera: Camera, onOpen: (Check
             val y = camera.toScreenY(m.at.y) - if (m.room) lift else nudge
             if (!x.isFinite() || !y.isFinite() || x < -touch || y < -touch || x > w + touch || y > h + touch) null else m to Offset(x, y)
         }
-        for ((m, at) in mergeClose(placed, touch)) {
+        // La guida interattiva indica il primo (il più grave).
+        for ((k, pair) in mergeClose(placed, touch).withIndex()) {
+            val (m, at) = pair
             key(m.at, m.room) {
-                CheckMarker(m, onClick = { onOpen(m) }, modifier = Modifier.offset { IntOffset((at.x - touch / 2).roundToInt(), (at.y - touch / 2).roundToInt()) })
+                CheckMarker(
+                    m, onClick = { onOpen(m) },
+                    modifier = Modifier.offset { IntOffset((at.x - touch / 2).roundToInt(), (at.y - touch / 2).roundToInt()) }
+                        .guide(GuideTarget.CheckMark.takeIf { k == 0 }),
+                )
             }
         }
     }
@@ -194,7 +201,7 @@ internal fun CheckSpotCard(
         shadowElevation = 3.dp,
     ) {
         Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState()).padding(start = 16.dp, top = 10.dp, end = 4.dp)) {
-            for (i in issues) {
+            for ((k, i) in issues.withIndex()) {
                 Text(
                     PlanCheck.mark(i.kind) + " " + where(i) + PlanCheck.describe(i, building),
                     style = MaterialTheme.typography.bodyMedium,
@@ -205,7 +212,9 @@ internal fun CheckSpotCard(
                     val fixable = if (PlanCheck.triesFirst(i)) i in turnable else PlanCheck.canFix(i)
                     if (fixable) TextButton(onClick = { onFix(i) }, colors = buttons) { Text("✓ " + T.controllo.correggi) }
                     TextButton(onClick = { onShow(i) }, colors = buttons) { Text(T.controllo.mostra) }
-                    TextButton(onClick = { onHide(i) }, colors = buttons) { Text(T.controllo.togliDallaPianta) }
+                    TextButton(onClick = { onHide(i) }, colors = buttons, modifier = Modifier.guide(GuideTarget.CheckHide.takeIf { k == 0 })) {
+                        Text(T.controllo.togliDallaPianta)
+                    }
                 }
             }
             TextButton(onClick = onClose, colors = buttons, modifier = Modifier.align(Alignment.End)) { Text(T.controllo.chiudi) }

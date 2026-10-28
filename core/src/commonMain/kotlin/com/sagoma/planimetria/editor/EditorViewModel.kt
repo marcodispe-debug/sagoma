@@ -3167,13 +3167,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         fitTo(viewBounds(_state.value) ?: return)
     }
 
-    /** Finestra «Controlla la pianta» chiusa: per la guida interattiva, che la fa provare. */
+    /** Finestra «Controlla la pianta» aperta: per la guida interattiva, che la fa provare. */
+    fun planCheckOpened() = tutorialEvent(TutorialEvent.PlanCheckOpened)
+
+    /** Finestra «Controlla la pianta» chiusa: per la guida interattiva. */
     fun planCheckClosed() = tutorialEvent(TutorialEvent.PlanChecked)
 
-    /**
-     * «Controlla la pianta» → «Mostra»: va al piano del problema, seleziona ciò che lo riguarda (o mette a fuoco la stanza) e
-     * inquadra la zona, almeno 5 × 5 m attorno perché si capisca dove si è.
-     */
+    /** Toccato un «!» sulla pianta (si apre la sua scheda): per la guida interattiva. */
+    fun checkMarkOpened() = tutorialEvent(TutorialEvent.CheckMarkOpened)
+
     /**
      * «Correggi» in «Controlla la pianta»: la correzione automatica del problema ([PlanCheck.fixed]), che si annulla come le altre
      * modifiche. False se non si riesce da soli.
@@ -3181,6 +3183,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun fixIssue(issue: PlanCheck.Issue): Boolean {
         val fixed = PlanCheck.fixed(_state.value.fullBuilding, issue) ?: return false
         commitBuilding { fixed }
+        tutorialEvent(TutorialEvent.IssuesFixed)
         return true
     }
 
@@ -3191,6 +3194,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun applyFixes(from: Building, fixed: Building): Boolean {
         if (_state.value.fullBuilding != from || fixed == from) return false
         commitBuilding { fixed }
+        tutorialEvent(TutorialEvent.IssuesFixed)
         return true
     }
 
@@ -3209,8 +3213,13 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             if (hidden) keys += changed else keys -= changed.toSet()
             if (keys == b.hiddenChecks) b else b.copy(hiddenChecks = keys)
         }
+        if (hidden && issues.isNotEmpty()) tutorialEvent(TutorialEvent.CheckHidden)
     }
 
+    /**
+     * «Controlla la pianta» → «Mostra»: va al piano del problema, seleziona ciò che lo riguarda (o mette a fuoco la stanza) e
+     * inquadra la zona, almeno 5 × 5 m attorno perché si capisca dove si è.
+     */
     fun showIssue(issue: PlanCheck.Issue) {
         selectFloor(issue.floor)
         val plan = _state.value.plan

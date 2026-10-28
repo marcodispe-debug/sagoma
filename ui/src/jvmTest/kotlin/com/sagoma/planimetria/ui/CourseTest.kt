@@ -237,17 +237,52 @@ class CourseTest {
     }
 
     @Test
-    fun `alla fine degli elementi la guida fa provare il controllo della pianta`() {
+    fun `dopo gli elementi la lezione sul controllo della pianta fa correggere e togliere un «!» dalla pianta`() {
         val vm = emptyProject()
         vm.startCourse(Lesson.Elements)
-        while (vm.step != CourseStep.Check) vm.skip(vm.step!!)
-        // Menu «⋮», voce «Controlla la pianta», poi «Chiudi» nella finestra: chiusa la finestra il passo è fatto.
-        assertEquals(listOf(GuideTarget.More, GuideTarget.CheckItem, GuideTarget.CheckClose), Course.hints(CourseStep.Check, vm.state.value).map { it.target })
+        while (vm.step != CourseStep.ElementsDone) vm.skip(vm.step!!)
+        vm.skip(CourseStep.ElementsDone)
+        // Menu «⋮» e voce «Controlla la pianta»: aperta la finestra il passo è fatto (chiuderla prima non conta).
+        assertEquals(CourseStep.CheckOpen, vm.step)
+        assertEquals(listOf(GuideTarget.More, GuideTarget.CheckItem), vm.targets())
         vm.planCheckClosed()
-        assertEquals(CourseStep.ElementsDone, vm.step)
-        // La casa della guida, fatta saltando i passi: niente da correggere, solo cose da controllare (porte che mancano, la scala).
-        assertTrue(PlanCheck.of(vm.state.value.fullBuilding).none { it.kind.error }, "${PlanCheck.of(vm.state.value.fullBuilding)}")
+        assertEquals(CourseStep.CheckOpen, vm.step)
+        vm.planCheckOpened()
+        // «Correggi tutti» se c'è, se no «Correggi» (con la finestra chiusa, prima la si riapre).
+        assertEquals(CourseStep.CheckFix, vm.step)
+        assertEquals(listOf(GuideTarget.More, GuideTarget.CheckItem, GuideTarget.CheckFixAll, GuideTarget.CheckFix), vm.targets())
+        // La casa della guida, fatta saltando i passi, non ha porte: «Correggi» le mette, e niente da sistemare (⚠).
+        val noDoors = PlanCheck.of(vm.state.value.fullBuilding).single { it.kind == PlanCheck.Kind.NoDoors }
+        vm.setCheckHidden(noDoors, true)
+        assertEquals(CourseStep.CheckFix, vm.step, "toglierlo dalla pianta non lo corregge")
+        vm.undo()
+        assertTrue(vm.fixIssue(noDoors))
+        assertEquals(CourseStep.CheckClose, vm.step)
+        val left = PlanCheck.of(vm.state.value.fullBuilding)
+        assertTrue(left.none { it.kind == PlanCheck.Kind.NoDoors || it.kind.error }, "$left")
+        assertEquals(listOf(GuideTarget.More, GuideTarget.CheckItem, GuideTarget.CheckClose), vm.targets())
+        vm.planCheckClosed()
+        // Un «!» toccato sulla pianta, poi «Togli dalla pianta» nella sua scheda (chiusa la scheda, di nuovo un «!»).
+        assertEquals(CourseStep.CheckMark, vm.step)
+        assertEquals(listOf(GuideTarget.CheckMark), vm.targets())
+        vm.checkMarkOpened()
+        assertEquals(CourseStep.CheckHide, vm.step)
+        assertEquals(listOf(GuideTarget.CheckHide, GuideTarget.CheckMark), vm.targets())
+        vm.setCheckHidden(left.first(), true)
+        assertEquals(CourseStep.CheckDone, vm.step)
+        assertTrue(PlanCheck.hidden(vm.state.value.fullBuilding, left.first()))
     }
+
+    @Test
+    fun `la lezione sul controllo scelta dal benvenuto parte dalla casa delle lezioni prima`() {
+        val vm = emptyProject()
+        vm.startCourse(Lesson.Check)
+        assertEquals(CourseStep.CheckOpen, vm.step)
+        assertEquals(listOf(RoomType.Studio, RoomType.Soggiorno, RoomType.Camera, RoomType.Bagno, RoomType.Corridoio), vm.state.value.plan.rooms.map { it.type })
+        assertTrue(PlanCheck.of(vm.state.value.fullBuilding).any { PlanCheck.canFix(it) }, "c'è qualcosa da correggere")
+    }
+
+    private fun EditorViewModel.targets() = Course.hints(step!!, state.value).map { it.target }
 
     @Test
     fun `una lezione scelta dal benvenuto riparte dalle stanze delle lezioni prima, al loro posto`() {

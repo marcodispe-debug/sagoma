@@ -16,6 +16,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +65,8 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
     // «Correggi tutti» lavora fuori dal disegno: intanto i pulsanti aspettano.
     val scope = rememberCoroutineScope()
     var fixing by remember { mutableStateOf(false) }
+    // Per la guida interattiva, che la fa provare.
+    LaunchedEffect(Unit) { vm.planCheckOpened() }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(T.controllo.titolo) },
@@ -82,6 +85,9 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                         // Gruppi aperti e chiusi a mano restano così anche dopo «Correggi» (l'elenco cambia).
                         val open = remember { mutableStateMapOf<String, Boolean>() }
                         val atStart = openAtStart(groups)
+                        // La guida indica il primo «Correggi tutti» e il primo «Correggi» dell'elenco.
+                        var guideFixAll: GuideTarget? = GuideTarget.CheckFixAll
+                        var guideFix: GuideTarget? = GuideTarget.CheckFix
                         for ((title, group) in groups) {
                             val expanded = open[title] ?: atStart[title] ?: true
                             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -116,7 +122,9 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                                     },
                                     enabled = !fixing,
                                     contentPadding = PaddingValues(horizontal = 0.dp),
+                                    modifier = Modifier.guide(guideFixAll),
                                 ) { Text("✓ " + T.controllo.correggiTutti(fixable.size)) }
+                                guideFixAll = null
                             }
                             for (i in group) Row(verticalAlignment = Alignment.CenterVertically) {
                                 val where = if (floors) building.floors.getOrNull(i.floor)?.name?.let { "$it · " } ?: "" else ""
@@ -134,7 +142,9 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                                                 onClick = { if (!vm.fixIssue(i)) platform.toast(T.controllo.nonSiCorregge) },
                                                 enabled = !fixing,
                                                 contentPadding = PaddingValues(horizontal = 0.dp),
+                                                modifier = Modifier.guide(guideFix),
                                             ) { Text("✓ " + T.controllo.correggi) }
+                                            guideFix = null
                                         }
                                         // Il «!» sulla pianta: si toglie (il problema resta qui) e si rimette.
                                         TextButton(
