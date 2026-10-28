@@ -52,6 +52,8 @@ object TestiSchedaStanzaEs : TestiSchedaStanza() {
     override fun muroCm(p1: Any?, p2: Any?, p3: Any?): String = "pared $p1 · $p2×$p3 cm"
     override fun terra(p1: Any?): String = " · desde el suelo $p1"
     override fun impianti(size: Any?): String = "Instalaciones ($size)"
+    override fun impiantoBase(prese: Int, minPrese: Int, luci: Int, minLuci: Int): String =
+        "Instalación eléctrica básica (CEI 64-8): puntos de enchufe $prese de $minPrese, puntos de luz $luci de $minLuci"
     override val nessunoUsaElementiArchitettonici: String get() = "Ninguna. Usa 🧱 Elementos constructivos → Instalaciones para radiadores, enchufes, interruptores, tomas de agua y luces."
     override val muriStanza: String get() = "Paredes de la habitación: "
     override val statiDiversiCambianoMuro: String get() = "estados distintos (se cambian pared a pared)"

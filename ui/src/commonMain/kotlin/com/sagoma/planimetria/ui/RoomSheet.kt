@@ -56,6 +56,7 @@ import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.Ceilings
 import com.sagoma.planimetria.geometry.HousingRules
+import com.sagoma.planimetria.geometry.ElectricRules
 import com.sagoma.planimetria.geometry.formatDecimal
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorViewModel
@@ -492,6 +493,7 @@ private fun OpeningsTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
     LightAndAirLine(room, plan)
 
     SectionTitle(T.schedaStanza.impianti(room.fixtures.size))
+    ElectricLine(room, plan)
     if (room.fixtures.isEmpty()) {
         Text(T.schedaStanza.nessunoUsaElementiArchitettonici, style = MaterialTheme.typography.bodySmall)
     }
@@ -520,6 +522,22 @@ private fun LightAndAirLine(room: Room, plan: FloorPlan) {
             color = MaterialTheme.colorScheme.error,
         )
     }
+}
+
+/**
+ * Impianto elettrico di base (CEI 64-8, livello 1): punti presa e punti luce messi e quanti ne vuole la norma per questa stanza. In
+ * rosso quando mancano e sul piano si stanno già mettendo le prese; prima è solo un'indicazione.
+ */
+@Composable
+private fun ElectricLine(room: Room, plan: FloorPlan) {
+    val min = ElectricRules.minimum(plan, room) ?: return
+    val has = ElectricRules.points(room)
+    val missing = (has.outlets < min.outlets || has.lights < min.lights) && ElectricRules.wired(plan.rooms)
+    Text(
+        T.schedaStanza.impiantoBase(has.outlets, min.outlets, has.lights, min.lights),
+        style = MaterialTheme.typography.bodySmall,
+        color = if (missing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** Scheda Progetto: stato di fatto / progetto di tutti i muri insieme (es. stanza nuova, o tramezzi da demolire). */

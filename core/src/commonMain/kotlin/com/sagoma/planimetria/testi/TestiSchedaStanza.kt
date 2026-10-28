@@ -52,6 +52,8 @@ open class TestiSchedaStanza {
     open fun muroCm(p1: Any?, p2: Any?, p3: Any?): String = "muro $p1 · $p2×$p3 cm"
     open fun terra(p1: Any?): String = " · da terra $p1"
     open fun impianti(size: Any?): String = "Impianti ($size)"
+    open fun impiantoBase(prese: Int, minPrese: Int, luci: Int, minLuci: Int): String =
+        "Impianto elettrico di base (CEI 64-8): punti presa $prese su $minPrese, punti luce $luci su $minLuci"
     open val nessunoUsaElementiArchitettonici: String get() = "Nessuno. Usa 🧱 Elementi architettonici → Impianti per caloriferi, prese, interruttori, punti acqua e luci."
     open val muriStanza: String get() = "Muri della stanza: "
     open val statiDiversiCambianoMuro: String get() = "stati diversi (si cambiano muro per muro)"
