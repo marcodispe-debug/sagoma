@@ -86,6 +86,8 @@ class AperturePhotoTest {
                     o(33, OpeningKind.Window2, 0, 480.0, OpeningPreset.WoodWindow),
                     o(34, OpeningKind.Window1, 2, 130.0, OpeningPreset.RomanShutter),
                     o(35, OpeningKind.Window2, 2, 380.0, OpeningPreset.BayWindow),
+                    o(36, OpeningKind.Door, 1, 225.0, OpeningPreset.GarageUpAndOver),
+                    o(37, OpeningKind.Door, 3, 225.0, OpeningPreset.GarageSectional),
                 ),
             )
             repo.planStore(p.id).save(Building.single(FloorPlan(rooms = listOf(room, room2, room3))))
@@ -101,6 +103,7 @@ class AperturePhotoTest {
                 "25-porta-sopraluce" to 25L, "26-balcone-4-ante" to 26L, "27-alzante" to 27L, "28-porta-blindata" to 28L, "29-finestra-arco-veneziana" to 29L,
             ).map { (n, id) -> Triple(n, 2L, id) } + listOf(
                 "31-inferriata" to 31L, "32-sopraluce" to 32L, "33-legno-fermavetro" to 33L, "34-persiana-romana" to 34L, "35-bovindo" to 35L,
+                "36-basculante" to 36L, "37-sezionale" to 37L,
             ).map { (n, id) -> Triple(n, 3L, id) }
             val platform = DesktopPlatform(projects = repo, tips = tips, theme = FileThemeStore(dir), assets = null)
             var t = 0L

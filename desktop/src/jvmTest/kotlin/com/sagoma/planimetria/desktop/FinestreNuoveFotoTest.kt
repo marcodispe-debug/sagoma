@@ -15,8 +15,8 @@ import java.io.File
 import kotlin.test.Test
 
 /**
- * Foto 3D delle finestre nuove: inferriata, sopraluce, legno con fermavetro, persiana alla romana e bovindo, viste da fuori
- * e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
+ * Foto 3D delle finestre nuove (inferriata, sopraluce, legno con fermavetro, persiana alla romana e bovindo) e delle porte
+ * da garage (basculante e sezionale), viste da fuori e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
  */
 class FinestreNuoveFotoTest {
     @Test
@@ -39,7 +39,14 @@ class FinestreNuoveFotoTest {
         val assets = File("../catalogo/src/main/assets")
         fun read(path: String): ByteArray? = File(assets, path).takeIf { it.isFile }?.readBytes()
         read("materials/materials.json")?.let { MaterialCatalog.load(it.decodeToString()) }
-        val scene = Scene3D.build(FloorPlan(listOf(room)), null, null, ceilings = false)
+        // Garage accanto, a destra: basculante e sezionale sul muro davanti.
+        val garage = Room(2, "Garage", RoomType.Altro, RoomFactory.rectangle(600.0, 450.0).map { it + com.sagoma.planimetria.model.Vec2(800.0, 0.0) }).copy(
+            openings = listOf(
+                o(1, OpeningKind.Door, 0, 150.0, OpeningPreset.GarageUpAndOver),
+                o(2, OpeningKind.Door, 0, 450.0, OpeningPreset.GarageSectional),
+            ),
+        )
+        val scene = Scene3D.build(FloorPlan(listOf(room, garage)), null, null, ceilings = false)
         val r = DesktopGlSceneRenderer(::read)
         r.setScene(scene)
         r.setDaylight(11f, "auto")
@@ -53,5 +60,7 @@ class FinestreNuoveFotoTest {
         shot("4-dentro-davanti", Vec3(300.0, 160.0, 380.0), Vec3(300.0, 150.0, 0.0), 80.0, walking = true)
         shot("5-dentro-bovindo", Vec3(300.0, 150.0, 120.0), Vec3(300.0, 120.0, 450.0), 75.0, walking = true)
         shot("6-dentro-sopraluce-legno", Vec3(300.0, 160.0, 140.0), Vec3(300.0, 170.0, 0.0), 75.0, walking = true)
+        shot("7-garage-fuori", Vec3(1100.0, 180.0, -560.0), Vec3(1100.0, 120.0, 0.0), 55.0, walking = false)
+        shot("8-garage-dentro", Vec3(1100.0, 170.0, 430.0), Vec3(1100.0, 150.0, 0.0), 80.0, walking = true)
     }
 }

@@ -259,6 +259,11 @@ private val legendSections: List<LegendSection> by lazy {
                 LegendItem(T.editor.portaScorrevoleEsterna, T.legenda.antaSulMuro, opening(OpeningKind.Door, preset = OpeningPreset.WallSlide)),
                 LegendItem(T.editor.portaALibro, T.legenda.pannelliPiegati, opening(OpeningKind.Door, preset = OpeningPreset.Folding)),
                 LegendItem(T.editor.portaABilico, T.legenda.pernoAnta, opening(OpeningKind.Door, preset = OpeningPreset.Pivot)),
+                LegendItem(T.editor.portaBasculante, T.legenda.pannelloGarage) { m ->
+                    // Stretta e bassa, perché nella stanza di prova si veda fin dove arriva il pannello aperto.
+                    val o = OpeningPreset.GarageUpAndOver.apply(Opening.default(1, OpeningKind.Door, 0, 100.0)).copy(position = 100.0, width = 140.0, height = 160.0)
+                    drawSample(sampleRoom(openings = listOf(o)), m, WholeRoom)
+                },
                 LegendItem(T.legenda.aperturaSquadrata, T.legenda.varcoMuroSenzaPorta, opening(OpeningKind.Passage)),
                 LegendItem(T.legenda.aperturaAdArco, T.legenda.varcoSenzaPortaArco, opening(OpeningKind.Passage, style = PassageStyle.Arched)),
                 LegendItem(OpeningKind.Niche.label, T.legenda.nicchiaMezzoMuro, opening(OpeningKind.Niche)),

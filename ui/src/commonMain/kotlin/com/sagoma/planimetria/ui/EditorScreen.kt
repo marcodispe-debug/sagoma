@@ -836,6 +836,8 @@ private fun ArchitectureButton(
                     MenuEntry(T.editor.portaABilico, opening(OpeningKind.Door, preset = OpeningPreset.Pivot)),
                     MenuEntry(T.editor.portaBlindata, opening(OpeningKind.Door, preset = OpeningPreset.Armored)),
                     MenuEntry(T.editor.portaConSopraluce, opening(OpeningKind.Door, preset = OpeningPreset.Glazed)),
+                    MenuEntry(T.editor.portaBasculante, opening(OpeningKind.Door, preset = OpeningPreset.GarageUpAndOver)),
+                    MenuEntry(T.editor.portaSezionale, opening(OpeningKind.Door, preset = OpeningPreset.GarageSectional)),
                     MenuEntry(
                         T.editor.aperturaSenzaPorta,
                         children = PassageStyle.entries.map { st -> MenuEntry(st.label, opening(OpeningKind.Passage, st)) },

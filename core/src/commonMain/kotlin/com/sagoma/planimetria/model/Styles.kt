@@ -66,6 +66,18 @@ enum class SashType {
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.sashType(this)
 }
 
+/**
+ * Porta da garage: invece di aprirsi a battente il pannello sale e va sotto il soffitto, dentro la stanza. Si possono
+ * aggiungere tipi, non rinominarli (finiscono nel file).
+ */
+enum class GarageDoor {
+    None,
+    /** Basculante: un pannello unico che si ribalta in alto. */
+    UpAndOver,
+    /** Sezionale: pannelli orizzontali che scorrono su binari fino sotto il soffitto. */
+    Sectional,
+}
+
 /** Forma di finestre e balconi. Si possono aggiungere forme, non rinominarle (finiscono nel file). */
 enum class WindowShape {
     Rectangle,

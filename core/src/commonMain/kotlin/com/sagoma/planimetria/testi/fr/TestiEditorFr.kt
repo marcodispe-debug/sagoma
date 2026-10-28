@@ -70,6 +70,8 @@ object TestiEditorFr : TestiEditor() {
     override val finestraLegno: String get() = "Fenêtre en bois avec parcloses"
     override val finestraRomana: String get() = "Fenêtre avec persienne projetable"
     override val bovindo: String get() = "Bow-window (fenêtre en saillie)"
+    override val portaBasculante: String get() = "Porte basculante (garage)"
+    override val portaSezionale: String get() = "Porte sectionnelle (garage)"
     override val balcone4Ante: String get() = "Porte-fenêtre 4 vantaux"
     override val alzanteScorrevole: String get() = "Baie levante-coulissante"
     override val nicchia: String get() = "▯ Niche murale"

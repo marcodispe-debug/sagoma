@@ -33,6 +33,7 @@ open class TestiLegenda {
     open val perniOrizzontale: String get() = "L'anta gira su un perno orizzontale a metà altezza: metà va dentro, metà fuori (tratteggio)."
     open val sbarreFuori: String get() = "Puntini appena fuori dal muro: le sbarre davanti al vetro."
     open val sporgeTreLati: String get() = "Sporge fuori dal muro, con il vetro sui tre lati."
+    open val pannelloGarage: String get() = "Tratteggiato: dove va il pannello aperto, in alto dentro il garage."
     open val vetroFisso: String get() = "Vetro nel muro che non si apre: niente arco."
     open val vasistasRibalta: String get() = "L'anta si ribalta in cima verso la stanza (tratteggio)."
     open val nicchiaMezzoMuro: String get() = "Incavo profondo mezzo muro, verso la stanza; tratteggiato se sta in alto."

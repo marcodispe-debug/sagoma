@@ -801,6 +801,17 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
         drawSliding(o, a, b, n, color, line, cam, room.thicknessOf(o.wallIndex))
         return
     }
+    // Porta da garage: il pannello chiuso a filo della faccia verso la stanza e, tratteggiato, dove va quando è aperta
+    // (in alto dentro la stanza, sopra il piano di taglio).
+    if (o.isGarage) {
+        drawLine(color, cam.o(a + n * (half - 2)), cam.o(b + n * (half - 2)), strokeWidth = line)
+        val reach = n * (half + Openings.garageReach(o))
+        val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
+        drawLine(color, cam.o(a + n * half), cam.o(a + reach), strokeWidth = thin, pathEffect = dash)
+        drawLine(color, cam.o(b + n * half), cam.o(b + reach), strokeWidth = thin, pathEffect = dash)
+        drawLine(color, cam.o(a + reach), cam.o(b + reach), strokeWidth = thin, pathEffect = dash)
+        return
+    }
     // Vetro fisso e vasistas: il vetro nel muro, senza arco; il vasistas ha in più l'anta che si ribalta verso la stanza.
     if (o.fixed || o.hopper || o.pivotSash) {
         val f = n * frame

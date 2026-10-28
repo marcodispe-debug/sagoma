@@ -59,6 +59,7 @@ import com.sagoma.planimetria.model.Stair
 import com.sagoma.planimetria.model.StairKind
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
+import com.sagoma.planimetria.model.GarageDoor
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.DoorModel
@@ -912,10 +913,16 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                     }
                 }
             } else {
+                // Porte da garage: basculante o sezionale; allora niente battente, verso e cardine.
+                Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.daGarage, listOf(T.pannelli.no, T.pannelli.basculante, T.pannelli.sezionale), o.garageDoor.ordinal, Modifier.weight(1f)) { i ->
+                        update { it.copy(garage = GarageDoor.entries[i], sliding = it.sliding && i == 0, folding = it.folding && i == 0, pivot = it.pivot && i == 0) }
+                    }
+                }
                 // Porte: a battente, scorrevoli, a libro o (con un'anta) a bilico.
                 val options = listOf(T.pannelli.battente, T.pannelli.scorrevole, T.pannelli.aLibro) + if (o.kind.leaves == 1) listOf(T.pannelli.aBilico) else emptyList()
                 val current = when { o.sliding -> 1; o.folding -> 2; o.pivots -> 3; else -> 0 }
-                Row(Modifier.padding(end = 8.dp)) {
+                if (!o.isGarage) Row(Modifier.padding(end = 8.dp)) {
                     Choice(T.pannelli.apertura, options, current, Modifier.weight(1f)) { i ->
                         update { it.copy(sliding = i == 1, folding = i == 2, pivot = i == 3) }
                     }
@@ -976,7 +983,8 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                     }
                 }
             } else {
-                ModelPicker(T.comuni.modello, DoorModel.entries, o.doorModel, { it.label }, { v -> update { it.copy(doorModel = v) } }) {
+                // Le porte da garage hanno il loro pannello (a doghe o a sezioni): si sceglie solo il colore.
+                if (!o.isGarage) ModelPicker(T.comuni.modello, DoorModel.entries, o.doorModel, { it.label }, { v -> update { it.copy(doorModel = v) } }) {
                     doorPreview(it, color)
                 }
                 // Porta a battente: con il coprifilo attorno o filo muro (senza cornice).
@@ -1099,6 +1107,8 @@ internal fun openingLabel(o: Opening): String {
     val name = if (o.leaves > 2) T.pannelli.anteN(o.kind == OpeningKind.Balcony2, o.leaves) else o.kind.label
     return when {
         o.isBay -> T.editor.bovindo
+        o.garageDoor == GarageDoor.UpAndOver -> T.editor.portaBasculante
+        o.garageDoor == GarageDoor.Sectional -> T.editor.portaSezionale
         o.lifts -> T.pannelli.alzante2(name)
         o.sliding && o.slideOnWall && !o.kind.glazed -> T.pannelli.scorrevoleEsterna2(name)
         o.sliding -> T.pannelli.scorrevole2(name)

@@ -4,6 +4,7 @@ import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.FramePosition
+import com.sagoma.planimetria.model.GarageDoor
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
@@ -41,6 +42,16 @@ object Openings {
 
     /** Sporgenza del bovindo largo `w`: [BAY_DEPTH], meno se la finestra è stretta. */
     fun bayDepth(w: Double): Double = min(BAY_DEPTH, max(0.0, (w - 30.0) / 2))
+
+    /**
+     * Quanto entra nella stanza la porta da garage aperta (cm, dalla faccia interna del muro): la basculante circa tre quarti
+     * della sua altezza, la sezionale tutta l'altezza più la curva dei binari.
+     */
+    fun garageReach(o: Opening): Double = when (o.garageDoor) {
+        GarageDoor.UpAndOver -> o.height * 0.75
+        GarageDoor.Sectional -> o.height + 40.0
+        GarageDoor.None -> 0.0
+    }
 
     /** Perno della porta a bilico: a un quinto della larghezza dal lato del cardine. */
     const val PIVOT_AT = 0.2

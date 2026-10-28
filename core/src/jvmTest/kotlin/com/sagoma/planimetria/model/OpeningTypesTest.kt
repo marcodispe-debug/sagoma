@@ -403,4 +403,42 @@ class OpeningTypesTest {
         val plan = FloorPlan(listOf(room(*openings.toTypedArray())))
         assertEquals(openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
     }
+
+    @Test
+    fun `porte da garage - basculante e sezionale, chiuse nel vano e senza arco`() {
+        val d = Opening.default(1, OpeningKind.Door, 0, 200.0)
+        val up = OpeningPreset.GarageUpAndOver.apply(d) // 250 × 210: da 75 a 325
+        val sec = OpeningPreset.GarageSectional.apply(d)
+        assertEquals(GarageDoor.UpAndOver, up.garageDoor)
+        assertEquals(GarageDoor.Sectional, sec.garageDoor)
+        for (g in listOf(up, sec)) assertTrue(g.isGarage && !g.swings && !g.hasSideChoice && !g.hasDoorGlazing && g.transomCm == 0.0)
+        // Bianche finché non si sceglie un colore (le porte normali sono rovere).
+        assertEquals(Finish.White, up.finish)
+        assertEquals(Finish.Oak, d.finish)
+        // Scorrevole, a libro o a bilico non è più da garage.
+        assertFalse(up.copy(sliding = true).isGarage || up.copy(folding = true).isGarage || up.copy(pivot = true).isGarage)
+        assertEquals(157.5, Openings.garageReach(up), 1e-9)
+        assertEquals(255.0, Openings.garageReach(sec), 1e-9)
+        // Il pannello chiuso sta nel vano, verso la faccia interna del muro: da fuori si vede rientrato.
+        for (g in listOf(up, sec)) {
+            val s = scene(g)
+            val inside = assertNotNull(fromInside(s, 200.0, 120.0))
+            assertEquals(Pick.Opening(1, 1), inside.pick)
+            assertTrue(inside.point.z > 5.0 && inside.point.z < 7.6, "da dentro: z = ${inside.point.z}")
+            val outside = assertNotNull(fromOutside(s, 200.0, 120.0))
+            assertEquals(Pick.Opening(1, 1), outside.pick)
+            assertTrue(outside.point.z > 1.5, "da fuori: z = ${outside.point.z}")
+        }
+        // Sezionale: i binari entrano nella stanza sotto il soffitto (215 + 12 cm), fino a dove arriva il pannello aperto.
+        val rail = assertNotNull(scene(sec).hit(Vec3(79.0, 400.0, 7.5 + 200.0), Vec3(0.0, -1.0, 0.0)))
+        assertEquals(Pick.Opening(1, 1), rail.pick)
+        assertEquals(227.0, rail.point.y, 0.5)
+        assertNull(scene(up).hit(Vec3(79.0, 400.0, 7.5 + 200.0), Vec3(0.0, -1.0, 0.0))?.takeIf { it.pick == Pick.Opening(1, 1) })
+        // Copia stile: le porte da garage tra loro, le altre porte tra loro.
+        assertEquals(d, d.withStyleOf(up.copy(customColor = 0xFF444444)))
+        assertEquals(0xFF444444, sec.withStyleOf(up.copy(customColor = 0xFF444444)).customColor)
+        // Si salvano e si rileggono.
+        val plan = FloorPlan(listOf(room(up, sec.copy(id = 2, wallIndex = 2))))
+        assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
+    }
 }

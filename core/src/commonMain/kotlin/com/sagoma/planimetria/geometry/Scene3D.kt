@@ -12,6 +12,7 @@ import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Parapet
 import com.sagoma.planimetria.model.DoorModel
 import com.sagoma.planimetria.model.Finish
+import com.sagoma.planimetria.model.GarageDoor
 import com.sagoma.planimetria.model.FloorPattern
 import com.sagoma.planimetria.model.LampModel
 import com.sagoma.planimetria.model.RadiatorModel
@@ -1991,6 +1992,7 @@ private class SceneBuilder(
                 window(a + f, b + f, u, n, bottom, top, o, pick)
                 if (o.hasGrille) grille(a, b, u, n * -(room.thicknessOf(o.wallIndex) / 2 + 4.0), bottom, top, pick)
             }
+            o.isGarage -> garageDoor(a, b, u, n, bottom, top, h, o, pick)
             o.sliding && o.slideOnWall -> {
                 // Porta scorrevole esterna: anta sulla faccia del muro verso la stanza, aperta a metà sopra il muro,
                 // appesa a un binario a vista che corre per tutta la sua corsa.
@@ -2053,6 +2055,51 @@ private class SceneBuilder(
                     leafFrom(if (o.hingeLeft) la else lb, lw)
                 }
             }
+        }
+    }
+
+    /**
+     * Porta da garage, chiusa, a filo della faccia del muro verso la stanza (come si montano). Sezionale: pannelli
+     * orizzontali con le guide ai lati e i binari che entrano nella stanza sotto il soffitto. Basculante: pannello unico a
+     * doghe verticali con la maniglia in mezzo e i montanti ai lati. Bianca finché non si sceglie un colore.
+     */
+    private fun garageDoor(a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, top: Double, ceiling: Double, o: Opening, pick: Pick) {
+        val w = a.distanceTo(b)
+        val c = tint(Rgba.argb(o.frameArgb), pick)
+        val groove = c.mix(Rgba(0f, 0f, 0f), 0.25f)
+        val metal = tint(Rgba(0.45f, 0.46f, 0.48f), pick)
+        val face = n * (half - 2.0)
+        box(a + face, b + face, 1.5, bottom, top, c, pick)
+        val outer = n * (half - 3.6)
+        if (o.garageDoor == GarageDoor.Sectional) {
+            // Giunti tra i pannelli, visibili dai due lati.
+            val panels = maxOf(3, kotlin.math.round((top - bottom) / 52.0).toInt())
+            for (k in 1 until panels) {
+                val y = bottom + (top - bottom) * k / panels
+                box(a + face, b + face, 1.8, y - 0.6, y + 0.6, groove, pick)
+            }
+            // Guide ai lati e binari sotto il soffitto, fin dove arriva il pannello aperto.
+            val reach = Openings.garageReach(o)
+            val railTop = min(ceiling - 1, top + 12)
+            val inner = n * half
+            for (side in listOf(a + u * 4.0, b - u * 4.0)) {
+                box(side + inner, side + inner + n * 5.0, 2.0, bottom, railTop, metal, pick)
+                box(side + inner, side + inner + n * reach, 2.0, railTop - 5, railTop, metal, pick)
+            }
+            box(a + u * 4.0 + inner + n * reach, b - u * 4.0 + inner + n * reach, 1.5, railTop - 5, railTop, metal, pick)
+        } else {
+            // Doghe verticali verso fuori e maniglia a metà.
+            val ribs = maxOf(4, kotlin.math.round(w / 14.0).toInt())
+            for (k in 1 until ribs) {
+                val p = a + u * (w * k / ribs) + outer
+                box(p - u * 0.6, p + u * 0.6, 0.6, bottom + 3, top - 3, groove, pick)
+            }
+            val m = (a + b) / 2.0
+            val y = bottom + min(100.0, (top - bottom) / 2)
+            box(m - u * 8.0 + outer - n * 0.8, m + u * 8.0 + outer - n * 0.8, 1.0, y - 1.5, y + 1.5, metal, pick)
+            // Montanti ai lati verso la stanza, con i contrappesi.
+            val inner = n * (half + 3.0)
+            for (side in listOf(a + u * 3.0, b - u * 3.0)) box(side + inner - u * 2.5, side + inner + u * 2.5, 3.0, bottom, top, metal, pick)
         }
     }
 

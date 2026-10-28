@@ -211,9 +211,11 @@ data class Opening(
     val topLight: Boolean = false,
     /** Finestre rettangolari: bovindo, cioè la finestra sporge dal muro verso fuori su tre lati ([Openings.bayOutline]). */
     val bay: Boolean = false,
+    /** Porte: da garage, basculante o sezionale (il pannello va in alto dentro la stanza, [Openings.garageReach]). */
+    val garage: GarageDoor = GarageDoor.None,
 ) {
     /** Colore effettivo di anta e telaio. */
-    val finish: Finish get() = color ?: if (kind.glazed) Finish.White else Finish.Oak
+    val finish: Finish get() = color ?: if (kind.glazed || isGarage) Finish.White else Finish.Oak
 
     /** Colore di anta e telaio (ARGB): quello libero se c'è, altrimenti quello di [finish]. */
     val frameArgb: Long get() = customColor ?: finish.argb
@@ -222,18 +224,21 @@ data class Opening(
     val hasGrille: Boolean get() = grille && kind.glazed && !isBay
     /** Sopraluce della finestra: solo con le ante a battente (non scorrevoli, non fisse), infisso rettangolare e non nel bovindo. */
     val hasTopLight: Boolean get() = topLight && kind.glazed && !sliding && !fixed && windowShape == WindowShape.Rectangle && !isBay
+    /** Porta da garage effettiva: solo porte non scorrevoli, a libro o a bilico. */
+    val garageDoor: GarageDoor get() = if (!kind.glazed && kind.hasLeaves && !sliding && !folding && !pivot) garage else GarageDoor.None
+    val isGarage: Boolean get() = garageDoor != GarageDoor.None
     /** Oscurante che si vede: quello scelto, ma non sul bovindo (sporge dal muro, non c'è dove aprirlo). */
     val hasShading: Boolean get() = shading != Shading.None && !isBay
     /** Bovindo: solo finestre rettangolari non scorrevoli. */
     val isBay: Boolean get() = bay && kind.isWindow && !sliding && windowShape == WindowShape.Rectangle
 
     /**
-     * Stessa famiglia per «copia stile»: le finestre e i balconi (infissi) tra loro, le porte tra loro.
+     * Stessa famiglia per «copia stile»: le finestre e i balconi (infissi) tra loro, le porte tra loro (quelle da garage a parte).
      * Varchi e nicchie non hanno stile da copiare.
      */
     fun sameStyleFamily(other: Opening): Boolean = when {
         kind.glazed -> other.kind.glazed
-        kind.hasLeaves -> other.kind.hasLeaves && !other.kind.glazed
+        kind.hasLeaves -> other.kind.hasLeaves && !other.kind.glazed && other.isGarage == isGarage
         else -> false
     }
 
@@ -281,7 +286,7 @@ data class Opening(
     /** Alzante scorrevole. */
     val lifts: Boolean get() = liftSlide && sliding && kind.glazed
     /** Sopraluce e vetro di fianco valgono per la porta a un'anta a battente o a bilico. */
-    val hasDoorGlazing: Boolean get() = kind == OpeningKind.Door && !sliding && !folding
+    val hasDoorGlazing: Boolean get() = kind == OpeningKind.Door && !sliding && !folding && !isGarage
     /** Sopraluce effettivo (cm), lasciando all'anta almeno 150 cm. */
     val transomCm: Double get() = if (hasDoorGlazing) transom.coerceIn(0.0, max(0.0, height - 150.0)) else 0.0
     /** Vetro di fianco effettivo (cm), lasciando all'anta almeno 50 cm. */
@@ -294,7 +299,7 @@ data class Opening(
     /** Porta a bilico (un'anta, a battente). */
     val pivots: Boolean get() = pivot && !kind.glazed && kind.leaves == 1 && !sliding && !folding
     /** Ante a battente: hanno l'arco di apertura e un verso (interno/esterno). Anche la porta a libro e l'anta-ribalta. */
-    val swings: Boolean get() = kind.hasLeaves && !sliding && !fixed && !hopper && !pivotSash
+    val swings: Boolean get() = kind.hasLeaves && !sliding && !fixed && !hopper && !pivotSash && !isGarage
     /** Ante disuguali: solo con due ante a battente. */
     val unequal: Boolean get() = unequalLeaves && leaves == 2 && swings && !folds
     /** Cardine (battente) o verso di scorrimento (scorrevole) con un'anta; con due ante disuguali, il lato dell'anta grande. */
