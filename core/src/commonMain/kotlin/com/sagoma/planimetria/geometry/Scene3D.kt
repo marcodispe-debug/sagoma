@@ -1363,6 +1363,12 @@ private class SceneBuilder(
         /** Bordi curvi: il muro attorno si fa a fettine. */
         val curved: Boolean get() = arched || round
 
+        /**
+         * Il varco sulla faccia verso la stanza, con lo sguincio: più largo di [splay] per lato (in cima resta alla stessa quota,
+         * come l'arco); l'oblò si allarga tutto attorno, con lo stesso centro.
+         */
+        fun widened() = Gap(t0 - splay, t1 + splay, if (round) bottom - splay else bottom, top, arch, pick, splay, splayRoom, splayRounded, niche, round)
+
         /** Bordo inferiore del varco nel punto t: dritto, o la metà bassa del cerchio. */
         fun bottomAt(t: Double): Double {
             if (!round) return bottom
@@ -1382,6 +1388,76 @@ private class SceneBuilder(
         }
     }
 
+    /**
+     * Vano dello sguincio del varco `g` (sulla faccia verso la stanza della fascia `side`): una superficie che va dal bordo del
+     * varco sulla mezzeria del muro a quello del varco allargato ([Gap.widened]) sulla faccia, dritta o arrotondata. Il bordo si
+     * segue punto per punto: i lati, e anche l'arco o il cerchio dell'oblò, negli stessi punti in cui il muro attorno è fatto a
+     * fettine (così vano e muro si toccano senza fessure). Una metà non si disegna se la sua faccia cade fuori dal tratto `range`.
+     */
+    private fun splayReveal(g: Gap, s: Vec2, u: Vec2, side: Vec2, range: ClosedFloatingPointRange<Double>, color: Rgba) {
+        val w = g.widened()
+        val mid = (g.t0 + g.t1) / 2
+        // Asse del varco (punti verso cui guarda il vano): la verticale a metà, tra il fondo e l'imposta dell'arco; il centro per l'oblò.
+        val axisLow = if (g.round) g.bottom + (g.t1 - g.t0) / 2 else g.bottom
+        val axisHigh = when {
+            g.round -> axisLow
+            g.curved -> min(g.topAt(g.t0), w.topAt(w.t0))
+            else -> g.top
+        }
+        /** Punto della superficie: `t` lungo il muro, `y` in altezza, `depth` dalla mezzeria verso la faccia della stanza. */
+        fun at(t: Double, y: Double, depth: Double) = (s + u * t + side * depth).at(y)
+        val steps = if (g.splayRounded) Openings.SPLAY_STEPS else 1
+        for (toward in listOf(-1.0, 1.0)) {
+            val edge = if (toward < 0) w.t0 else w.t1
+            if (edge < range.start - 0.01 || edge > range.endInclusive + 0.01) continue
+            // Coppie di punti corrispondenti (sulla mezzeria, sulla faccia), come (t, altezza), dal basso verso la cima.
+            val rungs = ArrayList<Pair<Vec2, Vec2>>()
+            fun rung(k: Double, top: Boolean) {
+                val t = mid + k * (g.t1 - g.t0) / 2
+                val tw = mid + k * (w.t1 - w.t0) / 2
+                rungs += Vec2(t, if (top) g.topAt(t) else g.bottomAt(t)) to Vec2(tw, if (top) w.topAt(tw) else w.bottomAt(tw))
+            }
+            val n = ARCH_SLICES / 2
+            when {
+                // Oblò: dal punto più basso al lato, poi su fino in cima.
+                g.round -> {
+                    for (j in 0..n) rung(toward * j / n, top = false)
+                    for (j in n downTo 0) rung(toward * j / n, top = true)
+                }
+                // Arco: il lato fino all'imposta, poi lungo l'arco fino alla chiave.
+                g.curved -> {
+                    rung(toward, top = false)
+                    for (j in n downTo 0) rung(toward * j / n, top = true)
+                }
+                else -> { rung(toward, top = false); rung(toward, top = true) }
+            }
+            fun point(r: Pair<Vec2, Vec2>, k: Int): Vec3 {
+                val tau = k.toDouble() / steps
+                // Arrotondato: curva che parte perpendicolare alla mezzeria e arriva sulla faccia (come in pianta, [Openings.splayProfile]):
+                // il punto di controllo sta sulla faccia, davanti al bordo del varco. Dritto: il controllo a metà, cioè una linea.
+                val (a, b) = r
+                val control = if (g.splayRounded) a else (a + b) / 2.0
+                val p = a * ((1 - tau) * (1 - tau)) + control * (2 * tau * (1 - tau)) + b * (tau * tau)
+                val depth = (if (g.splayRounded) half else half / 2) * (2 * tau * (1 - tau)) + half * (tau * tau)
+                return at(p.x, p.y, depth)
+            }
+            for (i in 0 until rungs.size - 1) for (k in 0 until steps) {
+                val a = point(rungs[i], k)
+                val b = point(rungs[i + 1], k)
+                val c = point(rungs[i + 1], k + 1)
+                val d = point(rungs[i], k + 1)
+                val y = (a.y + b.y + c.y + d.y) / 4 - base
+                val axis = at(mid, y.coerceIn(axisLow, max(axisLow, axisHigh)), (k + 0.5) / steps * half)
+                for ((p, q, r) in listOf(Triple(a, b, c), Triple(a, c, d))) {
+                    var n = (q - p) cross (r - p)
+                    if (n.length < 1e-9) continue
+                    if ((n dot (axis - (p + q + r) * (1.0 / 3))) < 0) n = n * -1.0
+                    tri(p, q, r, n, color, g.pick)
+                }
+            }
+        }
+    }
+
     private fun gapOf(owner: Room, o: Opening, s: Vec2, u: Vec2, wallTop: (Double) -> Double): Gap {
         val (a, b) = Openings.span(owner, o)
         val ta = (a - s) dot u
@@ -1397,7 +1473,11 @@ private class SceneBuilder(
                 else -> PassageStyle.Square
             },
             Pick.Opening(owner.id, o.id),
-            splay = Openings.splayOf(owner, o), splayRoom = owner.id, splayRounded = o.splayRounded, niche = o.kind == OpeningKind.Niche,
+            // L'oblò si allarga tutto attorno: non sotto il pavimento, né sopra la cima del muro.
+            splay = Openings.splayOf(owner, o).let {
+                if (o.shape == WindowShape.Round) min(it, max(0.0, min(bottom, wallTop((ta + tb) / 2) - 1 - bottom - abs(tb - ta)))) else it
+            },
+            splayRoom = owner.id, splayRounded = o.splayRounded, niche = o.kind == OpeningKind.Niche,
             round = o.shape == WindowShape.Round,
         )
     }
@@ -1635,27 +1715,11 @@ private class SceneBuilder(
             quad((s + u * a + back).at(g.bottom), (s + u * b + back).at(g.bottom), (s + u * b + back).at(g.top), (s + u * a + back).at(g.top), n, color, g.pick)
             quad((s + u * b + back).at(g.bottom), (s + u * a + back).at(g.bottom), (s + u * a + back).at(g.top), (s + u * b + back).at(g.top), n, color, g.pick)
         }
-        // Sguinci: sulla faccia verso la stanza il varco si allarga, e i lati inclinati vanno dalla mezzeria alla faccia.
+        // Sguinci: sulla faccia verso la stanza il varco si allarga, e il vano va dalla mezzeria alla faccia.
         val splayed = if (interior) faceGaps.filter { it.splay > 0 && it.splayRoom == room.id } else emptyList()
         @Suppress("NAME_SHADOWING")
-        val gaps = if (splayed.isEmpty()) faceGaps else faceGaps.map { g ->
-            if (g in splayed) Gap(g.t0 - g.splay, g.t1 + g.splay, g.bottom, g.top, g.arch, g.pick, g.splay, g.splayRoom, g.splayRounded, g.niche, g.round) else g
-        }
-        for (g in splayed) {
-            val color = tint(paint, g.pick)
-            for ((t, toward) in listOf(g.t0 to -1.0, g.t1 to 1.0)) {
-                if (t + toward * g.splay < range.start - 0.01 || t + toward * g.splay > range.endInclusive + 0.01) continue
-                val profile = Openings.splayProfile(s + u * t, u, side, half, g.splay, toward, g.splayRounded)
-                for (k in 0 until profile.size - 1) {
-                    val p0 = profile[k]
-                    val p1 = profile[k + 1]
-                    if (p0.distanceTo(p1) < 1e-6) continue
-                    val n = (p1 - p0).perp().normalized().let { if ((it dot (u * -toward)) < 0) it * -1.0 else it }
-                    quad(p0.at(g.bottom), p1.at(g.bottom), p1.at(g.top), p0.at(g.top), Vec3(n.x, 0.0, n.y), color, g.pick)
-                    quad(p1.at(g.bottom), p0.at(g.bottom), p0.at(g.top), p1.at(g.top), Vec3(-n.x, 0.0, -n.y), color, g.pick)
-                }
-            }
-        }
+        val gaps = if (splayed.isEmpty()) faceGaps else faceGaps.map { g -> if (g in splayed) g.widened() else g }
+        for (g in splayed) splayReveal(g, s, u, side, range, tint(paint, g.pick))
         val coverTop = finish.coverHeight ?: Double.MAX_VALUE
         fun topFn(t: Double) = Ceilings.wallTopAt(room, i, t.coerceIn(0.0, len))
         val cuts = mutableSetOf(range.start, range.endInclusive)

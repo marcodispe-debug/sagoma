@@ -124,7 +124,8 @@ object Openings {
         }
     }
 
-    private const val SPLAY_STEPS = 6
+    /** Pezzi dritti della curva dello sguincio arrotondato. */
+    const val SPLAY_STEPS = 6
 
     /** Normale verso l'interno della stanza (poligoni orari su schermo). */
     fun inwardNormal(room: Room, wallIndex: Int): Vec2 =
