@@ -16,7 +16,8 @@ data class WallDistance(val side: WallSide, val from: Vec2, val to: Vec2, val di
 
 /**
  * Distanze di un oggetto dai muri della sua stanza, sul filo interno. Porte, finestre e balconi: i due angoli del loro muro.
- * Colonne, arredi, scale e impianti: il muro più vicino a sinistra, a destra, sopra e sotto, dalla stanza in cui stanno.
+ * Colonne, arredi, scale e impianti: il muro più vicino a sinistra, a destra, sopra e sotto (dentro la stanza in cui stanno,
+ * o fuori casa dalla faccia esterna dei muri).
  */
 object WallDistances {
     fun of(plan: FloorPlan, t: MeasureTarget, levelHeight: Double): List<WallDistance> = when (t) {
@@ -52,10 +53,12 @@ object WallDistances {
         if (pts.isEmpty()) return emptyList()
         val b = Polygon.bounds(pts)
         val c = b.center
-        val room = roomAt(plan, c) ?: return emptyList()
-        val outline = room.interiorOutline()
+        // Dentro una stanza: il filo interno dei suoi muri; fuori casa: il filo esterno di tutte le stanze. Muri singoli sempre.
+        val room = roomAt(plan, c)
+        val outlines = (room?.let { listOf(it.interiorOutline()) } ?: plan.rooms.filter { it.wallCount >= 3 }.map { it.exteriorOutline() }) +
+            plan.freeWalls.map { Structure.outline(it) }
         return directions.mapNotNull { (side, d) ->
-            val hit = rayHit(outline, c, d) ?: return@mapNotNull null
+            val hit = outlines.mapNotNull { rayHit(it, c, d) }.minOrNull() ?: return@mapNotNull null
             // Bordo dell'oggetto verso quel muro: il suo punto più sporgente da quella parte.
             val reach = pts.maxOf { (it - c) dot d }
             val from = c + d * reach
@@ -63,7 +66,7 @@ object WallDistances {
         }
     }
 
-    /** Stanza (non balcone) che contiene il punto, la più piccola se più di una. */
+    /** Stanza che contiene il punto, la più piccola se più di una. */
     private fun roomAt(plan: FloorPlan, p: Vec2): Room? =
         plan.rooms.filter { it.wallCount >= 3 && Polygon.contains(it.interiorOutline(), p) }.minByOrNull { abs(Polygon.signedArea(it.points)) }
 

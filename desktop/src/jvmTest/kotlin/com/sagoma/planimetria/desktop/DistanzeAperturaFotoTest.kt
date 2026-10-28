@@ -54,7 +54,7 @@ class DistanzeAperturaFotoTest {
                 openings = listOf(Opening.default(1, OpeningKind.Door, 5, 300.0)),
             ),
         ),
-        columns = listOf(Column(1, center = Vec2(330.0, 140.0))),
+        columns = listOf(Column(1, center = Vec2(330.0, 140.0)), Column(2, center = Vec2(800.0, 360.0))),
     )
 
     @Test
@@ -112,6 +112,10 @@ class DistanzeAperturaFotoTest {
                 val gaps = WallDistances.of(vm.state.value.plan, MeasureTarget.Opening(1, 1), vm.state.value.levelHeight)
                 vm.setWallDistance(DragTarget.Opening(1, 1), gaps[0], (gaps[0].distance + gaps[1].distance) / 2)
                 shot("finestra-al-centro")
+                // Colonna fuori casa: distanze dalla faccia esterna dei muri vicini.
+                vm.selectColumn(2)
+                vm.pan(-380f, -220f)
+                shot("colonna-fuori")
             }
         } finally {
             dir.deleteRecursively()

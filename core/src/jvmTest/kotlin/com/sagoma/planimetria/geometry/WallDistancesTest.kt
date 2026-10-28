@@ -29,7 +29,16 @@ class WallDistancesTest {
     }
 
     @Test
-    fun `colonna fuori dalle stanze - nessuna distanza`() {
+    fun `colonna fuori casa - distanza dalla faccia esterna, solo dove c'e un muro`() {
+        // A destra della stanza: il filo esterno del muro destro è a 410; la colonna da 30 ha il bordo sinistro a 485.
+        val plan = FloorPlan(listOf(room), columns = listOf(Column(1, center = Vec2(500.0, 150.0), width = 30.0, depth = 30.0)))
+        val d = WallDistances.of(plan, MeasureTarget.Column(1), 300.0).associate { it.side to it.distance }
+        assertEquals(75.0, d.getValue(WallSide.Left), 1e-6)
+        assertEquals(setOf(WallSide.Left), d.keys)
+    }
+
+    @Test
+    fun `colonna lontana da tutto - nessuna distanza`() {
         val plan = FloorPlan(listOf(room), columns = listOf(Column(1, center = Vec2(900.0, 900.0))))
         assertEquals(emptyList(), WallDistances.of(plan, MeasureTarget.Column(1), 300.0))
     }
