@@ -840,14 +840,14 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                 }
             }
             // Finestre e balconi non scorrevoli: rettangolari, ad arco o (finestre) tonde.
-            if (o.kind.glazed && !o.sliding) Row(Modifier.padding(end = 8.dp)) {
+            if (o.kind.glazed && !o.sliding && !o.isGlassBlock) Row(Modifier.padding(end = 8.dp)) {
                 val shapes = WindowShape.entries.filter { it != WindowShape.Round || o.kind.isWindow }
                 Choice(T.pannelli.formaFinestra, shapes.map { it.label }, shapes.indexOf(o.shape).coerceAtLeast(0), Modifier.weight(1f)) { i ->
                     update { if (shapes[i] == WindowShape.Round) it.copy(windowShape = shapes[i], height = it.width) else it.copy(windowShape = shapes[i]) }
                 }
             }
             // Finestre rettangolari: nel muro o a bovindo (sporgente su tre lati).
-            if (o.kind.isWindow && !o.sliding && o.shape == WindowShape.Rectangle) Row(Modifier.padding(end = 8.dp)) {
+            if (o.kind.isWindow && !o.sliding && o.shape == WindowShape.Rectangle && !o.isGlassBlock) Row(Modifier.padding(end = 8.dp)) {
                 Choice(T.pannelli.posizioneFinestra, listOf(T.pannelli.nelMuro, T.pannelli.bovindo), if (o.bay) 1 else 0, Modifier.weight(1f)) { i ->
                     update { it.copy(bay = i == 1) }
                 }
@@ -881,7 +881,8 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
             }
         })
         // Porte, finestre e balconi: come si aprono, da che parte e verso dove.
-        if (o.kind.hasLeaves) add(InfoTab("apertura", T.schedaStanza.schedaApertura) {
+        // Il vetromattone non si apre: niente linguetta Apertura.
+        if (o.kind.hasLeaves && !o.isGlassBlock) add(InfoTab("apertura", T.schedaStanza.schedaApertura) {
             if (o.kind.glazed) {
                 // Infissi: a battente o scorrevoli; quelli non scorrevoli a battente, anta-ribalta, vasistas (solo finestre) o fissi.
                 Row(Modifier.padding(end = 8.dp)) {
@@ -966,29 +967,29 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
         // Aspetto: modello, oscuranti e colore (si vedono nel 3D).
         if (o.kind.hasLeaves) add(InfoTab("aspetto", T.schedaStanza.schedaAspetto) {
             if (o.kind.glazed) {
-                ModelPicker(T.comuni.modello, WindowModel.entries, o.windowModel, { it.label }, { v -> update { it.copy(windowModel = v) } }) {
+                ModelPicker(T.comuni.modello, WindowModel.entries, o.windowModel, { it.label }, { v -> update { it.withWindowModel(v) } }) {
                     windowPreview(it, Shading.None, color)
                 }
                 // Il bovindo non ha oscuranti: sporge dal muro, non c'è dove aprirli.
-                if (!o.isBay) ModelPicker(T.pannelli.oscuranti, Shading.entries, o.shading, { it.label }, { v -> update { it.copy(shading = v) } }) {
+                if (!o.isBay && !o.isGlassBlock) ModelPicker(T.pannelli.oscuranti, Shading.entries, o.shading, { it.label }, { v -> update { it.copy(shading = v) } }) {
                     windowPreview(o.windowModel, it, color, Color(o.copy(shading = it).shadingArgb))
                 }
                 // Colore dell'oscurante: senza scelta resta quello solito (es. persiane verdi con l'infisso bianco).
                 if (o.hasShading) {
                     FreeColorPicker(T.pannelli.coloreOscurante, o.shadingArgb) { c -> update { it.copy(shadingColor = c) } }
                 }
-                if (!o.isBay) Row(Modifier.padding(end = 8.dp)) {
+                if (!o.isBay && !o.isGlassBlock) Row(Modifier.padding(end = 8.dp)) {
                     Choice(T.pannelli.inferriata, listOf(T.pannelli.senza, T.pannelli.con), if (o.grille) 1 else 0, Modifier.weight(1f)) { i ->
                         update { it.copy(grille = i == 1) }
                     }
                 }
                 // Accessori: zanzariera nel vano e tenda da sole fuori (a righe o a tinta unita del colore scelto).
-                if (!o.isBay && o.shape == WindowShape.Rectangle) Row(Modifier.padding(end = 8.dp)) {
+                if (!o.isBay && !o.isGlassBlock && o.shape == WindowShape.Rectangle) Row(Modifier.padding(end = 8.dp)) {
                     Choice(T.pannelli.zanzariera, listOf(T.pannelli.senza, T.pannelli.con), if (o.insectScreen) 1 else 0, Modifier.weight(1f)) { i ->
                         update { it.copy(insectScreen = i == 1) }
                     }
                 }
-                if (!o.isBay) Row(Modifier.padding(end = 8.dp)) {
+                if (!o.isBay && !o.isGlassBlock) Row(Modifier.padding(end = 8.dp)) {
                     Choice(T.pannelli.tendaDaSole, listOf(T.pannelli.senza, T.pannelli.con), if (o.awning) 1 else 0, Modifier.weight(1f)) { i ->
                         update { it.copy(awning = i == 1) }
                     }
@@ -1021,7 +1022,7 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
             }
             // Come la pittura dei muri: i colori soliti degli infissi (legni, bianco, grigi) in testa, poi la tavolozza e il colore libero.
             val finishes = Finish.entries
-            FreeColorPicker(if (o.kind.glazed) T.pannelli.coloreInfisso else T.comuni.colore, o.frameArgb, finishes.map { it.label to it.argb }) { c ->
+            if (!o.isGlassBlock) FreeColorPicker(if (o.kind.glazed) T.pannelli.coloreInfisso else T.comuni.colore, o.frameArgb, finishes.map { it.label to it.argb }) { c ->
                 val named = finishes.firstOrNull { it.argb == c }
                 update { it.copy(color = named, customColor = if (named == null) c else null) }
             }

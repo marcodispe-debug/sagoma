@@ -36,6 +36,13 @@ object Openings {
     const val SILL_OUT = 3.0
     const val SILL_EAR = 3.0
 
+    /** Vetromattone: lato dei blocchi di vetro, fuga compresa (cm). */
+    const val GLASS_BLOCK = 19.0
+
+    /** Vetromattone: quanti blocchi ci stanno in larghezza e in altezza nel vano (almeno uno per verso). */
+    fun glassBlockGrid(o: Opening): Pair<Int, Int> =
+        maxOf(1, kotlin.math.round(o.width / GLASS_BLOCK).toInt()) to maxOf(1, kotlin.math.round(o.height / GLASS_BLOCK).toInt())
+
     /**
      * Lastra del davanzale (o della soglia) da ordinare, in cm: lunghezza, con le orecchie e, con lo sguincio, larga quanto il vano
      * verso la stanza; profondità, tutto il muro più quanto sporge dentro e fuori.
@@ -50,6 +57,7 @@ object Openings {
         val name = if (o.leaves > 2) T.pannelli.anteN(o.kind == OpeningKind.Balcony2, o.leaves) else o.kind.label
         return when {
             o.isBay -> T.editor.bovindo
+            o.isGlassBlock -> o.windowModel.label
             o.garageDoor == GarageDoor.UpAndOver -> T.editor.portaBasculante
             o.garageDoor == GarageDoor.Sectional -> T.editor.portaSezionale
             o.lifts -> T.pannelli.alzante2(name)
@@ -73,6 +81,8 @@ object Openings {
         val low = T.lingua::minuscola
         // Senza colore scelto, i modelli loft, minimal e legno hanno il loro (nero, antracite, rovere): come nel 3D.
         val color = when {
+            // Il vetromattone non ha telaio: niente modello (è già nel nome) né colore.
+            o.isGlassBlock -> null
             o.customColor != null -> ProPalette.nameOf(o.customColor)
             !o.defaultColor -> o.finish.label
             o.kind.glazed && o.windowModel == WindowModel.Loft -> null
@@ -81,12 +91,14 @@ object Openings {
             else -> o.finish.label
         }?.let(low)
         val model = when {
+            o.isGlassBlock -> null
             o.kind.glazed -> o.windowModel.label
             o.isGarage -> null
             else -> o.doorModel.label
         }
         val parts = mutableListOf(listOfNotNull(model, color).joinToString(", ").replaceFirstChar { it.uppercaseChar() })
         if (o.kind.glazed) {
+            if (o.isGlassBlock) Openings.glassBlockGrid(o).let { (c, r) -> parts += T.pannelli.blocchiVetro(c * r) }
             if (o.shape != WindowShape.Rectangle) parts += low(o.shape.label)
             if (o.hasTopLight) parts += low(T.pannelli.sopraluce)
             if (o.hasShading) parts += low(o.shading.label)

@@ -780,6 +780,20 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
         }
         return
     }
+    // Vetromattone: la parete di blocchi spessa 8 cm (linea doppia) con le fughe tra un blocco e l'altro, senza ante.
+    if (o.isGlassBlock) {
+        val f = n * Openings.frameOffset(room, o)
+        val g = n * minOf(4.0, half)
+        drawLine(color, cam.o(a + f - g), cam.o(b + f - g), strokeWidth = thin)
+        drawLine(color, cam.o(a + f + g), cam.o(b + f + g), strokeWidth = thin)
+        val cols = Openings.glassBlockGrid(o).first
+        val w = a.distanceTo(b)
+        for (k in 1 until cols) {
+            val p = a + u * (w * k / cols) + f
+            drawLine(color, cam.o(p - g), cam.o(p + g), strokeWidth = thin)
+        }
+        return
+    }
     // Inferriata: fila di puntini appena fuori dalla faccia esterna del muro.
     if (o.hasGrille) {
         val out = n * -(half + 4)

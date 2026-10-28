@@ -231,33 +231,36 @@ data class Opening(
     /** Colore di anta e telaio (ARGB): quello libero se c'è, altrimenti quello di [finish]. */
     val frameArgb: Long get() = customColor ?: finish.argb
 
-    /** Inferriata: solo su finestre e balconi (non sul bovindo, che sporge). */
-    val hasGrille: Boolean get() = grille && kind.glazed && !isBay
+    /** Inferriata: solo su finestre e balconi (non sul bovindo, che sporge, né sul vetromattone). */
+    val hasGrille: Boolean get() = grille && kind.glazed && !isBay && !isGlassBlock
     /** Sopraluce della finestra: solo con le ante a battente (non scorrevoli, non fisse), infisso rettangolare e non nel bovindo. */
     val hasTopLight: Boolean get() = topLight && kind.glazed && !sliding && !fixed && windowShape == WindowShape.Rectangle && !isBay
-    /** Zanzariera: finestre e balconi rettangolari, non nel bovindo. */
-    val hasInsectScreen: Boolean get() = insectScreen && kind.glazed && !isBay && windowShape == WindowShape.Rectangle
+    /** Zanzariera: finestre e balconi rettangolari, non nel bovindo né sul vetromattone (non si apre). */
+    val hasInsectScreen: Boolean get() = insectScreen && kind.glazed && !isBay && !isGlassBlock && windowShape == WindowShape.Rectangle
     /**
      * Davanzale o soglia che si vede: finestre, balconi e porte; non il bovindo (ha la sua seduta), l'oblò (il fondo è tondo) e
      * la porta da garage.
      */
     val sill: StairMaterial? get() = if (kind.hasLeaves && !isBay && !isGarage && shape != WindowShape.Round) sillMaterial else null
-    /** Tenda da sole: finestre e balconi, non sul bovindo (ha il suo tettuccio). */
-    val hasAwning: Boolean get() = awning && kind.glazed && !isBay
+    /** Tenda da sole: finestre e balconi, non sul bovindo (ha il suo tettuccio) né sul vetromattone. */
+    val hasAwning: Boolean get() = awning && kind.glazed && !isBay && !isGlassBlock
     /** Porta da garage effettiva: solo porte non scorrevoli, a libro o a bilico. */
     val garageDoor: GarageDoor get() = if (!kind.glazed && kind.hasLeaves && !sliding && !folding && !pivot) garage else GarageDoor.None
     val isGarage: Boolean get() = garageDoor != GarageDoor.None
-    /** Oscurante che si vede: quello scelto, ma non sul bovindo (sporge dal muro, non c'è dove aprirlo). */
-    val hasShading: Boolean get() = shading != Shading.None && !isBay
-    /** Bovindo: solo finestre rettangolari non scorrevoli. */
-    val isBay: Boolean get() = bay && kind.isWindow && !sliding && windowShape == WindowShape.Rectangle
+    /** Oscurante che si vede: quello scelto, ma non sul bovindo (sporge dal muro, non c'è dove aprirlo) né sul vetromattone. */
+    val hasShading: Boolean get() = shading != Shading.None && !isBay && !isGlassBlock
+    /** Vetromattone: finestre e balconi di blocchi di vetro ([WindowModel.GlassBlock]), sempre fissi. */
+    val isGlassBlock: Boolean get() = kind.glazed && windowModel == WindowModel.GlassBlock
+    /** Bovindo: solo finestre rettangolari non scorrevoli (non di vetromattone). */
+    val isBay: Boolean get() = bay && kind.isWindow && !sliding && windowShape == WindowShape.Rectangle && !isGlassBlock
 
     /**
      * Stessa famiglia per «copia stile»: le finestre e i balconi (infissi) tra loro, le porte tra loro (quelle da garage a parte).
-     * Varchi e nicchie non hanno stile da copiare.
+     * Il vetromattone è un'altra cosa: non diventa una finestra e le finestre non diventano vetromattone. Varchi e nicchie non
+     * hanno stile da copiare.
      */
     fun sameStyleFamily(other: Opening): Boolean = when {
-        kind.glazed -> other.kind.glazed
+        kind.glazed -> other.kind.glazed && other.isGlassBlock == isGlassBlock
         kind.hasLeaves -> other.kind.hasLeaves && !other.kind.glazed && other.isGarage == isGarage
         else -> false
     }
@@ -268,10 +271,24 @@ data class Opening(
      * apertura e posizione restano come sono.
      */
     fun withStyleOf(from: Opening): Opening = if (!sameStyleFamily(from)) this else if (kind.glazed) copy(
-        windowModel = from.windowModel, color = from.color, customColor = from.customColor,
+        color = from.color, customColor = from.customColor,
         shading = from.shading, shadingColor = from.shadingColor, grille = from.grille,
         insectScreen = from.insectScreen, awning = from.awning, awningColor = from.awningColor, sillMaterial = from.sillMaterial,
-    ) else copy(doorModel = from.doorModel, color = from.color, customColor = from.customColor, frameless = from.frameless, sillMaterial = from.sillMaterial)
+    ).withWindowModel(from.windowModel) else copy(doorModel = from.doorModel, color = from.color, customColor = from.customColor, frameless = from.frameless, sillMaterial = from.sillMaterial)
+
+    /**
+     * Questo infisso con il modello `m`. Il vetromattone è fisso e liscio: niente scorrevole, ante, sopraluce, bovindo, forma
+     * ad arco, oscuranti e accessori; tornando a un altro modello le ante ritornano a battente.
+     */
+    fun withWindowModel(m: WindowModel): Opening = when {
+        m == windowModel -> this
+        m == WindowModel.GlassBlock && kind.glazed -> copy(
+            windowModel = m, sliding = false, liftSlide = false, sash = SashType.Fixed, leafCount = 0, topLight = false, bay = false,
+            windowShape = WindowShape.Rectangle, shading = Shading.None, grille = false, insectScreen = false, awning = false,
+        )
+        windowModel == WindowModel.GlassBlock -> copy(windowModel = m, sash = SashType.Casement)
+        else -> copy(windowModel = m)
+    }
 
     /** Nessun colore scelto: restano i colori soliti del modello (es. minimal antracite, loft nero). */
     val defaultColor: Boolean get() = color == null && customColor == null
@@ -290,14 +307,14 @@ data class Opening(
     /** Quota del fondo del varco: il davanzale per infissi e nicchie, terra per porte e varchi. */
     val bottom: Double get() = if (kind.hasSill) sillHeight else 0.0
     /** Infisso che non si apre (vetro fisso). */
-    val fixed: Boolean get() = kind.glazed && !sliding && sash == SashType.Fixed
+    val fixed: Boolean get() = kind.glazed && !sliding && (sash == SashType.Fixed || isGlassBlock)
     /** Vasistas: l'anta si apre ribaltandosi in cima, senza arco in pianta. */
     val hopper: Boolean get() = kind.glazed && !sliding && sash == SashType.Hopper
     /** Porta a libro. */
     val folds: Boolean get() = folding && !kind.glazed && kind.hasLeaves && !sliding
     /** Forma effettiva: ad arco o tonda solo per finestre e balconi non scorrevoli (tonda solo le finestre). */
     val shape: WindowShape get() = when {
-        !kind.glazed || sliding -> WindowShape.Rectangle
+        !kind.glazed || sliding || isGlassBlock -> WindowShape.Rectangle
         windowShape == WindowShape.Round && !kind.isWindow -> WindowShape.Rectangle
         else -> windowShape
     }

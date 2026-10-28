@@ -509,6 +509,7 @@ private class SceneBuilder(
     private val wallTop = Rgba(0.24f, 0.26f, 0.28f)
     private val selectedTint = Rgba(0.10f, 0.44f, 0.76f)
     private val frame = Rgba(0.97f, 0.97f, 0.97f)
+    /** Vetro: trasparenza 0,35. Nel 3D del computer i trasparenti più coprenti sono un velo (zanzariera, vetromattone; vedi PbrShaders). */
     private val glass = Rgba(0.55f, 0.78f, 0.92f, 0.35f)
     private val wood = Rgba(0.62f, 0.44f, 0.29f)
     private val ceilingColor = Rgba(0.97f, 0.97f, 0.96f)
@@ -2213,6 +2214,7 @@ private class SceneBuilder(
     /** Finestra o balcone: telaio bianco e vetro; due ante con il montante centrale, scorrevoli sfalsate. */
     private fun window(a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, top: Double, o: Opening, pick: Pick) {
         if (current) windows += Scene3D.SceneWindow(((a + b) / 2.0).at((bottom + top) / 2), n.dir().normalized(), a.distanceTo(b), top - bottom)
+        if (o.isGlassBlock) return glassBlocks(a, b, u, n, bottom, top, pick)
         if (o.shape != WindowShape.Rectangle) return shapedWindow(a, b, u, bottom, top, o, pick)
         val minimal = o.windowModel == WindowModel.Minimal
         val loft = o.windowModel == WindowModel.Loft
@@ -2330,6 +2332,47 @@ private class SceneBuilder(
             }
         }
     }
+
+    /**
+     * Vetromattone: parete di blocchi di vetro di circa 19 × 19 cm e 8 di spessore murati nel vano, senza telaio. Tra un blocco
+     * e l'altro e attorno le fughe di malta chiara, un poco più indietro delle facce dei blocchi; le facce sono vetro
+     * smerigliato, che lascia passare la luce ma non la vista.
+     */
+    private fun glassBlocks(a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, top: Double, pick: Pick) {
+        val w = a.distanceTo(b)
+        val h = top - bottom
+        if (w < 4 || h < 4) return
+        val joint = 1.0
+        val cols = maxOf(1, kotlin.math.round(w / Openings.GLASS_BLOCK).toInt())
+        val rows = maxOf(1, kotlin.math.round(h / Openings.GLASS_BLOCK).toInt())
+        // Passo dei blocchi: le fughe stanno a 0, bw, 2·bw… e l'ultima finisce sul bordo del vano.
+        val bw = (w - joint) / cols
+        val bh = (h - joint) / rows
+        val mortar = tint(Rgba(0.83f, 0.82f, 0.79f), pick)
+        for (k in 0..cols) box(a + u * (bw * k), a + u * (bw * k + joint), 3.6, bottom, top, mortar, pick)
+        for (k in 0..rows) box(a, b, 3.6, bottom + bh * k, bottom + bh * k + joint, mortar, pick)
+        // Ogni faccia: il centro smerigliato e, attorno, il bordo spesso del blocco più bianco e meno trasparente.
+        val face = tint(frostedGlass, pick).copy(a = frostedGlass.a)
+        val rim = tint(glassBlockRim, pick).copy(a = glassBlockRim.a)
+        val e = min(2.0, min(bw, bh) / 5)
+        for (i in 0 until cols) for (j in 0 until rows) {
+            val x0 = bw * i + joint
+            val x1 = bw * (i + 1)
+            val y0 = bottom + bh * j + joint
+            val y1 = bottom + bh * (j + 1)
+            for (side in listOf(4.0, -4.0)) {
+                val d = n * side
+                pane(a + u * (x0 + e) + d, a + u * (x1 - e) + d, y0 + e, y1 - e, face, pick)
+                pane(a + u * x0 + d, a + u * (x0 + e) + d, y0, y1, rim, pick)
+                pane(a + u * (x1 - e) + d, a + u * x1 + d, y0, y1, rim, pick)
+                pane(a + u * (x0 + e) + d, a + u * (x1 - e) + d, y0, y0 + e, rim, pick)
+                pane(a + u * (x0 + e) + d, a + u * (x1 - e) + d, y1 - e, y1, rim, pick)
+            }
+        }
+    }
+
+    private val frostedGlass = Rgba(0.80f, 0.88f, 0.91f, 0.62f)
+    private val glassBlockRim = Rgba(0.90f, 0.94f, 0.95f, 0.85f)
 
     /** Larghezza dei profili dell'infisso (cm): sottili minimal e loft, larghi quelli in legno. */
     private fun profileWidth(o: Opening): Double = when (o.windowModel) {

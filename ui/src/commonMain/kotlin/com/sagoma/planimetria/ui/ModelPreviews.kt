@@ -32,6 +32,8 @@ private val Ink = Color(0xFF3A3F44)
 private val GlassBlue = Color(0xFFBFDCEB)
 private val WallBack = Color(0xFFE9E6E0)
 private val Metal = Color(0xFF4A4E53)
+private val Mortar = Color(0xFFD4D1C9)
+private val FrostedGlass = Color(0xFFCFE2E8)
 
 /** Stesso colore, più scuro (`k` < 1) o più chiaro (`k` > 1). */
 internal fun Color.shade(k: Float): Color =
@@ -98,6 +100,19 @@ internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color
     val r = 0.7f
     val t = 0.2f
     val b = 0.86f
+    // Vetromattone: blocchi di vetro chiari con le fughe di malta, senza telaio né oscuranti.
+    if (model == WindowModel.GlassBlock) {
+        box(l, t, r, b, Mortar)
+        val cols = 4
+        val rows = 6
+        val g = 0.008f
+        for (i in 0 until cols) for (j in 0 until rows) {
+            val x0 = l + (r - l) * i / cols
+            val y0 = t + (b - t) * j / rows
+            box(x0 + g, y0 + g, x0 + (r - l) / cols - g, y0 + (b - t) / rows - g, FrostedGlass)
+        }
+        return
+    }
     // Persiane aperte ai lati.
     if (shading == Shading.Shutters) {
         val sc = shadingColor

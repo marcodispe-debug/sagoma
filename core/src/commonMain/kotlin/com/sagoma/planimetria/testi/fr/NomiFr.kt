@@ -73,6 +73,7 @@ object NomiFr : Nomi() {
         WindowModel.English -> "Ouverture extérieure"
         WindowModel.Loft -> "Atelier"
         WindowModel.Wood -> "Bois avec parcloses"
+        WindowModel.GlassBlock -> "Briques de verre"
     }
 
     override fun framePosition(v: FramePosition): String = when (v) {

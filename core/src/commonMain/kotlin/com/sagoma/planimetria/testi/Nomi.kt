@@ -73,6 +73,7 @@ open class Nomi {
         WindowModel.English -> "All'inglese"
         WindowModel.Loft -> "Loft"
         WindowModel.Wood -> "Legno con fermavetro"
+        WindowModel.GlassBlock -> "Vetromattone"
     }
 
     open fun framePosition(v: FramePosition): String = when (v) {

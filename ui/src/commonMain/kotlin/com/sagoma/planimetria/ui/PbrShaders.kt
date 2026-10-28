@@ -307,12 +307,19 @@ object PbrShaders {
             rough = clamp(rough, 0.06, 1.0);
             vec3 albedo = base.rgb;
             vec3 V = normalize(uEye - vPos);
+            // Velo: la rete della zanzariera e il vetro smerigliato (vetromattone), che hanno il colore più coprente dei vetri
+            // normali (0,35): coprono quanto dice il loro colore. Lo smerigliato (oltre 0,5) in più lascia passare la luce.
+            bool veil = uGlass > 0.5 && base.a > 0.36;
+            bool frosted = veil && base.a > 0.5;
             if (uGlass > 0.5) {
                 // Ogni lastra ha due facce sovrapposte, una per lato: si disegna solo quella verso chi guarda (con due strati il vetro
                 // sembrava lattiginoso). Il colore del vetro è solo una velatura.
                 if (dot(N, V) < 0.0) discard;
-                albedo *= 0.08;
-                rough = 0.05;
+                if (veil) rough = 0.6;
+                else {
+                    albedo *= 0.08;
+                    rough = 0.05;
+                }
             }
 
             vec3 color = vec3(0.0);
@@ -406,7 +413,14 @@ object PbrShaders {
             if (uHasEmissiveTex > 0.5) emissive *= toLinear(texture2D(uEmissiveTex, vUv).rgb);
             color += emissive;
 
+            // Il vetro smerigliato lascia passare la luce del cielo e del sole sparpagliandola: brilla anche dalla parte in ombra.
+            if (frosted) color += albedo * (uSky * 0.5 + uSun * abs(dot(N, uToSun)) * sunShadow() * (0.6 / PI));
             vec3 mapped = toneMap(color * mix(uExposure, uExposureIn, inside));
+            // Velo: copre quanto dice il suo colore (anche qui colore già moltiplicato per la copertura).
+            if (veil) {
+                gl_FragColor = vec4(pow(mapped, vec3(1.0 / 2.2)) * base.a, base.a);
+                return;
+            }
             if (uGlass > 0.5) {
                 // Vetro: riflette poco guardando dritto e molto di sbieco (Fresnel), il resto lascia passare quello che c'è dietro
                 // (colore già moltiplicato per la copertura).

@@ -17,7 +17,7 @@ import kotlin.test.Test
 
 /**
  * Foto 3D delle finestre nuove (inferriata, sopraluce, legno con fermavetro, persiana alla romana e bovindo) e delle porte
- * da garage (basculante e sezionale), zanzariere e tende da sole, viste da fuori e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
+ * da garage (basculante e sezionale), zanzariere, tende da sole e vetromattone, viste da fuori e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
  */
 class FinestreNuoveFotoTest {
     @Test
@@ -54,6 +54,8 @@ class FinestreNuoveFotoTest {
             openings = listOf(
                 o(1, OpeningKind.Window2, 2, 150.0, OpeningPreset.None).copy(insectScreen = true, awning = true, awningColor = 0xFF9C2F2F, sillMaterial = StairMaterial.Marble),
                 o(2, OpeningKind.Balcony2, 2, 420.0, OpeningPreset.None).copy(insectScreen = true, awning = true, sillMaterial = StairMaterial.Marble),
+                // Vetromattone sul muro davanti, con il davanzale di marmo.
+                o(3, OpeningKind.Window1, 0, 150.0, OpeningPreset.GlassBlock).copy(sillMaterial = StairMaterial.Marble),
             ),
         )
         val scene = Scene3D.build(FloorPlan(listOf(room, garage, living)), null, null, ceilings = false)
@@ -78,5 +80,7 @@ class FinestreNuoveFotoTest {
         shot("11-davanzali-fuori", Vec3(260.0, 150.0, -170.0), Vec3(220.0, 95.0, 0.0), 60.0, walking = false)
         shot("13-soglia-ingresso", Vec3(-230.0, 140.0, 140.0), Vec3(0.0, 40.0, 225.0), 60.0, walking = false)
         shot("12-davanzale-dentro", Vec3(370.0, 165.0, 110.0), Vec3(370.0, 90.0, 0.0), 75.0, walking = true)
+        shot("14-vetromattone-fuori", Vec3(60.0, 165.0, 540.0), Vec3(150.0, 150.0, 700.0), 60.0, walking = false)
+        shot("15-vetromattone-dentro", Vec3(230.0, 160.0, 960.0), Vec3(150.0, 155.0, 700.0), 70.0, walking = true)
     }
 }

@@ -78,7 +78,7 @@ class AperturePhotoTest {
                     o(29, OpeningKind.Window2, 3, 320.0, OpeningPreset.ArchedWindow).copy(shading = com.sagoma.planimetria.model.Shading.Venetian),
                 ),
             )
-            // Terza stanza, sotto: inferriata, sopraluce, legno, persiana alla romana e bovindo.
+            // Terza stanza, sotto: inferriata, sopraluce, legno, persiana alla romana, bovindo, porte da garage e vetromattone.
             val room3 = Room(3, "Camera", RoomType.Camera, RoomFactory.rectangle(600.0, 450.0).map { it + com.sagoma.planimetria.model.Vec2(0.0, 650.0) }).copy(
                 openings = listOf(
                     o(31, OpeningKind.Window1, 0, 100.0, OpeningPreset.Grille),
@@ -88,6 +88,7 @@ class AperturePhotoTest {
                     o(35, OpeningKind.Window2, 2, 380.0, OpeningPreset.BayWindow),
                     o(36, OpeningKind.Door, 1, 225.0, OpeningPreset.GarageUpAndOver),
                     o(37, OpeningKind.Door, 3, 225.0, OpeningPreset.GarageSectional),
+                    o(38, OpeningKind.Window1, 0, 200.0, OpeningPreset.GlassBlock),
                 ),
             )
             repo.planStore(p.id).save(Building.single(FloorPlan(rooms = listOf(room, room2, room3))))
@@ -103,7 +104,7 @@ class AperturePhotoTest {
                 "25-porta-sopraluce" to 25L, "26-balcone-4-ante" to 26L, "27-alzante" to 27L, "28-porta-blindata" to 28L, "29-finestra-arco-veneziana" to 29L,
             ).map { (n, id) -> Triple(n, 2L, id) } + listOf(
                 "31-inferriata" to 31L, "32-sopraluce" to 32L, "33-legno-fermavetro" to 33L, "34-persiana-romana" to 34L, "35-bovindo" to 35L,
-                "36-basculante" to 36L, "37-sezionale" to 37L,
+                "36-basculante" to 36L, "37-sezionale" to 37L, "38-vetromattone" to 38L,
             ).map { (n, id) -> Triple(n, 3L, id) }
             val platform = DesktopPlatform(projects = repo, tips = tips, theme = FileThemeStore(dir), assets = null)
             var t = 0L

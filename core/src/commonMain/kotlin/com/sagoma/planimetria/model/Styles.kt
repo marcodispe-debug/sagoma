@@ -46,6 +46,8 @@ enum class WindowModel {
     Loft,
     /** Infisso in legno: telaio più grosso, vetro fermato dai listelli (fermavetro); di solito rovere. */
     Wood,
+    /** Vetromattone: blocchi di vetro murati, fissi (niente ante, oscuranti, inferriata, zanzariera o tenda). */
+    GlassBlock,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */

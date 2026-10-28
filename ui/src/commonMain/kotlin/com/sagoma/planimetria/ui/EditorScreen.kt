@@ -864,6 +864,7 @@ private fun ArchitectureButton(
                     MenuEntry(T.editor.finestraInferriata, opening(OpeningKind.Window2, preset = OpeningPreset.Grille)),
                     MenuEntry(T.editor.finestraRomana, opening(OpeningKind.Window1, preset = OpeningPreset.RomanShutter)),
                     MenuEntry(T.editor.bovindo, opening(OpeningKind.Window2, preset = OpeningPreset.BayWindow)),
+                    MenuEntry(T.editor.vetromattone, opening(OpeningKind.Window1, preset = OpeningPreset.GlassBlock)),
                     MenuEntry(T.editor.vetrataInterna, opening(OpeningKind.Window2, preset = OpeningPreset.InteriorGlazing)),
                 ),
             ),

@@ -69,6 +69,7 @@ open class TestiEditor {
     open val finestraLegno: String get() = "Finestra in legno con fermavetro"
     open val finestraRomana: String get() = "Finestra con persiana alla romana"
     open val bovindo: String get() = "Bovindo (finestra sporgente)"
+    open val vetromattone: String get() = "Vetromattone (blocchi di vetro)"
     open val portaBasculante: String get() = "Porta basculante (garage)"
     open val portaSezionale: String get() = "Porta sezionale (garage)"
     open val balcone4Ante: String get() = "Balcone a 4 ante"

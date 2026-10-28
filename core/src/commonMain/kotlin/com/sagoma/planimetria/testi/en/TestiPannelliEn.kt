@@ -183,6 +183,7 @@ object TestiPannelliEn : TestiPannelli() {
     override val davanzale: String get() = "Sill"
     override val soglia: String get() = "Threshold"
     override fun davanzaleIn(m: String, balcony: Boolean): String = if (balcony) "$m threshold" else "$m sill"
+    override fun blocchiVetro(n: Int): String = if (n == 1) "1 glass block" else "$n glass blocks"
     override val giaUguali: String get() = "They all have this style already."
     override fun stileCopiato(n: Any?): String = if (n == 1) "Style copied to 1 opening (↶ to undo)." else "Style copied to $n openings (↶ to undo)."
     override val lampadarioSoffittoTrascinaloSpostarlo: String get() = "Ceiling chandelier: drag it to move it."

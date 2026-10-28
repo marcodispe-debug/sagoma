@@ -521,4 +521,54 @@ class OpeningTypesTest {
         assertNull(OpeningPreset.GarageSectional.apply(door).sill)
         assertEquals(StairMaterial.Marble, Opening.default(2, OpeningKind.Door2, 1, 150.0).withStyleOf(door).sillMaterial)
     }
+
+    @Test
+    fun `vetromattone - blocchi di vetro fissi, senza telaio né accessori`() {
+        val w = Opening.default(1, OpeningKind.Window1, 0, 200.0).copy(
+            sash = SashType.TiltTurn, shading = Shading.Shutters, grille = true, insectScreen = true, awning = true, topLight = true,
+        )
+        val g = OpeningPreset.GlassBlock.apply(w) // 76 × 114 a 100 da terra: da 162 a 238, da 100 a 214
+        assertTrue(g.isGlassBlock)
+        assertTrue(g.fixed)
+        assertEquals(Shading.None, g.shading)
+        assertFalse(g.hasGrille || g.hasInsectScreen || g.hasAwning || g.hasTopLight || g.isBay || g.hasShading)
+        assertEquals(4 to 6, Openings.glassBlockGrid(g))
+        // Anche con i dati scritti a mano (o un file vecchio): niente accessori né forme sul vetromattone.
+        val forced = g.copy(grille = true, insectScreen = true, awning = true, shading = Shading.Shutters, bay = true, windowShape = WindowShape.Arched)
+        assertFalse(forced.hasGrille || forced.hasInsectScreen || forced.hasAwning || forced.hasShading || forced.isBay)
+        assertEquals(WindowShape.Rectangle, forced.shape)
+        // Anche cambiando il modello dalla scheda (e tornando indietro le ante si aprono di nuovo).
+        val slidingBalcony = Opening.default(1, OpeningKind.Balcony2, 0, 200.0).copy(sliding = true, liftSlide = true).withWindowModel(WindowModel.GlassBlock)
+        assertTrue(slidingBalcony.fixed && !slidingBalcony.sliding && !slidingBalcony.lifts)
+        val back = g.withWindowModel(WindowModel.Classic)
+        assertFalse(back.fixed)
+        assertEquals(SashType.Casement, back.sash)
+        assertFalse(Opening.default(2, OpeningKind.Door, 1, 200.0).copy(windowModel = WindowModel.GlassBlock).isGlassBlock)
+        // In 3D: le facce dei blocchi a 4 cm dalla mezzeria del muro, le fughe di malta un poco più indietro (3,6).
+        // Blocchi di 18,75 × 18,83 cm di passo con la fuga da 1: il primo da 163 a 180,75, la fuga dopo da 180,75 a 181,75.
+        val face = assertNotNull(fromInside(scene(g), 172.0, 110.0))
+        assertEquals(Pick.Opening(1, 1), face.pick)
+        assertEquals(4.0, face.point.z, 0.01)
+        assertEquals(3.6, assertNotNull(fromInside(scene(g), 181.25, 110.0)).point.z, 0.01)
+        assertEquals(3.6, assertNotNull(fromInside(scene(g), 172.0, 119.3)).point.z, 0.01)
+        assertEquals(-4.0, assertNotNull(fromOutside(scene(g), 172.0, 110.0)).point.z, 0.01)
+        // Né persiane né maniglia: niente sporge dalla stanza oltre i blocchi.
+        for (x in listOf(165.0, 200.0, 235.0)) for (y in listOf(105.0, 157.0, 210.0)) {
+            assertTrue(assertNotNull(fromInside(scene(g), x, y)).point.z < 4.01, "x = $x, y = $y")
+        }
+        // Copia stile: il vetromattone non diventa una finestra e le finestre non diventano vetromattone.
+        val classic = Opening.default(2, OpeningKind.Window2, 1, 150.0).copy(shading = Shading.Shutters)
+        assertEquals(classic, classic.withStyleOf(g))
+        assertEquals(g, g.withStyleOf(classic))
+        val other = OpeningPreset.GlassBlock.apply(Opening.default(3, OpeningKind.Window1, 2, 100.0))
+        assertEquals(StairMaterial.Marble, other.withStyleOf(g.copy(sillMaterial = StairMaterial.Marble)).sill)
+        // Nel computo: «Vetromattone» con quanti blocchi servono; si salva e si rilegge.
+        assertEquals("Vetromattone", Openings.label(g))
+        assertEquals("24 blocchi di vetro", Openings.description(g))
+        assertEquals("24 blocchi di vetro · davanzale in marmo", Openings.description(g.copy(sillMaterial = StairMaterial.Marble)))
+        assertEquals("15 blocchi di vetro", Openings.description(g.copy(width = 95.0, height = 57.0)))
+        assertEquals(listOf("Vetromattone"), Takeoff.of(Building.single(FloorPlan(listOf(room(g))))).openings.map { it.name })
+        val plan = FloorPlan(listOf(room(g, other.copy(sillMaterial = StairMaterial.Stone))))
+        assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
+    }
 }

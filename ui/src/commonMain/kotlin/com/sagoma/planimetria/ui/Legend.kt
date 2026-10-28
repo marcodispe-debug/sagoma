@@ -283,6 +283,7 @@ private val legendSections: List<LegendSection> by lazy {
                     val o = OpeningPreset.BayWindow.apply(Opening.default(1, OpeningKind.Window2, 0, 100.0)).copy(position = 100.0, width = 140.0)
                     drawSample(sampleRoom(openings = listOf(o)), m, BayFrame)
                 },
+                LegendItem(T.editor.vetromattone, T.legenda.blocchiVetroFughe, opening(OpeningKind.Window1, preset = OpeningPreset.GlassBlock)),
                 LegendItem(T.legenda.balconeAd1Anta, T.legenda.portaFinestraFinoTerra, opening(OpeningKind.Balcony1)),
                 LegendItem(T.legenda.balcone2Ante, T.legenda.portaFinestraDueAnte, opening(OpeningKind.Balcony2)),
                 LegendItem(T.legenda.balconeScorrevole, T.legenda.portaFinestraAnteScorrevoli, opening(OpeningKind.Balcony2, sliding = true)),

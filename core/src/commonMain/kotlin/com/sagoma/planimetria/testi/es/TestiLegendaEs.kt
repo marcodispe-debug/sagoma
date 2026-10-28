@@ -34,6 +34,7 @@ object TestiLegendaEs : TestiLegenda() {
     override val perniOrizzontale: String get() = "La hoja gira sobre un pivote horizontal a media altura: media hacia dentro, media hacia fuera (discontinua)."
     override val sbarreFuori: String get() = "Puntos justo fuera del muro: los barrotes delante del vidrio."
     override val sporgeTreLati: String get() = "Sobresale del muro, acristalado por tres lados."
+    override val blocchiVetroFughe: String get() = "Línea doble con juntas: bloques de vidrio recibidos en el muro, no se abren."
     override val pannelloGarage: String get() = "Discontinuo: donde va el panel abierto, en alto dentro del garaje."
     override val vetroFisso: String get() = "Vidrio en la pared que no se abre: sin arco."
     override val vasistasRibalta: String get() = "La hoja se inclina por arriba hacia la habitación (discontinua)."

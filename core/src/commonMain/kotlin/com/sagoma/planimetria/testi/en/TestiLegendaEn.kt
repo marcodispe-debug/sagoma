@@ -34,6 +34,7 @@ object TestiLegendaEn : TestiLegenda() {
     override val perniOrizzontale: String get() = "The sash turns on a horizontal pivot halfway up: half goes in, half out (dashed)."
     override val sbarreFuori: String get() = "Dots just outside the wall: the bars in front of the glass."
     override val sporgeTreLati: String get() = "Projects out from the wall, glazed on three sides."
+    override val blocchiVetroFughe: String get() = "Double line with joints: glass blocks set in the wall, they don't open."
     override val pannelloGarage: String get() = "Dashed: where the open panel goes, high up inside the garage."
     override val vetroFisso: String get() = "Glass in the wall that doesn't open: no arc."
     override val vasistasRibalta: String get() = "The sash tilts in at the top toward the room (dashed)."
