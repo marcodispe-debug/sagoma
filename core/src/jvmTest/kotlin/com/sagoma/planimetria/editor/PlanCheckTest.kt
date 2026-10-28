@@ -389,4 +389,30 @@ class PlanCheckTest {
         val b = Building.single(FloorPlan(listOf(bedroom.copy(fixtures = outlets(4) + light), other)))
         assertEquals(listOf(2L), PlanCheck.of(b).filter { it.kind == PlanCheck.Kind.FewPoints }.map { it.rooms.single() })
     }
+
+    @Test
+    fun `elenco da condividere`() {
+        // Due piani: al piano terra una camera piccola con la porta più larga del muro, al primo piano una scala che non arriva.
+        val window = Opening.default(1, OpeningKind.Window2, 2, 150.0).copy(height = 160.0)
+        val wide = Opening.default(2, OpeningKind.Door, 0, 150.0).copy(width = 400.0)
+        val bedroom = rect(1, "Camera", RoomType.Camera, 280.0, 300.0, openings = listOf(window, wide))
+        val b = Building(listOf(Floor(1, "Piano terra", FloorPlan(listOf(bedroom))), Floor(2, "Primo piano", FloorPlan(listOf(bedroom.copy(openings = listOf(window, Opening.default(2, OpeningKind.Door, 0, 150.0))))))))
+        val issues = PlanCheck.of(b)
+        val text = PlanCheck.report(b, issues)
+        val lines = text.lines()
+        // Prima gli errori, poi le norme, ognuno con il piano davanti; la spiegazione delle norme sotto il titolo.
+        assertEquals("Da correggere", lines[0])
+        assertTrue(lines[1].startsWith("⚠ Piano terra · «Camera»"), text)
+        assertTrue(text.contains("\nNorme per la casa (Italia)\n" + T.controllo.spiegaNorme + "\n📏 Piano terra · «Camera»: "), text)
+        assertTrue(text.contains("\n📏 Primo piano · «Camera»: "), text)
+        assertEquals(issues.size, lines.count { it.startsWith("⚠ ") || it.startsWith("? ") || it.startsWith("📏 ") })
+        // Un piano solo: niente nome del piano. Senza problemi: una riga.
+        val one = Building.single(FloorPlan(listOf(bedroom)))
+        assertTrue(PlanCheck.report(one).lines()[1].startsWith("⚠ «Camera»"))
+        assertEquals("✓ Nessun problema trovato.\n", PlanCheck.report(Building.single(FloorPlan()), emptyList()))
+        val titles = PlanCheck.groups(issues).map { it.first }
+        assertEquals("Da correggere", titles.first())
+        assertEquals("Norme per la casa (Italia)", titles.last())
+        assertEquals(titles, lines.filter { it in titles })
+    }
 }

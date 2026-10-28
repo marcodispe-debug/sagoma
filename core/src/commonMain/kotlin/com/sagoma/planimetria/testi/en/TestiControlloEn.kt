@@ -21,6 +21,8 @@ object TestiControlloEn : TestiControllo() {
     override val mostra: String get() = "Show"
     override val chiudi: String get() = "Close"
     override fun troppi(n: Int): String = "Only the first $n: fix these and check again."
+    override val condividi: String get() = "Share"
+    override fun oggetto(progetto: String?): String = "Plan check" + (progetto?.let { " · $it" } ?: "")
     override fun muriIncrociati(a: String): String = "$a: the walls cross and the outline cuts itself, so area and 3D come out wrong. Move the corners."
     override fun sovrapposte(a: String, b: String, m2: String): String = "$a and $b overlap by $m2 m²: that part counts twice. Move a wall or a corner."
     override fun fessura(a: String, b: String, cm: String): String =

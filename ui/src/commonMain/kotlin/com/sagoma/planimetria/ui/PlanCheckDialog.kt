@@ -23,10 +23,12 @@ import com.sagoma.planimetria.testi.T
 
 /**
  * «Controlla la pianta»: l'elenco dei problemi di tutta la casa, prima quelli da correggere, poi quelli da controllare e infine
- * i minimi delle norme per la casa. «Mostra» porta al piano giusto, seleziona e inquadra (la finestra si chiude).
+ * i minimi delle norme per la casa. «Mostra» porta al piano giusto, seleziona e inquadra (la finestra si chiude). «Condividi»
+ * manda l'elenco come testo (`projectName` nell'oggetto).
  */
 @Composable
-fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> Unit) {
+fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> Unit, projectName: String? = null) {
+    val platform = LocalPlatform.current
     val building = state.fullBuilding
     // Pochi millesimi di secondo anche per una casa di 100 stanze (al massimo [PlanCheck.MAX_ISSUES] problemi).
     val issues = remember(building) { runCatching { PlanCheck.of(building) }.getOrDefault(emptyList()) }
@@ -44,24 +46,13 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                     else -> {
                         Text(T.controllo.spiega, style = MaterialTheme.typography.bodySmall)
                         val floors = building.floors.size > 1
-                        val groups = listOf(
-                            T.controllo.daCorreggere to list.filter { it.kind.error },
-                            T.controllo.daControllare to list.filter { !it.kind.error && !it.kind.rule },
-                            T.controllo.daNorme to list.filter { it.kind.rule },
-                        )
-                        for ((title, group) in groups) {
-                            if (group.isEmpty()) continue
+                        for ((title, group) in PlanCheck.groups(list)) {
                             Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp))
                             if (group.first().kind.rule) Text(T.controllo.spiegaNorme, style = MaterialTheme.typography.bodySmall)
                             for (i in group) Row(verticalAlignment = Alignment.CenterVertically) {
                                 val where = if (floors) building.floors.getOrNull(i.floor)?.name?.let { "$it · " } ?: "" else ""
-                                val mark = when {
-                                    i.kind.error -> "⚠ "
-                                    i.kind.rule -> "📏 "
-                                    else -> "? "
-                                }
                                 Text(
-                                    mark + where + PlanCheck.describe(i, building),
+                                    PlanCheck.mark(i.kind) + " " + where + PlanCheck.describe(i, building),
                                     style = MaterialTheme.typography.bodyMedium,
                                     modifier = Modifier.weight(1f),
                                 )
@@ -74,5 +65,10 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
             }
         },
         confirmButton = { TextButton(onClick = onDismiss, modifier = Modifier.guide(GuideTarget.CheckClose)) { Text(T.controllo.chiudi) } },
+        dismissButton = {
+            if (issues.isNotEmpty()) {
+                TextButton(onClick = { platform.shareText(T.controllo.oggetto(projectName), PlanCheck.report(building, issues)) }) { Text(T.controllo.condividi) }
+            }
+        },
     )
 }

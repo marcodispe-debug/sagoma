@@ -21,6 +21,8 @@ object TestiControlloFr : TestiControllo() {
     override val mostra: String get() = "Afficher"
     override val chiudi: String get() = "Fermer"
     override fun troppi(n: Int): String = "Seulement les $n premiers : corrigez-les et vérifiez à nouveau."
+    override val condividi: String get() = "Partager"
+    override fun oggetto(progetto: String?): String = "Contrôle du plan" + (progetto?.let { " · $it" } ?: "")
     override fun muriIncrociati(a: String): String = "$a : les murs se croisent et le contour se coupe lui-même, la surface et la 3D sont donc fausses. Déplacez les angles."
     override fun sovrapposte(a: String, b: String, m2: String): String = "$a et $b se superposent sur $m2 m² : cette partie compte deux fois. Déplacez un mur ou un angle."
     override fun fessura(a: String, b: String, cm: String): String =

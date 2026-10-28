@@ -207,6 +207,43 @@ object PlanCheck {
         }
     }
 
+    /** I problemi nei tre gruppi dell'elenco, con il titolo: da correggere, da controllare, norme. Solo i gruppi non vuoti. */
+    fun groups(issues: List<Issue>): List<Pair<String, List<Issue>>> = listOf(
+        T.controllo.daCorreggere to issues.filter { it.kind.error },
+        T.controllo.daControllare to issues.filter { !it.kind.error && !it.kind.rule },
+        T.controllo.daNorme to issues.filter { it.kind.rule },
+    ).filter { it.second.isNotEmpty() }
+
+    /** Segno davanti al problema nell'elenco. */
+    fun mark(kind: Kind): String = when {
+        kind.error -> "⚠"
+        kind.rule -> "📏"
+        else -> "?"
+    }
+
+    /**
+     * L'elenco come testo da mandare (al tecnico, all'impresa) o da tenere: i gruppi con i problemi, il piano davanti se la casa ne
+     * ha più di uno, la spiegazione delle norme.
+     */
+    fun report(b: Building, issues: List<Issue> = of(b)): String = buildString {
+        val t = T.controllo
+        if (issues.isEmpty()) {
+            append("✓ ").append(t.nessunProblema).append('\n')
+            return@buildString
+        }
+        val floors = b.floors.size > 1
+        for ((k, group) in groups(issues).withIndex()) {
+            if (k > 0) append('\n')
+            append(group.first).append('\n')
+            if (group.second.first().kind.rule) append(t.spiegaNorme).append('\n')
+            for (i in group.second) {
+                val where = if (floors) b.floors.getOrNull(i.floor)?.name?.let { "$it · " } ?: "" else ""
+                append(mark(i.kind)).append(' ').append(where).append(describe(i, b)).append('\n')
+            }
+        }
+        if (issues.size >= MAX_ISSUES) append('\n').append(t.troppi(MAX_ISSUES)).append('\n')
+    }
+
     /** Testo del problema nella lingua dell'app, con i nomi delle stanze. */
     fun describe(i: Issue, b: Building): String {
         val t = T.controllo

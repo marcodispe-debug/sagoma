@@ -169,7 +169,7 @@ fun EditorScreen(
     if (showSite) HouseSiteDialog(state.building.site, onNorth = vm::setNorth, onPlace = vm::setPlace, onDismiss = { showSite = false })
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
-    if (showCheck) PlanCheckDialog(state, vm, onDismiss = { showCheck = false; vm.planCheckClosed() })
+    if (showCheck) PlanCheckDialog(state, vm, onDismiss = { showCheck = false; vm.planCheckClosed() }, projectName = projects.info(projectId)?.name)
     // "Ricalca una piantina" al posto della prima stanza: la finestra resta aperta finché non si carica e si tara la piantina.
     val tracingSetup = state.tracing != null && state.underlayTool == null
     if (showBackground || tracingSetup) BackgroundDialog(state, vm, projectId, tracing = state.tracing != null, onDismiss = {
