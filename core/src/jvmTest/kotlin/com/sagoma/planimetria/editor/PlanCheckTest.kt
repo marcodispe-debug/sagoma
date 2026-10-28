@@ -1124,4 +1124,52 @@ class PlanCheckTest {
             com.sagoma.planimetria.model.FurnitureCatalog.set(saved)
         }
     }
+
+    @Test
+    fun `Correggi - l'avviso dice cosa ha cambiato`() {
+        // Bagno senza finestra: «Correggi» ne mette una, e l'avviso lo dice.
+        val bath = rect(3, "Bagno", RoomType.Bagno, 200.0, 250.0, Vec2(700.0, 0.0))
+        val b = Building.single(FloorPlan(listOf(living, kitchen, bath)))
+        val dark = PlanCheck.of(b).single { it.kind == PlanCheck.Kind.BathNoWindow }
+        val lit = assertNotNull(PlanCheck.fixed(b, dark))
+        assertEquals(FixSummary.Summary(added = mapOf(FixSummary.Thing.Window to 1)), FixSummary.of(b, lit))
+        assertEquals("Corretto un problema (aggiunto: 1 finestra): si annulla con ↶.", FixSummary.message(1, b, lit))
+        // Più cose insieme: una finestra nuova, tre prese e una luce; una porta tolta, una finestra spostata, una porta più larga.
+        val after = Building.single(FloorPlan(listOf(
+            living.copy(openings = listOf(entrance.copy(width = 100.0), living.openings[2])),
+            kitchen.copy(
+                openings = listOf(kitchen.openings[0].copy(position = 100.0)),
+                fixtures = (1L..3L).map { Fixture.default(it, FixtureKind.Outlet) } + Fixture.default(4, FixtureKind.CeilingLight),
+            ),
+            bath.copy(openings = listOf(Opening.default(5, OpeningKind.Window1, 1, 125.0))),
+        )))
+        val all = FixSummary.of(b, after)
+        assertEquals(mapOf(FixSummary.Thing.Window to 1, FixSummary.Thing.Outlet to 3, FixSummary.Thing.Light to 1), all.added)
+        assertEquals(mapOf(FixSummary.Thing.Door to 1), all.removed)
+        assertEquals(mapOf(FixSummary.Thing.Window to 1), all.moved)
+        assertEquals(mapOf(FixSummary.Thing.Door to 1), all.changed)
+        assertEquals(
+            "Corretti 4 problemi (aggiunto: 1 finestra, 3 prese e 1 luce; tolto: 1 porta; spostato: 1 finestra; cambiato: 1 porta): " +
+                "un solo ↶ li annulla tutti.",
+            FixSummary.message(4, b, after),
+        )
+        // La porta tolta da un muro e messa su un altro (la porta del bagno): spostata.
+        val door = Building.single(FloorPlan(listOf(living.copy(openings = living.openings - inner), kitchen.copy(openings = kitchen.openings + inner.copy(id = 9, wallIndex = 2)))))
+        assertEquals(FixSummary.Summary(moved = mapOf(FixSummary.Thing.Door to 1)), FixSummary.of(Building.single(FloorPlan(listOf(living, kitchen))), door))
+        // Con stato di fatto e di progetto la porta chiusa è tolta.
+        val phased = Building.single(FloorPlan(listOf(living.copy(openings = living.openings.map { if (it.id == 2L) it.copy(phase = Phase.Demolish) else it }), kitchen)))
+        assertEquals(FixSummary.Summary(removed = mapOf(FixSummary.Thing.Door to 1)), FixSummary.of(Building.single(FloorPlan(listOf(living, kitchen))), phased))
+        // Niente di cambiato: l'avviso di sempre.
+        assertEquals(T.controllo.corretti(2), FixSummary.message(2, b, b))
+        // Nelle altre lingue.
+        T.lingua = com.sagoma.planimetria.testi.en.Inglese
+        assertEquals(
+            "Fixed 4 problems (added: 1 window, 3 sockets and 1 light; removed: 1 door; moved: 1 window; changed: 1 door): one ↶ undoes them all.",
+            FixSummary.message(4, b, after),
+        )
+        T.lingua = com.sagoma.planimetria.testi.fr.Francese
+        assertEquals("Un problème corrigé (ajouté : 1 fenêtre) : annulez avec ↶.", FixSummary.message(1, b, lit))
+        T.lingua = com.sagoma.planimetria.testi.es.Spagnolo
+        assertEquals("Un problema corregido (añadido: 1 ventana): se deshace con ↶.", FixSummary.message(1, b, lit))
+    }
 }

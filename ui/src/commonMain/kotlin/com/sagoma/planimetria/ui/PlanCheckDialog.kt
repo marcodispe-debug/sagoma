@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.FixSummary
 import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.editor.LiveCheck
 import com.sagoma.planimetria.editor.PlanCheck
@@ -44,8 +45,8 @@ import kotlinx.coroutines.withContext
  * «Controlla la pianta»: l'elenco dei problemi di tutta la casa, prima quelli da correggere, poi quelli da controllare e infine
  * i minimi delle norme per la casa. «Mostra» porta al piano giusto, seleziona e inquadra (la finestra si chiude). «Correggi», dove
  * c'è ([PlanCheck.canFix]; per le ante che urtano compare appena si sa che girarle basta), sistema il problema da solo e la
- * finestra resta aperta con l'elenco nuovo (si annulla con ↶); «Correggi tutti» lo fa per tutto un gruppo, con un solo ↶
- * ([PlanCheck.fixedAll]). «Togli dalla pianta» toglie il «!» del problema dalla pianta (e
+ * finestra resta aperta con l'elenco nuovo e in cima cosa è cambiato ([FixSummary]; si annulla con ↶); «Correggi tutti» lo fa
+ * per tutto un gruppo, con un solo ↶ ([PlanCheck.fixedAll]). «Togli dalla pianta» toglie il «!» del problema dalla pianta (e
  * dal conto del segnale): il problema resta qui, e si rimette. «Condividi» manda l'elenco come testo (`projectName` nell'oggetto).
  * Ogni gruppo ha il numero dei problemi e si apre e chiude toccando il titolo; all'inizio sono aperti il primo e quelli corti (al
  * massimo [OPEN_GROUP_MAX]).
@@ -65,6 +66,11 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
     // «Correggi tutti» lavora fuori dal disegno: intanto i pulsanti aspettano.
     val scope = rememberCoroutineScope()
     var fixing by remember { mutableStateOf(false) }
+    // Cosa ha cambiato l'ultimo «Correggi» (o «Correggi tutti»): si vede in cima finché la casa resta quella corretta.
+    var done by remember { mutableStateOf<Pair<Building, String>?>(null) }
+    fun fixedSaying(message: String) {
+        done = vm.state.value.fullBuilding to message
+    }
     // Per la guida interattiva, che la fa provare.
     LaunchedEffect(Unit) { vm.planCheckOpened() }
     AlertDialog(
@@ -72,6 +78,9 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
         title = { Text(T.controllo.titolo) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                done?.takeIf { it.first == building }?.let { (_, message) ->
+                    Text("✓ $message", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                }
                 val list = issues
                 when {
                     list.isEmpty() -> {
@@ -117,7 +126,8 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                                                 runCatching { PlanCheck.fixedAll(building, fixable) }.getOrDefault(building to 0)
                                             }
                                             fixing = false
-                                            platform.toast(if (n > 0 && vm.applyFixes(building, out)) T.controllo.corretti(n) else T.controllo.nonSiCorregge)
+                                            if (n > 0 && vm.applyFixes(building, out)) fixedSaying(FixSummary.message(n, building, out))
+                                            else platform.toast(T.controllo.nonSiCorregge)
                                         }
                                     },
                                     enabled = !fixing,
@@ -139,7 +149,7 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         if (fixable(i, turnable)) {
                                             TextButton(
-                                                onClick = { if (!vm.fixIssue(i)) platform.toast(T.controllo.nonSiCorregge) },
+                                                onClick = { vm.fixIssueMessage(i)?.let(::fixedSaying) ?: platform.toast(T.controllo.nonSiCorregge) },
                                                 enabled = !fixing,
                                                 contentPadding = PaddingValues(horizontal = 0.dp),
                                                 modifier = Modifier.guide(guideFix),

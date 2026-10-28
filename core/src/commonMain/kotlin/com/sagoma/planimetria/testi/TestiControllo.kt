@@ -1,5 +1,7 @@
 package com.sagoma.planimetria.testi
 
+import com.sagoma.planimetria.editor.FixSummary
+
 /** «Controlla la pianta»: errori di disegno, cose da controllare e norme per la casa. I nomi delle stanze arrivano già passati da [nome]. */
 open class TestiControllo {
     open val voceMenu: String get() = "🔍 Controlla la pianta…"
@@ -33,6 +35,33 @@ open class TestiControllo {
     open fun correggiTutti(n: Int): String = "Correggi tutti ($n)"
     open fun corretti(n: Int): String =
         if (n == 1) "Corretto un problema: si annulla con ↶." else "Corretti $n problemi: un solo ↶ li annulla tutti."
+    open fun corretti(n: Int, fatto: String): String =
+        if (n == 1) "Corretto un problema ($fatto): si annulla con ↶." else "Corretti $n problemi ($fatto): un solo ↶ li annulla tutti."
+
+    /** Quante cose di un tipo ha cambiato «Correggi» ([FixSummary]): «1 porta», «3 prese». */
+    open fun quante(cosa: FixSummary.Thing, n: Int): String = "$n " + when (cosa) {
+        FixSummary.Thing.Door -> if (n == 1) "porta" else "porte"
+        FixSummary.Thing.Window -> if (n == 1) "finestra" else "finestre"
+        FixSummary.Thing.BalconyDoor -> if (n == 1) "porta-finestra" else "porte-finestre"
+        FixSummary.Thing.Passage -> if (n == 1) "passaggio" else "passaggi"
+        FixSummary.Thing.Niche -> if (n == 1) "nicchia" else "nicchie"
+        FixSummary.Thing.Radiator -> if (n == 1) "calorifero" else "caloriferi"
+        FixSummary.Thing.WaterPoint -> if (n == 1) "punto acqua" else "punti acqua"
+        FixSummary.Thing.Outlet -> if (n == 1) "presa" else "prese"
+        FixSummary.Thing.Switch -> if (n == 1) "interruttore" else "interruttori"
+        FixSummary.Thing.Light -> if (n == 1) "luce" else "luci"
+        FixSummary.Thing.Furniture -> if (n == 1) "mobile" else "mobili"
+        FixSummary.Thing.Room -> if (n == 1) "stanza" else "stanze"
+    }
+
+    /** Più cose in fila: «a, b e c». */
+    open fun elenco(parti: List<String>): String =
+        if (parti.size < 2) parti.joinToString() else parti.dropLast(1).joinToString(", ") + " e " + parti.last()
+
+    /** Cosa ha fatto «Correggi», a gruppi (null: niente di quel gruppo): «aggiunto: 2 porte e 3 prese; tolto: 1 porta». */
+    open fun fatto(aggiunto: String?, tolto: String?, spostato: String?, cambiato: String?): String =
+        listOfNotNull(aggiunto?.let { "aggiunto: $it" }, tolto?.let { "tolto: $it" }, spostato?.let { "spostato: $it" }, cambiato?.let { "cambiato: $it" })
+            .joinToString("; ")
     open val togliDallaPianta: String get() = "Togli dalla pianta"
     open val rimettiSullaPianta: String get() = "Rimetti sulla pianta"
     /** Per tutto un gruppo dell'elenco. */

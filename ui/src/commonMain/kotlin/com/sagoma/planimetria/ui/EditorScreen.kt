@@ -653,7 +653,7 @@ fun EditorScreen(
                     n, liveBuilding,
                     onShow = { liveNotice = null; vm.showIssue(n) },
                     onFix = if (noticeFixable) {
-                        { liveNotice = null; if (!vm.fixIssue(n)) platform.toast(T.controllo.nonSiCorregge) }
+                        { liveNotice = null; platform.toast(vm.fixIssueMessage(n) ?: T.controllo.nonSiCorregge) }
                     } else null,
                     onClose = { liveNotice = null },
                     modifier = Modifier.align(Alignment.TopCenter)
@@ -668,7 +668,11 @@ fun EditorScreen(
                 }
                 CheckSpotCard(
                     list, liveBuilding,
-                    onFix = { i -> if (vm.fixIssue(i)) drop(i) else platform.toast(T.controllo.nonSiCorregge) },
+                    onFix = { i ->
+                        val message = vm.fixIssueMessage(i)
+                        if (message != null) drop(i)
+                        platform.toast(message ?: T.controllo.nonSiCorregge)
+                    },
                     onShow = { i -> openMark = null; vm.showIssue(i) },
                     onHide = { i -> vm.setCheckHidden(i, true); drop(i) },
                     onClose = { openMark = null },

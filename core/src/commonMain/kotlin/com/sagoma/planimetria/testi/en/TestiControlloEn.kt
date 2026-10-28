@@ -1,5 +1,6 @@
 package com.sagoma.planimetria.testi.en
 
+import com.sagoma.planimetria.editor.FixSummary
 import com.sagoma.planimetria.testi.TestiControllo
 
 object TestiControlloEn : TestiControllo() {
@@ -33,6 +34,27 @@ object TestiControlloEn : TestiControllo() {
     override fun correggiTutti(n: Int): String = "Fix all ($n)"
     override fun corretti(n: Int): String =
         if (n == 1) "Fixed one problem: undo with ↶." else "Fixed $n problems: one ↶ undoes them all."
+    override fun corretti(n: Int, fatto: String): String =
+        if (n == 1) "Fixed one problem ($fatto): undo with ↶." else "Fixed $n problems ($fatto): one ↶ undoes them all."
+    override fun quante(cosa: FixSummary.Thing, n: Int): String = "$n " + when (cosa) {
+        FixSummary.Thing.Door -> if (n == 1) "door" else "doors"
+        FixSummary.Thing.Window -> if (n == 1) "window" else "windows"
+        FixSummary.Thing.BalconyDoor -> if (n == 1) "French window" else "French windows"
+        FixSummary.Thing.Passage -> if (n == 1) "doorway" else "doorways"
+        FixSummary.Thing.Niche -> if (n == 1) "niche" else "niches"
+        FixSummary.Thing.Radiator -> if (n == 1) "radiator" else "radiators"
+        FixSummary.Thing.WaterPoint -> if (n == 1) "water point" else "water points"
+        FixSummary.Thing.Outlet -> if (n == 1) "socket" else "sockets"
+        FixSummary.Thing.Switch -> if (n == 1) "switch" else "switches"
+        FixSummary.Thing.Light -> if (n == 1) "light" else "lights"
+        FixSummary.Thing.Furniture -> if (n == 1) "piece of furniture" else "pieces of furniture"
+        FixSummary.Thing.Room -> if (n == 1) "room" else "rooms"
+    }
+    override fun elenco(parti: List<String>): String =
+        if (parti.size < 2) parti.joinToString() else parti.dropLast(1).joinToString(", ") + " and " + parti.last()
+    override fun fatto(aggiunto: String?, tolto: String?, spostato: String?, cambiato: String?): String =
+        listOfNotNull(aggiunto?.let { "added: $it" }, tolto?.let { "removed: $it" }, spostato?.let { "moved: $it" }, cambiato?.let { "changed: $it" })
+            .joinToString("; ")
     override val togliDallaPianta: String get() = "Remove from plan"
     override val rimettiSullaPianta: String get() = "Show on plan"
     override val togliTutti: String get() = "Remove all from plan"

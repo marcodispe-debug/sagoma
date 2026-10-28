@@ -3180,11 +3180,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
      * «Correggi» in «Controlla la pianta»: la correzione automatica del problema ([PlanCheck.fixed]), che si annulla come le altre
      * modifiche. False se non si riesce da soli.
      */
-    fun fixIssue(issue: PlanCheck.Issue): Boolean {
-        val fixed = PlanCheck.fixed(_state.value.fullBuilding, issue) ?: return false
+    fun fixIssue(issue: PlanCheck.Issue): Boolean = fixIssueMessage(issue) != null
+
+    /** Come [fixIssue]: l'avviso che dice cosa ha cambiato ([FixSummary.message]), o null se non si corregge. */
+    fun fixIssueMessage(issue: PlanCheck.Issue): String? {
+        val before = _state.value.fullBuilding
+        val fixed = PlanCheck.fixed(before, issue) ?: return null
         commitBuilding { fixed }
         tutorialEvent(TutorialEvent.IssuesFixed)
-        return true
+        return FixSummary.message(1, before, fixed)
     }
 
     /**

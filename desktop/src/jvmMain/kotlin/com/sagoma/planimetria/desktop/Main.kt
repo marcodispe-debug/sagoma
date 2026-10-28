@@ -30,6 +30,7 @@ import com.sagoma.planimetria.reading.HttpPlanReader
 import com.sagoma.planimetria.testi.T
 import com.sagoma.planimetria.ui.FurnitureAssets
 import com.sagoma.planimetria.ui.SagomaApp
+import com.sagoma.planimetria.ui.toastMillis
 import kotlinx.coroutines.delay
 import java.io.File
 import java.io.PrintWriter
@@ -143,7 +144,7 @@ private fun app(remote: RemoteAssets?) = application(exitProcessOnExit = false) 
             Box(Modifier.fillMaxSize()) {
                 SagomaApp(platform)
                 platform.message?.let { msg ->
-                    LaunchedEffect(msg) { delay(2500); platform.message = null }
+                    LaunchedEffect(msg) { delay(toastMillis(msg)); platform.message = null }
                     Snackbar(Modifier.align(Alignment.BottomCenter).padding(24.dp)) { Text(msg) }
                 }
             }

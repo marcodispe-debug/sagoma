@@ -35,8 +35,8 @@ import kotlin.test.assertTrue
 
 /**
  * L'app vera: «Controlla la pianta» → «✓ Correggi tutti» nel gruppo degli errori. La finestra più alta del muro si accorcia e la
- * cucina sovrapposta al soggiorno si sposta fino al muro in comune, insieme; un solo ↶ rimette tutto. Immagini in
- * build/correggi-tutti-*.png.
+ * cucina sovrapposta al soggiorno si sposta fino al muro in comune, insieme, e in cima alla finestra si legge cosa è cambiato; un
+ * solo ↶ rimette tutto. Immagini in build/correggi-tutti-*.png.
  */
 @OptIn(ExperimentalComposeUiApi::class, androidx.compose.ui.InternalComposeUiApi::class)
 class CorreggiTuttiTest {
@@ -105,9 +105,14 @@ class CorreggiTuttiTest {
                 assertTrue(PlanCheck.of(vm.state.value.fullBuilding).none { it.kind == PlanCheck.Kind.Overlap })
                 // Il gruppo degli errori non c'è più: niente pulsante.
                 assertTrue(nodes().none { n -> n.config.getOrNull(SemanticsProperties.Text)?.any { it.text.startsWith("✓ Correggi tutti") } == true })
-                // Un solo ↶ rimette la finestra e la cucina.
+                // In cima alla finestra cosa è cambiato.
+                val done = "✓ Corretti 2 problemi (spostato: 1 stanza; cambiato: 1 finestra): un solo ↶ li annulla tutti."
+                assertEquals(1, withText(done).size, nodes().mapNotNull { it.config.getOrNull(SemanticsProperties.Text)?.joinToString() }.toString())
+                // Un solo ↶ rimette la finestra e la cucina, e la riga sparisce.
                 vm.undo()
                 assertEquals(before, vm.state.value.fullBuilding)
+                frames()
+                assertTrue(withText(done).isEmpty())
             }
         } finally {
             dir.deleteRecursively()
