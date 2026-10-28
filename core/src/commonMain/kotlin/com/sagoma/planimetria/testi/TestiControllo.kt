@@ -13,7 +13,7 @@ open class TestiControllo {
     open val daControllare: String get() = "Da controllare"
     open val daNorme: String get() = "Norme per la casa (Italia)"
     open val spiegaNorme: String get() =
-        "Minimi del DM 5 luglio 1975 per le stanze da abitare (camere, soggiorno, cucina, studio); il regolamento edilizio del comune " +
+        "Minimi del DM 5 luglio 1975 per le stanze da abitare (camere, soggiorno, cucina, studio) e i bagni; il regolamento edilizio del comune " +
             "può chiedere di più. Le finestre contano se si aprono e danno fuori, misurate sul vano del muro."
     /** Nome di una stanza dentro un testo. */
     open fun nome(n: String): String = "«$n»"
@@ -52,5 +52,8 @@ open class TestiControllo {
     open fun soffittoBasso(a: String, h: String): String = "$a: soffitto a $h m; nelle stanze da abitare deve essere almeno a 2,70 m."
     open fun soffittoBassoServizi(a: String, h: String): String = "$a: soffitto a $h m; in bagni e corridoi deve essere almeno a 2,40 m."
     open fun cameraPiccola(a: String, m2: String): String = "$a: $m2 m²; una camera da letto deve averne almeno 9 (14 se è per due persone)."
+    open fun cameraPerDuePiccola(a: String, m2: String): String = "$a: $m2 m² con i letti per due persone; una camera per due deve averne almeno 14."
     open fun soggiornoPiccolo(a: String, m2: String): String = "$a: $m2 m²; il soggiorno deve averne almeno 14."
+    open fun bagnoSenzaFinestra(a: String): String =
+        "$a: nessuna finestra apribile verso fuori; il bagno ha bisogno dell'aspirazione meccanica (e niente apparecchi a fiamma libera)."
 }

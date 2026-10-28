@@ -1,18 +1,24 @@
 package com.sagoma.planimetria.geometry
 
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.Furniture
+import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.model.Opening
+import com.sagoma.planimetria.model.ParametricFurniture
 import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.SashType
 import kotlin.math.abs
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
  * Luce e aria naturali delle stanze (rapporto aeroilluminante) e minimi delle norme italiane per le case (DM 5 luglio 1975):
  * finestre apribili che danno fuori almeno 1/8 del pavimento nelle stanze da abitare, soffitti alti almeno 2,70 m (2,40 in
- * bagni e corridoi), camere da letto di almeno 9 m² e soggiorno di almeno 14 m². Si guarda la casa come sarà (stato di progetto).
+ * bagni e corridoi), camere da letto di almeno 9 m² (14 per due persone: un letto matrimoniale o a castello, due letti) e
+ * soggiorno di almeno 14 m²; il bagno senza finestra verso fuori ha bisogno dell'aspirazione meccanica. Si guarda la casa come
+ * sarà (stato di progetto).
  */
 object HousingRules {
     /** Finestre apribili almeno 1/8 del pavimento nelle stanze da abitare. */
@@ -22,8 +28,9 @@ object HousingRules {
     const val MIN_HEIGHT_LIVING_CM = 270.0
     const val MIN_HEIGHT_SERVICE_CM = 240.0
 
-    /** Superficie minima (cm²) di una camera da letto (singola: per due persone 14 m², ma dal disegno non si sa) e del soggiorno. */
+    /** Superficie minima (cm²) di una camera da letto per una persona, per due e del soggiorno. */
     const val MIN_BEDROOM_CM2 = 90_000.0
+    const val MIN_DOUBLE_BEDROOM_CM2 = 140_000.0
     const val MIN_LIVING_CM2 = 140_000.0
 
     /** Tratto minimo (cm) di muro tolto in comune perché due stanze siano un ambiente unico. */
@@ -131,6 +138,39 @@ object HousingRules {
         val x = 1 / ratio
         return "1/" + if (x >= 100) formatDecimal(x, 0) else formatDecimal(x, 1)
     }
+
+    /** Letto per due persone: largo almeno così (cm). */
+    const val DOUBLE_BED_CM = 140.0
+
+    /**
+     * Persone che dormono nel letto `f`: 2 se è largo almeno [DOUBLE_BED_CM] o a castello, 1 per gli altri letti (divani letto aperti,
+     * futon e materassi compresi), 0 se non è un letto (culle e lettini dei bambini non contano). I letti del catalogo si riconoscono dal
+     * nome italiano, quelli generati dal tipo.
+     */
+    fun sleepers(f: Furniture): Int {
+        val narrow = min(f.width, f.depth)
+        ParametricFurniture.parse(f.model)?.let { s ->
+            if (s.kind != ParametricFurniture.Kind.BED && s.kind != ParametricFurniture.Kind.SINGLE_BED) return 0
+            return if (narrow >= DOUBLE_BED_CM) 2 else 1
+        }
+        val label = FurnitureCatalog.item(f.model)?.label ?: return 0
+        val bed = label.startsWith("Letto") || label.startsWith("Divano letto aperto") || label.startsWith("Futon") || label.startsWith("Materasso")
+        return when {
+            !bed -> 0
+            label.startsWith("Letto a castello") || narrow >= DOUBLE_BED_CM -> 2
+            else -> 1
+        }
+    }
+
+    /** Persone che dormono nella stanza: i letti col centro dentro. */
+    fun sleepers(plan: FloorPlan, room: Room): Int {
+        val inside = room.interior()
+        if (inside.size < 3) return 0
+        return plan.furniture.filter { Polygon.contains(inside, it.center) }.sumOf { sleepers(it) }
+    }
+
+    /** Superficie minima (cm²) della camera da letto, per una persona o per due secondo i letti che ci sono. */
+    fun minBedroom(plan: FloorPlan, room: Room): Double = if (sleepers(plan, room) >= 2) MIN_DOUBLE_BEDROOM_CM2 else MIN_BEDROOM_CM2
 
     /** Il soffitto è piano (stessa altezza su tutti i muri, nessuna parete tagliata dal tetto): ha un'altezza sola. */
     fun flatCeiling(room: Room): Boolean = room.wallCuts.isEmpty() && room.wallHeights.values.all { abs(it - room.ceilingHeight) < 0.5 }

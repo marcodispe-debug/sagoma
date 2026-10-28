@@ -14,7 +14,7 @@ object TestiControlloEs : TestiControllo() {
     override val daControllare: String get() = "Para revisar"
     override val daNorme: String get() = "Normas para la vivienda (Italia)"
     override val spiegaNorme: String get() =
-        "Mínimos del decreto italiano del 5 de julio de 1975 para las estancias habitables (dormitorios, salón, cocina, estudio); la normativa " +
+        "Mínimos del decreto italiano del 5 de julio de 1975 para las estancias habitables (dormitorios, salón, cocina, estudio) y los baños; la normativa " +
             "del municipio puede pedir más. Las ventanas cuentan si se abren y dan al exterior, medidas en el hueco de la pared."
     override fun nome(n: String): String = "«$n»"
     override val mostra: String get() = "Mostrar"
@@ -52,5 +52,8 @@ object TestiControlloEs : TestiControllo() {
     override fun soffittoBasso(a: String, h: String): String = "$a: techo a $h m; las estancias habitables necesitan al menos 2,70 m."
     override fun soffittoBassoServizi(a: String, h: String): String = "$a: techo a $h m; baños y pasillos necesitan al menos 2,40 m."
     override fun cameraPiccola(a: String, m2: String): String = "$a: $m2 m²; un dormitorio necesita al menos 9 (14 para dos personas)."
+    override fun cameraPerDuePiccola(a: String, m2: String): String = "$a: $m2 m² con camas para dos personas; un dormitorio para dos necesita al menos 14."
     override fun soggiornoPiccolo(a: String, m2: String): String = "$a: $m2 m²; el salón necesita al menos 14."
+    override fun bagnoSenzaFinestra(a: String): String =
+        "$a: ninguna ventana practicable al exterior; el baño necesita extracción mecánica (y nada de aparatos de llama abierta)."
 }

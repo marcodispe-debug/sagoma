@@ -14,7 +14,7 @@ object TestiControlloEn : TestiControllo() {
     override val daControllare: String get() = "To check"
     override val daNorme: String get() = "Rules for homes (Italy)"
     override val spiegaNorme: String get() =
-        "Minimums of the Italian decree of 5 July 1975 for living spaces (bedrooms, living room, kitchen, study); the local building code " +
+        "Minimums of the Italian decree of 5 July 1975 for living spaces (bedrooms, living room, kitchen, study) and bathrooms; the local building code " +
             "may ask for more. Windows count if they open and face outside, measured on the wall opening."
     override fun nome(n: String): String = "«$n»"
     override val mostra: String get() = "Show"
@@ -52,5 +52,8 @@ object TestiControlloEn : TestiControllo() {
     override fun soffittoBasso(a: String, h: String): String = "$a: ceiling at $h m; living spaces need at least 2.70 m."
     override fun soffittoBassoServizi(a: String, h: String): String = "$a: ceiling at $h m; bathrooms and corridors need at least 2.40 m."
     override fun cameraPiccola(a: String, m2: String): String = "$a: $m2 m²; a bedroom needs at least 9 (14 for two people)."
+    override fun cameraPerDuePiccola(a: String, m2: String): String = "$a: $m2 m² with beds for two people; a bedroom for two needs at least 14."
     override fun soggiornoPiccolo(a: String, m2: String): String = "$a: $m2 m²; the living room needs at least 14."
+    override fun bagnoSenzaFinestra(a: String): String =
+        "$a: no opening window to the outside; the bathroom needs mechanical extraction (and no open-flame appliances)."
 }

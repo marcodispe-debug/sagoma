@@ -70,6 +70,7 @@ object PlanCheck {
         LowCeiling(false, rule = true),
         SmallBedroom(false, rule = true),
         SmallLiving(false, rule = true),
+        BathNoWindow(false, rule = true),
     }
 
     /**
@@ -195,7 +196,8 @@ object PlanCheck {
             Kind.NoFloorWindows -> t.nessunaFinestra
             Kind.LowCeiling -> if (i.b < HousingRules.MIN_HEIGHT_LIVING_CM) t.soffittoBassoServizi(name(0), formatDecimal(i.a / 100, 2))
             else t.soffittoBasso(name(0), formatDecimal(i.a / 100, 2))
-            Kind.SmallBedroom -> t.cameraPiccola(name(0), m2(i.a))
+            Kind.SmallBedroom -> if (i.b * 10_000 >= HousingRules.MIN_DOUBLE_BEDROOM_CM2) t.cameraPerDuePiccola(name(0), m2(i.a)) else t.cameraPiccola(name(0), m2(i.a))
+            Kind.BathNoWindow -> t.bagnoSenzaFinestra(name(0))
             Kind.SmallLiving -> t.soggiornoPiccolo(all, m2(i.a))
         }
     }
@@ -571,9 +573,13 @@ object PlanCheck {
                     }
                     if (min != null && r.ceilingHeight.roundToInt() < min) add(Issue(Kind.LowCeiling, floor, listOf(r.id), box, a = r.ceilingHeight, b = min))
                 }
-                if ((r.type == RoomType.Camera || r.type == RoomType.Cameretta) && hundredths(area) < hundredths(HousingRules.MIN_BEDROOM_CM2)) {
-                    add(Issue(Kind.SmallBedroom, floor, listOf(r.id), box, a = area / 10_000))
+                if (r.type == RoomType.Camera || r.type == RoomType.Cameretta) {
+                    // Per due persone (letto matrimoniale, a castello o due letti) ne servono 14.
+                    val min = HousingRules.minBedroom(plan, r)
+                    if (hundredths(area) < hundredths(min)) add(Issue(Kind.SmallBedroom, floor, listOf(r.id), box, a = area / 10_000, b = min / 10_000))
                 }
+                // Bagno senza finestra apribile verso fuori: serve l'aspirazione meccanica (non se il piano non ha ancora finestre).
+                if (r.type == RoomType.Bagno && !windowless && HousingRules.windows(plan, r).isEmpty()) add(Issue(Kind.BathNoWindow, floor, listOf(r.id), box))
             }
             // Soggiorno: con la cucina a vista conta tutto l'ambiente.
             for (s in spaces) {

@@ -246,4 +246,34 @@ class PlanCheckTest {
         T.lingua = com.sagoma.planimetria.testi.fr.Francese
         assertTrue(PlanCheck.describe(dim, Building.single(FloorPlan(listOf(livingOpen, kitchenOpen)))).startsWith("« Soggiorno » + « Cucina » : fenêtres ouvrantes de 1,44 m²"))
     }
+
+    @Test
+    fun `norme - camera per due e bagno senza finestra`() {
+        val window = Opening.default(1, OpeningKind.Window2, 2, 150.0).copy(height = 160.0)
+        // Camera 380×380 (13,32 m² dentro i muri da 15): basta per una persona, non per due.
+        val bedroom = rect(1, "Camera", RoomType.Camera, 380.0, 380.0, openings = listOf(window))
+        val double = com.sagoma.planimetria.model.Furniture(1, "mobile:letto:rovere", Vec2(190.0, 150.0), width = 160.0, depth = 205.0, height = 100.0)
+        val single = double.copy(model = "mobile:letto-singolo:rovere", width = 90.0)
+        fun plan(vararg f: com.sagoma.planimetria.model.Furniture) = FloorPlan(listOf(bedroom), furniture = f.toList())
+        fun rulesOf(p: FloorPlan) = PlanCheck.of(Building.single(p)).filter { it.kind.rule }
+        assertEquals(emptyList(), rulesOf(plan(single)))
+        val i = rulesOf(plan(double)).single()
+        assertEquals(PlanCheck.Kind.SmallBedroom, i.kind)
+        assertEquals("«Camera»: 13,32 m² con i letti per due persone; una camera per due deve averne almeno 14.", PlanCheck.describe(i, Building.single(plan(double))))
+        // Due letti singoli: due persone. Un letto fuori dalla stanza non conta; un comodino non è un letto.
+        assertEquals(PlanCheck.Kind.SmallBedroom, rulesOf(plan(single, single.copy(id = 2, center = Vec2(300.0, 150.0)))).single().kind)
+        assertEquals(emptyList(), rulesOf(plan(single, single.copy(id = 2, center = Vec2(600.0, 150.0)))))
+        assertEquals(emptyList(), rulesOf(plan(single, single.copy(id = 2, model = "mobile:comodino:rovere"))))
+        // Bagno senza finestra verso fuori (la casa ha già le finestre): serve l'aspirazione.
+        val bath = rect(2, "Bagno", RoomType.Bagno, 200.0, 250.0, Vec2(380.0, 0.0))
+        val b = Building.single(FloorPlan(listOf(bedroom, bath)))
+        val v = PlanCheck.of(b).single { it.kind.rule }
+        assertEquals(PlanCheck.Kind.BathNoWindow, v.kind)
+        assertEquals("«Bagno»: nessuna finestra apribile verso fuori; il bagno ha bisogno dell'aspirazione meccanica (e niente apparecchi a fiamma libera).", PlanCheck.describe(v, b))
+        // Con una finestra apribile niente; con una finestra fissa sì.
+        val withWindow = bath.copy(openings = listOf(Opening.default(2, OpeningKind.Window1, 0, 100.0)))
+        assertTrue(PlanCheck.of(Building.single(FloorPlan(listOf(bedroom, withWindow)))).none { it.kind == PlanCheck.Kind.BathNoWindow })
+        val fixed = bath.copy(openings = listOf(Opening.default(2, OpeningKind.Window1, 0, 100.0).copy(sash = com.sagoma.planimetria.model.SashType.Fixed)))
+        assertTrue(PlanCheck.of(Building.single(FloorPlan(listOf(bedroom, fixed)))).any { it.kind == PlanCheck.Kind.BathNoWindow })
+    }
 }
