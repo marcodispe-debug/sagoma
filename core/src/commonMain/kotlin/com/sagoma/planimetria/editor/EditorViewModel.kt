@@ -3,6 +3,10 @@ package com.sagoma.planimetria.editor
 import androidx.lifecycle.ViewModel
 import com.sagoma.planimetria.geometry.Dimensions
 import com.sagoma.planimetria.geometry.arcOf
+import com.sagoma.planimetria.geometry.wallMiddle
+import com.sagoma.planimetria.geometry.wallShift
+import com.sagoma.planimetria.geometry.distanceToWall
+import com.sagoma.planimetria.geometry.isOutsideWall
 import com.sagoma.planimetria.geometry.Furnishings
 import com.sagoma.planimetria.geometry.exterior
 import com.sagoma.planimetria.geometry.inLineCorners
@@ -768,7 +772,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             )
         }
         setPlan(p.replace(room.copy(openings = room.openings + moved)).copy(freeWalls = p.freeWalls.filter { it.id != id }))
-        _state.update { it.copy(selection = Selection.Wall(roomId, index), focusedRoomId = roomId) }
+        _state.update { it.copy(selection = Selection.Wall(roomId, index), focusedRoomId = roomId, wallExterior = false) }
     }
 
     fun selectFreeWall(id: Long) = _state.update { it.copy(focusedRoomId = null, selection = Selection.FreeWall(id)) }
@@ -1738,8 +1742,41 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun clearFocus() =
         _state.update { it.copy(focusedRoomId = null, selection = null, pendingOpening = null, pendingFixture = null) }
 
-    fun selectWall(roomId: Long, index: Int) =
-        _state.update { it.copy(focusedRoomId = roomId, selection = Selection.Wall(roomId, index)) }
+    fun selectWall(roomId: Long, index: Int, exterior: Boolean = false) =
+        _state.update { it.copy(focusedRoomId = roomId, selection = Selection.Wall(roomId, index), wallExterior = exterior) }
+
+    /**
+     * Muro toccato in `at`: dal lato della stanza o da fuori (facciata). Toccato da fuori dove dall'altra parte c'è un'altra
+     * stanza (muro in comune, o stanza ricavata dentro un'altra), si seleziona il muro di quella stanza, dal suo lato.
+     */
+    private fun tapWall(roomId: Long, index: Int, at: Vec2) {
+        val plan = _state.value.plan
+        val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return selectWall(roomId, index)
+        if (room.outdoor || !room.isOutsideWall(index, at)) return selectWall(roomId, index)
+        val other = wallBehind(plan, room, index, at)
+        if (other != null) selectWall(other.roomId, other.index) else selectWall(roomId, index, exterior = true)
+    }
+
+    /** Muro di un'altra stanza dall'altra parte del muro `index` di `room`, a metà muro; null = di là c'è la facciata. */
+    fun wallBehind(roomId: Long, index: Int): Selection.Wall? {
+        val plan = _state.value.plan
+        val room = plan.room(roomId)?.takeIf { index < it.wallCount && !it.outdoor } ?: return null
+        return wallBehind(plan, room, index, room.wallMiddle(index) + room.outwardOf(index) * (room.thicknessOf(index) / 4 + room.wallShift(index)))
+    }
+
+    /** Muro di un'altra stanza che contiene `at` (dal lato di fuori del muro `index` di `room`) e gli sta accanto. */
+    private fun wallBehind(plan: FloorPlan, room: Room, index: Int, at: Vec2): Selection.Wall? {
+        val reach = room.thicknessOf(index) + 5.0
+        return plan.rooms.asSequence()
+            .filter { it.id != room.id && !it.outdoor && Polygon.contains(it.points, at) }
+            .mapNotNull { o -> (0 until o.wallCount).filter { !o.isRemoved(it) }.minByOrNull { o.distanceToWall(it, at) }?.let { o to it } }
+            .filter { (o, j) -> o.distanceToWall(j, at) <= reach && !o.isOutsideWall(j, at) }
+            .minByOrNull { (o, j) -> o.distanceToWall(j, at) }
+            ?.let { (o, j) -> Selection.Wall(o.id, j) }
+    }
+
+    /** Lato del muro selezionato mostrato nella scheda Finitura: quello verso la stanza o la facciata. */
+    fun setWallSide(exterior: Boolean) = _state.update { it.copy(wallExterior = exterior) }
 
     fun closeSelection() = _state.update { it.copy(selection = null) }
 
@@ -1961,7 +1998,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             }
         }
         when (target) {
-            is DragTarget.Wall -> selectWall(target.roomId, target.index)
+            is DragTarget.Wall -> tapWall(target.roomId, target.index, at)
             is DragTarget.Opening -> selectOpening(target.roomId, target.openingId)
             is DragTarget.Fixture -> selectFixture(target.roomId, target.fixtureId)
             is DragTarget.SpotAim -> selectFixture(target.roomId, target.fixtureId)
@@ -2750,7 +2787,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
             plan.replace(withBulge(room, index, bulge))
         }
-        _state.update { it.copy(selection = Selection.Wall(roomId, index), focusedRoomId = roomId) }
+        _state.update { it.copy(selection = Selection.Wall(roomId, index), focusedRoomId = roomId, wallExterior = false) }
     }
 
     private fun withBulge(room: Room, i: Int, bulge: Double): Room {
@@ -2767,7 +2804,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
             plan.replace(room.splitWall(index))
         }
-        _state.update { it.copy(selection = Selection.Wall(roomId, index + 1), focusedRoomId = roomId) }
+        _state.update { it.copy(selection = Selection.Wall(roomId, index + 1), focusedRoomId = roomId, wallExterior = false) }
     }
 
     /** Lunghezza del tratto `index` di un muro a scalini: si sposta lo scalino, l'altra estremità resta ferma. */
@@ -2792,7 +2829,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             val room = plan.room(roomId)?.takeIf { index < it.wallCount } ?: return@commit plan
             plan.replace(room.splitWall(index))
         }
-        _state.update { it.copy(selection = Selection.Wall(roomId, index), focusedRoomId = roomId) }
+        _state.update { it.copy(selection = Selection.Wall(roomId, index), focusedRoomId = roomId, wallExterior = false) }
     }
 
     /** Toglie l'angolo alla fine del muro selezionato: il muro si unisce al successivo. */

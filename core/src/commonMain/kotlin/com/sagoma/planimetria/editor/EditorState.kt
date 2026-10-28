@@ -299,6 +299,11 @@ data class EditorUiState(
      * la tendina si apre e si chiude a richiesta, con Info o con la freccia.
      */
     val infoExpanded: Boolean = false,
+    /**
+     * Muro selezionato toccandolo dal lato di fuori (la facciata): la scheda Finitura mostra quel lato e la pianta e il 3D
+     * lo evidenziano. false = lato verso la stanza.
+     */
+    val wallExterior: Boolean = false,
     /** Suggerimento al primo utilizzo da mostrare (null = nessuno). */
     val tip: Tip? = null,
     /** Tutorial guidato in corso (null = nessuno). */

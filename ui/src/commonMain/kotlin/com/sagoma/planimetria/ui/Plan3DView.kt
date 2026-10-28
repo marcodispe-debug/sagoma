@@ -435,13 +435,13 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     // guardando un interrato il prato resta lassù e la casa si vede in fondo allo scavo.
     val building = state.building
     val groundLevel = if (building.groundIndex > 0) building.elevation(building.groundIndex) - building.elevation(building.current) else null
-    val scene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, view.walking, noFurniture, phase, groundLevel) {
+    val scene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, state.wallExterior, view.walking, noFurniture, phase, groundLevel) {
         fun shown(p: com.sagoma.planimetria.model.FloorPlan) = com.sagoma.planimetria.geometry.Phases.view(p, phase)
         val plan = shown(if (noFurniture) scenePlan.copy(furniture = emptyList()) else scenePlan)
         Scene3D.build(
             plan, state.focusedRoomId, selectedPick, ceilings = view.walking, levelHeight = state.levelHeight,
             below = below.map { it.copy(plan = shown(it.plan)) }, above = above?.let { it.copy(plan = shown(it.plan)) },
-            groundLevel = groundLevel,
+            groundLevel = groundLevel, selectedExterior = state.wallExterior,
         )
     }
     LaunchedEffect(scene) { view.setScene(scene) }

@@ -300,6 +300,8 @@ class Scene3D(
              * questo piano è un interrato, e la casa si vede in fondo a uno scavo ([Scene3D.excavation]).
              */
             groundLevel: Double? = null,
+            /** Muro selezionato dal lato di fuori: si evidenzia la facciata invece del lato verso la stanza. */
+            selectedExterior: Boolean = false,
         ): Scene3D {
             // Quote dei pavimenti: il piano corrente a 0, quelli di sotto più in basso.
             val levels = mutableListOf<Level>()
@@ -310,7 +312,7 @@ class Scene3D(
             }
             levels += Level(plan, 0.0, levelHeight, current = true)
             if (above != null) levels += Level(above.plan, levelHeight, above.levelHeight, current = false)
-            return SceneBuilder(levels, focusedRoomId, selected, ceilings, groundLevel).build()
+            return SceneBuilder(levels, focusedRoomId, selected, ceilings, groundLevel, selectedExterior).build()
         }
     }
 }
@@ -346,6 +348,7 @@ private class SceneBuilder(
     val selected: Pick?,
     val ceilings: Boolean,
     val groundLevel: Double? = null,
+    val selectedExterior: Boolean = false,
 ) {
     private val opaque = FloatList()
     private val transparent = FloatList()
@@ -1622,6 +1625,8 @@ private class SceneBuilder(
         s: Vec2, u: Vec2, len: Double, gaps: List<Gap>, sloped: Boolean, room: Room, i: Int, wallPick: Pick,
         range: ClosedFloatingPointRange<Double>, side: Vec2, finish: WallFinish, interior: Boolean,
     ) {
+        // Del muro selezionato si evidenzia solo il lato scelto (verso la stanza o la facciata).
+        fun tint(c: Rgba, pick: Pick) = if (pick == wallPick && interior == selectedExterior) c else this.tint(c, pick)
         val paint = Rgba.argb(finish.argb)
         // Le nicchie bucano solo la fascia verso la loro stanza; in fondo resta la parete, alla mezzeria del muro.
         val faceGaps = gaps.filter { !it.niche || (interior && it.splayRoom == room.id) }
