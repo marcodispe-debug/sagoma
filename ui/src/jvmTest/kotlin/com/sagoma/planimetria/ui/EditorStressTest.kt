@@ -564,8 +564,12 @@ class EditorStressTest {
                 if (seconds > 5) File(dir, "lento-${"%.0f".format(seconds)}s-${System.nanoTime()}.json").writeText(PlanJson.encode(b))
             }
             Collisions.of(p)
-            Takeoff.of(b)
-            Takeoff.of(b, withoutZones = false)
+            // Il computo non scrive mai numeri impossibili (NaN, infiniti, negativi).
+            for (t in listOf(Takeoff.of(b), Takeoff.of(b, withoutZones = false))) {
+                val numbers = t.rooms.flatMap { listOf(it.floorArea, it.perimeter, it.wallArea, it.openingsArea, it.skirting) } +
+                    t.floorMaterials.map { it.quantity } + t.wallFinishes.map { it.quantity } + t.ceilings
+                require(numbers.all { it.isFinite() && it >= 0 }) { "computo con numeri impossibili: $numbers" }
+            }
             // Quote esterne, stato di fatto e progetto (pianta e 3D), pezzi della posa e, ogni tanto, l'esportazione 3D.
             com.sagoma.planimetria.geometry.ExteriorChains.of(p)
             for (v in PhaseView.entries) com.sagoma.planimetria.geometry.ExteriorChains.of(com.sagoma.planimetria.geometry.Phases.view(p, v))
