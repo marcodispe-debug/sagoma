@@ -107,7 +107,7 @@ object DxfReader {
                 pos = 3
                 utf8 = true
             } else {
-                val head = String(CharArray(min(b.size, 4096)) { (b[it].toInt() and 0xFF).toChar() })
+                val head = CharArray(min(b.size, 4096)) { (b[it].toInt() and 0xFF).toChar() }.concatToString()
                 val version = Regex("\\\$ACADVER\\s*\\r?\\n\\s*1\\s*\\r?\\n\\s*(AC\\d{4})").find(head)?.groupValues?.get(1)
                 utf8 = version != null && version >= "AC1021"
             }
@@ -148,7 +148,7 @@ object DxfReader {
 
         private fun lineText(): String =
             if (utf8) b.decodeToString(lineStart, lineEnd)
-            else String(CharArray(lineEnd - lineStart) { DxfWriter.fromCp1252(b[lineStart + it].toInt() and 0xFF) })
+            else CharArray(lineEnd - lineStart) { DxfWriter.fromCp1252(b[lineStart + it].toInt() and 0xFF) }.concatToString()
 
         fun next(): Boolean {
             if (!line()) return false
