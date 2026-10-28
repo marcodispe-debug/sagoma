@@ -38,6 +38,13 @@ object TestiControlloEs : TestiControllo() {
     override fun piccolissima(a: String, m2: String): String = "$a es diminuta ($m2 m²): ¿es intencionado o un trozo olvidado?"
     override val scalaSenzaPiano: String get() = "La escalera sube, pero arriba no hay ninguna planta: añade la planta de arriba o quita la escalera."
     override fun scalaFuori(piano: String): String = "La escalera llega fuera de las habitaciones de la planta de arriba ($piano)."
+    override fun scalaRipida(alzata: String, pedata: String?): String =
+        "Escalera empinada: contrahuellas de $alzata cm" + (pedata?.let { " y huellas de $it cm" } ?: "") +
+            ". Para subir cómodos la contrahuella suele ser de 18-20 cm como mucho y dos contrahuellas más una huella suman 62-64 cm: añade peldaños o elige una pendiente más suave (Info de la escalera → Peldaños)."
+    override fun scalaStretta(larga: String): String =
+        "Escalera de $larga cm de ancho: dentro de una vivienda suelen hacer falta al menos 80 (lo fija la normativa urbanística local)."
+    override fun scalaTestaBassa(h: String): String =
+        "Encima de la escalera quedan $h cm hasta el forjado de la planta de arriba: te das con la cabeza (hacen falta al menos 200). Deja más peldaños descubiertos (Info de la escalera → Piso sup.)."
     override fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =
         "$stanze: dos hojas chocan al abrirse ($cosa y $cosa2). Cambia el lado de las bisagras o el sentido de apertura."
     override fun antaUrta(a: String, cosa: String, cosa2: String): String =

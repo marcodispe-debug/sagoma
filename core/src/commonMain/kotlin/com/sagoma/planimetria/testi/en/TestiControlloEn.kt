@@ -38,6 +38,13 @@ object TestiControlloEn : TestiControllo() {
     override fun piccolissima(a: String, m2: String): String = "$a is tiny ($m2 m²): is it intended or a leftover piece?"
     override val scalaSenzaPiano: String get() = "The stairs go up, but there is no floor above: add the floor above or remove the stairs."
     override fun scalaFuori(piano: String): String = "The stairs arrive outside the rooms of the floor above ($piano)."
+    override fun scalaRipida(alzata: String, pedata: String?): String =
+        "Steep stairs: risers of $alzata cm" + (pedata?.let { " and treads of $it cm" } ?: "") +
+            ". To climb comfortably a riser is usually 18-20 cm at most and two risers plus a tread make 62-64 cm: add risers or choose a gentler slope (stairs Info → Steps)."
+    override fun scalaStretta(larga: String): String =
+        "Stairs $larga cm wide: inside a home at least 80 are usually needed (set by the local building code)."
+    override fun scalaTestaBassa(h: String): String =
+        "Above the stairs there are $h cm up to the slab of the floor above: you hit your head (at least 200 are needed). Leave more steps uncovered (stairs Info → Floor above)."
     override fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =
         "$stanze: two leaves hit each other when opening ($cosa and $cosa2). Swap the hinge side or the opening direction."
     override fun antaUrta(a: String, cosa: String, cosa2: String): String =

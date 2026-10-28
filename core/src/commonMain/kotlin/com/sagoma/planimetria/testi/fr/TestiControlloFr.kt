@@ -38,6 +38,13 @@ object TestiControlloFr : TestiControllo() {
     override fun piccolissima(a: String, m2: String): String = "$a est minuscule ($m2 m²) : est-ce voulu ou un morceau oublié ?"
     override val scalaSenzaPiano: String get() = "L'escalier monte, mais il n'y a pas d'étage au-dessus : ajoutez l'étage supérieur ou supprimez l'escalier."
     override fun scalaFuori(piano: String): String = "L'escalier arrive hors des pièces de l'étage supérieur ($piano)."
+    override fun scalaRipida(alzata: String, pedata: String?): String =
+        "Escalier raide : contremarches de $alzata cm" + (pedata?.let { " et girons de $it cm" } ?: "") +
+            ". Pour monter confortablement, la contremarche fait d'habitude 18-20 cm au plus et deux contremarches plus un giron font 62-64 cm : ajoutez des marches ou choisissez une pente plus douce (Infos de l'escalier → Marches)."
+    override fun scalaStretta(larga: String): String =
+        "Escalier large de $larga cm : dans un logement il en faut d'habitude au moins 80 (selon le règlement d'urbanisme local)."
+    override fun scalaTestaBassa(h: String): String =
+        "Au-dessus de l'escalier il reste $h cm jusqu'au plancher de l'étage supérieur : on se cogne la tête (il en faut au moins 200). Laissez plus de marches découvertes (Infos de l'escalier → Étage sup.)."
     override fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =
         "$stanze : deux vantaux se heurtent en s'ouvrant ($cosa et $cosa2). Changez le côté des paumelles ou le sens d'ouverture."
     override fun antaUrta(a: String, cosa: String, cosa2: String): String =

@@ -322,4 +322,47 @@ class PlanCheckTest {
             com.sagoma.planimetria.model.FurnitureCatalog.set(saved)
         }
     }
+
+    @Test
+    fun `scale ripide, strette o con poca altezza sopra la testa`() {
+        val hall = rect(1, "Salone", RoomType.Soggiorno, 800.0, 600.0, openings = listOf(entrance))
+        val stair = Stair(1, StairKind.Straight, Vec2(400.0, 300.0))
+        fun two(s: Stair) = Building(
+            listOf(
+                Floor(1, "Piano terra", FloorPlan(listOf(hall), stairs = listOf(s)), levelHeight = 300.0),
+                Floor(2, "Primo piano", FloorPlan(listOf(hall.copy(openings = emptyList())))),
+            ),
+        )
+        val kinds = setOf(PlanCheck.Kind.StairSteep, PlanCheck.Kind.StairNarrow, PlanCheck.Kind.StairLowHead)
+        fun issues(s: Stair) = PlanCheck.of(two(s)).filter { it.kind in kinds }
+        // La scala di serie: 17 alzate da 17,6 cm, pedate da 28, larga 90.
+        assertEquals(emptyList(), issues(stair))
+        // 14 alzate da 21,4 cm: ripida.
+        val steep = issues(stair.copy(risers = 14)).single()
+        assertEquals(PlanCheck.Kind.StairSteep, steep.kind)
+        assertEquals(Selection.Stair(1), steep.selection)
+        assertEquals(
+            "Scala ripida: alzate di 21,4 cm e pedate di 28 cm. Per salire comodi l'alzata di solito è al massimo 18-20 cm e due alzate più una pedata fanno 62-64 cm: aggiungi alzate o scegli una pendenza più dolce (Info della scala → Gradini).",
+            PlanCheck.describe(steep, two(stair.copy(risers = 14))),
+        )
+        // Le pendenze proposte nella scheda vanno bene fino a «Ripida»; «Molto ripida» no.
+        assertEquals(emptyList(), issues(com.sagoma.planimetria.geometry.Stairs.withSlope(stair, 300.0, 19.5)))
+        assertEquals(listOf(PlanCheck.Kind.StairSteep), issues(com.sagoma.planimetria.geometry.Stairs.withSlope(stair, 300.0, 21.5)).map { it.kind })
+        // Pedate troppo corte per le alzate (2 × 17,6 + 20 = 55 cm).
+        assertEquals(listOf(PlanCheck.Kind.StairSteep), issues(stair.copy(tread = 20.0)).map { it.kind })
+        // Stretta.
+        val narrow = issues(stair.copy(width = 70.0)).single()
+        assertEquals("Scala larga 70 cm: dentro casa di solito ne servono almeno 80 (lo dice il regolamento edilizio del comune).", PlanCheck.describe(narrow, two(stair)))
+        // Chiocciola: conta solo l'alzata (pedata e larghezza si misurano in un altro modo).
+        val spiral = Stair(1, StairKind.Spiral, Vec2(400.0, 300.0), width = 60.0, diameter = 140.0)
+        assertEquals(emptyList(), issues(spiral))
+        val steepSpiral = issues(spiral.copy(risers = 13)).single()
+        assertEquals("Scala ripida: alzate di 23,1 cm. Per salire comodi l'alzata di solito è al massimo 18-20 cm e due alzate più una pedata fanno 62-64 cm: aggiungi alzate o scegli una pendenza più dolce (Info della scala → Gradini).", PlanCheck.describe(steepSpiral, two(spiral)))
+        // Pavimento di sopra che copre 10 gradini: sopra il decimo restano 300 - 30 - 176 = 94 cm.
+        val low = issues(stair.copy(coveredSteps = 10)).single()
+        assertEquals(PlanCheck.Kind.StairLowHead, low.kind)
+        assertEquals(94.0, low.a, 0.5)
+        assertTrue(PlanCheck.describe(low, two(stair)).startsWith("Sopra la scala restano 94 cm fino al solaio del piano di sopra"))
+        assertEquals(emptyList(), issues(stair.copy(coveredSteps = 3)))
+    }
 }

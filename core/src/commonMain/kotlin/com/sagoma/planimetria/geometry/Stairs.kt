@@ -270,6 +270,15 @@ object Stairs {
     /** Altezza libera minima consigliata sotto il solaio sopra una scala (cm). */
     const val MIN_HEADROOM = 200.0
 
+    /** Alzata oltre la quale la scala è troppo ripida per salire comodi (cm): i regolamenti edilizi di solito chiedono 18-20 al massimo. */
+    const val STEEP_RISER = 20.0
+
+    /** Passo più corto che resta comodo (cm): due alzate più una pedata (regola di Blondel: il passo giusto è 62-64). */
+    const val MIN_STRIDE = 58.0
+
+    /** Larghezza minima consigliata di una scala dentro casa (cm). */
+    const val MIN_WIDTH = 80.0
+
     /** Gradini che si possono coprire con il pavimento di sopra: tutti tranne gli ultimi due (per arrivare). */
     fun maxCovered(l: Layout): Int = (l.steps.size - 2).coerceAtLeast(0)
 

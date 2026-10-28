@@ -38,6 +38,13 @@ open class TestiControllo {
     open fun piccolissima(a: String, m2: String): String = "$a è piccolissima ($m2 m²): è voluta o è un pezzo rimasto?"
     open val scalaSenzaPiano: String get() = "La scala sale, ma sopra non c'è un piano: aggiungi il piano di sopra o togli la scala."
     open fun scalaFuori(piano: String): String = "La scala arriva fuori dalle stanze del piano di sopra ($piano)."
+    open fun scalaRipida(alzata: String, pedata: String?): String =
+        "Scala ripida: alzate di $alzata cm" + (pedata?.let { " e pedate di $it cm" } ?: "") +
+            ". Per salire comodi l'alzata di solito è al massimo 18-20 cm e due alzate più una pedata fanno 62-64 cm: aggiungi alzate o scegli una pendenza più dolce (Info della scala → Gradini)."
+    open fun scalaStretta(larga: String): String =
+        "Scala larga $larga cm: dentro casa di solito ne servono almeno 80 (lo dice il regolamento edilizio del comune)."
+    open fun scalaTestaBassa(h: String): String =
+        "Sopra la scala restano $h cm fino al solaio del piano di sopra: si batte la testa (ne servono almeno 200). Lascia scoperti più gradini (Info della scala → Piano sopra)."
     open fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =
         "$stanze: due ante si urtano aprendosi ($cosa e $cosa2). Cambia il lato del cardine o il verso di apertura."
     open fun antaUrta(a: String, cosa: String, cosa2: String): String =

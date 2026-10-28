@@ -20,12 +20,14 @@ import com.sagoma.planimetria.geometry.usableArea
 import com.sagoma.planimetria.geometry.wallShift
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FixtureKind
+import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
+import com.sagoma.planimetria.model.StairKind
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
@@ -36,7 +38,8 @@ import kotlin.math.roundToInt
 /**
  * «Controlla la pianta»: errori di disegno che di solito sfuggono e rovinano metri quadri, computo e 3D (stanze sovrapposte o
  * staccate di pochi centimetri, muri che si incrociano, la stessa porta messa due volte), cose da controllare (stanze senza
- * porta, casa senza ingresso, scale che non arrivano, ante che aprendosi urtano altre ante, mobili o muri) e minimi delle
+ * porta, casa senza ingresso, scale che non arrivano, ripide, strette o con poca altezza sopra la testa, ante che aprendosi
+ * urtano altre ante, mobili o muri) e minimi delle
  * norme italiane per le case ([HousingRules]: finestre, altezze, metri quadri). Ogni problema dice quale piano e quale zona
  * inquadrare e cosa selezionare.
  */
@@ -61,6 +64,9 @@ object PlanCheck {
         TinyRoom(false),
         StairNoFloor(false),
         StairOutside(false),
+        StairSteep(false),
+        StairNarrow(false),
+        StairLowHead(false),
         SwingClash(false),
         SwingHitsThing(false),
         SwingHitsWall(false),
@@ -204,6 +210,7 @@ object PlanCheck {
         fun name(k: Int): String = i.rooms.getOrNull(k)?.let { plan?.room(it) }?.let { t.nome(it.name.ifBlank { it.type.label }) } ?: "?"
         fun cm(v: Double): String = v.roundToInt().toString()
         fun m2(v: Double): String = formatDecimal(v, 2)
+        fun cm1(v: Double): String = formatDecimal(v, 1).removeSuffix("${T.lingua.virgola}0")
         // Ambiente fatto di più stanze (soggiorno con cucina a vista): tutti i nomi.
         val all = i.rooms.indices.joinToString(" + ") { name(it) }
         val cosa = i.opening?.let { T.lingua.minuscola(it.label) } ?: ""
@@ -223,6 +230,9 @@ object PlanCheck {
             Kind.TinyRoom -> t.piccolissima(name(0), formatDecimal(i.a, 2))
             Kind.StairNoFloor -> t.scalaSenzaPiano
             Kind.StairOutside -> t.scalaFuori(b.floors.getOrNull(i.floor + 1)?.name ?: "")
+            Kind.StairSteep -> t.scalaRipida(cm1(i.a), if (i.b > 0) cm1(i.b) else null)
+            Kind.StairNarrow -> t.scalaStretta(cm(i.a))
+            Kind.StairLowHead -> t.scalaTestaBassa(cm(i.a))
             Kind.SwingClash -> t.anteSiUrtano(i.rooms.indices.joinToString(" / ") { name(it) }, cosa, i.opening2?.let { T.lingua.minuscola(it.label) } ?: "")
             Kind.SwingHitsThing -> {
                 val thing = i.furniture?.let { id -> plan?.furniture?.firstOrNull { it.id == id } }
@@ -572,12 +582,26 @@ object PlanCheck {
             return (0 until r.wallCount).any { j -> Dimensions.overlap(a, b, r.wallStart(j), r.wallEnd(j)) >= 0.5 * len }
         }
 
-        /** Scale che salgono dove non c'è un piano, o arrivano fuori dalle sue stanze. */
+        /**
+         * Scale che salgono dove non c'è un piano o arrivano fuori dalle sue stanze; ripide (alzate oltre [Stairs.STEEP_RISER] o passo
+         * più corto di [Stairs.MIN_STRIDE]), strette (meno di [Stairs.MIN_WIDTH]) o con meno di [Stairs.MIN_HEADROOM] sopra la testa
+         * dove il pavimento di sopra copre i primi gradini. Le scale a chiocciola si guardano solo per l'alzata.
+         */
         fun stairs(rise: Double, above: FloorPlan?, top: Boolean) {
             for (s in plan.stairs) {
                 if (full()) return
                 val l = Stairs.layout(s, rise)
                 val box = l.bounds.grow(80.0)
+                val spiral = s.kind == StairKind.Spiral
+                if (l.riser > Stairs.STEEP_RISER + 0.05 || (!spiral && 2 * l.riser + s.tread < Stairs.MIN_STRIDE - 0.05)) {
+                    add(Issue(Kind.StairSteep, floor, emptyList(), box, Selection.Stair(s.id), a = l.riser, b = if (spiral) 0.0 else s.tread))
+                }
+                if (!spiral && s.width < Stairs.MIN_WIDTH - 0.5) add(Issue(Kind.StairNarrow, floor, emptyList(), box, Selection.Stair(s.id), a = s.width))
+                if (above != null && !top) {
+                    Stairs.headroom(s, rise, Floor.SLAB)?.let { h ->
+                        if (h < Stairs.MIN_HEADROOM - 0.5) add(Issue(Kind.StairLowHead, floor, emptyList(), box, Selection.Stair(s.id), a = h))
+                    }
+                }
                 if (top) {
                     add(Issue(Kind.StairNoFloor, floor, emptyList(), box, Selection.Stair(s.id)))
                     continue
