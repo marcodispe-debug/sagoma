@@ -337,8 +337,15 @@ private class FloatList {
 /** Montanti al massimo in una ringhiera di balcone (con 12 cm di passo: 240 m). */
 private const val MAX_RAILING_POSTS = 2000
 
-/** Pavimenti più grandi di così (cm², 100 × 100 m) senza fughe disegnate. */
+/** Pavimenti più grandi di così (cm², 100 × 100 m) senza fughe disegnate; lo stesso per i rivestimenti delle pareti. */
 private const val MAX_PATTERN_AREA = 1e8
+
+/**
+ * Facce al massimo per i dettagli di una scena (fughe del pavimento, pezzi dei rivestimenti, montanti delle ringhiere), circa
+ * 70 MB: una casa vera ne usa al più qualche decina di migliaia (una facciata in mattoni di 15 × 7 m ne ha 6.500). Con tante
+ * misure sbagliate insieme (file rovinato) erano milioni e il 3D finiva la memoria; oltre questo numero non se ne disegnano altri.
+ */
+private const val MAX_DETAILS = 300_000
 
 private class SceneBuilder(
     val levels: List<Level>,
@@ -356,6 +363,14 @@ private class SceneBuilder(
     private val windows = mutableListOf<Scene3D.SceneWindow>()
     private val rooms = mutableListOf<Scene3D.SceneRoom>()
     private val roofs = FloatList()
+    private var details = 0
+
+    /** Si può disegnare un altro dettaglio di `faces` facce (vedi [MAX_DETAILS]). */
+    private fun detail(faces: Int = 1): Boolean {
+        if (details + faces > MAX_DETAILS) return false
+        details += faces
+        return true
+    }
 
     /** Triangolo con un materiale fotografico: `uv` sono le coordinate della foto nei tre vertici. */
     private fun texTri(material: String, a: Vec3, b: Vec3, c: Vec3, ua: Vec2, ub: Vec2, uc: Vec2, normal: Vec3) {
@@ -1211,7 +1226,7 @@ private class SceneBuilder(
                 if (free && runStart == null) runStart = s
                 if ((!free || k == steps) && runStart != null) {
                     val end = if (free) s else s - (s1 - s0) / steps
-                    if (end - runStart > 1) box(at(horizontal, c, runStart), at(horizontal, c, end), 0.25, y - 0.1, y, line, null)
+                    if (end - runStart > 1 && detail(6)) box(at(horizontal, c, runStart), at(horizontal, c, end), 0.25, y - 0.1, y, line, null)
                     runStart = null
                 }
             }
@@ -1231,7 +1246,7 @@ private class SceneBuilder(
                     val limit = if (horizontal) b.maxX else b.maxY
                     while (s < limit) {
                         val mid = at(horizontal, c - 7.5, s)
-                        if (Polygon.contains(inner, mid) && holes.none { Polygon.contains(it, mid) }) {
+                        if (Polygon.contains(inner, mid) && holes.none { Polygon.contains(it, mid) } && detail(6)) {
                             box(at(horizontal, c - 15.0, s), at(horizontal, c, s), 0.25, y - 0.1, y, line, null)
                         }
                         s += 120.0
@@ -1906,6 +1921,8 @@ private class SceneBuilder(
         val low = min(y0, y0End)
         val high = max(y1, y1End)
         if (t1 - t0 < 0.05 || high - low < 0.05) return
+        // Parete enorme (misura sbagliata): i pezzi non si vedrebbero e sarebbero milioni, come le fughe dei pavimenti.
+        if ((t1 - t0) * (high - low) > MAX_PATTERN_AREA) return
         val cover = Rgba.argb(f.coverArgb)
         val sloped = abs(y0End - y0) > 1e-6 || abs(y1End - y1) > 1e-6
         /** Bordi inclinati nel punto `t`: sopra quello basso, sotto quello alto (dove si incrociano non resta niente). */
@@ -1913,14 +1930,17 @@ private class SceneBuilder(
         fun topAt(t: Double) = y1 + (y1End - y1) * (t - t0) / (t1 - t0)
         /** Riquadro tagliato sul riquadro da disegnare (sul trapezio, se i bordi sono inclinati). */
         fun cell(a0: Double, a1: Double, b0: Double, b1: Double, color: Rgba) {
-            if (!sloped) return wallFace(s, u, side, dist, max(a0, t0), min(a1, t1), max(b0, y0), min(b1, y1), tint(color, pick))
             val lo = max(a0, t0)
             val hi = min(a1, t1)
+            if (!sloped) {
+                if (hi - lo < 0.05 || min(b1, y1) - max(b0, y0) < 0.05 || !detail()) return
+                return wallFace(s, u, side, dist, lo, hi, max(b0, y0), min(b1, y1), tint(color, pick))
+            }
             if (hi - lo < 0.05 || min(b1, high) - max(b0, low) < 0.05) return
             var q = listOf(Vec2(lo, b0), Vec2(hi, b0), Vec2(hi, b1), Vec2(lo, b1))
             q = clipAbove(q) { p -> p.y - bottomAt(p.x) }
             q = clipAbove(q) { p -> topAt(p.x) - p.y }
-            if (q.size < 3 || abs(Polygon.signedArea(q)) < 0.01) return
+            if (q.size < 3 || abs(Polygon.signedArea(q)) < 0.01 || !detail(q.size - 2)) return
             val off = side * (dist + 0.15)
             val c = tint(color, pick)
             fun at(p: Vec2) = (s + u * p.x + off).at(p.y)
@@ -2045,7 +2065,7 @@ private class SceneBuilder(
                 var t = step / 2
                 while (t < len) {
                     val c = p0 + u * t
-                    box(c - u * 0.8, c + u * 0.8, 0.8, 7.0, h - 5, metal, pick)
+                    if (detail(6)) box(c - u * 0.8, c + u * 0.8, 0.8, 7.0, h - 5, metal, pick)
                     t += step
                 }
             }

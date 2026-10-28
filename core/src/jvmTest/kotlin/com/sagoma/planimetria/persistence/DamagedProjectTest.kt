@@ -72,6 +72,51 @@ class DamagedProjectTest {
     }
 
     @Test
+    fun portaDelMuroSingoloSuUnAltroMuro() {
+        // Le aperture dei muri singoli stanno sul muro 0: con un altro numero il 3D cadeva (prova con progetti rovinati).
+        val wall = FreeWall(1, Vec2(0.0, 0.0), Vec2(400.0, 0.0), openings = listOf(
+            Opening(1, OpeningKind.Door, wallIndex = -15, position = 100.0, width = 80.0, height = 210.0),
+            Opening(2, OpeningKind.Door, wallIndex = 10_000_000, position = 300.0, width = 80.0, height = 210.0),
+        ))
+        val plan = reopen(FloorPlan(freeWalls = listOf(wall)))
+        assertEquals(listOf(0, 0), plan.freeWalls[0].openings.map { it.wallIndex }, "le porte restano, sul muro giusto")
+        Scene3D.build(plan, null, null, ceilings = true)
+        Dimensions.of(plan)
+    }
+
+    @Test
+    fun armadioLungoCentoChilometri() {
+        // Uno zero di troppo nella larghezza: centinaia di migliaia di ante finivano la memoria.
+        val wardrobe = com.sagoma.planimetria.model.Furniture(
+            1, com.sagoma.planimetria.model.ParametricFurniture.model(com.sagoma.planimetria.model.ParametricFurniture.Spec(com.sagoma.planimetria.model.ParametricFurniture.Kind.WARDROBE)),
+            Vec2(200.0, 150.0), width = 10_000_000.0, depth = 60.0, height = 240.0,
+        )
+        val scene = Scene3D.build(FloorPlan(listOf(Room(1, "Camera", RoomType.Camera, RoomFactory.rectangle(400.0, 300.0))), furniture = listOf(wardrobe)), null, null, ceilings = true)
+        assertTrue(scene.opaque.size < 5_000_000, "${scene.opaque.size} valori nel 3D")
+    }
+
+    @Test
+    fun muroEliminatoColNumeroNegativo() {
+        // Il 3D cercava i varchi per la luce sul muro −3 e cadeva.
+        val room = Room(1, "Camera", RoomType.Camera, RoomFactory.rectangle(400.0, 300.0), removedWalls = setOf(-3, 1, 7))
+        val plan = reopen(FloorPlan(listOf(room, Room(2, "Bagno", RoomType.Bagno, RoomFactory.rectangle(200.0, 300.0).map { it + Vec2(400.0, 0.0) }))))
+        assertEquals(setOf(1), plan.rooms[0].removedWalls)
+        Scene3D.build(plan, null, null, ceilings = true)
+    }
+
+    @Test
+    fun tanteStanzeEnormiColParquet() {
+        // Ognuna appena sotto i 100 × 100 m (le fughe si disegnano): da sole erano centinaia di migliaia di doghe e giunte, e
+        // tante misure sbagliate insieme finivano la memoria. I dettagli hanno un tetto per scena.
+        val rooms = (0 until 4).map { k ->
+            Room(k + 1L, "Salone $k", RoomType.Soggiorno, RoomFactory.rectangle(9_900.0, 9_900.0).map { it + Vec2(k * 10_000.0, 0.0) },
+                floorFinish = com.sagoma.planimetria.model.FloorFinish.OakParquet)
+        }
+        val scene = Scene3D.build(FloorPlan(rooms), null, null, ceilings = true)
+        assertTrue(scene.opaque.size < 25_000_000, "${scene.opaque.size} valori nel 3D")
+    }
+
+    @Test
     fun balconeLungoCentoChilometri() {
         // Misura scritta in metri invece che in cm, moltiplicata ancora: milioni di montanti finivano la memoria.
         val balcony = Room(1, "Balcone", RoomType.Balcone, RoomFactory.rectangle(10_000_000.0, 120.0))

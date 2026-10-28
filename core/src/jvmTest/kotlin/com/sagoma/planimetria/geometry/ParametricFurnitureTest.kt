@@ -55,6 +55,19 @@ class ParametricFurnitureTest {
     }
 
     @Test
+    fun `misura sbagliata enorme - le ante non diventano migliaia, il mobile si allunga`() {
+        val model = ParametricFurniture.model(Spec(Kind.WARDROBE))
+        val capped = GeneratedGeometry.parts(model, GeneratedGeometry.MAX_SIZE, Kind.WARDROBE.depth, Kind.WARDROBE.height)!!
+        val huge = GeneratedGeometry.parts(model, 1_000_000.0, Kind.WARDROBE.depth, Kind.WARDROBE.height)!!
+        assertEquals(capped.size, huge.size)
+        assertEquals(-500_000.0, huge.minOf { it.x0 }, 1e-6)
+        assertEquals(500_000.0, huge.maxOf { it.x1 }, 1e-6)
+        assertEquals(Kind.WARDROBE.height, huge.maxOf { it.y1 }, 1e-6)
+        // Alla misura giusta non cambia niente.
+        assertEquals(parts(Kind.WARDROBE), GeneratedGeometry.parts(model, Kind.WARDROBE.width, Kind.WARDROBE.depth, Kind.WARDROBE.height))
+    }
+
+    @Test
     fun `catalogo - un mobile per tipo nella sua categoria, con le misure standard`() {
         FurnitureCatalog.set(listOf(FurnitureCatalog.Item("letto1", "Letto", "Camera", width = 160.0, depth = 200.0, height = 90.0)))
         FurnitureCatalog.addParametric()
