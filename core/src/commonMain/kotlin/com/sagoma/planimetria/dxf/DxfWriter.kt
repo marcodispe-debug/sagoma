@@ -14,8 +14,8 @@ import kotlin.math.min
  * e nel DXF verso l'alto (altrimenti il disegno uscirebbe specchiato).
  */
 class DxfWriter {
-    /** Un livello: nome, colore (indice AutoCAD 1-255) e tipo di linea. */
-    class Layer(val name: String, val color: Int, val dashed: Boolean = false)
+    /** Un livello: nome, colore (indice AutoCAD 1-255), tipo di linea; `off`: spento all'apertura (nel CAD si riaccende). */
+    class Layer(val name: String, val color: Int, val dashed: Boolean = false, val off: Boolean = false)
 
     private val layers = LinkedHashMap<String, Layer>()
     private val entities = StringBuilder()
@@ -74,18 +74,22 @@ class DxfWriter {
         extend(from); extend(to); extend(through)
     }
 
-    /** Scritta alta `height` cm, centrata in `at`. */
-    fun text(layer: Layer, at: Vec2, height: Double, text: String) {
-        if (text.isBlank()) return
+    /**
+     * Scritta alta `height` cm, centrata in `at`, girata di `rotation` gradi come sulla pianta (in senso orario sullo schermo,
+     * dove la y cresce verso il basso; nel DXF diventa antiorario).
+     */
+    fun text(layer: Layer, at: Vec2, height: Double, text: String, rotation: Double = 0.0) {
+        if (text.isBlank() || !(height > 0)) return
         entity("TEXT", layer)
         point(10, at)
         code(40, num(height))
         code(1, encode(text))
+        if (rotation != 0.0) code(50, num(norm(-rotation)))
         code(72, "1") // centrata
         point(11, at)
         code(73, "2") // a metà altezza
-        val w = height * 0.6 * text.length / 2
-        extend(at - Vec2(w, height)); extend(at + Vec2(w, height))
+        val w = width(height, text) / 2 + height / 2 // anche girata
+        extend(at - Vec2(w, w)); extend(at + Vec2(w, w))
     }
 
     /** Superficie piena di 3 o 4 punti in giro (un pezzo di muro): nel DXF il quarto punto va scritto prima del terzo. */
@@ -121,7 +125,8 @@ class DxfWriter {
         c(0, "TABLE"); c(2, "LAYER"); c(70, (layers.size + 1).toString())
         c(0, "LAYER"); c(2, "0"); c(70, "0"); c(62, "7"); c(6, "CONTINUOUS")
         for (l in layers.values) {
-            c(0, "LAYER"); c(2, l.name); c(70, "0"); c(62, l.color.toString()); c(6, if (l.dashed) "DASHED" else "CONTINUOUS")
+            // Colore negativo: livello spento.
+            c(0, "LAYER"); c(2, l.name); c(70, "0"); c(62, (if (l.off) -l.color else l.color).toString()); c(6, if (l.dashed) "DASHED" else "CONTINUOUS")
         }
         c(0, "ENDTAB")
         c(0, "TABLE"); c(2, "STYLE"); c(70, "1")
@@ -159,6 +164,9 @@ class DxfWriter {
     }
 
     companion object {
+        /** Larghezza circa di una scritta alta `height` (lettere di larghezza media, un po' abbondante: i caratteri dei CAD variano). */
+        fun width(height: Double, text: String) = height * 0.7 * text.length
+
         /** Numero con il punto e fino a 4 decimali, mai in notazione esponenziale. */
         fun num(v: Double): String {
             if (!v.isFinite()) return "0.0"
@@ -189,6 +197,9 @@ class DxfWriter {
 
         /** Le lettere in più della codifica ANSI 1252 rispetto al Latin-1 (da 0x80 a 0x9F). */
         private const val EXTRA = "€\u0000‚ƒ„…†‡ˆ‰Š‹Œ\u0000Ž\u0000\u0000‘’“”•–—˜™š›œ\u0000žŸ"
+
+        /** Lettera del byte `b` (0–255) nella codifica ANSI 1252 (i pochi byte senza lettera restano come nel Latin-1). */
+        fun fromCp1252(b: Int): Char = if (b in 0x80..0x9F) EXTRA[b - 0x80].takeIf { it != '\u0000' } ?: b.toChar() else b.toChar()
 
         /** Byte della lettera nella codifica ANSI 1252, o null se non c'è. */
         private fun cp1252(ch: Char): Int? = when {

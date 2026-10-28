@@ -2,14 +2,17 @@ package com.sagoma.planimetria.dxf
 
 import com.sagoma.planimetria.geometry.RoomFactory
 import com.sagoma.planimetria.model.Column
+import com.sagoma.planimetria.model.Dimension
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.FreeWall
+import com.sagoma.planimetria.model.Layer
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Stair
 import com.sagoma.planimetria.model.StairKind
+import com.sagoma.planimetria.model.TextNote
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.testi.T
 import kotlin.math.hypot
@@ -104,6 +107,82 @@ class PlanDxfTest {
         val door = Opening.default(1, OpeningKind.Door, 1, 150.0)
         val withDoor = PlanDxf.of(FloorPlan(listOf(living.copy(openings = listOf(door)), kitchen)))
         assertEquals(wallLength(two) - 160 + 60, wallLength(withDoor), 1e-6)
+    }
+
+    /** Scritte di un livello: testo e rotazione (gradi nel DXF, antiorari). */
+    private fun texts(dxf: String, name: String) = entities(dxf).filter { it.first == "TEXT" && layer(it) == name }
+        .map { e -> e.second.first { it.first == 1 }.second to (e.second.firstOrNull { it.first == 50 }?.second?.toDouble() ?: 0.0) }
+
+    @Test
+    fun `misure come sulla pianta - catene fuori, porte e finestre`() {
+        val names = T.pdf.livelliDxf
+        // Fuori 430 × 330, dentro 370 × 270: su ogni lato la catena 30 · 370 · 30 (o 30 · 270 · 30) e il totale.
+        val door = Opening.default(1, OpeningKind.Door, 1, 150.0)
+        val dxf = PlanDxf.of(FloorPlan(listOf(living.copy(openings = listOf(door)))))
+        val t = texts(dxf, names[9])
+        assertEquals(2, t.count { it.first == "430" })
+        assertEquals(2, t.count { it.first == "330" })
+        assertEquals(2, t.count { it.first == "370" })
+        assertEquals(2, t.count { it.first == "270" })
+        assertEquals(8, t.count { it.first == "30" })
+        // In orizzontale dritte, in verticale si leggono dal basso.
+        assertTrue(t.filter { it.first == "430" }.all { it.second == 0.0 })
+        assertTrue(t.filter { it.first == "330" }.all { it.second == 90.0 })
+        // Il rettangolo è già quotato fuori: dentro nessuna misura in più. La porta: larghezza sopra l'altezza.
+        assertTrue(t.any { it.first == door.width.toInt().toString() })
+        assertTrue(t.any { it.first == door.height.toInt().toString() })
+        assertEquals(8 + 4 + 4 + 2, t.size)
+    }
+
+    @Test
+    fun `misure dentro la stanza dove fuori non si leggono`() {
+        val names = T.pdf.livelliDxf
+        // Stanza a L: i muri dentro la rientranza non sono nelle catene, la loro misura sta dentro la stanza.
+        val l = Room(1, "L", RoomType.Soggiorno, listOf(Vec2(0.0, 0.0), Vec2(600.0, 0.0), Vec2(600.0, 300.0), Vec2(300.0, 300.0), Vec2(300.0, 500.0), Vec2(0.0, 500.0)), wallThickness = 20.0)
+        val t = texts(PlanDxf.of(FloorPlan(listOf(l))), names[9])
+        assertTrue(t.isNotEmpty())
+        val inside = entities(PlanDxf.of(FloorPlan(listOf(l)))).filter { it.first == "TEXT" && layer(it) == names[9] }
+            .map { Vec2(value(it, 10), -value(it, 20)) }
+            .filter { it.x > 0 && it.x < 600 && it.y > 0 && it.y < 500 }
+        assertTrue(inside.isNotEmpty(), "misure dentro la stanza")
+    }
+
+    @Test
+    fun `quote e testi messi a mano`() {
+        val names = T.pdf.livelliDxf
+        val plan = FloorPlan(
+            listOf(living),
+            dimensions = listOf(Dimension(1, Vec2(0.0, 0.0), Vec2(200.0, 0.0), offset = 40.0), Dimension(2, Vec2(0.0, 0.0), Vec2(0.0, 100.0), text = "Altezza libera")),
+            annotations = listOf(TextNote(1, Vec2(100.0, 100.0), "Nota sul muro", size = 20.0, rotation = 30.0, arrowTo = Vec2(400.0, 100.0))),
+        )
+        val dxf = PlanDxf.of(plan)
+        val dims = texts(dxf, names[10])
+        assertEquals(setOf("200", "Altezza libera"), dims.map { it.first }.toSet())
+        // La quota verticale si legge dal basso.
+        assertEquals(90.0, dims.first { it.first == "Altezza libera" }.second)
+        val es = entities(dxf)
+        // Linea di quota, due richiami e due trattini per ogni quota.
+        assertEquals(10, es.count { it.first == "LINE" && layer(it) == names[10] })
+        val notes = texts(dxf, names[11])
+        assertEquals(listOf("Nota sul muro" to 330.0), notes)
+        // La freccia: la linea parte fuori dalla scritta e finisce nella punta piena.
+        assertEquals(1, es.count { it.first == "SOLID" && layer(it) == names[11] })
+        val arrow = es.single { it.first == "LINE" && layer(it) == names[11] }
+        // La scritta è girata di 30°: la freccia esce dal suo lato lungo, a 26 cm dal centro.
+        assertEquals(126.0, value(arrow, 10), 0.5)
+        assertEquals(385.0, value(arrow, 11), 1e-6)
+    }
+
+    @Test
+    fun `livelli nascosti nell'app arrivano spenti`() {
+        val names = T.pdf.livelliDxf
+        val dxf = PlanDxf.of(FloorPlan(listOf(living)), hidden = setOf(Layer.Dimensions, Layer.Structure))
+        val table = pairs(dxf).zipWithNext().filter { it.first == (0 to "LAYER") }.map { it.second.second }
+        val colors = pairs(dxf).windowed(5).filter { it[0] == (0 to "LAYER") }.associate { w -> w[1].second to w.first { it.first == 62 }.second.toInt() }
+        assertTrue(table.containsAll(names))
+        assertTrue(colors.getValue(names[10]) < 0, "quote spente")
+        assertTrue(colors.getValue(names[6]) < 0 && colors.getValue(names[7]) < 0, "scale e pilastri spenti")
+        assertTrue(colors.getValue(names[9]) > 0 && colors.getValue(names[0]) > 0 && colors.getValue(names[11]) > 0)
     }
 
     @Test

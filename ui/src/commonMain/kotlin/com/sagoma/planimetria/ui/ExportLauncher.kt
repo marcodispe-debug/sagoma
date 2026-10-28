@@ -39,7 +39,7 @@ fun rememberDxfExporter(state: com.sagoma.planimetria.editor.EditorUiState): () 
         val plan = if (view == com.sagoma.planimetria.geometry.PhaseView.Compare) state.plan else com.sagoma.planimetria.geometry.Phases.view(state.plan, view)
         if (plan.rooms.isEmpty() && plan.freeWalls.isEmpty()) platform.toast(T.vari.nonNienteEsportare)
         else {
-            val dxf = com.sagoma.planimetria.dxf.PlanDxf.bytes(plan, state.levelHeight)
+            val dxf = com.sagoma.planimetria.dxf.PlanDxf.bytes(plan, state.levelHeight, state.building.layers.hidden)
             val floor = if (state.building.floors.size > 1) "-" + fileNameOf(state.building.floor.name, "piano").replace(' ', '-') else ""
             platform.saveFile("planimetria$floor-${isoDate(platform.now())}.dxf", "application/dxf", dxf) { ok ->
                 platform.toast(if (ok) T.vari.piantaEsportata else T.vari.esportazioneNonRiuscita)

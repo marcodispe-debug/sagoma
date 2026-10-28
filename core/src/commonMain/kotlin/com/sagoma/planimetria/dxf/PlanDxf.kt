@@ -1,6 +1,7 @@
 package com.sagoma.planimetria.dxf
 
 import com.sagoma.planimetria.geometry.Clip
+import com.sagoma.planimetria.geometry.ExteriorChains
 import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.Parapets
 import com.sagoma.planimetria.geometry.Polygon
@@ -17,6 +18,7 @@ import com.sagoma.planimetria.model.ColumnShape
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.FreeWall
+import com.sagoma.planimetria.model.Layer
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Parapet
@@ -24,6 +26,7 @@ import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.testi.T
 import kotlin.math.PI
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -34,14 +37,17 @@ import kotlin.math.sin
  * - muri: il contorno, senza linee doppie dove due stanze hanno il muro in comune, e il riempimento a parte;
  * - porte e finestre: stipiti, vetri, ante con l'arco di apertura (tratteggiato), ante scorrevoli e a libro;
  * - stanze: il contorno interno (per misurare le aree nel CAD), nome e m² come sulla pianta;
- * - scale, pilastri, parapetti di balconi e terrazze.
+ * - scale, pilastri, parapetti di balconi e terrazze;
+ * - le misure come sulla pianta (catene fuori dalla casa, muri dentro le stanze, porte e finestre), le quote e i testi messi a
+ *   mano. I livelli nascosti nell'app arrivano spenti (nel CAD si riaccendono).
  */
 object PlanDxf {
     /** Il file da salvare, nella codifica scritta nella sua intestazione. */
-    fun bytes(plan: FloorPlan, rise: Double = Floor.DEFAULT_LEVEL_HEIGHT): ByteArray = DxfWriter.bytes(of(plan, rise))
+    fun bytes(plan: FloorPlan, rise: Double = Floor.DEFAULT_LEVEL_HEIGHT, hidden: Set<Layer> = emptySet()): ByteArray =
+        DxfWriter.bytes(of(plan, rise, hidden))
 
-    /** `rise`: altezza del piano, per disegnare le scale come sulla pianta. */
-    fun of(plan: FloorPlan, rise: Double = Floor.DEFAULT_LEVEL_HEIGHT): String {
+    /** `rise`: altezza del piano, per disegnare le scale come sulla pianta. `hidden`: livelli nascosti nell'app. */
+    fun of(plan: FloorPlan, rise: Double = Floor.DEFAULT_LEVEL_HEIGHT, hidden: Set<Layer> = emptySet()): String {
         val names = T.pdf.livelliDxf
         val walls = DxfWriter.Layer(names[0], 7)
         val fill = DxfWriter.Layer(names[1], 8)
@@ -49,11 +55,14 @@ object PlanDxf {
         val swings = DxfWriter.Layer(names[3], 4, dashed = true)
         val rooms = DxfWriter.Layer(names[4], 3)
         val texts = DxfWriter.Layer(names[5], 7)
-        val stairs = DxfWriter.Layer(names[6], 6)
-        val columns = DxfWriter.Layer(names[7], 7)
+        val stairs = DxfWriter.Layer(names[6], 6, off = Layer.Structure in hidden)
+        val columns = DxfWriter.Layer(names[7], 7, off = Layer.Structure in hidden)
         val parapets = DxfWriter.Layer(names[8], 5)
+        val lengths = DxfWriter.Layer(names[9], 2, off = Layer.WallLengths in hidden)
+        val dimensions = DxfWriter.Layer(names[10], 150, off = Layer.Dimensions in hidden)
+        val notes = DxfWriter.Layer(names[11], 150, off = Layer.Texts in hidden)
         val w = DxfWriter()
-        for (l in listOf(walls, fill, openings, swings, rooms, texts, stairs, columns, parapets)) w.layer(l)
+        for (l in listOf(walls, fill, openings, swings, rooms, texts, stairs, columns, parapets, lengths, dimensions, notes)) w.layer(l)
 
         // Muri curvi: tanti pezzi dritti lungo l'arco, come sulla pianta.
         val p = plan.expandCurves().plan
@@ -82,10 +91,14 @@ object PlanDxf {
             w.polyline(rooms, r.interiorOutline(), closed = true)
         }
         // Nome e m² al centro della stanza (come sulla pianta, con i muri curvi veri).
+        val labels = mutableListOf<DxfDimensions.Box>()
         for (r in plan.rooms) {
             val at = Polygon.labelPoint(r.points)
+            val area = formatDecimal(r.usableArea() / 10_000.0, 2) + " m²"
             w.text(texts, at - Vec2(0.0, 17.0), 25.0, r.name)
-            w.text(texts, at + Vec2(0.0, 17.0), 18.0, formatDecimal(r.usableArea() / 10_000.0, 2) + " m²")
+            w.text(texts, at + Vec2(0.0, 17.0), 18.0, area)
+            val half = max(DxfWriter.width(25.0, r.name.trim()), DxfWriter.width(18.0, area)) / 2 + 5
+            labels += DxfDimensions.Box(at.x - half, at.y - 35.0, at.x + half, at.y + 31.0)
         }
         for (s in p.stairs) {
             val l = Stairs.layout(s, rise)
@@ -97,6 +110,12 @@ object PlanDxf {
         for (c in p.columns) {
             if (c.shape == ColumnShape.Round) w.circle(columns, c.center, c.width / 2) else w.polyline(columns, Structure.outline(c), closed = true)
         }
+        val outside = ExteriorChains.of(plan)
+        DxfDimensions.chains(w, lengths, outside)
+        DxfDimensions.walls(w, lengths, plan, outside, labels)
+        DxfDimensions.openings(w, lengths, p, outside)
+        DxfDimensions.manual(w, dimensions, plan.dimensions)
+        DxfDimensions.notes(w, notes, plan.annotations)
         return w.build()
     }
 
