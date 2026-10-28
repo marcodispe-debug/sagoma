@@ -242,7 +242,7 @@ object PlanCheck {
         Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall, Kind.NearWalls, Kind.OpeningOnRemovedWall -> true
         Kind.Overlap -> i.rooms.size == 2
         Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater -> i.rooms.size == 1
-        Kind.NoEntrance -> true
+        Kind.NoEntrance, Kind.NoDoors -> true
         Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall -> i.selection is Selection.Opening
         else -> false
     }
@@ -253,7 +253,7 @@ object PlanCheck {
     private val BY_ROOMS = setOf(Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.TinyRoom, Kind.NoHeating, Kind.NoWater)
 
     /** Problemi che [canFix] con la casa prova a correggere davvero prima di offrire «Correggi» ([triesFirst]). */
-    private val TRIES_FIRST = SWINGS + Kind.Overlap + Kind.NoDoor + Kind.NoEntrance + Kind.NoHeating + Kind.NoWater
+    private val TRIES_FIRST = SWINGS + Kind.Overlap + Kind.NoDoor + Kind.NoDoors + Kind.NoEntrance + Kind.NoHeating + Kind.NoWater
 
     /**
      * Chiave del problema `i` tra quelli tolti dalla pianta ([Building.hiddenChecks]): tipo, piano (il suo id, che non cambia
@@ -346,7 +346,8 @@ object PlanCheck {
      * lì); delle due stanze sovrapposte una si sposta fuori dall'altra fino al muro in comune, o se no si accorcia
      * ([overlapFixes]); alla stanza senza porta se ne mette una verso la stanza accanto ([doorFixes]), alla casa senza ingresso
      * una porta blindata su un muro che dà fuori ([entranceFixes]); alla stanza senza calorifero se ne mette uno ([heatFixes]),
-     * alla cucina o al bagno senza punto acqua uno dietro il lavello ([waterFixes]); la stanza piccolissima
+     * alla cucina o al bagno senza punto acqua uno dietro il lavello ([waterFixes]); al piano senza nessuna porta una porta
+     * per stanza e quella d'ingresso ([allDoors]); la stanza piccolissima
      * (un pezzo rimasto) si toglie, se il piano ne ha altre; l'anta che urta si gira ([swingFixes]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
      */
     fun fixed(b: Building, i: Issue): Building? {
@@ -357,6 +358,9 @@ object PlanCheck {
         val single: FloorPlan? = when (i.kind) {
             Kind.FurnitureInWall -> i.furniture?.let { pushedOut(plan, it) }
             Kind.NearWalls, Kind.Overlap, Kind.NoDoor, Kind.NoEntrance, Kind.NoHeating, Kind.NoWater -> null
+            // Il piano senza nessuna porta (appena ricalcato): una porta per stanza e quella d'ingresso; se l'ingresso non trova
+            // posto, solo le porte.
+            Kind.NoDoors -> null
             Kind.TinyRoom -> i.rooms.singleOrNull()?.takeIf { id -> plan.room(id) != null && plan.rooms.size > 1 }?.let { id ->
                 plan.copy(rooms = plan.rooms.filter { it.id != id })
             }
@@ -432,7 +436,11 @@ object PlanCheck {
                 )
                 ?.second
         }
-        val candidates = if (i.kind == Kind.NearWalls) nearFixes(plan, i) else listOfNotNull(single)
+        val candidates = when (i.kind) {
+            Kind.NearWalls -> nearFixes(plan, i)
+            Kind.NoDoors -> allDoors(plan, i.floor)?.let { doors -> entranceFixes(doors).take(2) + doors }.orEmpty()
+            else -> listOfNotNull(single)
+        }
         return candidates.firstNotNullOfOrNull { accepted(it)?.first }
     }
 
@@ -597,6 +605,51 @@ object PlanCheck {
      */
     private fun doorFixes(plan: FloorPlan, i: Issue): List<FloorPlan> {
         val r = plan.room(i.rooms.singleOrNull() ?: return emptyList())?.takeIf { !it.outdoor } ?: return emptyList()
+        val id = plan.nextOpeningId
+        return doorSpots(plan, r).sortedBy { (_, _, o) -> doorTowards(o) }.distinctBy { it.third.id }.take(3).flatMap { (k, c, _) ->
+                val d = Opening.default(id, OpeningKind.Door, k, c)
+                listOf(d, d.copy(hingeLeft = false), d.copy(opensInward = false), d.copy(hingeLeft = false, opensInward = false))
+                    .map { plan.replace(r.copy(openings = r.openings + it)) }
+            }
+    }
+
+    /**
+     * Piano senza nessuna porta (appena ricalcato o letto): una porta (80 cm) per ogni stanza al chiuso, come per la stanza senza
+     * porta ([doorSpots]), così che da una stanza si arrivi a tutte. Si parte dall'ingresso (o dal corridoio, dal soggiorno…: come
+     * per la porta d'ingresso) e si collega ogni volta la stanza che va meglio: prima quelle che danno su corridoi e soggiorno.
+     * Di ogni porta l'anta come urta meno (con il cardine dall'altra parte, aperta verso l'altra stanza). Null se nessuna stanza
+     * si collega.
+     */
+    private fun allDoors(plan: FloorPlan, floor: Int): FloorPlan? {
+        fun clashes(p: FloorPlan) = mutableListOf<Issue>().also { FloorCheck(sane(p), floor, it).swings() }.size
+        val indoor = plan.rooms.filter { !it.outdoor }
+        val root = indoor.minByOrNull { entranceFrom(it) ?: 6 } ?: return null
+        val linked = mutableSetOf(root.id)
+        var out = plan
+        while (true) {
+            // Per ogni stanza ancora staccata il posto migliore verso una già collegata; tra tutte, la migliore.
+            val next = out.rooms.filter { !it.outdoor && it.id !in linked }.mapNotNull { r ->
+                val spots = doorSpots(out, r).filter { it.third.id in linked }
+                spots.minOfOrNull { doorTowards(it.third) }?.let { best -> Triple(r, best, spots.filter { doorTowards(it.third) == best }) }
+            }.minByOrNull { (r, best, _) -> best * 10 + (entranceFrom(r) ?: 6) } ?: break
+            val (r, _, spots) = next
+            // Tra i posti verso le stanze migliori (nel mezzo del muro in comune o ai capi) e i versi dell'anta, quello che urta meno.
+            val now = out
+            out = spots.flatMap { (k, c, _) ->
+                val d = Opening.default(now.nextOpeningId, OpeningKind.Door, k, c)
+                listOf(d, d.copy(hingeLeft = false), d.copy(opensInward = false), d.copy(hingeLeft = false, opensInward = false))
+            }.map { now.replace(r.copy(openings = r.openings + it)) }.minBy(::clashes)
+            linked += r.id
+        }
+        return out.takeIf { linked.size > 1 }
+    }
+
+    /**
+     * Dove può andare una porta da 80 della stanza `r` verso un'altra stanza al chiuso: muro di `r`, centro della porta lungo il
+     * muro e stanza dall'altra parte. Sul muro in comune, dove è libero da altre porte e finestre: nel mezzo del tratto e ai due
+     * capi (prima il mezzo).
+     */
+    private fun doorSpots(plan: FloorPlan, r: Room): List<Triple<Int, Double, Room>> {
         // Dove mettere la porta: muro di `r`, centro della porta lungo il muro, stanza dall'altra parte.
         val spots = mutableListOf<Triple<Int, Double, Room>>()
         for (k in 0 until r.wallCount) {
@@ -624,18 +677,13 @@ object PlanCheck {
                     val hi = min(max(t0, t1), len)
                     if (hi - lo < DOOR_RUN_CM) continue
                     val half = (DOOR_RUN_CM / 2)
-                    listOf((lo + hi) / 2, lo + half, hi - half).firstOrNull { c ->
+                    listOf((lo + hi) / 2, lo + half, hi - half).distinct().filter { c ->
                         taken.none { (x0, x1) -> x1 > c - half && x0 < c + half }
-                    }?.let { spots += Triple(k, it, o) }
+                    }.forEach { spots += Triple(k, it, o) }
                 }
             }
         }
-        val id = plan.nextOpeningId
-        return spots.sortedBy { (_, _, o) -> doorTowards(o) }.distinctBy { it.third.id }.take(3).flatMap { (k, c, _) ->
-                val d = Opening.default(id, OpeningKind.Door, k, c)
-                listOf(d, d.copy(hingeLeft = false), d.copy(opensInward = false), d.copy(hingeLeft = false, opensInward = false))
-                    .map { plan.replace(r.copy(openings = r.openings + it)) }
-            }
+        return spots
     }
 
     /** Tratto libero di muro verso fuori che serve per la porta d'ingresso da 90 (cm): la porta e 15 cm per parte. */

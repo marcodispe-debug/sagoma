@@ -587,6 +587,42 @@ class PlanCheckTest {
     }
 
     @Test
+    fun `Correggi - porte per il piano che non ne ha`() {
+        // Pianta appena ricalcata: soggiorno e cucina sopra il corridoio, camera e bagno sotto; nessuna porta.
+        val bare = listOf(
+            rect(1, "Soggiorno", RoomType.Soggiorno, 400.0, 300.0),
+            rect(2, "Cucina", RoomType.Cucina, 300.0, 300.0, Vec2(400.0, 0.0)),
+            rect(3, "Corridoio", RoomType.Corridoio, 700.0, 120.0, Vec2(0.0, 300.0)),
+            rect(4, "Camera", RoomType.Camera, 400.0, 300.0, Vec2(0.0, 420.0)),
+            rect(5, "Bagno", RoomType.Bagno, 300.0, 300.0, Vec2(400.0, 420.0)),
+        )
+        val b = Building.single(FloorPlan(bare))
+        val i = PlanCheck.of(b).single { it.kind == PlanCheck.Kind.NoDoors }
+        assertTrue(PlanCheck.triesFirst(i) && PlanCheck.canFix(b, i))
+        val fixed = assertNotNull(PlanCheck.fixed(b, i), "porte")
+        val rooms = fixed.floors[0].plan.rooms.associateBy { it.id }
+        // Ogni stanza ha la sua porta verso il corridoio; il corridoio ha la porta d'ingresso, su un lato corto.
+        for (id in listOf(1L, 2L, 4L, 5L)) {
+            val d = rooms.getValue(id).openings.single()
+            assertEquals(OpeningKind.Door, d.kind)
+            assertTrue(!d.entrance)
+        }
+        assertEquals(2, rooms.getValue(1L).openings.single().wallIndex, "soggiorno: in basso, verso il corridoio")
+        assertEquals(0, rooms.getValue(4L).openings.single().wallIndex, "camera: in alto, verso il corridoio")
+        val front = rooms.getValue(3L).openings.single()
+        assertTrue(front.entrance)
+        assertTrue(front.wallIndex == 1 || front.wallIndex == 3, "ingresso sul lato corto: ${front.wallIndex}")
+        val after = PlanCheck.of(fixed)
+        assertTrue(after.none { it.kind == PlanCheck.Kind.NoDoors || it.kind == PlanCheck.Kind.NoDoor || it.kind == PlanCheck.Kind.NoEntrance }, "${after.map { it.kind }}")
+        assertEquals(emptyList(), after.filter { it.kind.error })
+        assertNull(PlanCheck.fixed(fixed, i), "già corretto")
+        // Due stanze lontane: non si collegano.
+        val apart = Building.single(FloorPlan(listOf(bare[0], bare[1].copy(points = bare[1].points.map { it + Vec2(500.0, 0.0) }))))
+        val far = PlanCheck.of(apart).single { it.kind == PlanCheck.Kind.NoDoors }
+        assertTrue(!PlanCheck.canFix(apart, far))
+    }
+
+    @Test
     fun `Correggi tutti - gli errori di un gruppo insieme`() {
         // Finestra più alta del muro, porta più larga del muro del bagno, cucina sovrapposta al soggiorno: tre errori (⚠) che si
         // correggono da soli.
