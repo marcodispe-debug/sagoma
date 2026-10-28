@@ -1,13 +1,20 @@
 package com.sagoma.planimetria.geometry
 
+import com.sagoma.planimetria.model.Finish
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
+import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.FramePosition
 import com.sagoma.planimetria.model.GarageDoor
 import com.sagoma.planimetria.model.PassageStyle
+import com.sagoma.planimetria.model.ProPalette
 import com.sagoma.planimetria.model.Room
+import com.sagoma.planimetria.model.SashType
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.model.WindowModel
+import com.sagoma.planimetria.model.WindowShape
+import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -22,6 +29,61 @@ data class WallGap(val roomId: Long, val wallIndex: Int, val a: Vec2, val b: Vec
 object Openings {
     /** Quanto sporge il bovindo dalla faccia esterna del muro (cm); i fianchi sono a 45°. */
     const val BAY_DEPTH = 60.0
+
+    /** Nome dell'apertura negli elenchi e nei titoli: «Finestra 2 ante, vasistas», «Porta ad 1 anta scorrevole», «Bovindo». */
+    fun label(o: Opening): String {
+        val name = if (o.leaves > 2) T.pannelli.anteN(o.kind == OpeningKind.Balcony2, o.leaves) else o.kind.label
+        return when {
+            o.isBay -> T.editor.bovindo
+            o.garageDoor == GarageDoor.UpAndOver -> T.editor.portaBasculante
+            o.garageDoor == GarageDoor.Sectional -> T.editor.portaSezionale
+            o.lifts -> T.pannelli.alzante2(name)
+            o.sliding && o.slideOnWall && !o.kind.glazed -> T.pannelli.scorrevoleEsterna2(name)
+            o.sliding -> T.pannelli.scorrevole2(name)
+            o.folds -> T.pannelli.aLibro2(name)
+            o.pivots -> T.pannelli.aBilico2(name)
+            o.kind.glazed && o.sash != SashType.Casement -> T.pannelli.conAnta(name, o.sash.label)
+            o.unequal -> T.pannelli.disuguali2(name)
+            o.frameless && !o.kind.glazed -> T.pannelli.filoMuro2(name)
+            else -> name
+        }
+    }
+
+    /**
+     * Aspetto dell'apertura per chi deve fare il preventivo: modello e colore, forma, sopraluce, oscurante e accessori
+     * («Legno con fermavetro, rovere · persiane · inferriata»). Vuoto per varchi e nicchie.
+     */
+    fun description(o: Opening): String {
+        if (!o.kind.hasLeaves) return ""
+        val low = T.lingua::minuscola
+        // Senza colore scelto, i modelli loft, minimal e legno hanno il loro (nero, antracite, rovere): come nel 3D.
+        val color = when {
+            o.customColor != null -> ProPalette.nameOf(o.customColor)
+            !o.defaultColor -> o.finish.label
+            o.kind.glazed && o.windowModel == WindowModel.Loft -> null
+            o.kind.glazed && o.windowModel == WindowModel.Minimal -> Finish.Anthracite.label
+            o.kind.glazed && o.windowModel == WindowModel.Wood -> Finish.Oak.label
+            else -> o.finish.label
+        }?.let(low)
+        val model = when {
+            o.kind.glazed -> o.windowModel.label
+            o.isGarage -> null
+            else -> o.doorModel.label
+        }
+        val parts = mutableListOf(listOfNotNull(model, color).joinToString(", ").replaceFirstChar { it.uppercaseChar() })
+        if (o.kind.glazed) {
+            if (o.shape != WindowShape.Rectangle) parts += low(o.shape.label)
+            if (o.hasTopLight) parts += low(T.pannelli.sopraluce)
+            if (o.hasShading) parts += low(o.shading.label)
+            if (o.hasGrille) parts += low(T.pannelli.inferriata)
+            if (o.hasInsectScreen) parts += low(T.pannelli.zanzariera)
+            if (o.hasAwning) parts += low(T.pannelli.tendaDaSole)
+        } else {
+            if (o.transomCm > 0) parts += low(T.pannelli.sopraluce)
+            if (o.sidelightCm > 0) parts += low(T.pannelli.vetroDiFianco)
+        }
+        return parts.filter { it.isNotBlank() }.joinToString(" · ")
+    }
 
     /**
      * Bovindo in pianta: i quattro angoli sulla faccia esterna del muro e davanti, in ordine (inizio del varco sul muro,

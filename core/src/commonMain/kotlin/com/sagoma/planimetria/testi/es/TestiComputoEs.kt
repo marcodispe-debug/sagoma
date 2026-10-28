@@ -39,4 +39,8 @@ object TestiComputoEs : TestiComputo() {
     override val paretiM22: String get() = "PAREDES;m²"
     override val arrediMisureQuantitaDove: String get() = "MUEBLES;Medidas;Cantidad;Dónde"
     override val impiantiQuantitaDove: String get() = "INSTALACIONES;Cantidad;Dónde"
+    override val porteFinestre: String get() = "Puertas y ventanas"
+    override val porteFinestreNota: String get() = "Medidas del hueco (ancho × alto), para que las compruebe quien haga el presupuesto. Los huecos que se cierran no aparecen."
+    override fun misuraVano(w: Any?, h: Any?): String = "$w×$h cm"
+    override val porteFinestreCsv: String get() = "PUERTAS Y VENTANAS;Aspecto;Medidas del hueco;Cantidad;Dónde"
 }

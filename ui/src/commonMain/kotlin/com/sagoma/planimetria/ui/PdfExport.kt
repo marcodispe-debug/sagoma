@@ -292,6 +292,15 @@ object PdfExport {
         for (t in res.floorMaterials) row(listOf(t.what, fmt2(t.quantity), fmt2(t.quantity * 1.1)), w2, right = nums2)
         title(T.pdf.paretiNettoAperture)
         for (t in res.wallFinishes) row(listOf(t.what, fmt2(t.quantity), ""), w2, right = nums2)
+        if (res.openings.isNotEmpty()) {
+            title(T.pdf.porteFinestre)
+            val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.20f, colW * 0.32f)
+            // Sotto il nome, l'aspetto (modello, colore, oscuranti, accessori) su tutta la riga.
+            for (i in res.openings) {
+                row(listOf("${i.count}×", i.name, i.size, i.where), w3, right = setOf(2))
+                if (i.details.isNotEmpty()) row(listOf("", i.details), listOf(w3[0], colW - w3[0]))
+            }
+        }
         if (res.furniture.isNotEmpty()) {
             title(T.pdf.arredi)
             val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.24f, colW * 0.28f)

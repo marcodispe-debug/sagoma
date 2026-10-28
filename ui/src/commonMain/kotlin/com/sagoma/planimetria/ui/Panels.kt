@@ -1122,23 +1122,7 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
 }
 
 /** Nome dell'apertura come lo si mostra: "Porta ad 1 anta", "Finestra 2 ante scorrevole"… */
-internal fun openingLabel(o: Opening): String {
-    val name = if (o.leaves > 2) T.pannelli.anteN(o.kind == OpeningKind.Balcony2, o.leaves) else o.kind.label
-    return when {
-        o.isBay -> T.editor.bovindo
-        o.garageDoor == GarageDoor.UpAndOver -> T.editor.portaBasculante
-        o.garageDoor == GarageDoor.Sectional -> T.editor.portaSezionale
-        o.lifts -> T.pannelli.alzante2(name)
-        o.sliding && o.slideOnWall && !o.kind.glazed -> T.pannelli.scorrevoleEsterna2(name)
-        o.sliding -> T.pannelli.scorrevole2(name)
-        o.folds -> T.pannelli.aLibro2(name)
-        o.pivots -> T.pannelli.aBilico2(name)
-        o.kind.glazed && o.sash != SashType.Casement -> T.pannelli.conAnta(name, o.sash.label)
-        o.unequal -> T.pannelli.disuguali2(name)
-        o.frameless && !o.kind.glazed -> T.pannelli.filoMuro2(name)
-        else -> name
-    }
-}
+internal fun openingLabel(o: Opening): String = com.sagoma.planimetria.geometry.Openings.label(o)
 
 /** Campo numerico in cm che applica il valore a ogni modifica valida (il riquadro si aggiorna dal vivo). */
 @Composable

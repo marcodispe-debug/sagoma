@@ -34,4 +34,22 @@ class PdfTakeoffPagesTest {
             assertEquals(3 + 120 + 3 + 2 + 81, sheets.sumOf { it.size })
         }
     }
+
+    @Test
+    fun porteEFinestreConLAspettoSotto() {
+        val res = result(3, 0).copy(
+            openings = listOf(
+                Takeoff.OpeningItem("Porta ad 1 anta", "Liscia, rovere", "80×210 cm", 4, "Cucina, Camera"),
+                Takeoff.OpeningItem("Finestra 2 ante", "", "120×140 cm", 2, "Cucina"),
+            ),
+        )
+        val lines = PdfExport.takeoffSheets(res, PdfExport.Paper.A4).single()
+        val i = lines.indexOfFirst { it.title && it.cells[0] == "Porte e finestre" }
+        assertTrue(i >= 0)
+        assertEquals(listOf("4×", "Porta ad 1 anta", "80×210 cm", "Cucina, Camera"), lines[i + 1].cells)
+        assertEquals(listOf("", "Liscia, rovere"), lines[i + 2].cells)
+        // Senza aspetto, niente riga vuota sotto.
+        assertEquals(listOf("2×", "Finestra 2 ante", "120×140 cm", "Cucina"), lines[i + 3].cells)
+        assertEquals(i + 4, lines.size)
+    }
 }

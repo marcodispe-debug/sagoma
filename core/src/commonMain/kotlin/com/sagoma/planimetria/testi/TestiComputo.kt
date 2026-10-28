@@ -38,4 +38,8 @@ open class TestiComputo {
     open val paretiM22: String get() = "PARETI;m²"
     open val arrediMisureQuantitaDove: String get() = "ARREDI;Misure;Quantità;Dove"
     open val impiantiQuantitaDove: String get() = "IMPIANTI;Quantità;Dove"
+    open val porteFinestre: String get() = "Porte e finestre"
+    open val porteFinestreNota: String get() = "Misure del vano (larghezza × altezza), da far controllare a chi fa il preventivo. Le aperture da chiudere non ci sono."
+    open fun misuraVano(w: Any?, h: Any?): String = "$w×$h cm"
+    open val porteFinestreCsv: String get() = "PORTE E FINESTRE;Aspetto;Misure del vano;Quantità;Dove"
 }

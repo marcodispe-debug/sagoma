@@ -30,6 +30,7 @@ object TestiPdfEs : TestiPdf() {
     override val paretiNettoAperture: String get() = "Paredes (descontando huecos)"
     override val arredi: String get() = "Muebles"
     override val impianti: String get() = "Instalaciones"
+    override val porteFinestre: String get() = "Puertas y ventanas"
     override val tavolaPdfNonDisponibile: String get() = "Lámina PDF no disponible en esta plataforma"
     override val esportazioneNonRiuscita: String get() = "No se pudo exportar"
     override val tavolaPdfSalvataMarchio: String get() = "Lámina PDF guardada con la marca de agua de Sagoma"
