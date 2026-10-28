@@ -12,6 +12,7 @@ object TestiComputoFr : TestiComputo() {
     override val stanza: String get() = "Pièce"
     override val muriSingoli: String get() = "Murs libres"
     override val soffitti: String get() = "Plafonds"
+    override val statoDiProgetto: String get() = "Compte l'état projeté : sans les murs à démolir ni les ouvertures à fermer."
     override val pavM2: String get() = "Sol m²"
     override val paretiM2: String get() = "Murs m²"
     override val battiscM: String get() = "Plinthes m"

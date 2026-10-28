@@ -11,6 +11,7 @@ open class TestiComputo {
     open val stanza: String get() = "Stanza"
     open val muriSingoli: String get() = "Muri singoli"
     open val soffitti: String get() = "Soffitti"
+    open val statoDiProgetto: String get() = "Conta lo stato di progetto: senza i muri da demolire e le aperture da chiudere."
     open val pavM2: String get() = "Pav. m²"
     open val paretiM2: String get() = "Pareti m²"
     open val battiscM: String get() = "Battisc. m"

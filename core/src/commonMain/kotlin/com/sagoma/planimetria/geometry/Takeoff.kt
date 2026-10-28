@@ -8,14 +8,14 @@ import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.model.MaterialCatalog
 import com.sagoma.planimetria.model.OpeningKind
-import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.model.ProPalette
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.testi.T
 
 /**
  * Computo metrico della casa: per ogni stanza pavimento, pareti da finire (al netto di porte e finestre),
- * battiscopa e aperture; totali per materiale; elenco di arredi e impianti. Misure in m e m².
+ * battiscopa e aperture; totali per materiale; elenco di arredi e impianti. Misure in m e m², nello stato di progetto (senza
+ * i muri da demolire e le aperture da chiudere).
  */
 object Takeoff {
     data class RoomLine(
@@ -121,7 +121,8 @@ object Takeoff {
         val fixtures = LinkedHashMap<String, Pair<Int, MutableSet<String>>>()
         var ceilings = 0.0
         for (fl in building.floors) {
-            val plan = fl.plan
+            // Lo stato di progetto: i muri da demolire sono lati aperti, le aperture da chiudere sono muro pieno.
+            val plan = Phases.view(fl.plan, PhaseView.Project)
             // Porte sul muro in comune: il vano buca anche la parete della stanza accanto (che non ha la porta tra le sue).
             val induced = Openings.sharedGaps(plan)
             for (r in plan.rooms) {
@@ -139,7 +140,7 @@ object Takeoff {
                 }
             }
             // Muri singoli (tramezzi, muretti): una riga per piano, con le pareti dei due lati.
-            freeWallsLine(fl, wallTot)?.let { lines += it }
+            freeWallsLine(fl, plan, wallTot)?.let { lines += it }
             for (f in plan.furniture) {
                 val name = FurnitureCatalog.item(f.model)?.nome ?: T.computo.arredo
                 val size = T.computo.cm(cm(f.width), cm(f.depth), cm(f.height))
@@ -192,12 +193,12 @@ object Takeoff {
     }
 
     /**
-     * Muri singoli del piano `fl` (non quelli da demolire): si finiscono sui due lati, alti fino al soffitto o quanto scritto,
+     * Muri singoli di `plan` (il piano `fl` nello stato di progetto, senza quelli da demolire): si finiscono sui due lati, alti fino al soffitto o quanto scritto,
      * lunghi come la loro mezzeria (sull'arco, se curvi: la media dei due lati), al netto dei vani; il battiscopa corre sui due
      * lati, tranne davanti a porte e varchi. Le finiture vanno nei totali `wallTot`.
      */
-    private fun freeWallsLine(fl: Floor, wallTot: MutableMap<String, Double>): RoomLine? {
-        val walls = fl.plan.freeWalls.filter { it.phase != Phase.Demolish && it.length >= 1.0 }
+    private fun freeWallsLine(fl: Floor, plan: FloorPlan, wallTot: MutableMap<String, Double>): RoomLine? {
+        val walls = plan.freeWalls.filter { it.length >= 1.0 }
         if (walls.isEmpty()) return null
         var wall = 0.0
         var holes = 0.0
@@ -206,7 +207,7 @@ object Takeoff {
         var doors = 0
         var windows = 0
         for (w in walls) {
-            val h = Structure.freeWallHeight(fl.plan, w, fl.levelHeight)
+            val h = Structure.freeWallHeight(plan, w, fl.levelHeight)
             val host = w.host.copy(ceilingHeight = h, wallFinish = w.finishOrPaint)
             val length = host.arcOf(0)?.arcLength() ?: w.length
             for ((name, area) in wallParts(host, 0, length)) {
