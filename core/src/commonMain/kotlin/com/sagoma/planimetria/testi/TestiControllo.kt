@@ -32,6 +32,9 @@ open class TestiControllo {
     open val nonSiCorregge: String get() = "Non si riesce a correggere da solo: va sistemato a mano."
     open val togliDallaPianta: String get() = "Togli dalla pianta"
     open val rimettiSullaPianta: String get() = "Rimetti sulla pianta"
+    /** Per tutto un gruppo dell'elenco. */
+    open val togliTutti: String get() = "Togli tutti dalla pianta"
+    open val rimettiTutti: String get() = "Rimetti tutti"
     /** Dopo il testo di un problema il cui «!» è stato tolto dalla pianta. */
     open val toltoDallaPianta: String get() = "tolto dalla pianta"
     /** Per chi usa il lettore dello schermo: il «!» sulla pianta. */

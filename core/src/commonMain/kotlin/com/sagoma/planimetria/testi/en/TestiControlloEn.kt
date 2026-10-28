@@ -32,6 +32,8 @@ object TestiControlloEn : TestiControllo() {
     override val nonSiCorregge: String get() = "This can't be fixed automatically: it needs fixing by hand."
     override val togliDallaPianta: String get() = "Remove from plan"
     override val rimettiSullaPianta: String get() = "Show on plan"
+    override val togliTutti: String get() = "Remove all from plan"
+    override val rimettiTutti: String get() = "Show all"
     override val toltoDallaPianta: String get() = "removed from the plan"
     override fun problemiQui(n: Int): String = if (n == 1) "One problem here" else "$n problems here"
     override val condividi: String get() = "Share"

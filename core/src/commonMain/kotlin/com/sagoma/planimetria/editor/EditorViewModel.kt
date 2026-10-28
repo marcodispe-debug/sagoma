@@ -3188,12 +3188,15 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
      * Toglie (`hidden`) o rimette il «!» del problema sulla pianta: il problema resta nell'elenco di «Controlla la pianta». Si
      * annulla come le altre modifiche; intanto si dimenticano i problemi tolti che non ci sono più.
      */
-    fun setCheckHidden(issue: PlanCheck.Issue, hidden: Boolean) {
+    fun setCheckHidden(issue: PlanCheck.Issue, hidden: Boolean) = setChecksHidden(listOf(issue), hidden)
+
+    /** Come [setCheckHidden] per più problemi insieme (tutto un gruppo dell'elenco), con un solo ↶. */
+    fun setChecksHidden(issues: List<PlanCheck.Issue>, hidden: Boolean) {
         commitBuilding { b ->
-            val key = PlanCheck.hideKey(b, issue)
+            val changed = issues.map { PlanCheck.hideKey(b, it) }
             val now = runCatching { PlanCheck.of(b) }.getOrDefault(emptyList()).mapTo(HashSet()) { PlanCheck.hideKey(b, it) }
             val keys = b.hiddenChecks.filterTo(LinkedHashSet()) { it in now }
-            if (hidden) keys += key else keys -= key
+            if (hidden) keys += changed else keys -= changed.toSet()
             if (keys == b.hiddenChecks) b else b.copy(hiddenChecks = keys)
         }
     }

@@ -103,5 +103,13 @@ class PlanCheckEditorTest {
         assertEquals(true, PlanCheck.hidden(vm.state.value.fullBuilding, overlap()))
         vm.setCheckHidden(overlap(), false)
         assertEquals(emptySet(), vm.state.value.fullBuilding.hiddenChecks)
+        // Tutto un gruppo insieme, e un ↶ solo lo rimette.
+        val rules = PlanCheck.of(vm.state.value.fullBuilding).filter { it.kind.rule }
+        assertEquals(true, rules.size > 1)
+        vm.setChecksHidden(rules, true)
+        assertEquals(rules.size, vm.state.value.fullBuilding.hiddenChecks.size)
+        assertEquals(true, rules.all { PlanCheck.hidden(vm.state.value.fullBuilding, it) })
+        vm.undo()
+        assertEquals(emptySet(), vm.state.value.fullBuilding.hiddenChecks)
     }
 }

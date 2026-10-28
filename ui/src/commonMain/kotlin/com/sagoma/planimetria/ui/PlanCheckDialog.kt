@@ -76,11 +76,20 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                         val atStart = openAtStart(groups)
                         for ((title, group) in groups) {
                             val expanded = open[title] ?: atStart[title] ?: true
-                            Text(
-                                (if (expanded) "▾ " else "▸ ") + "$title (${group.size})",
-                                style = MaterialTheme.typography.titleSmall,
-                                modifier = Modifier.padding(top = 4.dp).clickable { open[title] = !expanded },
-                            )
+                            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    (if (expanded) "▾ " else "▸ ") + "$title (${group.size})",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    modifier = Modifier.weight(1f).clickable { open[title] = !expanded },
+                                )
+                                // Tutto il gruppo via dalla pianta (le norme che non interessano), o di nuovo tutto sulla pianta.
+                                if (group.size > 1) {
+                                    val allHidden = group.all { PlanCheck.hidden(building, it) }
+                                    TextButton(onClick = { vm.setChecksHidden(group, !allHidden) }) {
+                                        Text(if (allHidden) T.controllo.rimettiTutti else T.controllo.togliTutti, style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+                            }
                             if (!expanded) continue
                             if (group.first().kind.rule) Text(T.controllo.spiegaNorme, style = MaterialTheme.typography.bodySmall)
                             for (i in group) Row(verticalAlignment = Alignment.CenterVertically) {
