@@ -8,7 +8,9 @@ open class TestiControllo {
     open val cosaControlla: String get() =
         "Cerca stanze sovrapposte o quasi attaccate, muri che si incrociano, porte e finestre doppie, più larghe del muro o più alte, " +
             "stanze senza porta, ante che urtano aprendosi, la porta d'ingresso, le scale, gli impianti e i minimi di legge delle stanze (finestre, altezze, metri quadri)."
-    open val spiega: String get() = "Possono sbagliare metri quadri, computo e 3D. «Mostra» porta lì e lo seleziona; «Correggi» lo sistema da solo (si annulla con ↶)."
+    open val spiega: String get() =
+        "Possono sbagliare metri quadri, computo e 3D. Sulla pianta un «!» segna dov'è ogni problema. «Mostra» porta lì e lo seleziona; " +
+            "«Correggi» lo sistema da solo (si annulla con ↶); «Togli dalla pianta» toglie il suo «!»."
     open val daCorreggere: String get() = "Da correggere"
     open val daControllare: String get() = "Da controllare"
     open val daNorme: String get() = "Norme per la casa (Italia)"
@@ -28,6 +30,12 @@ open class TestiControllo {
     open val esportaLoStesso: String get() = "Esporta lo stesso"
     open val correggi: String get() = "Correggi"
     open val nonSiCorregge: String get() = "Non si riesce a correggere da solo: va sistemato a mano."
+    open val togliDallaPianta: String get() = "Togli dalla pianta"
+    open val rimettiSullaPianta: String get() = "Rimetti sulla pianta"
+    /** Dopo il testo di un problema il cui «!» è stato tolto dalla pianta. */
+    open val toltoDallaPianta: String get() = "tolto dalla pianta"
+    /** Per chi usa il lettore dello schermo: il «!» sulla pianta. */
+    open fun problemiQui(n: Int): String = if (n == 1) "Un problema qui" else "$n problemi qui"
     open val condividi: String get() = "Condividi"
     open fun oggetto(progetto: String?): String = "Controllo della pianta" + (progetto?.let { " · $it" } ?: "")
     open fun muriIncrociati(a: String): String = "$a: i muri si incrociano e il contorno si taglia da solo, così area e 3D vengono sbagliati. Sposta gli angoli."

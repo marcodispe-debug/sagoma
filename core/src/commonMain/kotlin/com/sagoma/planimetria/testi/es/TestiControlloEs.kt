@@ -9,7 +9,9 @@ object TestiControlloEs : TestiControllo() {
     override val cosaControlla: String get() =
         "Busca habitaciones superpuestas o casi pegadas, paredes que se cruzan, puertas y ventanas duplicadas, más anchas o más altas que la pared, " +
             "habitaciones sin puerta, hojas que chocan al abrirse, la puerta de entrada, las escaleras, las instalaciones y los mínimos legales de las habitaciones (ventanas, alturas, metros cuadrados)."
-    override val spiega: String get() = "Pueden estropear superficies, mediciones y 3D. «Mostrar» lleva allí y lo selecciona; «Corregir» lo arregla solo (se deshace con ↶)."
+    override val spiega: String get() =
+        "Pueden estropear superficies, mediciones y 3D. En el plano, un «!» marca dónde está cada problema. «Mostrar» lleva allí y lo selecciona; " +
+            "«Corregir» lo arregla solo (se deshace con ↶); «Quitar del plano» quita su «!»."
     override val daCorreggere: String get() = "Para corregir"
     override val daControllare: String get() = "Para revisar"
     override val daNorme: String get() = "Normas para la vivienda (Italia)"
@@ -28,6 +30,10 @@ object TestiControlloEs : TestiControllo() {
     override val esportaLoStesso: String get() = "Exportar igualmente"
     override val correggi: String get() = "Corregir"
     override val nonSiCorregge: String get() = "No se puede corregir automáticamente: hay que hacerlo a mano."
+    override val togliDallaPianta: String get() = "Quitar del plano"
+    override val rimettiSullaPianta: String get() = "Volver a mostrar en el plano"
+    override val toltoDallaPianta: String get() = "quitado del plano"
+    override fun problemiQui(n: Int): String = if (n == 1) "Un problema aquí" else "$n problemas aquí"
     override val condividi: String get() = "Compartir"
     override fun oggetto(progetto: String?): String = "Revisión del plano" + (progetto?.let { " · $it" } ?: "")
     override fun muriIncrociati(a: String): String = "$a: las paredes se cruzan y el contorno se corta a sí mismo, así que la superficie y el 3D salen mal. Mueve las esquinas."

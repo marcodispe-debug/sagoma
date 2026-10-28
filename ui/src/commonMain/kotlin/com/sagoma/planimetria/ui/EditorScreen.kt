@@ -161,6 +161,8 @@ fun EditorScreen(
     // segnale sulla pianta dice quanti problemi ci sono; un errore di disegno appena fatto si dice subito con un avviso breve.
     var liveIssues by remember(vm) { mutableStateOf<List<PlanCheck.Issue>?>(null) }
     var liveNotice by remember(vm) { mutableStateOf<PlanCheck.Issue?>(null) }
+    // I problemi del «!» toccato sulla pianta, nella scheda in alto.
+    var openMark by remember(vm) { mutableStateOf<List<PlanCheck.Issue>?>(null) }
     val liveBuilding = state.fullBuilding
     LaunchedEffect(liveBuilding, state.dragging) {
         if (state.dragging) return@LaunchedEffect
@@ -173,6 +175,8 @@ fun EditorScreen(
         val still = liveNotice?.let { LiveCheck.stillThere(it, now) }
         val fresh = if (before != null && state.course == null && state.tutorial == null) LiveCheck.newErrors(before, now).firstOrNull() else null
         liveNotice = fresh ?: still
+        // Nella scheda di un «!» restano i problemi che ci sono ancora; un errore appena fatto la chiude.
+        openMark = if (fresh != null) null else openMark?.mapNotNull { LiveCheck.stillThere(it, now) }?.takeIf { it.isNotEmpty() }
     }
     LaunchedEffect(liveNotice?.let(LiveCheck::key)) {
         if (liveNotice == null) return@LaunchedEffect
@@ -405,6 +409,15 @@ fun EditorScreen(
             }
             // Marchio del piano gratuito sopra pianta e 3D (non sui pulsanti), così resta anche in uno screenshot.
             WatermarkOverlay(Modifier.fillMaxSize())
+            // «!» sulla pianta dove c'è un problema (non quelli tolti dalla pianta; non durante la guida, che ha le sue schede, né
+            // mentre si disegna o si mette qualcosa, dove il tocco serve alla pianta): il tocco apre la scheda di quel punto.
+            val drawing = state.creation != null || state.wallDraw != null || state.pendingOpening != null || state.pendingFixture != null ||
+                state.pasting || state.measure != null || state.underlayTool != null || state.selectMode
+            if (!state.view3d && !drawing && state.course == null && state.tutorial == null) liveIssues?.let { issues ->
+                val floor = state.building.current
+                val marks = remember(issues, state.plan, liveBuilding.hiddenChecks, floor) { checkMarks(issues, liveBuilding, floor, state.plan) }
+                CheckMarkers(marks, state.camera, onOpen = { m -> liveNotice = null; openMark = m.issues }, modifier = Modifier.fillMaxSize())
+            }
             // Suggerimento durante il posizionamento di un'apertura o di un impianto.
             val placingHint = state.pendingOpening?.let { T.editor.toccaMuroCuiPosizionare(T.lingua.minuscola(it.kind.label)) }
                 ?: state.pendingFixture?.let {
@@ -614,7 +627,7 @@ fun EditorScreen(
             // Segnale di «Controlla la pianta» in alto a sinistra, sotto le schede in alto: il tocco apre l'elenco.
             if (!state.view3d) liveIssues?.let { issues ->
                 LiveCheckChip(
-                    LiveCheck.counts(issues),
+                    LiveCheck.counts(issues.filter { !PlanCheck.hidden(liveBuilding, it) }),
                     onClick = { showCheck = true },
                     modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = with(density) { coveredTopPx.toDp() } + 8.dp),
                 )
@@ -629,6 +642,22 @@ fun EditorScreen(
                         { liveNotice = null; if (!vm.fixIssue(n)) platform.toast(T.controllo.nonSiCorregge) }
                     } else null,
                     onClose = { liveNotice = null },
+                    modifier = Modifier.align(Alignment.TopCenter)
+                        .padding(start = 8.dp, end = 8.dp, top = with(density) { coveredTopPx.toDp() } + 8.dp)
+                        .widthIn(max = 520.dp),
+                )
+            }
+            // Scheda del «!» toccato: nello stesso posto dell'avviso (ce n'è uno alla volta).
+            if (!state.view3d && liveNotice == null) openMark?.let { list ->
+                fun drop(i: PlanCheck.Issue) {
+                    openMark = list.filter { it != i }.takeIf { it.isNotEmpty() }
+                }
+                CheckSpotCard(
+                    list, liveBuilding,
+                    onFix = { i -> if (vm.fixIssue(i)) drop(i) else platform.toast(T.controllo.nonSiCorregge) },
+                    onShow = { i -> openMark = null; vm.showIssue(i) },
+                    onHide = { i -> vm.setCheckHidden(i, true); drop(i) },
+                    onClose = { openMark = null },
                     modifier = Modifier.align(Alignment.TopCenter)
                         .padding(start = 8.dp, end = 8.dp, top = with(density) { coveredTopPx.toDp() } + 8.dp)
                         .widthIn(max = 520.dp),

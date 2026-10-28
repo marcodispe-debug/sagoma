@@ -22,6 +22,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorUiState
@@ -37,9 +38,11 @@ import kotlinx.coroutines.withContext
 /**
  * «Controlla la pianta»: l'elenco dei problemi di tutta la casa, prima quelli da correggere, poi quelli da controllare e infine
  * i minimi delle norme per la casa. «Mostra» porta al piano giusto, seleziona e inquadra (la finestra si chiude). «Correggi», dove
- * c'è ([PlanCheck.canFix]; per le ante che urtano compare appena si sa che girarle basta), sistema il problema da solo e la finestra resta aperta con l'elenco nuovo (si annulla con ↶). «Condividi»
- * manda l'elenco come testo (`projectName` nell'oggetto). Ogni gruppo ha il numero dei problemi e si apre e chiude toccando il
- * titolo; all'inizio sono aperti il primo e quelli corti (al massimo [OPEN_GROUP_MAX]).
+ * c'è ([PlanCheck.canFix]; per le ante che urtano compare appena si sa che girarle basta), sistema il problema da solo e la
+ * finestra resta aperta con l'elenco nuovo (si annulla con ↶). «Togli dalla pianta» toglie il «!» del problema dalla pianta (e
+ * dal conto del segnale): il problema resta qui, e si rimette. «Condividi» manda l'elenco come testo (`projectName` nell'oggetto).
+ * Ogni gruppo ha il numero dei problemi e si apre e chiude toccando il titolo; all'inizio sono aperti il primo e quelli corti (al
+ * massimo [OPEN_GROUP_MAX]).
  */
 @Composable
 fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> Unit, projectName: String? = null) {
@@ -82,14 +85,26 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                             if (group.first().kind.rule) Text(T.controllo.spiegaNorme, style = MaterialTheme.typography.bodySmall)
                             for (i in group) Row(verticalAlignment = Alignment.CenterVertically) {
                                 val where = if (floors) building.floors.getOrNull(i.floor)?.name?.let { "$it · " } ?: "" else ""
+                                val hidden = PlanCheck.hidden(building, i)
                                 Column(Modifier.weight(1f)) {
-                                    Text(PlanCheck.mark(i.kind) + " " + where + PlanCheck.describe(i, building), style = MaterialTheme.typography.bodyMedium)
-                                    // Sotto la frase, allineato al testo: a destra c'è già «Mostra».
-                                    if (if (PlanCheck.triesFirst(i)) i in turnable else PlanCheck.canFix(i)) {
+                                    Text(
+                                        PlanCheck.mark(i.kind) + " " + where + PlanCheck.describe(i, building) + if (hidden) " (${T.controllo.toltoDallaPianta})" else "",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (hidden) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
+                                    )
+                                    // Sotto la frase, allineati al testo: a destra c'è già «Mostra».
+                                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        if (if (PlanCheck.triesFirst(i)) i in turnable else PlanCheck.canFix(i)) {
+                                            TextButton(
+                                                onClick = { if (!vm.fixIssue(i)) platform.toast(T.controllo.nonSiCorregge) },
+                                                contentPadding = PaddingValues(horizontal = 0.dp),
+                                            ) { Text("✓ " + T.controllo.correggi) }
+                                        }
+                                        // Il «!» sulla pianta: si toglie (il problema resta qui) e si rimette.
                                         TextButton(
-                                            onClick = { if (!vm.fixIssue(i)) platform.toast(T.controllo.nonSiCorregge) },
+                                            onClick = { vm.setCheckHidden(i, !hidden) },
                                             contentPadding = PaddingValues(horizontal = 0.dp),
-                                        ) { Text("✓ " + T.controllo.correggi) }
+                                        ) { Text(if (hidden) T.controllo.rimettiSullaPianta else T.controllo.togliDallaPianta, style = MaterialTheme.typography.labelMedium) }
                                     }
                                 }
                                 TextButton(onClick = { vm.showIssue(i); onDismiss() }) { Text(T.controllo.mostra) }

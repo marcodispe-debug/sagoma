@@ -9,7 +9,9 @@ object TestiControlloEn : TestiControllo() {
     override val cosaControlla: String get() =
         "Looks for overlapping or almost touching rooms, crossing walls, doubled doors and windows, or ones wider or taller than the wall, " +
             "rooms without a door, leaves that hit something when opening, the front door, the stairs, the systems and the legal minimums of the rooms (windows, heights, square metres)."
-    override val spiega: String get() = "They can spoil areas, quantities and 3D. «Show» takes you there and selects it; «Fix» sorts it out by itself (undo with ↶)."
+    override val spiega: String get() =
+        "They can spoil areas, quantities and 3D. On the plan a «!» marks where each problem is. «Show» takes you there and selects it; " +
+            "«Fix» sorts it out by itself (undo with ↶); «Remove from plan» removes its «!»."
     override val daCorreggere: String get() = "To fix"
     override val daControllare: String get() = "To check"
     override val daNorme: String get() = "Rules for homes (Italy)"
@@ -28,6 +30,10 @@ object TestiControlloEn : TestiControllo() {
     override val esportaLoStesso: String get() = "Export anyway"
     override val correggi: String get() = "Fix"
     override val nonSiCorregge: String get() = "This can't be fixed automatically: it needs fixing by hand."
+    override val togliDallaPianta: String get() = "Remove from plan"
+    override val rimettiSullaPianta: String get() = "Show on plan"
+    override val toltoDallaPianta: String get() = "removed from the plan"
+    override fun problemiQui(n: Int): String = if (n == 1) "One problem here" else "$n problems here"
     override val condividi: String get() = "Share"
     override fun oggetto(progetto: String?): String = "Plan check" + (progetto?.let { " · $it" } ?: "")
     override fun muriIncrociati(a: String): String = "$a: the walls cross and the outline cuts itself, so area and 3D come out wrong. Move the corners."

@@ -278,7 +278,7 @@ open class TestiCorso {
     open val controlloVoce: String get() = "Clicca «${T.controllo.voceMenu}»: cerca gli errori di disegno che di solito sfuggono."
     open val controlloChiudi: String get() =
         "Ecco cosa c'è da sistemare (⚠), cosa controllare (?) e i minimi delle norme per la casa (📏), per esempio le stanze a cui manca ancora la porta: «${T.controllo.mostra}» porta al punto giusto e lo seleziona, «${T.controllo.correggi}» (dove c'è) lo sistema da solo, «${T.controllo.condividi}» manda l'elenco a chi ti aiuta. " +
-            "Mentre disegni, il segnale in alto a sinistra sulla pianta dice se c'è qualcosa da vedere: toccalo per riaprire l'elenco. Ora clicca «${T.controllo.chiudi}»."
+            "Mentre disegni, il segnale in alto a sinistra sulla pianta dice se c'è qualcosa da vedere (toccalo per riaprire l'elenco) e un «!» segna il punto di ogni problema: toccalo per vedere cos'è; «${T.controllo.togliDallaPianta}» lo toglie. Ora clicca «${T.controllo.chiudi}»."
 
     // ---------- Sopra la tua planimetria ----------
 

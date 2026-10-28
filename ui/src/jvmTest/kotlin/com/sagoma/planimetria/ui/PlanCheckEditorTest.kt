@@ -79,4 +79,29 @@ class PlanCheckEditorTest {
         assertEquals(false, vm.fixIssue(issue))
         assertEquals(after, vm.state.value.fullBuilding)
     }
+
+    @Test
+    fun `Togli dalla pianta si salva nel progetto e si annulla`() {
+        val overlapped = Building(listOf(Floor(1, "Piano terra", FloorPlan(listOf(living, kitchen.copy(points = kitchen.points.map { it + Vec2(-100.0, 0.0) }))))))
+        val vm = EditorViewModel(object : PlanStore {
+            override fun load() = overlapped
+            override fun save(building: Building) {}
+        })
+        fun overlap() = PlanCheck.of(vm.state.value.fullBuilding).single { it.kind == PlanCheck.Kind.Overlap }
+        fun marks() = checkMarks(PlanCheck.of(vm.state.value.fullBuilding), vm.state.value.fullBuilding, 0, vm.state.value.plan)
+        val before = marks()
+        assertEquals(true, before.any { m -> m.issues.any { it.kind == PlanCheck.Kind.Overlap } })
+        vm.setCheckHidden(overlap(), true)
+        assertEquals(true, PlanCheck.hidden(vm.state.value.fullBuilding, overlap()))
+        assertEquals(false, marks().any { m -> m.issues.any { it.kind == PlanCheck.Kind.Overlap } })
+        assertEquals(before.sumOf { it.issues.size } - 1, marks().sumOf { it.issues.size })
+        // Nella casa (si salva con il progetto).
+        assertEquals(1, vm.state.value.fullBuilding.hiddenChecks.size)
+        vm.undo()
+        assertEquals(false, PlanCheck.hidden(vm.state.value.fullBuilding, overlap()))
+        vm.redo()
+        assertEquals(true, PlanCheck.hidden(vm.state.value.fullBuilding, overlap()))
+        vm.setCheckHidden(overlap(), false)
+        assertEquals(emptySet(), vm.state.value.fullBuilding.hiddenChecks)
+    }
 }

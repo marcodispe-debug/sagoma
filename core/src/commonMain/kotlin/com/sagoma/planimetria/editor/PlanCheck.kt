@@ -7,6 +7,7 @@ import com.sagoma.planimetria.geometry.HousingRules
 import com.sagoma.planimetria.geometry.Dimensions
 import com.sagoma.planimetria.geometry.Furnishings
 import com.sagoma.planimetria.geometry.ElectricRules
+import com.sagoma.planimetria.geometry.Fixtures
 import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.PhaseView
 import com.sagoma.planimetria.geometry.Phases
@@ -239,6 +240,61 @@ object PlanCheck {
     }
 
     private val SWINGS = setOf(Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall)
+
+    /**
+     * Chiave del problema `i` tra quelli tolti dalla pianta ([Building.hiddenChecks]): tipo, piano (il suo id, che non cambia
+     * aggiungendo piani), stanze e cosa selezionare. Resta la stessa anche quando le misure del problema cambiano.
+     */
+    fun hideKey(b: Building, i: Issue): String {
+        val floor = b.floors.getOrNull(i.floor)?.id ?: i.floor.toLong()
+        val what = when (val s = i.selection) {
+            null -> ""
+            is Selection.Wall -> "w${s.roomId}.${s.index}"
+            is Selection.Opening -> "o${s.roomId}.${s.openingId}"
+            is Selection.Fixture -> "f${s.roomId}.${s.fixtureId}"
+            is Selection.Furniture -> "m${s.furnitureId}"
+            is Selection.Stair -> "s${s.stairId}"
+            else -> s.toString()
+        }
+        return "${i.kind.name}/$floor/${i.rooms.sorted().joinToString(",")}/$what"
+    }
+
+    /** Il «!» del problema `i` è stato tolto dalla pianta. */
+    fun hidden(b: Building, i: Issue): Boolean = b.hiddenChecks.isNotEmpty() && hideKey(b, i) in b.hiddenChecks
+
+    /**
+     * Dove va il «!» di un problema sulla pianta (cm). `room`: è il problema di una stanza (o di tutto il piano) e il segno sta
+     * nel punto del nome, che non deve coprire.
+     */
+    data class Spot(val at: Vec2, val room: Boolean)
+
+    /**
+     * Il punto del «!» del problema `i` sulla pianta del suo piano (`plan`, com'è adesso: il segno segue la porta o il mobile
+     * spostati): sull'apertura, a metà del muro, sull'impianto, sul mobile; stanze sovrapposte, muri incrociati e muri lunghi
+     * zero dove succede; il problema di una stanza nel punto del suo nome. Null se quello di cui parla non c'è più.
+     */
+    fun spot(i: Issue, plan: FloorPlan): Spot? {
+        val s = i.selection
+        val at: Vec2? = when {
+            i.kind == Kind.ZeroWall || i.kind == Kind.CrossedWalls || i.kind == Kind.Overlap -> i.area.center
+            s is Selection.Opening -> plan.room(s.roomId)?.let { r ->
+                r.openings.firstOrNull { it.id == s.openingId && it.wallIndex in 0 until r.wallCount }?.let { o ->
+                    val (a, b) = Openings.span(r, o)
+                    (a + b) / 2.0
+                }
+            }
+            s is Selection.Wall -> plan.room(s.roomId)?.takeIf { s.index in 0 until it.wallCount }?.let { (it.wallStart(s.index) + it.wallEnd(s.index)) / 2.0 }
+            s is Selection.Fixture -> plan.room(s.roomId)?.let { r -> r.fixtures.firstOrNull { it.id == s.fixtureId }?.let { Fixtures.center(r, it) } }
+            s is Selection.Furniture -> plan.furniture.firstOrNull { it.id == s.furnitureId }?.center
+            s != null -> i.area.center
+            else -> null
+        }
+        fun Vec2.ok() = x.isFinite() && y.isFinite()
+        if (s != null || at != null) return at?.takeIf { it.ok() }?.let { Spot(it, room = false) }
+        val r = i.rooms.firstNotNullOfOrNull { plan.room(it) }?.takeIf { it.points.size >= 3 }
+        val c = r?.let { runCatching { Polygon.labelPoint(it.points) }.getOrNull() } ?: i.area.center
+        return c.takeIf { it.ok() }?.let { Spot(it, room = true) }
+    }
 
     /** Problemi che prima di offrire «Correggi» si prova a correggere davvero ([canFix] con la casa): le ante che urtano. */
     fun triesFirst(i: Issue): Boolean = i.kind in SWINGS && canFix(i)
