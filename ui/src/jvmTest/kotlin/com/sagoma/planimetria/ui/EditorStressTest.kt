@@ -105,6 +105,8 @@ class EditorStressTest {
             return out
         }
         fun rv(max: Double) = rnd.nextDouble(-max, max)
+        // Metà delle volte una variante del menu (vasistas, bovindo, porta da garage…).
+        fun randomPreset() = if (rnd.nextBoolean()) com.sagoma.planimetria.editor.OpeningPreset.None else pick(com.sagoma.planimetria.editor.OpeningPreset.entries)!!
 
         val actions: List<Pair<String, () -> Unit>> = listOf(
             "nuova stanza" to {
@@ -122,13 +124,32 @@ class EditorStressTest {
                 val freeWall = vm.state.value.plan.freeWalls.takeIf { rnd.nextInt(4) == 0 }?.let { pick(it) }
                 if (freeWall != null) {
                     // Anche sui muri singoli.
-                    vm.startPlacingOpening(PendingOpening(pick(OpeningKind.entries.filter { it != OpeningKind.FrenchDoor })!!, sliding = rnd.nextBoolean()))
+                    vm.startPlacingOpening(PendingOpening(pick(OpeningKind.entries.filter { it != OpeningKind.FrenchDoor })!!, sliding = rnd.nextBoolean(), preset = randomPreset()))
                     vm.onTap(DragTarget.FreeWallBody(freeWall.id), freeWall.start + (freeWall.end - freeWall.start) * rnd.nextDouble())
                 } else anyRoom()?.let { r ->
                     val i = rnd.nextInt(r.wallCount)
                     // La porta-finestra non si offre più (nei file vecchi diventa un balcone ad 1 anta).
-                    vm.startPlacingOpening(PendingOpening(pick(OpeningKind.entries.filter { it != OpeningKind.FrenchDoor })!!, sliding = rnd.nextBoolean()))
+                    vm.startPlacingOpening(PendingOpening(pick(OpeningKind.entries.filter { it != OpeningKind.FrenchDoor })!!, sliding = rnd.nextBoolean(), preset = randomPreset()))
                     vm.onTap(DragTarget.Wall(r.id, i), wallPoint(r, i))
+                }
+            },
+            "aspetto apertura, copia stile" to {
+                clearModes()
+                val hosts = plan().rooms.map { it.id to it.openings } + plan().freeWalls.map { com.sagoma.planimetria.model.FreeWall.hostId(it.id) to it.openings }
+                pick(hosts.flatMap { (id, list) -> list.map { id to it } })?.let { (roomId, o) ->
+                    if (rnd.nextInt(4) == 0) vm.copyOpeningStyle(roomId, o.id, allFloors = rnd.nextBoolean())
+                    else vm.updateOpening(
+                        roomId,
+                        o.copy(
+                            grille = rnd.nextBoolean(), topLight = rnd.nextBoolean(), bay = rnd.nextInt(4) == 0,
+                            garage = pick(com.sagoma.planimetria.model.GarageDoor.entries)!!, insectScreen = rnd.nextBoolean(),
+                            awning = rnd.nextBoolean(), awningColor = if (rnd.nextBoolean()) null else 0xFF8A2C2C,
+                            sillMaterial = pick(listOf(null) + com.sagoma.planimetria.model.StairMaterial.entries),
+                            shading = pick(com.sagoma.planimetria.model.Shading.entries)!!, windowModel = pick(com.sagoma.planimetria.model.WindowModel.entries)!!,
+                            windowShape = pick(com.sagoma.planimetria.model.WindowShape.entries)!!, splay = if (rnd.nextBoolean()) 0.0 else rnd.nextDouble(0.0, 40.0),
+                            frame = pick(com.sagoma.planimetria.model.FramePosition.entries)!!, sash = pick(com.sagoma.planimetria.model.SashType.entries)!!,
+                        ),
+                    )
                 }
             },
             "impianto" to {
@@ -409,7 +430,9 @@ class EditorStressTest {
             val t0 = System.nanoTime()
             System.getenv("SAGOMA_STRESS_SLOW")?.let { dir -> File(dir, "ultimo.json").writeText(PlanJson.encode(b)) }
             val below = b.floors.take(b.current)
-            Scene3D.build(p, s.focusedRoomId, null, ceilings = false, levelHeight = s.levelHeight, below = below)
+            val scene = Scene3D.build(p, s.focusedRoomId, null, ceilings = false, levelHeight = s.levelHeight, below = below)
+            // Niente vertici fuori posto (un NaN fa sparire o sporcare tutta la vista 3D).
+            require(scene.opaque.all { it.isFinite() } && scene.transparent.all { it.isFinite() }) { "3D con numeri non finiti" }
             // Camminando: con il vano scala nel soffitto e il piano di sopra.
             Scene3D.build(p, s.focusedRoomId, null, ceilings = true, levelHeight = s.levelHeight, below = below, above = b.floors.getOrNull(b.current + 1))
             // Un 3D che ci mette troppo è un blocco dell'app: si salva il progetto per rifarlo.
@@ -418,7 +441,7 @@ class EditorStressTest {
                 if (seconds > 5) File(dir, "lento-${"%.0f".format(seconds)}s-${System.nanoTime()}.json").writeText(PlanJson.encode(b))
             }
             Collisions.of(p)
-            Takeoff.of(b)
+            Takeoff.csv(Takeoff.of(b))
             p.rooms.filter { it.outdoor }.forEach { Parapets.segments(p, it) }
             // Vuoti delle scale e loro ringhiere (anche con il pavimento sopra i primi gradini).
             for (st in p.stairs) {
