@@ -210,7 +210,7 @@ class PlanCheckTest {
         assertEquals(emptyList(), rules(bath.copy(ceilingHeight = 240.0)))
         val lowBath = rules(bath.copy(ceilingHeight = 230.0)).single()
         assertEquals("«Bagno»: soffitto a 2,30 m; in bagni e corridoi deve essere almeno a 2,40 m.", PlanCheck.describe(lowBath, Building.single(FloorPlan(listOf(bath)))))
-        // Mansarda (pareti tagliate dal tetto): l'altezza non si controlla, dipende dalle regole della regione.
+        // Mansarda (pareti tagliate dal tetto): non conta il soffitto più alto ma la media (prova sotto).
         assertTrue(rules(bedroom.copy(ceilingHeight = 200.0, wallCuts = mapOf(0 to com.sagoma.planimetria.model.WallCut(true, 100.0)), openings = listOf(window.copy(height = 160.0)))).none { it.kind == PlanCheck.Kind.LowCeiling })
         // Le norme vengono dopo gli errori e dopo le cose da controllare.
         val all = PlanCheck.of(Building.single(FloorPlan(listOf(bedroom, study, bedroom.copy(id = 9).moved(-100.0)))))
@@ -275,6 +275,26 @@ class PlanCheckTest {
         assertTrue(PlanCheck.of(Building.single(FloorPlan(listOf(bedroom, withWindow)))).none { it.kind == PlanCheck.Kind.BathNoWindow })
         val fixed = bath.copy(openings = listOf(Opening.default(2, OpeningKind.Window1, 0, 100.0).copy(sash = com.sagoma.planimetria.model.SashType.Fixed)))
         assertTrue(PlanCheck.of(Building.single(FloorPlan(listOf(bedroom, fixed)))).any { it.kind == PlanCheck.Kind.BathNoWindow })
+    }
+
+    @Test
+    fun `norme - mansarda bassa in media`() {
+        // Camera 500×400 con il muro 3 basso (140): il soffitto sale fino a 270 nei primi 250 cm. Dentro i muri da 30 la media è
+        // 2,39 m: bassa anche per le leggi sui sottotetti (2,40). Con il colmo a 300 la media è 2,62: va bene.
+        val window = Opening.default(1, OpeningKind.Window2, 1, 200.0).copy(width = 200.0, height = 160.0)
+        val attic = Room(1, "Camera", RoomType.Camera, RoomFactory.rectangle(500.0, 400.0), wallThickness = 30.0, openings = listOf(window),
+            wallHeights = mapOf(3 to 140.0), wallCuts = mapOf(0 to com.sagoma.planimetria.model.WallCut(false, 250.0), 2 to com.sagoma.planimetria.model.WallCut(true, 250.0)))
+        val b = Building.single(FloorPlan(listOf(attic)))
+        val low = rules(attic).single { it.kind == PlanCheck.Kind.LowAttic }
+        assertEquals(
+            "«Camera»: soffitto in pendenza alto in media 2,39 m. Per abitarci le leggi regionali sui sottotetti di solito chiedono una media di almeno 2,40 m (fuori dai sottotetti 2,70 m).",
+            PlanCheck.describe(low, b),
+        )
+        assertTrue(rules(attic.copy(ceilingHeight = 300.0)).none { it.kind == PlanCheck.Kind.LowAttic || it.kind == PlanCheck.Kind.LowCeiling })
+        // Un bagno o un ripostiglio in mansarda non si guardano; una stanza col soffitto piano ha già il suo controllo.
+        assertTrue(rules(attic.copy(type = RoomType.Bagno, name = "Bagno")).none { it.kind == PlanCheck.Kind.LowAttic })
+        assertTrue(rules(attic.copy(type = RoomType.Altro, name = "Ripostiglio")).none { it.kind == PlanCheck.Kind.LowAttic })
+        assertTrue(rules(attic.copy(wallCuts = emptyMap(), wallHeights = emptyMap(), ceilingHeight = 230.0)).none { it.kind == PlanCheck.Kind.LowAttic })
     }
 
     @Test

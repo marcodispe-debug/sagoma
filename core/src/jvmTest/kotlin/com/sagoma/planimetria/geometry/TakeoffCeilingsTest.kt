@@ -34,5 +34,9 @@ class TakeoffCeilingsTest {
         val k = sqrt(1 + 0.52 * 0.52)
         // 235 cm in pendenza (da 15 a 250) e 235 in piano (da 250 a 485), larghi 370.
         assertEquals((2.35 * 3.7 * k + 2.35 * 3.7), takeoff(r).ceilings, 1e-6)
+        // Altezza media: in pendenza da 147,8 (a 15 cm dal muro basso) a 270, poi 270 in piano, metà e metà.
+        assertEquals(((147.8 + 270.0) / 2 + 270.0) / 2, Ceilings.averageHeight(r), 1e-6)
+        assertEquals(270.0, Ceilings.averageHeight(room), 1e-9)
+        assertEquals(4.7 * 3.7 * Ceilings.averageHeight(r) / 100, Ceilings.volumeM3(r), 1e-6)
     }
 }

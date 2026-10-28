@@ -78,6 +78,7 @@ object PlanCheck {
         NoWindows(false, rule = true),
         NoFloorWindows(false, rule = true),
         LowCeiling(false, rule = true),
+        LowAttic(false, rule = true),
         SmallBedroom(false, rule = true),
         SmallLiving(false, rule = true),
         BathNoWindow(false, rule = true),
@@ -296,6 +297,7 @@ object PlanCheck {
             Kind.NoFloorWindows -> t.nessunaFinestra
             Kind.LowCeiling -> if (i.b < HousingRules.MIN_HEIGHT_LIVING_CM) t.soffittoBassoServizi(name(0), formatDecimal(i.a / 100, 2))
             else t.soffittoBasso(name(0), formatDecimal(i.a / 100, 2))
+            Kind.LowAttic -> t.mansardaBassa(name(0), formatDecimal(i.a / 100, 2))
             Kind.SmallBedroom -> if (i.b * 10_000 >= HousingRules.MIN_DOUBLE_BEDROOM_CM2) t.cameraPerDuePiccola(name(0), m2(i.a)) else t.cameraPiccola(name(0), m2(i.a))
             Kind.BathNoWindow -> t.bagnoSenzaFinestra(name(0))
             Kind.BathOnLiving -> t.bagnoSuCucina(name(0), name(1))
@@ -765,6 +767,10 @@ object PlanCheck {
                         else -> null
                     }
                     if (min != null && r.ceilingHeight.roundToInt() < min) add(Issue(Kind.LowCeiling, floor, listOf(r.id), box, a = r.ceilingHeight, b = min))
+                } else if (HousingRules.habitable(r.type)) {
+                    // Mansarda: conta l'altezza media (le regole cambiano da regione a regione: si avvisa solo sotto quella più comune).
+                    val average = Ceilings.averageHeight(r)
+                    if (average.roundToInt() < HousingRules.MIN_ATTIC_AVERAGE_CM) add(Issue(Kind.LowAttic, floor, listOf(r.id), box, a = average))
                 }
                 if (r.type == RoomType.Camera || r.type == RoomType.Cameretta) {
                     // Per due persone (letto matrimoniale, a castello o due letti) ne servono 14.

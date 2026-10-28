@@ -29,6 +29,12 @@ object HousingRules {
     const val MIN_HEIGHT_LIVING_CM = 270.0
     const val MIN_HEIGHT_SERVICE_CM = 240.0
 
+    /**
+     * Altezza media (cm) sotto cui una stanza da abitare in mansarda è bassa anche per le leggi regionali sui sottotetti: quasi tutte
+     * chiedono una media ponderale di almeno 2,40 m (qualcuna un po' meno, o in montagna).
+     */
+    const val MIN_ATTIC_AVERAGE_CM = 240.0
+
     /** Superficie minima (cm²) di una camera da letto per una persona, per due e del soggiorno. */
     const val MIN_BEDROOM_CM2 = 90_000.0
     const val MIN_DOUBLE_BEDROOM_CM2 = 140_000.0

@@ -68,6 +68,8 @@ object TestiControlloEs : TestiControllo() {
     override val nessunaFinestra: String get() = "No hay ninguna ventana en esta planta: añádelas y aquí se comprobarán la luz y el aire de las habitaciones."
     override fun soffittoBasso(a: String, h: String): String = "$a: techo a $h m; las estancias habitables necesitan al menos 2,70 m."
     override fun soffittoBassoServizi(a: String, h: String): String = "$a: techo a $h m; baños y pasillos necesitan al menos 2,40 m."
+    override fun mansardaBassa(a: String, h: String): String =
+        "$a: techo inclinado con una altura media de $h m. Para vivir en una buhardilla, las normas regionales suelen pedir una media de al menos 2,40 m (2,70 m fuera de las buhardillas)."
     override fun cameraPiccola(a: String, m2: String): String = "$a: $m2 m²; un dormitorio necesita al menos 9 (14 para dos personas)."
     override fun cameraPerDuePiccola(a: String, m2: String): String = "$a: $m2 m² con camas para dos personas; un dormitorio para dos necesita al menos 14."
     override fun soggiornoPiccolo(a: String, m2: String): String = "$a: $m2 m²; el salón necesita al menos 14."

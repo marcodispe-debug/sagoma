@@ -68,6 +68,8 @@ open class TestiControllo {
     open val nessunaFinestra: String get() = "Sul piano non c'è nessuna finestra: aggiungile, poi qui si controllano luce e aria delle stanze."
     open fun soffittoBasso(a: String, h: String): String = "$a: soffitto a $h m; nelle stanze da abitare deve essere almeno a 2,70 m."
     open fun soffittoBassoServizi(a: String, h: String): String = "$a: soffitto a $h m; in bagni e corridoi deve essere almeno a 2,40 m."
+    open fun mansardaBassa(a: String, h: String): String =
+        "$a: soffitto in pendenza alto in media $h m. Per abitarci le leggi regionali sui sottotetti di solito chiedono una media di almeno 2,40 m (fuori dai sottotetti 2,70 m)."
     open fun cameraPiccola(a: String, m2: String): String = "$a: $m2 m²; una camera da letto deve averne almeno 9 (14 se è per due persone)."
     open fun cameraPerDuePiccola(a: String, m2: String): String = "$a: $m2 m² con i letti per due persone; una camera per due deve averne almeno 14."
     open fun soggiornoPiccolo(a: String, m2: String): String = "$a: $m2 m²; il soggiorno deve averne almeno 14."
