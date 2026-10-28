@@ -234,7 +234,7 @@ object TestiCorsoFr : TestiCorso() {
     override val controlloMenu: String get() = "Avant de finir, une aide à utiliser souvent : la vérification du plan. Cliquez sur le menu « ⋮ » ici en haut."
     override val controlloVoce: String get() = "Cliquez sur « ${T.controllo.voceMenu} » : il cherche les erreurs de dessin qui passent souvent inaperçues."
     override val controlloChiudi: String get() =
-        "Voici ce qu'il faut corriger (⚠), ce qu'il faut vérifier (?) et les minimums des normes du logement (📏), par exemple les pièces qui n'ont pas encore de porte : « ${T.controllo.mostra} » amène au bon endroit et le sélectionne. " +
+        "Voici ce qu'il faut corriger (⚠), ce qu'il faut vérifier (?) et les minimums des normes du logement (📏), par exemple les pièces qui n'ont pas encore de porte : « ${T.controllo.mostra} » amène au bon endroit et le sélectionne, « ${T.controllo.condividi} » envoie la liste à qui vous aide. " +
             "Utilisez-le de temps en temps et avant d'exporter. Cliquez maintenant sur « ${T.controllo.chiudi} »."
     override val ricalca: String get() =
         "Vous avez déjà un plan, du cadastre, du projet ou même une simple photo ? Au choix de la première pièce d'un projet cliquez sur « ${cr.ricalcaPiantina} »."

@@ -8,7 +8,7 @@ object TestiControlloEn : TestiControllo() {
     override val nessunProblema: String get() = "No problems found."
     override val cosaControlla: String get() =
         "Looks for overlapping or almost touching rooms, crossing walls, doubled doors and windows, or ones wider or taller than the wall, " +
-            "rooms without a door, leaves that hit something when opening, the front door, the stairs and the legal minimums of the rooms (windows, heights, square metres)."
+            "rooms without a door, leaves that hit something when opening, the front door, the stairs, the systems and the legal minimums of the rooms (windows, heights, square metres)."
     override val spiega: String get() = "They can spoil areas, quantities and 3D. «Show» takes you there and selects it."
     override val daCorreggere: String get() = "To fix"
     override val daControllare: String get() = "To check"
@@ -41,6 +41,8 @@ object TestiControlloEn : TestiControllo() {
     override fun piccolissima(a: String, m2: String): String = "$a is tiny ($m2 m²): is it intended or a leftover piece?"
     override val scalaSenzaPiano: String get() = "The stairs go up, but there is no floor above: add the floor above or remove the stairs."
     override fun scalaFuori(piano: String): String = "The stairs arrive outside the rooms of the floor above ($piano)."
+    override fun senzaCalorifero(a: String): String = "$a: no radiator, while other rooms have one. If it is heated another way, that's fine."
+    override fun senzaAcqua(a: String): String = "$a: no water point, while other rooms have one."
     override fun scalaRipida(alzata: String, pedata: String?): String =
         "Steep stairs: risers of $alzata cm" + (pedata?.let { " and treads of $it cm" } ?: "") +
             ". To climb comfortably a riser is usually 18-20 cm at most and two risers plus a tread make 62-64 cm: add risers or choose a gentler slope (stairs Info → Steps)."

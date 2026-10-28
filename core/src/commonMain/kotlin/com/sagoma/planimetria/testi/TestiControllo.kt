@@ -7,7 +7,7 @@ open class TestiControllo {
     open val nessunProblema: String get() = "Nessun problema trovato."
     open val cosaControlla: String get() =
         "Cerca stanze sovrapposte o quasi attaccate, muri che si incrociano, porte e finestre doppie, più larghe del muro o più alte, " +
-            "stanze senza porta, ante che urtano aprendosi, la porta d'ingresso, le scale e i minimi di legge delle stanze (finestre, altezze, metri quadri)."
+            "stanze senza porta, ante che urtano aprendosi, la porta d'ingresso, le scale, gli impianti e i minimi di legge delle stanze (finestre, altezze, metri quadri)."
     open val spiega: String get() = "Possono sbagliare metri quadri, computo e 3D. «Mostra» porta lì e lo seleziona."
     open val daCorreggere: String get() = "Da correggere"
     open val daControllare: String get() = "Da controllare"
@@ -41,6 +41,8 @@ open class TestiControllo {
     open fun piccolissima(a: String, m2: String): String = "$a è piccolissima ($m2 m²): è voluta o è un pezzo rimasto?"
     open val scalaSenzaPiano: String get() = "La scala sale, ma sopra non c'è un piano: aggiungi il piano di sopra o togli la scala."
     open fun scalaFuori(piano: String): String = "La scala arriva fuori dalle stanze del piano di sopra ($piano)."
+    open fun senzaCalorifero(a: String): String = "$a: nessun calorifero, mentre altre stanze ce l'hanno. Se si scalda in un altro modo va bene così."
+    open fun senzaAcqua(a: String): String = "$a: nessun punto acqua, mentre altre stanze ce l'hanno."
     open fun scalaRipida(alzata: String, pedata: String?): String =
         "Scala ripida: alzate di $alzata cm" + (pedata?.let { " e pedate di $it cm" } ?: "") +
             ". Per salire comodi l'alzata di solito è al massimo 18-20 cm e due alzate più una pedata fanno 62-64 cm: aggiungi alzate o scegli una pendenza più dolce (Info della scala → Gradini)."

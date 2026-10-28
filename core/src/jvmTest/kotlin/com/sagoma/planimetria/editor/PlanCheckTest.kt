@@ -415,4 +415,42 @@ class PlanCheckTest {
         assertEquals("Norme per la casa (Italia)", titles.last())
         assertEquals(titles, lines.filter { it in titles })
     }
+
+    @Test
+    fun `caloriferi e punti acqua dove mancano`() {
+        val saved = com.sagoma.planimetria.model.FurnitureCatalog.items
+        try {
+            com.sagoma.planimetria.model.FurnitureCatalog.set(
+                listOf(com.sagoma.planimetria.model.FurnitureCatalog.Item(model = "termo", label = "Termoarredo", category = "Bagno", width = 50.0, depth = 10.0, height = 120.0)),
+            )
+            fun fx(id: Long, kind: com.sagoma.planimetria.model.FixtureKind) = com.sagoma.planimetria.model.Fixture.default(id, kind)
+            val radiator = fx(1, com.sagoma.planimetria.model.FixtureKind.Radiator)
+            val water = fx(2, com.sagoma.planimetria.model.FixtureKind.WaterPoint)
+            val living = rect(1, "Soggiorno", RoomType.Soggiorno, 500.0, 400.0, openings = listOf(entrance))
+            val kitchen = rect(2, "Cucina", RoomType.Cucina, 300.0, 400.0, Vec2(500.0, 0.0))
+            val bath = rect(3, "Bagno", RoomType.Bagno, 200.0, 250.0, Vec2(800.0, 0.0))
+            val corridor = rect(4, "Corridoio", RoomType.Corridoio, 300.0, 120.0, Vec2(0.0, 400.0))
+            fun kinds(vararg r: Room, furniture: List<com.sagoma.planimetria.model.Furniture> = emptyList()) =
+                PlanCheck.of(Building.single(FloorPlan(r.toList(), furniture = furniture)))
+                    .filter { it.kind == PlanCheck.Kind.NoHeating || it.kind == PlanCheck.Kind.NoWater }.map { it.kind to it.rooms.single() }
+            // Senza caloriferi né punti acqua in tutta la casa non si guarda.
+            assertEquals(emptyList(), kinds(living, kitchen, bath, corridor))
+            // Un calorifero nel soggiorno: mancano in cucina e bagno (il corridoio no). Un punto acqua in cucina: manca nel bagno.
+            val out = kinds(living.copy(fixtures = listOf(radiator)), kitchen.copy(fixtures = listOf(water)), bath, corridor)
+            assertEquals(listOf(PlanCheck.Kind.NoHeating to 2L, PlanCheck.Kind.NoHeating to 3L, PlanCheck.Kind.NoWater to 3L), out)
+            assertEquals(
+                "«Cucina»: nessun calorifero, mentre altre stanze ce l'hanno. Se si scalda in un altro modo va bene così.",
+                PlanCheck.describe(PlanCheck.Issue(PlanCheck.Kind.NoHeating, 0, listOf(2L), com.sagoma.planimetria.geometry.Bounds(0.0, 0.0, 1.0, 1.0)), Building.single(FloorPlan(listOf(kitchen)))),
+            )
+            // Cucina a vista (muro in comune tolto): il calorifero del soggiorno scalda anche lei. Il termoarredo scalda il bagno.
+            val towel = com.sagoma.planimetria.model.Furniture(1, "termo", Vec2(900.0, 100.0), width = 50.0, depth = 10.0, height = 120.0)
+            val open = kinds(
+                living.copy(fixtures = listOf(radiator), removedWalls = setOf(1)), kitchen.copy(removedWalls = setOf(3)), bath, corridor,
+                furniture = listOf(towel),
+            )
+            assertEquals(emptyList(), open)
+        } finally {
+            com.sagoma.planimetria.model.FurnitureCatalog.set(saved)
+        }
+    }
 }

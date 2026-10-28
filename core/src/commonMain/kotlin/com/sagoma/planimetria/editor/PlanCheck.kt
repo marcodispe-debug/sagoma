@@ -72,6 +72,8 @@ object PlanCheck {
         SwingClash(false),
         SwingHitsThing(false),
         SwingHitsWall(false),
+        NoHeating(false),
+        NoWater(false),
         FewWindows(false, rule = true),
         NoWindows(false, rule = true),
         NoFloorWindows(false, rule = true),
@@ -142,12 +144,15 @@ object PlanCheck {
         var outside = false
         var anyIndoor = false
         var doorless = false
-        val wired = ElectricRules.wired(b.floors.flatMap { it.plan.rooms })
+        val allRooms = b.floors.flatMap { it.plan.rooms }
+        val wired = ElectricRules.wired(allRooms)
+        val heated = allRooms.any { r -> r.fixtures.any { it.kind == FixtureKind.Radiator } }
+        val plumbed = allRooms.any { r -> r.fixtures.any { it.kind == FixtureKind.WaterPoint } }
         for ((f, floor) in b.floors.withIndex()) {
             val plan = sane(floor.plan)
             val below = b.floors.getOrNull(f - 1)
             val above = b.floors.getOrNull(f + 1)
-            FloorCheck(plan, f, out, wired).run {
+            FloorCheck(plan, f, out, wired, heated, plumbed).run {
                 walls()
                 pairs()
                 openings()
@@ -155,6 +160,7 @@ object PlanCheck {
                 doors(below?.let { sane(it.plan) to it.levelHeight }, floor.levelHeight)
                 stairs(floor.levelHeight, above?.let { sane(it.plan) }, f == b.floors.lastIndex)
                 rules()
+                systems()
                 if (leadsOutside) outside = true
                 if (noDoors) doorless = true
             }
@@ -271,6 +277,8 @@ object PlanCheck {
             Kind.TinyRoom -> t.piccolissima(name(0), formatDecimal(i.a, 2))
             Kind.StairNoFloor -> t.scalaSenzaPiano
             Kind.StairOutside -> t.scalaFuori(b.floors.getOrNull(i.floor + 1)?.name ?: "")
+            Kind.NoHeating -> t.senzaCalorifero(name(0))
+            Kind.NoWater -> t.senzaAcqua(name(0))
             Kind.StairSteep -> t.scalaRipida(cm1(i.a), if (i.b > 0) cm1(i.b) else null)
             Kind.StairNarrow -> t.scalaStretta(cm(i.a))
             Kind.StairLowHead -> t.scalaTestaBassa(cm(i.a))
@@ -353,8 +361,18 @@ object PlanCheck {
         return if (t > eps && t < 1 - eps && u > eps && u < 1 - eps) a + r * t else null
     }
 
-    /** Controlli di un piano. `wired`: nella casa ci sono delle prese, si guarda anche l'impianto elettrico. */
-    private class FloorCheck(val plan: FloorPlan, val floor: Int, val out: MutableList<Issue>, val wired: Boolean = false) {
+    /**
+     * Controlli di un piano. `wired`: nella casa ci sono delle prese, si guarda anche l'impianto elettrico; `heated`, `plumbed`: ci
+     * sono caloriferi o punti acqua, si guarda dove mancano.
+     */
+    private class FloorCheck(
+        val plan: FloorPlan,
+        val floor: Int,
+        val out: MutableList<Issue>,
+        val wired: Boolean = false,
+        val heated: Boolean = false,
+        val plumbed: Boolean = false,
+    ) {
         val expanded = plan.expandCurves().plan
         val rooms = plan.rooms
         val boxes: Map<Long, Bounds> = rooms.associate { it.id to Polygon.bounds(it.points) }
@@ -623,6 +641,28 @@ object PlanCheck {
             val (a, b) = Openings.span(other, o)
             val len = a.distanceTo(b)
             return (0 until r.wallCount).any { j -> Dimensions.overlap(a, b, r.wallStart(j), r.wallEnd(j)) >= 0.5 * len }
+        }
+
+        /**
+         * Impianti a metà, solo se nella casa si stanno mettendo: stanze da abitare e bagni senza calorifero (né termoarredo; il
+         * soggiorno con la cucina a vista ne vuole uno in tutto l'ambiente), cucine e bagni senza punto acqua.
+         */
+        fun systems() {
+            if (!heated && !plumbed) return
+            fun has(r: Room, k: FixtureKind) = r.fixtures.any { it.kind == k }
+            for (r in rooms) {
+                if (full()) return
+                if (r.outdoor || r.id in crossed || HousingRules.demolished(r) || r.points.size < 3) continue
+                val box = boxes.getValue(r.id).grow(60.0)
+                if (heated && (HousingRules.habitable(r.type) || r.type == RoomType.Bagno)) {
+                    val space = HousingRules.space(plan, r)
+                    val warm = space.any { s -> has(s, FixtureKind.Radiator) || HousingRules.towelWarmer(plan, s) }
+                    if (!warm) add(Issue(Kind.NoHeating, floor, listOf(r.id), box))
+                }
+                if (plumbed && (r.type == RoomType.Cucina || r.type == RoomType.Bagno) && !has(r, FixtureKind.WaterPoint)) {
+                    add(Issue(Kind.NoWater, floor, listOf(r.id), box))
+                }
+            }
         }
 
         /**

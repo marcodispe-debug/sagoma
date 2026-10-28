@@ -8,7 +8,7 @@ object TestiControlloEs : TestiControllo() {
     override val nessunProblema: String get() = "No se encontraron problemas."
     override val cosaControlla: String get() =
         "Busca habitaciones superpuestas o casi pegadas, paredes que se cruzan, puertas y ventanas duplicadas, más anchas o más altas que la pared, " +
-            "habitaciones sin puerta, hojas que chocan al abrirse, la puerta de entrada, las escaleras y los mínimos legales de las habitaciones (ventanas, alturas, metros cuadrados)."
+            "habitaciones sin puerta, hojas que chocan al abrirse, la puerta de entrada, las escaleras, las instalaciones y los mínimos legales de las habitaciones (ventanas, alturas, metros cuadrados)."
     override val spiega: String get() = "Pueden estropear superficies, mediciones y 3D. «Mostrar» lleva allí y lo selecciona."
     override val daCorreggere: String get() = "Para corregir"
     override val daControllare: String get() = "Para revisar"
@@ -41,6 +41,8 @@ object TestiControlloEs : TestiControllo() {
     override fun piccolissima(a: String, m2: String): String = "$a es diminuta ($m2 m²): ¿es intencionado o un trozo olvidado?"
     override val scalaSenzaPiano: String get() = "La escalera sube, pero arriba no hay ninguna planta: añade la planta de arriba o quita la escalera."
     override fun scalaFuori(piano: String): String = "La escalera llega fuera de las habitaciones de la planta de arriba ($piano)."
+    override fun senzaCalorifero(a: String): String = "$a: ningún radiador, mientras otras habitaciones lo tienen. Si se calienta de otra forma, está bien."
+    override fun senzaAcqua(a: String): String = "$a: ningún punto de agua, mientras otras habitaciones lo tienen."
     override fun scalaRipida(alzata: String, pedata: String?): String =
         "Escalera empinada: contrahuellas de $alzata cm" + (pedata?.let { " y huellas de $it cm" } ?: "") +
             ". Para subir cómodos la contrahuella suele ser de 18-20 cm como mucho y dos contrahuellas más una huella suman 62-64 cm: añade peldaños o elige una pendiente más suave (Info de la escalera → Peldaños)."

@@ -8,7 +8,7 @@ object TestiControlloFr : TestiControllo() {
     override val nessunProblema: String get() = "Aucun problème trouvé."
     override val cosaControlla: String get() =
         "Cherche les pièces superposées ou presque collées, les murs qui se croisent, les portes et fenêtres en double, plus larges ou plus hautes que le mur, " +
-            "les pièces sans porte, les vantaux qui heurtent quelque chose en s'ouvrant, la porte d'entrée, les escaliers et les minimums légaux des pièces (fenêtres, hauteurs, mètres carrés)."
+            "les pièces sans porte, les vantaux qui heurtent quelque chose en s'ouvrant, la porte d'entrée, les escaliers, les installations et les minimums légaux des pièces (fenêtres, hauteurs, mètres carrés)."
     override val spiega: String get() = "Ils peuvent fausser surfaces, métré et 3D. « Afficher » y amène et le sélectionne."
     override val daCorreggere: String get() = "À corriger"
     override val daControllare: String get() = "À vérifier"
@@ -41,6 +41,8 @@ object TestiControlloFr : TestiControllo() {
     override fun piccolissima(a: String, m2: String): String = "$a est minuscule ($m2 m²) : est-ce voulu ou un morceau oublié ?"
     override val scalaSenzaPiano: String get() = "L'escalier monte, mais il n'y a pas d'étage au-dessus : ajoutez l'étage supérieur ou supprimez l'escalier."
     override fun scalaFuori(piano: String): String = "L'escalier arrive hors des pièces de l'étage supérieur ($piano)."
+    override fun senzaCalorifero(a: String): String = "$a : aucun radiateur, alors que d'autres pièces en ont. Si elle est chauffée autrement, c'est bon."
+    override fun senzaAcqua(a: String): String = "$a : aucun point d'eau, alors que d'autres pièces en ont."
     override fun scalaRipida(alzata: String, pedata: String?): String =
         "Escalier raide : contremarches de $alzata cm" + (pedata?.let { " et girons de $it cm" } ?: "") +
             ". Pour monter confortablement, la contremarche fait d'habitude 18-20 cm au plus et deux contremarches plus un giron font 62-64 cm : ajoutez des marches ou choisissez une pente plus douce (Infos de l'escalier → Marches)."

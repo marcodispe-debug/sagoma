@@ -190,6 +190,13 @@ object HousingRules {
         }
     }
 
+    /** Nella stanza c'è un termoarredo (scaldasalviette) del catalogo: scalda come un calorifero. */
+    fun towelWarmer(plan: FloorPlan, room: Room): Boolean {
+        val inside = room.interior()
+        if (inside.size < 3) return false
+        return plan.furniture.any { f -> FurnitureCatalog.item(f.model)?.label?.startsWith("Termoarredo") == true && Polygon.contains(inside, f.center) }
+    }
+
     /** Sanitari nella stanza: gli arredi col centro dentro. */
     fun sanitaries(plan: FloorPlan, room: Room): Set<Sanitary> {
         val inside = room.interior()
