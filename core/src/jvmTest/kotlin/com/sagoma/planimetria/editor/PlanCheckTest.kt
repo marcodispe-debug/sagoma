@@ -89,6 +89,14 @@ class PlanCheckTest {
         val zero = check(dup, kitchen).single { it.kind == PlanCheck.Kind.ZeroWall }
         assertEquals(Selection.Wall(1, 1), zero.selection)
         assertTrue(PlanCheck.describe(zero, Building.single(FloorPlan(listOf(dup)))).contains("«Unisci al muro dopo»"))
+        // «Correggi»: l'angolo doppio sparisce, la porta del muro lungo zero resta.
+        assertTrue(PlanCheck.canFix(zero))
+        val joined = assertNotNull(PlanCheck.fixed(Building.single(FloorPlan(listOf(dup, kitchen))), zero)).floors[0].plan.rooms[0]
+        assertEquals(living.points, joined.points)
+        assertEquals(3, joined.openings.size)
+        // La porta sul muro lungo zero è anche «troppo larga»: lì si corregge il muro, non la porta.
+        assertTrue(!PlanCheck.canFix(check(dup, kitchen).single { it.kind == PlanCheck.Kind.OpeningTooWide }))
+        assertTrue(check(joined, kitchen).none { it.kind == PlanCheck.Kind.ZeroWall })
     }
 
     @Test
@@ -97,6 +105,15 @@ class PlanCheckTest {
         val twice = kitchen.copy(openings = kitchen.openings + Opening.default(6, OpeningKind.Door, 3, 150.0))
         val d = check(living, twice).single { it.kind == PlanCheck.Kind.DoubleOpening }
         assertEquals(Selection.Opening(2, 6), d.selection)
+        // «Correggi» toglie la seconda (quella della cucina); la prima resta.
+        assertTrue(PlanCheck.canFix(d))
+        val once = assertNotNull(PlanCheck.fixed(Building.single(FloorPlan(listOf(living, twice))), d)).floors[0].plan
+        assertEquals(kitchen.openings, once.rooms[1].openings)
+        assertEquals(living.openings, once.rooms[0].openings)
+        // Una porta e una finestra nello stesso punto: quale togliere lo sceglie chi disegna.
+        val mixed = kitchen.copy(openings = kitchen.openings + Opening.default(6, OpeningKind.Window1, 3, 150.0).copy(sillHeight = 0.0, height = 200.0))
+        val dm = check(living, mixed).single { it.kind == PlanCheck.Kind.DoubleOpening }
+        assertTrue(!PlanCheck.canFix(dm))
         // Finestra sopra la porta (sopraluce): non è doppia.
         val above = kitchen.copy(openings = kitchen.openings + Opening(6, OpeningKind.Window1, 3, 150.0, 80.0, 40.0, sillHeight = 220.0))
         assertTrue(check(living, above).none { it.kind == PlanCheck.Kind.DoubleOpening })

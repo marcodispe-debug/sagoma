@@ -212,6 +212,9 @@ object PlanCheck {
         }
     }
 
+    /** «Correggi» non fa porte e finestre più strette o più basse di così (cm). */
+    private const val MIN_FIXED_OPENING_CM = 20.0
+
     /** Coppie di muri da provare per due stanze vicine, al massimo. */
     private const val MAX_WALL_PAIRS = 200_000
 
@@ -219,17 +222,24 @@ object PlanCheck {
     private fun passable(k: OpeningKind) = k == OpeningKind.Door || k == OpeningKind.Door2 || k == OpeningKind.Passage ||
         k == OpeningKind.Balcony1 || k == OpeningKind.Balcony2 || k == OpeningKind.FrenchDoor
 
-    /** Problemi che [fixed] sa correggere da solo: solo per questi c'è «Correggi». */
+    /**
+     * Problemi che [fixed] sa correggere da solo: solo per questi c'è «Correggi». La stessa apertura messa due volte solo se le due
+     * sono dello stesso tipo (una porta e una finestra nello stesso punto: quale togliere lo sceglie chi disegna). L'apertura su un
+     * muro lungo quasi zero no: si corregge il muro (l'apertura passa su quello dopo).
+     */
     fun canFix(i: Issue): Boolean = when (i.kind) {
         Kind.FurnitureInWall -> i.b == 0.0
-        Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.OpeningTooWide -> true
+        Kind.DoubleOpening -> i.opening != null && i.opening == i.opening2
+        Kind.OpeningTooWide -> i.b >= MIN_FIXED_OPENING_CM
+        Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall -> true
         else -> false
     }
 
     /**
      * La casa con il problema `i` corretto, o null se non si riesce da soli (o la correzione non lo toglie, o non c'è più): il
      * mobile dentro un muro torna fino alla parete; l'impianto più alto del muro si abbassa; la porta o la finestra più alta del
-     * muro si accorcia, quella più larga del muro si stringe a quanto se ne vede.
+     * muro si accorcia, quella più larga del muro si stringe a quanto se ne vede; quella messa due volte resta una sola; il muro
+     * lungo zero si unisce al muro dopo (come «Unisci al muro dopo»).
      */
     fun fixed(b: Building, i: Issue): Building? {
         if (!canFix(i)) return null
@@ -237,6 +247,14 @@ object PlanCheck {
         fun Room.with(o: Opening) = copy(openings = openings.map { if (it.id == o.id) o else it })
         val out: FloorPlan = when (i.kind) {
             Kind.FurnitureInWall -> i.furniture?.let { pushedOut(plan, it) }
+            Kind.ZeroWall -> (i.selection as? Selection.Wall)?.let { s ->
+                val r = plan.room(s.roomId)?.takeIf { s.index in 0 until it.wallCount } ?: return null
+                r.removeCorner((s.index + 1) % r.wallCount)?.let(plan::replace)
+            }
+            Kind.DoubleOpening -> (i.selection as? Selection.Opening)?.let { s ->
+                val r = plan.room(s.roomId) ?: return null
+                if (r.openings.none { it.id == s.openingId }) null else plan.replace(r.copy(openings = r.openings.filter { it.id != s.openingId }))
+            }
             Kind.FixtureOverWall -> (i.selection as? Selection.Fixture)?.let { s ->
                 val r = plan.room(s.roomId) ?: return null
                 val f = r.fixtures.firstOrNull { it.id == s.fixtureId } ?: return null
@@ -249,12 +267,12 @@ object PlanCheck {
                 val o = r.openings.firstOrNull { it.id == s.openingId } ?: return null
                 val fixedOpening = if (i.kind == Kind.OpeningOverWall) {
                     val h = kotlin.math.floor(i.b - o.bottom)
-                    if (h < 20) null else o.copy(height = h)
+                    if (h < MIN_FIXED_OPENING_CM) null else o.copy(height = h)
                 } else {
                     // Larga quanto la parte che si vede (tutto il muro), con il centro lì.
                     val len = r.wallLength(o.wallIndex)
                     val w = kotlin.math.floor(min(o.width, len))
-                    if (w < 20) null else o.copy(width = w, position = Openings.clampPosition(len, w, o.position))
+                    if (w < MIN_FIXED_OPENING_CM) null else o.copy(width = w, position = Openings.clampPosition(len, w, o.position))
                 }
                 fixedOpening?.let { plan.replace(r.with(it)) }
             }
@@ -699,6 +717,7 @@ object PlanCheck {
                     Issue(
                         Kind.DoubleOpening, floor, listOfNotNull(x.room.id, y.room.id.takeIf { it != x.room.id }),
                         boundsOf(listOf(x.a, x.b, y.a, y.b)).grow(80.0), Selection.Opening(y.room.id, y.o.id), opening = y.o.kind,
+                        opening2 = x.o.kind,
                     ),
                 )
             }
