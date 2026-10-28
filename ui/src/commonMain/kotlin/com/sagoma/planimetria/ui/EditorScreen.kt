@@ -64,6 +64,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -178,6 +179,16 @@ fun EditorScreen(
         liveNotice = fresh ?: still
         // Nella scheda di un «!» restano i problemi che ci sono ancora; un errore appena fatto la chiude.
         openMark = if (fresh != null) null else openMark?.mapNotNull { LiveCheck.stillThere(it, now) }?.takeIf { it.isNotEmpty() }
+    }
+    // «Correggi» nell'avviso: per i problemi da provare prima ([PlanCheck.triesFirst], come le stanze sovrapposte) solo se
+    // correggerli riesce davvero (si prova fuori dal filo della pianta).
+    val noticeFixable by produceState(false, liveNotice, liveBuilding) {
+        val n = liveNotice
+        value = when {
+            n == null || !PlanCheck.canFix(n) -> false
+            !PlanCheck.triesFirst(n) -> true
+            else -> withContext(Dispatchers.Default) { runCatching { PlanCheck.canFix(liveBuilding, n) }.getOrDefault(false) }
+        }
     }
     LaunchedEffect(liveNotice?.let(LiveCheck::key)) {
         if (liveNotice == null) return@LaunchedEffect
@@ -639,7 +650,7 @@ fun EditorScreen(
                 LiveCheckNotice(
                     n, liveBuilding,
                     onShow = { liveNotice = null; vm.showIssue(n) },
-                    onFix = if (PlanCheck.canFix(n)) {
+                    onFix = if (noticeFixable) {
                         { liveNotice = null; if (!vm.fixIssue(n)) platform.toast(T.controllo.nonSiCorregge) }
                     } else null,
                     onClose = { liveNotice = null },

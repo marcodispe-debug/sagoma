@@ -2,6 +2,8 @@ package com.sagoma.planimetria.editor
 
 import com.sagoma.planimetria.geometry.RoomFactory
 import com.sagoma.planimetria.model.Building
+import com.sagoma.planimetria.model.Fixture
+import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
@@ -61,6 +63,54 @@ class PlanCheckTest {
         // Una stanza disegnata dentro un'altra.
         val closet = rect(3, "Ripostiglio", RoomType.Altro, 100.0, 100.0, Vec2(100.0, 100.0), openings = listOf(Opening.default(5, OpeningKind.Door, 0, 50.0)))
         assertEquals(listOf(3L, 1L), check(living, kitchen, closet).single { it.kind == PlanCheck.Kind.Overlap }.rooms)
+    }
+
+    @Test
+    fun `Correggi - stanza sovrapposta spostata fuori`() {
+        // La cucina trascinata di un metro dentro il soggiorno, con la sua plafoniera: torna al muro in comune, con la luce.
+        val lamp = Fixture.default(9, FixtureKind.CeilingLight).copy(point = Vec2(450.0, 150.0))
+        val over = kitchen.copy(fixtures = listOf(lamp)).moved(-100.0)
+        val b = Building.single(FloorPlan(listOf(living, over)))
+        val o = PlanCheck.of(b).single { it.kind == PlanCheck.Kind.Overlap }
+        assertTrue(PlanCheck.triesFirst(o))
+        assertTrue(PlanCheck.canFix(b, o))
+        val back = assertNotNull(PlanCheck.fixed(b, o)).floors[0].plan.rooms
+        assertEquals(living, back[0])
+        assertEquals(kitchen.points, back[1].points)
+        assertEquals(Vec2(550.0, 150.0), back[1].fixtures.single().point)
+        assertEquals(emptyList(), check(*back.toTypedArray()))
+        // Già corretto (l'elenco era vecchio): niente.
+        assertNull(PlanCheck.fixed(Building.single(FloorPlan(back)), o))
+        // Con il bagno attaccato alla cucina dall'altra parte (cucina e bagno stanno insieme): si sposta il soggiorno.
+        val bath = rect(3, "Bagno", RoomType.Bagno, 200.0, 300.0, Vec2(600.0, 0.0))
+        val three = Building.single(FloorPlan(listOf(living, over, bath)))
+        val o3 = PlanCheck.of(three).single { it.kind == PlanCheck.Kind.Overlap }
+        val left = assertNotNull(PlanCheck.fixed(three, o3)).floors[0].plan.rooms
+        assertEquals(-100.0, left[0].points.minOf { it.x }, 1e-9)
+        assertEquals(300.0, left[0].points.maxOf { it.x }, 1e-9)
+        assertEquals(listOf(over, bath), left.drop(1))
+        assertTrue(check(*left.toTypedArray()).none { it.kind.error })
+        // E con un ripostiglio attaccato al soggiorno a sinistra nessuna delle due si può spostare: la cucina si accorcia fino al muro.
+        val store = rect(4, "Ripostiglio", RoomType.Altro, 100.0, 300.0, Vec2(-100.0, 0.0))
+        val four = Building.single(FloorPlan(listOf(living, over, bath, store)))
+        val o4 = PlanCheck.of(four).single { it.kind == PlanCheck.Kind.Overlap }
+        val shrunk = assertNotNull(PlanCheck.fixed(four, o4)).floors[0].plan.rooms
+        assertEquals(living, shrunk[0])
+        assertEquals(400.0, shrunk[1].points.minOf { it.x }, 1e-9)
+        assertEquals(600.0, shrunk[1].points.maxOf { it.x }, 1e-9)
+        assertTrue(check(*shrunk.toTypedArray()).none { it.kind.error })
+        // Sovrapposta in un angolo: si sposta dalla parte dove va meno (qui in giù di 40 cm, non a destra di 100).
+        val corner = Building.single(FloorPlan(listOf(living, kitchen.moved(-100.0, 260.0))))
+        val oc = PlanCheck.of(corner).single { it.kind == PlanCheck.Kind.Overlap }
+        val down = assertNotNull(PlanCheck.fixed(corner, oc)).floors[0].plan.rooms[1]
+        assertEquals(300.0, down.points.minOf { it.y }, 1e-9)
+        assertEquals(300.0, down.points.minOf { it.x }, 1e-9)
+        // Il ripostiglio disegnato dentro il soggiorno: non si sa dove va, niente «Correggi».
+        val closet = rect(3, "Ripostiglio", RoomType.Altro, 100.0, 100.0, Vec2(100.0, 100.0), openings = listOf(Opening.default(5, OpeningKind.Door, 0, 50.0)))
+        val inside = Building.single(FloorPlan(listOf(living, kitchen, closet)))
+        val oi = PlanCheck.of(inside).single { it.kind == PlanCheck.Kind.Overlap }
+        assertNull(PlanCheck.fixed(inside, oi))
+        assertEquals(false, PlanCheck.canFix(inside, oi))
     }
 
     @Test

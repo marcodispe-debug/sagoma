@@ -227,19 +227,23 @@ object PlanCheck {
     /**
      * Problemi che [fixed] sa correggere da solo: solo per questi c'è «Correggi». La stessa apertura messa due volte solo se le due
      * sono dello stesso tipo (una porta e una finestra nello stesso punto: quale togliere lo sceglie chi disegna). L'apertura su un
-     * muro lungo quasi zero no: si corregge il muro (l'apertura passa su quello dopo). Le ante che urtano qui sì, ma girarle
-     * non sempre basta: [canFix] con la casa lo prova ([triesFirst]).
+     * muro lungo quasi zero no: si corregge il muro (l'apertura passa su quello dopo). Le ante che urtano e le stanze sovrapposte
+     * qui sì, ma girarle o spostarle non sempre basta: [canFix] con la casa lo prova ([triesFirst]).
      */
     fun canFix(i: Issue): Boolean = when (i.kind) {
         Kind.FurnitureInWall -> i.b == 0.0
         Kind.DoubleOpening -> i.opening != null && i.opening == i.opening2
         Kind.OpeningTooWide -> i.b >= MIN_FIXED_OPENING_CM
         Kind.FixtureOverWall, Kind.OpeningOverWall, Kind.ZeroWall, Kind.NearWalls, Kind.OpeningOnRemovedWall -> true
+        Kind.Overlap -> i.rooms.size == 2
         Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall -> i.selection is Selection.Opening
         else -> false
     }
 
     private val SWINGS = setOf(Kind.SwingClash, Kind.SwingHitsThing, Kind.SwingHitsWall)
+
+    /** Problemi con [Issue.rooms] che dicono di quali stanze si parla (non cosa selezionare): corretti quando tra loro non c'è più. */
+    private val BETWEEN_ROOMS = setOf(Kind.NearWalls, Kind.Overlap)
 
     /**
      * Chiave del problema `i` tra quelli tolti dalla pianta ([Building.hiddenChecks]): tipo, piano (il suo id, che non cambia
@@ -296,10 +300,13 @@ object PlanCheck {
         return c.takeIf { it.ok() }?.let { Spot(it, room = true) }
     }
 
-    /** Problemi che prima di offrire «Correggi» si prova a correggere davvero ([canFix] con la casa): le ante che urtano. */
-    fun triesFirst(i: Issue): Boolean = i.kind in SWINGS && canFix(i)
+    /**
+     * Problemi che prima di offrire «Correggi» si prova a correggere davvero ([canFix] con la casa): le ante che urtano e le stanze
+     * sovrapposte.
+     */
+    fun triesFirst(i: Issue): Boolean = (i.kind in SWINGS || i.kind == Kind.Overlap) && canFix(i)
 
-    /** Come [canFix], ma le ante che urtano si provano a girare (si fa in fretta): «Correggi» solo se serve a qualcosa. */
+    /** Come [canFix], ma le ante che urtano e le stanze sovrapposte si provano a correggere: «Correggi» solo se serve a qualcosa. */
     fun canFix(b: Building, i: Issue): Boolean = canFix(i) && (!triesFirst(i) || fixed(b, i) != null)
 
     /**
@@ -308,8 +315,8 @@ object PlanCheck {
      * muro si accorcia, quella più larga del muro si stringe a quanto se ne vede; quella messa due volte resta una sola, quella su
      * un muro tolto (lato aperto) si toglie; il muro lungo zero si unisce al muro dopo (come «Unisci al muro dopo»); il muro
      * della stanza quasi attaccata a un'altra va sulla linea del muro dell'altra e diventa un muro in comune (come trascinarlo
-     * lì); l'anta che urta si gira ([swingFixes]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta
-     * che urta altro) non si fa.
+     * lì); delle due stanze sovrapposte una si sposta fuori dall'altra fino al muro in comune, o se no si accorcia
+     * ([overlapFixes]); l'anta che urta si gira ([swingFixes]). Una correzione che crea un errore di disegno nuovo (o, per le ante, un'anta che urta altro) non si fa.
      */
     fun fixed(b: Building, i: Issue): Building? {
         if (!canFix(i)) return null
@@ -318,7 +325,7 @@ object PlanCheck {
         fun Room.with(o: Opening) = copy(openings = openings.map { if (it.id == o.id) o else it })
         val single: FloorPlan? = when (i.kind) {
             Kind.FurnitureInWall -> i.furniture?.let { pushedOut(plan, it) }
-            Kind.NearWalls -> null
+            Kind.NearWalls, Kind.Overlap -> null
             Kind.ZeroWall -> (i.selection as? Selection.Wall)?.let { s ->
                 val r = plan.room(s.roomId)?.takeIf { s.index in 0 until it.wallCount } ?: return null
                 r.removeCorner((s.index + 1) % r.wallCount)?.let(plan::replace)
@@ -351,19 +358,31 @@ object PlanCheck {
             }
         }
         // Già corretto (l'elenco era vecchio): niente da fare. Una correzione che crea un errore di disegno nuovo non va.
-        val candidates = (if (i.kind == Kind.NearWalls) nearFixes(plan, i) else listOfNotNull(single)).filter { it != plan }
-        if (candidates.isEmpty()) return null
-        val before = of(b)
-        for (out in candidates) {
+        val before by lazy { of(b) }
+        fun accepted(out: FloorPlan): Pair<Building, List<Issue>>? {
+            if (out == plan) return null
             val result = b.copy(floors = b.floors.mapIndexed { k, f -> if (k == i.floor) f.copy(plan = out).synced() else f })
             val after = of(result)
             val gone = after.none { x ->
                 x.kind == i.kind && x.floor == i.floor &&
-                    (if (i.kind == Kind.NearWalls) x.rooms.toSet() == i.rooms.toSet() else x.selection == i.selection)
+                    (if (i.kind in BETWEEN_ROOMS) x.rooms.toSet() == i.rooms.toSet() else x.selection == i.selection)
             }
-            if (gone && LiveCheck.newErrors(before, after).isEmpty()) return result
+            return if (gone && LiveCheck.newErrors(before, after).isEmpty()) result to after else null
         }
-        return null
+        if (i.kind == Kind.Overlap) {
+            // Tra gli spostamenti che vanno, quello con meno problemi nuovi e poi con la stanza spostata che si attacca di più alle
+            // altre (di solito è quella trascinata per sbaglio che torna al suo posto; una spinta via dal suo posto se ne stacca);
+            // accorciare una stanza solo se spostarla non va.
+            val keys by lazy { before.mapTo(HashSet()) { LiveCheck.key(it) } }
+            return overlapFixes(plan, i).mapNotNull { fix -> accepted(fix.plan)?.let { (result, after) -> Triple(fix, result, after.count { LiveCheck.key(it) !in keys }) } }
+                .minWithOrNull(
+                    compareBy<Triple<OverlapFix, Building, Int>> { it.first.shrink }.thenBy { it.third }
+                        .thenByDescending { contact(it.first.plan, it.first.room) - contact(plan, it.first.room) },
+                )
+                ?.second
+        }
+        val candidates = if (i.kind == Kind.NearWalls) nearFixes(plan, i) else listOfNotNull(single)
+        return candidates.firstNotNullOfOrNull { accepted(it)?.first }
     }
 
     /**
@@ -433,6 +452,88 @@ object PlanCheck {
             }?.let { j -> plan.replace(o.copy(points = Snapping.moveWall(o.points, j, o.outwardOf(j) * i.b))) }
         }
         return listOfNotNull(mine, theirs)
+    }
+
+    /** Stanze sovrapposte per tanto (della più piccola): una sta dentro l'altra, «Correggi» non c'è. */
+    private const val INSIDE_SHARE = 0.9
+
+    /** Una correzione delle stanze sovrapposte: la pianta, la stanza spostata e se invece è stata accorciata. */
+    private class OverlapFix(val plan: FloorPlan, val room: Long, val shrink: Boolean)
+
+    /**
+     * Stanze sovrapposte: una delle due spostata fuori dall'altra fino ad avere il muro in comune, come trascinarla (con le luci al
+     * soffitto; i mobili restano), dalle due parti dove si sposta meno; oppure solo il suo muro sulla linea di quello dell'altra
+     * (si accorcia). Non dalla parte dove entra nell'altra per tutta la sua larghezza, né se una sta quasi tutta dentro l'altra
+     * (lì non si sa dove va).
+     */
+    private fun overlapFixes(plan: FloorPlan, i: Issue): List<OverlapFix> {
+        val a = plan.room(i.rooms.getOrNull(0) ?: return emptyList()) ?: return emptyList()
+        val b = plan.room(i.rooms.getOrNull(1) ?: return emptyList())?.takeIf { it.id != a.id } ?: return emptyList()
+        if (i.a * 10_000 >= INSIDE_SHARE * min(a.interiorArea(), b.interiorArea())) return emptyList()
+        return listOf(a to b, b to a).flatMap { (r, o) ->
+            backOut(r, o).flatMap { (k, s) ->
+                val d = r.outwardOf(k) * s
+                listOf(
+                    OverlapFix(plan.replace(Fixtures.movedRoom(r, d)), r.id, shrink = false),
+                    OverlapFix(plan.replace(r.copy(points = Snapping.moveWall(r.points, k, d))), r.id, shrink = true),
+                )
+            }
+        }
+    }
+
+    /**
+     * I muri di `r` (al massimo due, prima quelli che vanno meno lontano) e di quanto vanno indietro, lungo la loro normale verso
+     * fuori, per arrivare sulla linea del muro di fronte di `o` che c'è dentro `r`.
+     */
+    private fun backOut(r: Room, o: Room): List<Pair<Int, Double>> {
+        val moves = mutableListOf<Pair<Int, Double>>()
+        for (k in 0 until r.wallCount) {
+            if (r.isRemoved(k) || r.arcOf(k) != null) continue
+            val a = r.wallStart(k)
+            val len = r.wallLength(k)
+            if (len < NEAR_MIN_RUN_CM) continue
+            val u = (r.wallEnd(k) - a) / len
+            val n = r.outwardOf(k)
+            // Quanto è profonda la stanza dietro quel muro.
+            val depth = r.points.maxOf { (a - it) dot n }
+            for (j in 0 until o.wallCount) {
+                if (o.isRemoved(j) || o.arcOf(j) != null || (n dot o.outwardOf(j)) > -0.99) continue
+                val s = (o.wallStart(j) - a) dot n
+                if (s > -0.5 || -s >= depth) continue
+                if (run(o.wallStart(j) - a, o.wallEnd(j) - a, u, len) < NEAR_MIN_RUN_CM) continue
+                moves += k to s
+            }
+        }
+        return moves.sortedBy { -it.second }.distinctBy { it.first }.take(2)
+    }
+
+    /** Quanto il tratto da `p0` a `p1` (rispetto all'inizio di un muro lungo `len` nella direzione `u`) gli sta di fronte. */
+    private fun run(p0: Vec2, p1: Vec2, u: Vec2, len: Double): Double {
+        val t0 = p0 dot u
+        val t1 = p1 dot u
+        return min(max(t0, t1), len) - max(min(t0, t1), 0.0)
+    }
+
+    /** Quanto dei muri della stanza `id` (cm) è in comune con le altre stanze di `plan`: sulla stessa linea, uno di fronte all'altro. */
+    private fun contact(plan: FloorPlan, id: Long): Double {
+        val r = plan.room(id) ?: return 0.0
+        var total = 0.0
+        for (k in 0 until r.wallCount) {
+            if (r.arcOf(k) != null) continue
+            val a = r.wallStart(k)
+            val len = r.wallLength(k)
+            if (len < 1.0) continue
+            val u = (r.wallEnd(k) - a) / len
+            val n = r.outwardOf(k)
+            for (o in plan.rooms) {
+                if (o.id == r.id) continue
+                for (j in 0 until o.wallCount) {
+                    if (o.arcOf(j) != null || (n dot o.outwardOf(j)) > -0.99 || abs((o.wallStart(j) - a) dot n) > Openings.SHARED_WALL_TOLERANCE_CM) continue
+                    total += max(0.0, run(o.wallStart(j) - a, o.wallEnd(j) - a, u, len))
+                }
+            }
+        }
+        return total
     }
 
     /** Il mobile `id` spostato fuori dai muri in cui entra (in un angolo sono due) fino alla parete, o null se non si riesce. */

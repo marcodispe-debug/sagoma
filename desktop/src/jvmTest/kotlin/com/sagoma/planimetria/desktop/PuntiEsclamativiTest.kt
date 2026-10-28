@@ -37,7 +37,7 @@ import kotlin.test.assertTrue
  * L'app vera: i «!» dei problemi sulla pianta. La camera piccola e senza finestra ha due norme nello stesso punto (un «!» con
  * il 2); la cucina sovrapposta al soggiorno un errore. Tocco sul «!» della camera: la scheda con i due problemi; «Togli dalla
  * pianta» toglie il primo (resta il segno dell'altro); nell'elenco di «Controlla la pianta» quel problema c'è ancora, con «Rimetti
- * sulla pianta». Immagini in build/punti-esclamativi-*.png.
+ * sulla pianta». Poi il «!» della cucina: «Correggi» la sposta fuori dal soggiorno, fino al muro in comune. Immagini in build/punti-esclamativi-*.png.
  */
 @OptIn(ExperimentalComposeUiApi::class, androidx.compose.ui.InternalComposeUiApi::class)
 class PuntiEsclamativiTest {
@@ -111,6 +111,23 @@ class PuntiEsclamativiTest {
                 shot("elenco")
                 assertEquals(1, withText("Rimetti sulla pianta").size)
                 assertTrue(PlanCheck.of(vm.state.value.fullBuilding).any { PlanCheck.hidden(vm.state.value.fullBuilding, it) })
+                tap(withText("Chiudi").last().boundsInWindow.center)
+                // Il «!» rosso della cucina sovrapposta al soggiorno: «Correggi» la sposta fino al muro in comune.
+                val overlap = PlanCheck.of(vm.state.value.fullBuilding).single { it.kind == PlanCheck.Kind.Overlap }
+                val at = assertNotNull(PlanCheck.spot(overlap, vm.state.value.plan)).at
+                val cam = vm.state.value.camera
+                val red = marks().minBy { (it.second - Offset(cam.toScreenX(at.x), cam.toScreenY(at.y))).getDistance() }
+                tap(red.second)
+                // «Correggi» compare appena si sa che funziona (si prova fuori dal filo della pianta).
+                for (k in 0 until 40) if (withText("✓ Correggi").isEmpty()) frames(2)
+                shot("sovrapposte")
+                tap(withText("✓ Correggi").single().boundsInWindow.center)
+                frames(20)
+                shot("corrette")
+                assertTrue(PlanCheck.of(vm.state.value.fullBuilding).none { it.kind == PlanCheck.Kind.Overlap })
+                // La cucina scende sotto il soggiorno (muro in comune); il soggiorno resta dov'è.
+                assertEquals(400.0, vm.state.value.plan.rooms.single { it.id == 3L }.points.minOf { it.y }, 1e-9)
+                assertEquals(living.points, vm.state.value.plan.rooms.single { it.id == 1L }.points)
             }
         } finally {
             dir.deleteRecursively()
