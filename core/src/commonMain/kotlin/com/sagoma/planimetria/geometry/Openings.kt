@@ -81,6 +81,30 @@ object Openings {
         return (start + u * (c - w / 2) + shift) to (start + u * (c + w / 2) + shift)
     }
 
+    /** Tratto di muro tra un angolo (`from`) e il bordo dell'apertura (`to`), lungo `length` cm; `inward` verso la stanza. */
+    data class SideGap(val from: Vec2, val to: Vec2, val length: Double, val inward: Vec2)
+
+    /**
+     * Distanze dell'apertura dai muri vicini, misurate sul filo interno del suo muro: dall'angolo all'inizio del muro fino al
+     * primo bordo e dal secondo bordo all'angolo in fondo (muro singolo: fino alle sue estremità). Vuoto sui muri curvi.
+     */
+    fun sideGaps(room: Room, o: Opening): List<SideGap> {
+        val j = o.wallIndex
+        if (j >= room.wallCount || room.arcOf(j) != null) return emptyList()
+        val (p0, p1) = if (room.id < 0 || room.wallCount < 3) room.wallStart(j) to room.wallEnd(j)
+        else Polygon.insetEdges(room.points, room.innerThicknesses.map { it / 2 })[j]
+        val len = p0.distanceTo(p1)
+        if (len < 1e-6) return emptyList()
+        val u = (p1 - p0) * (1 / len)
+        val (a, b) = span(room, o)
+        val ta = ((a - p0) dot u).coerceIn(0.0, len)
+        val tb = ((b - p0) dot u).coerceIn(0.0, len)
+        val (t0, t1) = min(ta, tb) to max(ta, tb)
+        // Come in [Polygon.insetEdges]: la stanza sta dal lato di perp() per i contorni con area positiva.
+        val inward = u.perp() * (if (Polygon.signedArea(room.points) >= 0) 1.0 else -1.0)
+        return listOf(SideGap(p0, p0 + u * t0, t0, inward), SideGap(p1, p0 + u * t1, len - t1, inward))
+    }
+
     /** Distanza lungo il muro della proiezione di `p` (non limitata). */
     fun projectOnWall(room: Room, wallIndex: Int, p: Vec2): Double {
         val start = room.wallStart(wallIndex)
