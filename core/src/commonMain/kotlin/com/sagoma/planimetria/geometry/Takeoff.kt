@@ -2,11 +2,13 @@ package com.sagoma.planimetria.geometry
 
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.Covering
+import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorFinish
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.model.MaterialCatalog
 import com.sagoma.planimetria.model.OpeningKind
+import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.model.ProPalette
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.testi.T
@@ -132,6 +134,8 @@ object Takeoff {
                     fixtures[f.kind.label] = (e.first + 1) to e.second.also { it += r.name }
                 }
             }
+            // Muri singoli (tramezzi, muretti): una riga per piano, con le pareti dei due lati.
+            freeWallsLine(fl, wallTot)?.let { lines += it }
             for (f in plan.furniture) {
                 val name = FurnitureCatalog.item(f.model)?.nome ?: T.computo.arredo
                 val size = T.computo.cm(cm(f.width), cm(f.depth), cm(f.height))
@@ -180,6 +184,39 @@ object Takeoff {
             if (r.outdoor) 0.0 else (perimeter - atFloor - openSides).coerceAtLeast(0.0),
             floorFinishName(r), wallName, doors, windows,
         )
+    }
+
+    /**
+     * Muri singoli del piano `fl` (non quelli da demolire): si finiscono sui due lati, alti fino al soffitto o quanto scritto,
+     * lunghi come la loro mezzeria (sull'arco, se curvi: la media dei due lati), al netto dei vani; il battiscopa corre sui due
+     * lati, tranne davanti a porte e varchi. Le finiture vanno nei totali `wallTot`.
+     */
+    private fun freeWallsLine(fl: Floor, wallTot: MutableMap<String, Double>): RoomLine? {
+        val walls = fl.plan.freeWalls.filter { it.phase != Phase.Demolish && it.length >= 1.0 }
+        if (walls.isEmpty()) return null
+        var wall = 0.0
+        var holes = 0.0
+        var skirting = 0.0
+        val names = LinkedHashSet<String>()
+        var doors = 0
+        var windows = 0
+        for (w in walls) {
+            val h = Structure.freeWallHeight(fl.plan, w, fl.levelHeight)
+            val host = w.host.copy(ceilingHeight = h, wallFinish = w.finishOrPaint)
+            val length = host.arcOf(0)?.arcLength() ?: w.length
+            for ((name, area) in wallParts(host, 0, length)) {
+                wallTot.add(name, 2 * area)
+                wall += 2 * area
+            }
+            val openings = host.openings.filter { it.kind != OpeningKind.Niche && it.wallIndex == 0 }
+            holes += 2 * openings.sumOf { Openings.holeArea(host, it) } / 10_000.0
+            val atFloor = openings.filter { !it.kind.glazed || it.sillHeight == 0.0 }.sumOf { minOf(it.width, length) }
+            skirting += 2 * (length - atFloor).coerceAtLeast(0.0) / 100.0
+            names += wallFinishName(host, 0)
+            doors += openings.count { !it.kind.glazed }
+            windows += openings.count { it.kind.glazed }
+        }
+        return RoomLine(fl.name, T.computo.muriSingoli, 0.0, 0.0, wall, holes, skirting, "—", names.joinToString(" / "), doors, windows)
     }
 
     private fun cm(v: Double) = if (v == kotlin.math.round(v)) v.toLong().toString() else formatDecimal(v, 1)
