@@ -469,6 +469,14 @@ class OpeningTypesTest {
         assertEquals(Pick.Opening(1, 1), over.pick)
         assertEquals(233.0, over.point.y, 1.0)
         assertFalse(OpeningPreset.BayWindow.apply(awning).hasAwning)
+        // Il telo sporge 12 cm per parte, ma non oltre l'angolo (finestra da 2 a 82: l'angolo esterno è a −7,5)...
+        val corner = scene(awning.copy(position = 42.0))
+        assertEquals(Pick.Opening(1, 1), assertNotNull(corner.hit(Vec3(0.0, 400.0, -51.5), Vec3(0.0, -1.0, 0.0))).pick)
+        assertNull(corner.hit(Vec3(-9.0, 400.0, -51.5), Vec3(0.0, -1.0, 0.0)))
+        // ...e con due finestre a 20 cm le tende si fermano a metà, senza sovrapporsi.
+        val pair = scene(awning, awning.copy(id = 2, position = 300.0)) // da 160 a 240 e da 260 a 340
+        assertEquals(Pick.Opening(1, 1), assertNotNull(pair.hit(Vec3(249.0, 400.0, -51.5), Vec3(0.0, -1.0, 0.0))).pick)
+        assertEquals(Pick.Opening(1, 2), assertNotNull(pair.hit(Vec3(251.0, 400.0, -51.5), Vec3(0.0, -1.0, 0.0))).pick)
         // Fanno parte dello stile; si salvano e si rileggono.
         val from = w.copy(insectScreen = true, awning = true, awningColor = 0xFF8A2C2C)
         val styled = Opening.default(2, OpeningKind.Balcony1, 1, 150.0).withStyleOf(from)

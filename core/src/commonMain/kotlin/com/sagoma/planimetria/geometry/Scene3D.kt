@@ -2455,8 +2455,9 @@ private class SceneBuilder(
         val y0 = min(top + 18, wallTop - 4)
         val drop = if (balcony) reach * 0.25 else reach * 1.1
         val valance = if (balcony) 22.0 else 14.0
-        val p0 = a - u * 12.0 + out * (half + 8)
-        val p1 = b + u * 12.0 + out * (half + 8)
+        // Il telo sporge 12 cm per parte, meno accanto a un angolo, a un muro che sporge o alla tenda della finestra vicina.
+        val p0 = a - u * faceRoom(a, u * -1.0, n, -1.0, 12.0, awning = true) + out * (half + 8)
+        val p1 = b + u * faceRoom(b, u, n, -1.0, 12.0, awning = true) + out * (half + 8)
         val w = p0.distanceTo(p1)
         val front = out * reach
         val colors = o.awningColor?.let { listOf(Rgba.argb(it)) } ?: listOf(Rgba.argb(Opening.AWNING_GREEN), Rgba.argb(Opening.AWNING_CREAM))
@@ -2889,7 +2890,7 @@ private class SceneBuilder(
      * interno, muro che sporge) o poco prima di un'altra porta o finestra. Al massimo `reach`, anche se il muro stesso non si
      * trova (forma strana).
      */
-    private fun faceRoom(edge: Vec2, dir: Vec2, n: Vec2, side: Double, reach: Double): Double {
+    private fun faceRoom(edge: Vec2, dir: Vec2, n: Vec2, side: Double, reach: Double, awning: Boolean = false): Double {
         val near = solidWalls().filter { Polygon.distanceToSegment(edge, it.a, it.a + it.u * it.len) <= reach + it.half + it.cap + 5 }
         // Porte e finestre accanto, sullo stesso muro: l'anta non le copre; se hanno le ante da questa parte, lo spazio si divide a metà.
         var limit = reach
@@ -2900,7 +2901,7 @@ private class SceneBuilder(
             val t = minOf(ta, tb)
             if (t <= 0.5 || t >= 2 * limit) continue // con le ante anche dall'altra parte conta la metà
             if (abs((f.a - edge) dot across) > half + 1 || abs((f.b - edge) dot across) > half + 1) continue
-            neighbourLimit(f, n * side, nearIsA = ta < tb, t)?.let { limit = minOf(limit, it) }
+            neighbourLimit(f, n * side, nearIsA = ta < tb, t, awning)?.let { limit = minOf(limit, it) }
         }
         val columns = plan.columns.filter { it.center.distanceTo(edge) <= limit + it.width + it.depth }
         fun solid(p: Vec2) = near.any { it.contains(p) } || columns.any { Structure.contains(it, p) }
@@ -2920,10 +2921,12 @@ private class SceneBuilder(
      * Fin dove arriva un'anta aperta verso la porta o finestra `f` che comincia a `t` cm, sulla faccia del muro verso `face`: a metà
      * strada se anche lei ha un'anta da questa parte (persiane e scorrevoli fuori, scuri dentro), altrimenti poco prima del suo
      * bordo (il coprifilo delle porte, il cassonetto della tapparella). Null se da questa parte non c'è (la nicchia dell'altra faccia).
+     * Per la tenda da sole (`awning`, più in alto) conta solo la tenda della finestra vicina: a metà strada.
      */
-    private fun neighbourLimit(f: FaceOpening, face: Vec2, nearIsA: Boolean, t: Double): Double? {
+    private fun neighbourLimit(f: FaceOpening, face: Vec2, nearIsA: Boolean, t: Double, awning: Boolean): Double? {
         val o = f.o
         val outside = (f.n dot face) < 0
+        if (awning) return if (outside && o.hasAwning) t / 2 else null
         val drawn = o.kind.glazed && o.hasShading && o.shape == WindowShape.Rectangle
         val leaf = drawn && when (o.shading) {
             Shading.Shutters, Shading.SlidingShutters -> outside
