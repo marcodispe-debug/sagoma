@@ -1779,11 +1779,16 @@ object PlanCheck {
             }
         }
 
-        /** Stanze in cui non si entra; intanto guarda se almeno una porta del piano dà fuori. */
+        /**
+         * Stanze in cui non si entra, nella casa come sarà (una porta da chiudere non fa più entrare, un muro da demolire apre il
+         * passaggio); intanto guarda se almeno una porta del piano dà fuori.
+         */
         fun doors(below: Pair<FloorPlan, Double>?, rise: Double) {
-            val shared = Openings.sharedGaps(plan).map { it.roomId }.toSet()
+            val project = Phases.view(plan, PhaseView.Project)
+            val rooms = project.rooms
+            val shared = Openings.sharedGaps(project).map { it.roomId }.toSet()
             // Lati aperti: solo dove dall'altra parte non c'è il muro di un'altra stanza.
-            val opened = Openings.removedStretches(plan).map { it.roomId }.toSet()
+            val opened = Openings.removedStretches(project).map { it.roomId }.toSet()
             val stairPoints = plan.stairs.flatMap { Stairs.layout(it, rise).path.take(1) } +
                 (below?.let { (p, h) -> p.stairs.flatMap { s -> Stairs.layout(s, h).path.takeLast(1) } } ?: emptyList())
             for (r in rooms) {

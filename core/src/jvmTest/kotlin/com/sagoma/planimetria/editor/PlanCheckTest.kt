@@ -8,6 +8,7 @@ import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
+import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Stair
@@ -957,6 +958,24 @@ class PlanCheckTest {
         assertEquals(94.0, low.a, 0.5)
         assertTrue(PlanCheck.describe(low, two(stair)).startsWith("Sopra la scala restano 94 cm fino al solaio del piano di sopra"))
         assertEquals(emptyList(), issues(stair.copy(coveredSteps = 3)))
+    }
+
+    @Test
+    fun `porte nella casa come sara`() {
+        // La porta tra soggiorno e cucina è da chiudere: nella casa come sarà in cucina non si entra.
+        val closing = Building.single(FloorPlan(listOf(living.copy(openings = listOf(entrance, inner.copy(phase = Phase.Demolish), living.openings[2])), kitchen)))
+        assertEquals(listOf(listOf(2L)), PlanCheck.of(closing).filter { it.kind == PlanCheck.Kind.NoDoor }.map { it.rooms })
+        // Una porta nuova la apre; demolire il muro in comune (di tutte e due le stanze) anche.
+        val opening = Building.single(FloorPlan(listOf(living.copy(openings = listOf(entrance, inner.copy(phase = Phase.New), living.openings[2])), kitchen)))
+        assertTrue(PlanCheck.of(opening).none { it.kind == PlanCheck.Kind.NoDoor })
+        val wall = Building.single(FloorPlan(listOf(
+            living.copy(openings = listOf(entrance, living.openings[2]), wallPhases = mapOf(1 to Phase.Demolish)),
+            kitchen.copy(wallPhases = mapOf(3 to Phase.Demolish)),
+        )))
+        assertTrue(PlanCheck.of(wall).none { it.kind == PlanCheck.Kind.NoDoor }, "${PlanCheck.of(wall).map { it.kind }}")
+        // L'ingresso da chiudere: la casa resta senza ingresso.
+        val noEntry = Building.single(FloorPlan(listOf(living.copy(openings = listOf(entrance.copy(phase = Phase.Demolish), inner, living.openings[2])), kitchen)))
+        assertTrue(PlanCheck.of(noEntry).any { it.kind == PlanCheck.Kind.NoEntrance })
     }
 
     @Test
