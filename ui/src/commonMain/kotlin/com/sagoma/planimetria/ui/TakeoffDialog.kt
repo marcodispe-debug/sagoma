@@ -90,6 +90,19 @@ fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Uni
                     style = MaterialTheme.typography.bodySmall,
                 )
                 if (res.phased) Text(T.computo.statoDiProgetto, style = MaterialTheme.typography.bodySmall)
+                if (res.works.isNotEmpty()) {
+                    Section(T.computo.opere)
+                    Column(Modifier.horizontalScroll(rememberScrollState())) {
+                        TableRow(listOf(T.computo.voce, T.computo.numero, "m²", "m³"), header = true, widths = worksWidths)
+                        // Con più piani le voci di ogni piano sotto il suo nome, poi quelle di tutta la casa.
+                        val lines = if (res.works.size > 1) res.works + Takeoff.WorksLine(T.computo.totale, res.totalWorks) else res.works
+                        for (l in lines) {
+                            if (lines.size > 1) TableRow(listOf(l.floor), header = true, widths = worksWidths)
+                            for (i in Takeoff.worksItems(l.works)) TableRow(listOf(i.label, i.count?.toString() ?: "", fmt2(i.m2), fmt2(i.m3)), widths = worksWidths)
+                        }
+                    }
+                    Text(T.computo.notaOpere, style = MaterialTheme.typography.bodySmall)
+                }
                 if (res.areas.isNotEmpty()) {
                     Section(T.computo.superfici)
                     Column(Modifier.horizontalScroll(rememberScrollState())) {
@@ -152,13 +165,17 @@ private fun Line(left: String, right: String) {
 
 private val columnWidths: List<Dp> = listOf(120.dp, 64.dp, 72.dp, 72.dp, 130.dp)
 
+/** Colonne delle opere: voce, numero, m², m³. */
+private val worksWidths: List<Dp> = listOf(240.dp, 40.dp, 72.dp, 72.dp)
+
 @Composable
-private fun TableRow(cells: List<String>, header: Boolean = false) {
+private fun TableRow(cells: List<String>, header: Boolean = false, widths: List<Dp> = columnWidths) {
     Row(Modifier.padding(vertical = 2.dp)) {
         cells.forEachIndexed { i, c ->
             Text(
                 c,
-                Modifier.width(columnWidths[i]).padding(end = 6.dp),
+                // Una cella sola (il nome del piano) prende tutta la riga.
+                if (cells.size == 1) Modifier.padding(end = 6.dp) else Modifier.width(widths[i]).padding(end = 6.dp),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = if (header) FontWeight.SemiBold else null,
                 textAlign = if (i in 1..3) TextAlign.End else TextAlign.Start,

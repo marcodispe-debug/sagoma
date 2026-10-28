@@ -70,6 +70,25 @@ class PdfTakeoffPagesTest {
     }
 
     @Test
+    fun tabellaOpere() {
+        val ground = com.sagoma.planimetria.geometry.Phases.Works(demolishM2 = 9.12, demolishM3 = 2.736, openingsClosed = 1, openingsClosedM2 = 1.68, openingsClosedM3 = 0.504)
+        val first = com.sagoma.planimetria.geometry.Phases.Works(newM2 = 4.05, newM3 = 0.405)
+        val res = result(4, 0).copy(works = listOf(Takeoff.WorksLine("Piano terra", ground), Takeoff.WorksLine("Primo piano", first)))
+        val lines = PdfExport.takeoffSheets(res, PdfExport.Paper.A4).flatten()
+        val at = lines.indexOfFirst { it.title && it.cells == listOf(T.computo.opere) }
+        assertTrue(at >= 0)
+        // Titolo, intestazione; per ogni piano il nome e le sue voci, poi il totale della casa e la nota.
+        assertEquals(listOf(T.computo.voce, T.computo.numero, "m²", "m³"), lines[at + 1].cells)
+        assertEquals(listOf("Piano terra"), lines[at + 2].cells)
+        assertEquals(listOf(T.computo.muriDaDemolire, "", "9,12", "2,74"), lines[at + 3].cells)
+        assertEquals(listOf(T.computo.apertureDaChiudere, "1", "1,68", "0,50"), lines[at + 4].cells)
+        assertEquals(listOf("Primo piano"), lines[at + 5].cells)
+        assertEquals(listOf(T.computo.muriNuovi, "", "4,05", "0,41"), lines[at + 6].cells)
+        assertEquals(listOf(T.pdf.totale), lines[at + 7].cells)
+        assertEquals(4, lines.drop(at + 8).takeWhile { !it.title }.size)
+    }
+
+    @Test
     fun noteDelComputoNonTagliateInNessunaLingua() {
         // Le note stanno in una riga sola della colonna (7,5 punti): oltre sarebbero tagliate con «…».
         val measurer = TextMeasurer(createFontFamilyResolver(), PdfExport.drawDensity, LayoutDirection.Ltr)
@@ -77,10 +96,13 @@ class PdfTakeoffPagesTest {
         try {
             for (l in Lingue.tutte) {
                 T.lingua = l
-                for (s in listOf(T.computo.notaLucePdf, T.computo.notaSuperficiPdf)) {
+                // Le voci delle opere stanno nella loro colonna (poco più di metà).
+                val cells = listOf(T.computo.notaLucePdf, T.computo.notaSuperficiPdf, T.computo.notaOperePdf).map { it to colW } +
+                    listOf(T.computo.muriDaDemolire, T.computo.vaniDaAprire, T.computo.apertureDaChiudere, T.computo.muriNuovi).map { it to colW * 0.55f }
+                for ((s, cw) in cells) {
                     val w = measurer.measure(s, TextStyle(fontSize = (7.5f / PdfExport.drawDensity.density).sp), maxLines = 1).size.width
                     // Con un poco di margine: i caratteri del telefono o di Windows possono essere un poco più larghi.
-                    assertTrue(w <= (colW - 6) * 0.95f, "${l.codice}: «$s» largo $w su ${colW - 6}")
+                    assertTrue(w <= (cw - 6) * 0.95f, "${l.codice}: «$s» largo $w su ${cw - 6}")
                 }
             }
         } finally {

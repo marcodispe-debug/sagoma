@@ -290,6 +290,18 @@ object PdfExport {
         row(listOf(T.pdf.totale, fmt2(res.totalFloor), fmt2(res.totalWalls), fmt2(res.totalSkirting), ""), w, bold = true, right = nums)
         val w2 = listOf(colW * 0.55f, colW * 0.2f, colW * 0.25f)
         val nums2 = setOf(1, 2)
+        if (res.works.isNotEmpty()) {
+            title(T.computo.opere)
+            val w4 = listOf(colW * 0.55f, colW * 0.11f, colW * 0.17f, colW * 0.17f)
+            val nums3 = setOf(1, 2, 3)
+            row(listOf(T.computo.voce, T.computo.numero, "m²", "m³"), w4, bold = true, right = nums3)
+            val lines = if (res.works.size > 1) res.works + Takeoff.WorksLine(T.pdf.totale, res.totalWorks) else res.works
+            for (l in lines) {
+                if (lines.size > 1) row(listOf(l.floor), listOf(colW), bold = true)
+                for (i in Takeoff.worksItems(l.works)) row(listOf(i.label, i.count?.toString() ?: "", fmt2(i.m2), fmt2(i.m3)), w4, right = nums3)
+            }
+            row(listOf(T.computo.notaOperePdf), listOf(colW))
+        }
         if (res.areas.isNotEmpty()) {
             title(T.computo.superfici)
             row(listOf(T.computo.piano, T.computo.utileM2, T.computo.lordaM2, T.computo.balconiM2, ""), w, bold = true, right = nums)

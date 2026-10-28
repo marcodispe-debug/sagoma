@@ -53,6 +53,20 @@ object Takeoff {
         val counted: Double get() = (gross - excluded - extraWall).coerceAtLeast(0.0)
     }
 
+    /** Opere di un piano con demolizioni o parti nuove ([Phases.works]). */
+    data class WorksLine(val floor: String, val works: Phases.Works)
+
+    /** Una voce delle opere; `count` solo per le aperture. */
+    data class WorksItem(val label: String, val count: Int?, val m2: Double, val m3: Double)
+
+    /** Le voci delle opere che ci sono, nell'ordine del cantiere: demolire, aprire i vani, chiudere le aperture, costruire. */
+    fun worksItems(w: Phases.Works): List<WorksItem> = listOfNotNull(
+        WorksItem(T.computo.muriDaDemolire, null, w.demolishM2, w.demolishM3).takeIf { w.demolishM2 > 0.0 },
+        WorksItem(T.computo.vaniDaAprire, w.openingsNew, w.openingsNewM2, w.openingsNewM3).takeIf { w.openingsNew > 0 },
+        WorksItem(T.computo.apertureDaChiudere, w.openingsClosed, w.openingsClosedM2, w.openingsClosedM3).takeIf { w.openingsClosed > 0 },
+        WorksItem(T.computo.muriNuovi, null, w.newM2, w.newM3).takeIf { w.newM2 > 0.0 },
+    )
+
     /**
      * Luce e aria di un ambiente da abitare (una stanza, o il soggiorno con la cucina a vista): m² di pavimento e di finestre
      * apribili che danno fuori ([HousingRules]).
@@ -79,7 +93,11 @@ object Takeoff {
         val light: List<LightLine> = emptyList(),
         /** Superfici dei piani, nello stato di progetto. */
         val areas: List<AreaLine> = emptyList(),
+        /** Opere (demolizioni e costruzioni) dei piani che ne hanno. */
+        val works: List<WorksLine> = emptyList(),
     ) {
+        /** Le opere di tutta la casa. */
+        val totalWorks: Phases.Works get() = works.fold(Phases.Works()) { a, l -> a + l.works }
         /** Superficie commerciale indicativa di tutta la casa (m², DPR 138/1998). */
         val commercial: Double
             get() = FloorAreas.commercial(areas.filter { !it.basement }.sumOf { it.counted }, areas.filter { it.basement }.sumOf { it.counted }, areas.sumOf { it.outdoor })
@@ -173,7 +191,10 @@ object Takeoff {
         var ceilings = 0.0
         val light = mutableListOf<LightLine>()
         val areas = mutableListOf<AreaLine>()
+        val works = mutableListOf<WorksLine>()
         for ((index, fl) in building.floors.withIndex()) {
+            // Opere: dallo stato di fatto a quello di progetto (sulla pianta com'è disegnata, con tutte le fasi).
+            if (Phases.hasChanges(fl.plan)) Phases.works(fl.plan, fl.levelHeight).takeIf { !it.isEmpty }?.let { works += WorksLine(fl.name, it) }
             // Luce e aria: [HousingRules] guarda da solo la casa come sarà (muri e aperture da demolire non contano).
             for (s in HousingRules.livingSpaces(fl.plan)) {
                 light += LightLine(fl.name, s.joinToString(" + ") { it.name }, HousingRules.floorArea(s) / 10_000, HousingRules.windowArea(fl.plan, s) / 10_000)
@@ -229,6 +250,7 @@ object Takeoff {
             building.floors.any { Phases.hasChanges(it.plan) },
             light,
             areas,
+            works,
         )
     }
 
@@ -314,6 +336,13 @@ object Takeoff {
         head(T.computo.pianoStanzaPavimentoM2)
         for (l in res.rooms) row(t(l.floor), t(l.room), n(l.floorArea), n(l.perimeter), n(l.wallArea), n(l.openingsArea), n(l.skirting), t(l.floorFinish), t(l.wallFinish), "${l.doors}", "${l.windows}")
         head(T.computo.totale2(n(res.totalFloor), n(res.totalWalls), n(res.totalSkirting)))
+        if (res.works.isNotEmpty()) {
+            appendLine()
+            head(T.computo.opere2)
+            head(T.computo.pianoVoceNumeroM2M3)
+            val lines = if (res.works.size > 1) res.works + WorksLine(T.computo.totale, res.totalWorks) else res.works
+            for (l in lines) for (i in worksItems(l.works)) row(t(l.floor), t(i.label), i.count?.toString() ?: "", n(i.m2), n(i.m3))
+        }
         if (res.areas.isNotEmpty()) {
             appendLine()
             head(T.computo.superfici2)
