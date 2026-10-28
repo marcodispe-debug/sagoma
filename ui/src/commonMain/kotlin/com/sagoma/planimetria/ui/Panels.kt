@@ -1027,11 +1027,12 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                 update { it.copy(color = named, customColor = if (named == null) c else null) }
             }
             // Lo stesso aspetto su tutte le finestre (o le porte) del piano, o della casa se ha più piani: una modifica sola, si annulla con ↶.
+            // Non dal vetromattone: le finestre non diventano vetromattone, e lui ha solo il davanzale.
             var copied by remember(o.id) { mutableStateOf<Int?>(null) }
-            OutlinedButton(onClick = { copied = vm.copyOpeningStyle(room.id, o.id) }, modifier = Modifier.padding(top = 4.dp, end = 8.dp)) {
+            if (!o.isGlassBlock) OutlinedButton(onClick = { copied = vm.copyOpeningStyle(room.id, o.id) }, modifier = Modifier.padding(top = 4.dp, end = 8.dp)) {
                 Text(if (o.kind.glazed) T.pannelli.copiaStileFinestre else T.pannelli.copiaStilePorte)
             }
-            if (vm.state.collectAsState().value.building.floors.size > 1) {
+            if (!o.isGlassBlock && vm.state.collectAsState().value.building.floors.size > 1) {
                 OutlinedButton(onClick = { copied = vm.copyOpeningStyle(room.id, o.id, allFloors = true) }, modifier = Modifier.padding(end = 8.dp)) {
                     Text(if (o.kind.glazed) T.pannelli.copiaStileFinestreCasa else T.pannelli.copiaStilePorteCasa)
                 }
