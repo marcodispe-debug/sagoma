@@ -514,6 +514,11 @@ private class SceneBuilder(
 
     /** Vetro satinato delle porte: un velo bianco (tra 0,36 e 0,5 sul computer non lascia passare la luce del cielo). */
     private val satinGlass = Rgba(0.88f, 0.92f, 0.93f, 0.48f)
+    /** Vetro satinato scelto per finestre e porte ([Opening.frosted]): oltre 0,5, sul computer smerigliato che si illumina col cielo. */
+    private val frostedPane = Rgba(0.90f, 0.93f, 0.94f, 0.85f)
+
+    /** Vetro di porte e finestre: trasparente, o satinato se scelto. */
+    private fun glassOf(o: Opening, pick: Pick): Rgba = (if (o.hasFrostedGlass) frostedPane else glass).let { tint(it, pick).copy(a = it.a) }
     private val wood = Rgba(0.62f, 0.44f, 0.29f)
     private val ceilingColor = Rgba(0.97f, 0.97f, 0.96f)
     /** Tetto piano sopra i piani di sotto (dove il piano di sopra non li copre): guaina grigio chiaro. */
@@ -2128,7 +2133,7 @@ private class SceneBuilder(
         val side = o.sidelightCm
         if (transom <= 0 && side <= 0) return Triple(la, lb, top)
         val frame = tint(Rgba.argb(o.frameArgb), pick)
-        val glassColor = tint(glass, pick).copy(a = glass.a)
+        val glassColor = glassOf(o, pick)
         val lt = top - transom
         val f = 3.0
         if (transom > 0) {
@@ -2172,7 +2177,7 @@ private class SceneBuilder(
                 part(0.84, 1.0, 0.0, height, thick, color)
                 part(0.16, 0.84, 0.0, height * 0.36, thick, color)
                 part(0.16, 0.84, height * 0.88, height, thick, color)
-                pane(start + dir * (length * 0.16), start + dir * (length * 0.84), height * 0.36, height * 0.88, tint(glass, pick).copy(a = glass.a), pick)
+                pane(start + dir * (length * 0.16), start + dir * (length * 0.84), height * 0.36, height * 0.88, glassOf(o, pick), pick)
             }
             DoorModel.Planks -> {
                 part(0.0, 1.0, 0.0, height, thick, color)
@@ -2277,7 +2282,7 @@ private class SceneBuilder(
                 }
             }
         }
-        val glassColor = tint(glass, pick).copy(a = glass.a)
+        val glassColor = glassOf(o, pick)
         box(a, a + u * f, depth, bottom, top, color, pick)
         box(b - u * f, b, depth, bottom, top, color, pick)
         box(a, b, depth, top - f, top, color, pick)
@@ -2513,7 +2518,7 @@ private class SceneBuilder(
         if (current) windows += Scene3D.SceneWindow(((a + b) / 2.0).at((bottom + top) / 2), n.dir().normalized(), a.distanceTo(b), top - bottom)
         val poly = Openings.bayOutline(room, o)
         val color = windowFrameColor(o, pick)
-        val glassColor = tint(glass, pick).copy(a = glass.a)
+        val glassColor = glassOf(o, pick)
         val stone = tint(Rgba(0.88f, 0.87f, 0.84f), pick)
         val roof = tint(Rgba(0.30f, 0.31f, 0.33f), pick)
         // Base e tettuccio: lo stesso trapezio, appoggiato alla faccia esterna del muro.
@@ -2548,7 +2553,7 @@ private class SceneBuilder(
         val round = o.shape == WindowShape.Round
         val gap = Gap(0.0, w, bottom, top, if (round) PassageStyle.Square else PassageStyle.Arched, pick, round = round)
         val color = windowFrameColor(o, pick)
-        val glassColor = tint(glass, pick).copy(a = glass.a)
+        val glassColor = glassOf(o, pick)
         val f = profileWidth(o)
         val depth = 3.5
         val slices = 24

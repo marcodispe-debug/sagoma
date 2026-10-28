@@ -100,6 +100,7 @@ object Openings {
         if (o.kind.glazed) {
             if (o.isGlassBlock) Openings.glassBlockGrid(o).let { (c, r) -> parts += T.pannelli.blocchiVetro(c * r) }
             if (o.shape != WindowShape.Rectangle) parts += low(o.shape.label)
+            if (o.hasFrostedGlass) parts += low(T.pannelli.vetroSatinato)
             if (o.hasTopLight) parts += low(T.pannelli.sopraluce)
             if (o.hasShading) parts += low(o.shading.label)
             if (o.hasGrille) parts += low(T.pannelli.inferriata)
@@ -109,6 +110,7 @@ object Openings {
         } else {
             if (o.transomCm > 0) parts += low(T.pannelli.sopraluce)
             if (o.sidelightCm > 0) parts += low(T.pannelli.vetroDiFianco)
+            if (o.hasFrostedGlass) parts += low(T.pannelli.vetroSatinato)
             o.sill?.let { parts += T.pannelli.davanzaleIn(low(it.label), balcony = true) }
         }
         return parts.filter { it.isNotBlank() }.joinToString(" · ")

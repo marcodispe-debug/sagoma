@@ -970,6 +970,8 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                 ModelPicker(T.comuni.modello, WindowModel.entries, o.windowModel, { it.label }, { v -> update { it.withWindowModel(v) } }) {
                     windowPreview(it, Shading.None, color)
                 }
+                // Vetro satinato (es. in bagno): passa la luce, non la vista. Il vetromattone lo è già.
+                if (o.hasClearGlass) FrostedChoice(o.frosted) { f -> update { it.copy(frosted = f) } }
                 // Il bovindo non ha oscuranti: sporge dal muro, non c'è dove aprirli.
                 if (!o.isBay && !o.isGlassBlock) ModelPicker(T.pannelli.oscuranti, Shading.entries, o.shading, { it.label }, { v -> update { it.copy(shading = v) } }) {
                     windowPreview(o.windowModel, it, color, Color(o.copy(shading = it).shadingArgb))
@@ -1011,6 +1013,8 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                 if (!o.isGarage) ModelPicker(T.comuni.modello, DoorModel.entries, o.doorModel, { it.label }, { v -> update { it.copy(doorModel = v) } }) {
                     doorPreview(it, color)
                 }
+                // Porta con il vetro (a vetri, sopraluce, vetro di fianco): trasparente o satinato.
+                if (o.hasClearGlass) FrostedChoice(o.frosted) { f -> update { it.copy(frosted = f) } }
                 // Porta a battente: con il coprifilo attorno o filo muro (senza cornice).
                 if (o.swings && !o.folds) Row(Modifier.padding(end = 8.dp)) {
                     Choice(T.pannelli.cornice, listOf(T.pannelli.coprifilo, T.pannelli.filoMuro), if (o.frameless) 1 else 0, Modifier.weight(1f)) { i ->
@@ -1136,6 +1140,16 @@ private fun SillChoice(label: String, selected: StairMaterial?, onSelect: (Stair
     Row(Modifier.padding(end = 8.dp)) {
         Choice(label, materials.map { it?.label ?: T.pannelli.senza }, materials.indexOf(selected).coerceAtLeast(0), Modifier.weight(1f)) { i ->
             onSelect(materials[i])
+        }
+    }
+}
+
+/** Vetro di finestre e porte: trasparente o satinato. */
+@Composable
+private fun FrostedChoice(frosted: Boolean, onSelect: (Boolean) -> Unit) {
+    Row(Modifier.padding(end = 8.dp)) {
+        Choice(T.pannelli.vetro, listOf(T.pannelli.trasparente, T.pannelli.satinato), if (frosted) 1 else 0, Modifier.weight(1f)) { i ->
+            onSelect(i == 1)
         }
     }
 }

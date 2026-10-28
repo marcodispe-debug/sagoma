@@ -185,6 +185,10 @@ open class TestiPannelli {
     /** Nell'elenco del computo: «davanzale in marmo», «soglia in pietra». `m`: il materiale già in minuscolo. */
     open fun davanzaleIn(m: String, balcony: Boolean): String = if (balcony) "soglia in $m" else "davanzale in $m"
     open fun blocchiVetro(n: Int): String = if (n == 1) "1 blocco di vetro" else "$n blocchi di vetro"
+    open val vetro: String get() = "Vetro"
+    open val trasparente: String get() = "Trasparente"
+    open val satinato: String get() = "Satinato"
+    open val vetroSatinato: String get() = "Vetro satinato"
     open val giaUguali: String get() = "Hanno già tutte questo stile."
     open fun stileCopiato(n: Any?): String = if (n == 1) "Stile copiato su 1 apertura (↶ per annullare)." else "Stile copiato su $n aperture (↶ per annullare)."
     open val lampadarioSoffittoTrascinaloSpostarlo: String get() = "Lampadario a soffitto: trascinalo per spostarlo."

@@ -735,4 +735,47 @@ class OpeningTypesTest {
         val single = Opening.default(2, OpeningKind.Window1, 0, 300.0).copy(shading = Shading.Shutters, hingeLeft = false) // da 260 a 340, anta a destra
         assertEquals(-10.8, assertNotNull(fromOutside(scene(left, single), 210.0, 153.0)).point.z, 0.01)
     }
+
+    /** Trasparenze dei vetri della scena (alfa dei vertici trasparenti), arrotondate al centesimo. */
+    private fun alphas(s: Scene3D): Set<Float> {
+        val out = mutableSetOf<Float>()
+        var k = 0
+        while (k < s.transparent.size) {
+            out += kotlin.math.round(s.transparent[k + 9] * 100) / 100
+            k += Scene3D.FLOATS_PER_VERTEX
+        }
+        return out
+    }
+
+    @Test
+    fun `vetro satinato - finestre, balconi e porte con il vetro, nel computo, nello stile e nel file`() {
+        val w = Opening.default(1, OpeningKind.Window2, 0, 200.0)
+        val f = w.copy(frosted = true)
+        assertTrue(f.hasFrostedGlass)
+        // Nel 3D i vetri diventano un velo bianco quasi coprente (oltre 0,5): passa la luce, non la vista.
+        assertTrue(0.35f in alphas(scene(w)) && 0.85f !in alphas(scene(w)))
+        assertTrue(0.85f in alphas(scene(f)) && 0.35f !in alphas(scene(f)), "${alphas(scene(f))}")
+        // Anche il sopraluce, la finestra ad arco e il bovindo.
+        for (p in listOf(OpeningPreset.TopLight, OpeningPreset.ArchedWindow, OpeningPreset.BayWindow)) {
+            assertTrue(0.85f in alphas(scene(p.apply(f))) && 0.35f !in alphas(scene(p.apply(f))), "$p")
+        }
+        // Le porte solo con il vetro: a vetri, sopraluce o vetro di fianco; non la porta liscia, quella da garage o tutto vetro (già satinata).
+        val door = Opening.default(1, OpeningKind.Door, 0, 200.0).copy(frosted = true)
+        assertFalse(door.hasFrostedGlass)
+        assertTrue(door.copy(doorModel = DoorModel.Glazed).hasFrostedGlass)
+        assertTrue(OpeningPreset.Glazed.apply(door).hasFrostedGlass)
+        assertFalse(OpeningPreset.GarageSectional.apply(door.copy(doorModel = DoorModel.Glazed)).hasFrostedGlass)
+        assertFalse(OpeningPreset.AllGlass.apply(door).hasFrostedGlass)
+        assertTrue(0.85f in alphas(scene(door.copy(doorModel = DoorModel.Glazed))))
+        assertTrue(0.85f in alphas(scene(OpeningPreset.Glazed.apply(door))))
+        // Il vetromattone è già smerigliato.
+        assertFalse(OpeningPreset.GlassBlock.apply(f).hasFrostedGlass)
+        // Nel computo, nello stile copiato e nel file.
+        assertEquals("Classica, bianco · vetro satinato", Openings.description(f))
+        assertEquals("Con vetro, rovere · vetro satinato", Openings.description(door.copy(doorModel = DoorModel.Glazed)))
+        assertTrue(Opening.default(2, OpeningKind.Balcony1, 1, 150.0).withStyleOf(f).frosted)
+        assertTrue(Opening.default(2, OpeningKind.Door, 1, 150.0).withStyleOf(door).frosted)
+        val plan = FloorPlan(listOf(room(f, door.copy(id = 2, wallIndex = 2, doorModel = DoorModel.Glazed))))
+        assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
+    }
 }

@@ -18,7 +18,7 @@ import kotlin.test.Test
 
 /**
  * Foto 3D delle finestre nuove (inferriata, sopraluce, legno con fermavetro, persiana alla romana e bovindo) e delle porte
- * da garage (basculante e sezionale), zanzariere, tende da sole, vetromattone, persiane scorrevoli, porta tutto vetro e persiane accanto agli angoli, viste da fuori e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
+ * da garage (basculante e sezionale), zanzariere, tende da sole, vetromattone, persiane scorrevoli, porta tutto vetro, persiane accanto agli angoli e vetro satinato, viste da fuori e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
  */
 class FinestreNuoveFotoTest {
     @Test
@@ -31,7 +31,8 @@ class FinestreNuoveFotoTest {
         val room = Room(1, "Camera", RoomType.Camera, RoomFactory.rectangle(600.0, 450.0)).copy(
             openings = listOf(
                 o(1, OpeningKind.Window1, 0, 90.0, OpeningPreset.Grille).copy(sillMaterial = StairMaterial.Marble),
-                o(2, OpeningKind.Window1, 0, 220.0, OpeningPreset.TopLight).copy(sillMaterial = StairMaterial.Stone),
+                // Con il vetro satinato, come in bagno.
+                o(2, OpeningKind.Window1, 0, 220.0, OpeningPreset.TopLight).copy(sillMaterial = StairMaterial.Stone, frosted = true),
                 o(3, OpeningKind.Window2, 0, 370.0, OpeningPreset.WoodWindow).copy(sillMaterial = StairMaterial.Wood, splay = 15.0),
                 o(4, OpeningKind.Window1, 0, 520.0, OpeningPreset.RomanShutter).copy(sillMaterial = StairMaterial.Marble),
                 o(5, OpeningKind.Window2, 2, 300.0, OpeningPreset.BayWindow),

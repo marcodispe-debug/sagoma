@@ -143,7 +143,7 @@ class EditorStressTest {
                         o.copy(
                             grille = rnd.nextBoolean(), topLight = rnd.nextBoolean(), bay = rnd.nextInt(4) == 0,
                             garage = pick(com.sagoma.planimetria.model.GarageDoor.entries)!!, insectScreen = rnd.nextBoolean(),
-                            awning = rnd.nextBoolean(), awningColor = if (rnd.nextBoolean()) null else 0xFF8A2C2C,
+                            awning = rnd.nextBoolean(), awningColor = if (rnd.nextBoolean()) null else 0xFF8A2C2C, frosted = rnd.nextBoolean(),
                             sillMaterial = pick(listOf(null) + com.sagoma.planimetria.model.StairMaterial.entries),
                             shading = pick(com.sagoma.planimetria.model.Shading.entries)!!, windowModel = pick(com.sagoma.planimetria.model.WindowModel.entries)!!,
                             windowShape = pick(com.sagoma.planimetria.model.WindowShape.entries)!!, splay = if (rnd.nextBoolean()) 0.0 else rnd.nextDouble(0.0, 40.0),

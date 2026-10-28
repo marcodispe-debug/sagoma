@@ -224,6 +224,8 @@ data class Opening(
      * materiale dei gradini (marmo, pietra, legno…). null = niente lastra, come nei progetti fatti prima.
      */
     val sillMaterial: StairMaterial? = null,
+    /** Vetro satinato: fa passare la luce ma non la vista (es. la finestra del bagno, la porta a vetri del bagno). */
+    val frosted: Boolean = false,
 ) {
     /** Colore effettivo di anta e telaio. */
     val finish: Finish get() = color ?: if (kind.glazed || isGarage) Finish.White else Finish.Oak
@@ -242,6 +244,17 @@ data class Opening(
      * la porta da garage.
      */
     val sill: StairMaterial? get() = if (kind.hasLeaves && !isBay && !isGarage && shape != WindowShape.Round) sillMaterial else null
+    /**
+     * C'è un vetro trasparente che si può satinare: finestre e balconi (non il vetromattone, già smerigliato) e porte con il vetro
+     * nell'anta, il sopraluce o il vetro di fianco (l'anta della porta tutto vetro è già satinata).
+     */
+    val hasClearGlass: Boolean get() = when {
+        kind.glazed -> !isGlassBlock
+        !kind.hasLeaves || isGarage -> false
+        else -> doorModel == DoorModel.Glazed || transomCm > 0 || sidelightCm > 0
+    }
+    /** Vetro satinato che si vede ([frosted] dove c'è un vetro trasparente). */
+    val hasFrostedGlass: Boolean get() = frosted && hasClearGlass
     /** Tenda da sole: finestre e balconi, non sul bovindo (ha il suo tettuccio) né sul vetromattone. */
     val hasAwning: Boolean get() = awning && kind.glazed && !isBay && !isGlassBlock
     /** Porta da garage effettiva: solo porte non scorrevoli, a libro o a bilico. */
@@ -274,7 +287,11 @@ data class Opening(
         color = from.color, customColor = from.customColor,
         shading = from.shading, shadingColor = from.shadingColor, grille = from.grille,
         insectScreen = from.insectScreen, awning = from.awning, awningColor = from.awningColor, sillMaterial = from.sillMaterial,
-    ).withWindowModel(from.windowModel) else copy(doorModel = from.doorModel, color = from.color, customColor = from.customColor, frameless = from.frameless, sillMaterial = from.sillMaterial)
+        frosted = from.frosted,
+    ).withWindowModel(from.windowModel) else copy(
+        doorModel = from.doorModel, color = from.color, customColor = from.customColor, frameless = from.frameless, sillMaterial = from.sillMaterial,
+        frosted = from.frosted,
+    )
 
     /**
      * Questo infisso con il modello `m`. Il vetromattone è fisso e liscio: niente scorrevole, ante, sopraluce, bovindo, forma
