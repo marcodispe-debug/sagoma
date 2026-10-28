@@ -636,4 +636,95 @@ class OpeningTypesTest {
             assertEquals(23.1, inside.point.z, 0.01, "scuri interni, $frame")
         }
     }
+
+    @Test
+    fun `persiane accanto all'angolo - piegate in due o aperte a 90 gradi, mai fuori dal muro`() {
+        // 120 × 120 da 30 a 150: a sinistra, fino all'angolo esterno (x = −7,5), ci sono 37,5 cm per un'anta da 60.
+        val near = Opening.default(1, OpeningKind.Window2, 0, 90.0).copy(width = 120.0, shading = Shading.Shutters)
+        val s = scene(near)
+        // L'anta di sinistra è piegata in due (da 0 a 30): lo strato di fuori sta 3,2 cm più in là.
+        val folded = assertNotNull(fromOutside(s, 15.0, 153.0))
+        assertEquals(Pick.Opening(1, 1), folded.pick)
+        assertEquals(-14.0, folded.point.z, 0.01)
+        // Oltre l'angolo non c'è niente; a destra lo spazio basta e l'anta resta distesa.
+        assertNull(fromOutside(s, -10.0, 153.0), "l'anta non esce oltre l'angolo")
+        assertEquals(-10.8, assertNotNull(fromOutside(s, 180.0, 153.0)).point.z, 0.01)
+        // Più vicina all'angolo (80 da 10 a 90, 17,5 cm di spazio): l'anta si apre a 90°, di taglio verso fuori.
+        val corner = Opening.default(1, OpeningKind.Window1, 0, 50.0).copy(shading = Shading.Shutters, hingeLeft = true)
+        val open = assertNotNull(scene(corner).hit(Vec3(100.0, 153.0, -50.0), Vec3(-1.0, 0.0, 0.0)))
+        assertEquals(Pick.Opening(1, 1), open.pick)
+        assertEquals(10.0, open.point.x, 0.01)
+        assertNull(scene(corner.copy(position = 200.0)).hit(Vec3(300.0, 153.0, -50.0), Vec3(-1.0, 0.0, 0.0)), "lontano dall'angolo resta distesa")
+        // Scuri interni: dentro lo spazio finisce sulla faccia del muro di fianco (x = 7,5), 22,5 cm: aperti a 90° nella stanza.
+        val inner = assertNotNull(scene(near.copy(shading = Shading.InteriorShutters)).hit(Vec3(100.0, 153.0, 40.0), Vec3(-1.0, 0.0, 0.0)))
+        assertEquals(Pick.Opening(1, 1), inner.pick)
+        assertTrue(inner.point.x > 29.0 && inner.point.x < 31.0, "x = ${inner.point.x}")
+        assertNull(fromOutside(scene(near.copy(shading = Shading.InteriorShutters)), -20.0, 153.0), "lo scuro non passa il muro di fianco")
+    }
+
+    @Test
+    fun `persiane accanto a un muro che sporge - si aprono a 90 gradi contro il muro`() {
+        // Un'altra stanza attaccata fuori, da x = 200 a 400: il suo muro x = 200 sporge dalla facciata (faccia a 192,5).
+        val w = Opening.default(1, OpeningKind.Window2, 0, 120.0).copy(width = 120.0, shading = Shading.Shutters) // da 60 a 180
+        val outside = Room(2, "Fuori", RoomType.Altro, listOf(Vec2(200.0, -200.0), Vec2(400.0, -200.0), Vec2(400.0, 0.0), Vec2(200.0, 0.0)))
+        val s = Scene3D.build(FloorPlan(listOf(room(w), outside)), null, null, ceilings = false)
+        // A destra 12,5 cm per un'anta da 60: aperta a 90°, di taglio verso fuori; a sinistra resta distesa.
+        val open = assertNotNull(s.hit(Vec3(100.0, 153.0, -50.0), Vec3(1.0, 0.0, 0.0)))
+        assertEquals(Pick.Opening(1, 1), open.pick)
+        assertEquals(180.0, open.point.x, 0.01)
+        assertEquals(-7.5, assertNotNull(fromOutside(s, 190.0, 153.0)).point.z, 0.01, "niente anta dentro il muro sporgente")
+        assertEquals(-10.8, assertNotNull(fromOutside(s, 20.0, 153.0)).point.z, 0.01)
+    }
+
+    @Test
+    fun `persiane scorrevoli accanto all'angolo - l'anta si ferma e copre parte del vano`() {
+        // 80 da 10 a 90, anta a sinistra larga 83: fino all'angolo (−7,5) corre solo 17,5 cm, quindi copre il vano fino a 75,5.
+        val w = Opening.default(1, OpeningKind.Window1, 0, 50.0).copy(shading = Shading.SlidingShutters, hingeLeft = true)
+        val s = scene(w)
+        val panel = assertNotNull(fromOutside(s, 60.0, 150.0))
+        assertEquals(Pick.Opening(1, 1), panel.pick)
+        assertEquals(-12.5, panel.point.z, 0.01)
+        assertTrue(assertNotNull(fromOutside(s, 80.0, 150.0)).point.z > -8.0, "oltre l'anta il vano resta libero")
+        // Né l'anta né il binario escono oltre l'angolo.
+        assertNull(fromOutside(s, -10.0, 150.0))
+        assertNull(fromOutside(s, -10.0, 215.0))
+        // Due ante senza spazio da nessuna parte (vano largo quanto il muro): restano quasi chiuse, dentro il muro.
+        val wide = Opening.default(1, OpeningKind.Window2, 0, 200.0).copy(width = 400.0, shading = Shading.SlidingShutters)
+        val shut = scene(wide)
+        assertEquals(-12.5, assertNotNull(fromOutside(shut, 150.0, 150.0)).point.z, 0.01)
+        assertEquals(-12.5, assertNotNull(fromOutside(shut, 250.0, 150.0)).point.z, 0.01)
+        assertNull(fromOutside(shut, -10.0, 150.0))
+        assertNull(fromOutside(shut, 410.0, 150.0))
+    }
+
+    @Test
+    fun `persiane di due finestre vicine - non si sovrappongono, lo spazio in mezzo si divide`() {
+        // 120 × 120 da 40 a 160 e da 240 a 360: 80 cm in mezzo, 40 per parte, ante da 60 piegate in due.
+        val left = Opening.default(1, OpeningKind.Window2, 0, 100.0).copy(width = 120.0, shading = Shading.Shutters)
+        val right = Opening.default(2, OpeningKind.Window2, 0, 300.0).copy(width = 120.0, shading = Shading.Shutters)
+        val s = scene(left, right)
+        val a = assertNotNull(fromOutside(s, 175.0, 153.0))
+        assertEquals(Pick.Opening(1, 1), a.pick)
+        assertEquals(-14.0, a.point.z, 0.01)
+        val b = assertNotNull(fromOutside(s, 225.0, 153.0))
+        assertEquals(Pick.Opening(1, 2), b.pick)
+        assertEquals(-14.0, b.point.z, 0.01)
+        assertEquals(-7.5, assertNotNull(fromOutside(s, 200.0, 153.0)).point.z, 0.01, "in mezzo il muro resta libero")
+        // Accanto a una finestra senza persiane l'anta arriva fino a 4 cm da lei (76 cm): resta distesa.
+        val plain = scene(left, right.copy(shading = Shading.None))
+        assertEquals(-10.8, assertNotNull(fromOutside(plain, 210.0, 153.0)).point.z, 0.01)
+        // Gli scuri interni della finestra accanto stanno dall'altra parte: fuori non contano.
+        assertEquals(-10.8, assertNotNull(fromOutside(scene(left, right.copy(shading = Shading.InteriorShutters)), 210.0, 153.0)).point.z, 0.01)
+        // Dentro, due finestre con gli scuri: piegati in due anche loro.
+        val inner = scene(left.copy(shading = Shading.InteriorShutters), right.copy(shading = Shading.InteriorShutters))
+        assertEquals(13.8, assertNotNull(fromInside(inner, 175.0, 153.0)).point.z, 0.01)
+        assertEquals(7.5, assertNotNull(fromInside(inner, 200.0, 153.0)).point.z, 0.01)
+        // Accanto a una porta l'anta si ferma prima del coprifilo (7 cm): da 160 a 202, piegata.
+        val door = Opening.default(2, OpeningKind.Door, 0, 250.0) // da 210 a 290
+        val nearDoor = scene(left, door)
+        assertEquals(-14.0, assertNotNull(fromOutside(nearDoor, 175.0, 153.0)).point.z, 0.01)
+        // Una persiana a un'anta sola, girata dall'altra parte, non toglie spazio: l'anta resta distesa.
+        val single = Opening.default(2, OpeningKind.Window1, 0, 300.0).copy(shading = Shading.Shutters, hingeLeft = false) // da 260 a 340, anta a destra
+        assertEquals(-10.8, assertNotNull(fromOutside(scene(left, single), 210.0, 153.0)).point.z, 0.01)
+    }
 }

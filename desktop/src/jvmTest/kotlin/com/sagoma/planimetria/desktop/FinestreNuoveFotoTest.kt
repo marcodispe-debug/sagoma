@@ -18,7 +18,7 @@ import kotlin.test.Test
 
 /**
  * Foto 3D delle finestre nuove (inferriata, sopraluce, legno con fermavetro, persiana alla romana e bovindo) e delle porte
- * da garage (basculante e sezionale), zanzariere, tende da sole, vetromattone, persiane scorrevoli e porta tutto vetro, viste da fuori e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
+ * da garage (basculante e sezionale), zanzariere, tende da sole, vetromattone, persiane scorrevoli, porta tutto vetro e persiane accanto agli angoli, viste da fuori e da dentro. Non controlla niente: serve a guardarle. Parte solo con SAGOMA_FOTO_FINESTRE=true; immagini in build/finestre/.
  */
 class FinestreNuoveFotoTest {
     @Test
@@ -65,7 +65,17 @@ class FinestreNuoveFotoTest {
                 o(5, OpeningKind.Door, 3, 225.0, OpeningPreset.AllGlass),
             ),
         )
-        val scene = Scene3D.build(FloorPlan(listOf(room, garage, living)), null, null, ceilings = false)
+        // Studio dietro il garage: persiane vicino agli angoli (piegate in due e aperte a 90°), due finestre vicine che si dividono lo
+        // spazio in mezzo, e scuri interni contro il muro di fianco.
+        val studio = Room(4, "Studio", RoomType.Altro, RoomFactory.rectangle(500.0, 300.0).map { it + com.sagoma.planimetria.model.Vec2(800.0, 700.0) }).copy(
+            openings = listOf(
+                o(1, OpeningKind.Window2, 2, 90.0, OpeningPreset.None).copy(shading = Shading.Shutters),
+                o(2, OpeningKind.Window2, 2, 290.0, OpeningPreset.None).copy(shading = Shading.Shutters),
+                o(3, OpeningKind.Window1, 2, 460.0, OpeningPreset.None).copy(shading = Shading.Shutters, hingeLeft = false),
+                o(4, OpeningKind.Window2, 1, 90.0, OpeningPreset.None).copy(shading = Shading.InteriorShutters, color = com.sagoma.planimetria.model.Finish.Walnut),
+            ),
+        )
+        val scene = Scene3D.build(FloorPlan(listOf(room, garage, living, studio)), null, null, ceilings = false)
         val r = DesktopGlSceneRenderer(::read)
         r.setScene(scene)
         r.setDaylight(11f, "auto")
@@ -92,5 +102,7 @@ class FinestreNuoveFotoTest {
         shot("16-scorrevoli-balcone", Vec3(1000.0, 180.0, 1150.0), Vec3(600.0, 120.0, 925.0), 55.0, walking = false)
         shot("17-scorrevoli-finestra", Vec3(780.0, 160.0, 380.0), Vec3(600.0, 140.0, 225.0), 70.0, walking = false)
         shot("18-porta-tutto-vetro", Vec3(200.0, 150.0, 1110.0), Vec3(20.0, 110.0, 900.0), 70.0, walking = true)
+        shot("19-persiane-angolo-fuori", Vec3(1150.0, 190.0, 1560.0), Vec3(1050.0, 140.0, 1000.0), 55.0, walking = false)
+        shot("20-scuri-angolo-dentro", Vec3(1000.0, 160.0, 760.0), Vec3(1300.0, 150.0, 930.0), 75.0, walking = true)
     }
 }

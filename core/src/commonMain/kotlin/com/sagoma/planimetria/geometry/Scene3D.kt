@@ -2689,12 +2689,10 @@ private class SceneBuilder(
                 val leaves = if (o.kind.leaves == 2 || w > 90) 2 else 1
                 val lw = w / leaves
                 val sides = if (leaves == 2) listOf(a to -1.0, b to 1.0) else listOf((if (o.hingeLeft) a else b) to (if (o.hingeLeft) -1.0 else 1.0))
-                for ((edge, dirSign) in sides) {
-                    val p0 = edge + out
-                    val p1 = edge + u * (dirSign * lw) + out
-                    box(p0, p1, 1.5, bottom, top, c, pick)
+                for ((edge, dirSign) in sides) for (leaf in openLeaf(edge, u * dirSign, n, -1.0, half + 1.8, lw)) {
+                    box(leaf.p0, leaf.p1, 1.5, bottom, top, c, pick)
                     var y = bottom + 6
-                    while (y < top - 4) { box(p0, p1, 2.1, y, y + 1.2, slat, pick); y += 6.0 }
+                    while (y < top - 4) { box(leaf.p0, leaf.p1, 2.1, y, y + 1.2, slat, pick); y += 6.0 }
                 }
             }
             Shading.RollerShutter -> {
@@ -2774,37 +2772,174 @@ private class SceneBuilder(
                 val lw = w / leaves + 3.0
                 val sides = if (leaves == 2) listOf(a to -1.0, b to 1.0) else listOf((if (o.hingeLeft) a else b) to (if (o.hingeLeft) -1.0 else 1.0))
                 val low = maxOf(bottom - 3, 0.0)
+                // Spazio libero sulla faccia esterna ai due lati: accanto a un angolo o a un muro che sporge l'anta si ferma
+                // prima e copre in parte il vano (con due ante mai oltre la metà); il binario non va oltre.
+                val roomA = faceRoom(a, u * -1.0, n, -1.0, lw + 3)
+                val roomB = faceRoom(b, u, n, -1.0, lw + 3)
+                var reachA = minOf(3.0, roomA)
+                var reachB = minOf(3.0, roomB)
                 for ((edge, dirSign) in sides) {
-                    val p0 = edge + u * dirSign + off
-                    val p1 = edge + u * (dirSign * (lw + 1)) + off
+                    val room = if (dirSign < 0) roomA else roomB
+                    val end = maxOf(minOf(lw + 1, room), if (leaves == 2) lw - w / 2 else 0.0)
+                    val p0 = edge + u * (dirSign * (end - lw)) + off
+                    val p1 = edge + u * (dirSign * end) + off
                     box(p0, p1, 1.5, low, top + 3, c, pick)
                     var y = low + 6
                     while (y < top) { box(p0, p1, 2.1, y, y + 1.2, slat, pick); y += 6.0 }
+                    val reach = maxOf(end, minOf(end + 1, room))
+                    if (dirSign < 0) reachA = reach else reachB = reach
                 }
                 // Il binario: sopra le ante aperte e il vano (con un'anta sola fino a poco oltre l'altro lato).
-                val left = if (sides.any { it.second < 0 }) a - u * (lw + 2) else a - u * 3.0
-                val right = if (sides.any { it.second > 0 }) b + u * (lw + 2) else b + u * 3.0
-                box(left + off, right + off, 2.5, top + 3, top + 8, rail, pick)
+                box(a - u * reachA + off, b + u * reachB + off, 2.5, top + 3, top + 8, rail, pick)
             }
             Shading.InteriorShutters -> {
                 // Scuri interni: ante piene di legno (colore dell'infisso), aperte sulla faccia del muro verso la stanza.
                 val c = tint(Rgba.argb(o.shadingArgb), pick).mix(Rgba(0f, 0f, 0f), 0.05f)
                 val relief = c.mix(Rgba(0f, 0f, 0f), 0.12f)
-                val inner = n * (half + 1.6)
                 val leaves = if (o.leaves >= 2 || w > 90) 2 else 1
                 val lw = w / leaves
                 val sides = if (leaves == 2) listOf(a to -1.0, b to 1.0) else listOf((if (o.hingeLeft) a else b) to (if (o.hingeLeft) -1.0 else 1.0))
                 for ((edge, dirSign) in sides) {
-                    val p0 = edge + inner
-                    val p1 = edge + u * (dirSign * lw) + inner
-                    box(p0, p1, 1.5, bottom, top, c, pick)
-                    // Due riquadri in rilievo verso la stanza.
-                    val q0 = p0 + u * (dirSign * lw * 0.15) + n * 0.6
-                    val q1 = p0 + u * (dirSign * lw * 0.85) + n * 0.6
+                    val open = openLeaf(edge, u * dirSign, n, 1.0, half + 1.6, lw)
+                    for (leaf in open) box(leaf.p0, leaf.p1, 1.5, bottom, top, c, pick)
+                    // Due riquadri in rilievo sulla faccia che si vede (verso la stanza, o verso il vano se è aperto a 90°).
+                    val leaf = open.last()
+                    val q0 = leaf.p0 + (leaf.p1 - leaf.p0) * 0.15 + leaf.front * 0.6
+                    val q1 = leaf.p0 + (leaf.p1 - leaf.p0) * 0.85 + leaf.front * 0.6
                     box(q0, q1, 1.5, bottom + (top - bottom) * 0.1, bottom + (top - bottom) * 0.45, relief, pick)
                     box(q0, q1, 1.5, bottom + (top - bottom) * 0.55, bottom + (top - bottom) * 0.9, relief, pick)
                 }
             }
+        }
+    }
+
+    /** Anta di un oscurante aperta: mezzeria da [p0] a [p1] (spessa 3 cm), con la faccia che si vede verso [front]. */
+    private class OpenLeaf(val p0: Vec2, val p1: Vec2, val front: Vec2)
+
+    /**
+     * Anta larga `lw` incernierata in `edge`, aperta verso `dir` sulla faccia del muro dal lato `side` (−1 fuori, +1 dentro) a
+     * `face` dalla mezzeria: distesa sul muro se c'è spazio; piegata in due (due strati larghi metà) se ce n'è almeno per metà;
+     * altrimenti aperta a 90°, di taglio. Così accanto a un angolo o a un muro che sporge non esce dal muro e non lo attraversa.
+     */
+    private fun openLeaf(edge: Vec2, dir: Vec2, n: Vec2, side: Double, face: Double, lw: Double): List<OpenLeaf> {
+        val room = faceRoom(edge, dir, n, side, lw + 2)
+        val off = n * (side * face)
+        val front = n * side
+        return when {
+            room >= lw - 0.5 -> listOf(OpenLeaf(edge + off, edge + dir * lw + off, front))
+            room >= lw / 2 - 0.5 -> {
+                val outer = n * (side * (face + 3.2))
+                listOf(OpenLeaf(edge + off, edge + dir * (lw / 2) + off, front), OpenLeaf(edge + outer, edge + dir * (lw / 2) + outer, front))
+            }
+            else -> {
+                val p0 = edge + dir * 1.5 + n * (side * (half + 0.3))
+                listOf(OpenLeaf(p0, p0 + n * (side * lw), dir * -1.0))
+            }
+        }
+    }
+
+    /** Muro pieno del piano: mezzeria da `a` lunga `len` verso `u`, mezzo spessore `half`, e quanto continua oltre gli estremi. */
+    private class SolidWall(val a: Vec2, val u: Vec2, val len: Double, val half: Double, val cap: Double) {
+        fun contains(p: Vec2): Boolean {
+            val d = p - a
+            val along = d dot u
+            return along >= -cap && along <= len + cap && abs(d dot u.perp()) <= half + 0.01
+        }
+    }
+
+    /** Porta o finestra del piano vista dagli oscuranti accanto: estremi sulla mezzeria del suo muro e normale verso la sua stanza. */
+    private class FaceOpening(val o: Opening, val a: Vec2, val b: Vec2, val n: Vec2)
+
+    private var solidWallsOf: FloorPlan? = null
+    private var solidWalls = emptyList<SolidWall>()
+    private var faceOpenings = emptyList<FaceOpening>()
+
+    /**
+     * Muri pieni di [plan] (calcolati una volta per piano, con le sue porte e finestre): quelli delle stanze sporgono di mezzo
+     * spessore oltre gli estremi (negli angoli si incontrano), i muri singoli finiscono dritti (i curvi a pezzi).
+     */
+    private fun solidWalls(): List<SolidWall> {
+        if (solidWallsOf !== plan) {
+            solidWallsOf = plan
+            faceOpenings = plan.rooms.flatMap { r ->
+                r.openings.filter { it.wallIndex < r.wallCount }.map { o ->
+                    val (a, b) = Openings.span(r, o)
+                    FaceOpening(o, a, b, Openings.inwardNormal(r, o.wallIndex))
+                }
+            } + plan.freeWalls.flatMap { it.pieces() }.flatMap { w ->
+                w.openings.map { o -> Openings.span(w.host, o).let { (a, b) -> FaceOpening(o, a, b, Openings.inwardNormal(w.host, 0)) } }
+            }
+            fun wall(a: Vec2, b: Vec2, half: Double, cap: Double): SolidWall? {
+                val len = a.distanceTo(b)
+                return if (len < 0.01) null else SolidWall(a, (b - a) / len, len, half, cap)
+            }
+            solidWalls = plan.rooms.flatMap { r ->
+                (0 until r.wallCount).mapNotNull { i ->
+                    val shift = r.outwardOf(i) * r.wallShift(i)
+                    wall(r.wallStart(i) + shift, r.wallEnd(i) + shift, r.thicknessOf(i) / 2, r.thicknessOf(i) / 2)
+                }
+            } + plan.freeWalls.flatMap { it.pieces() }.mapNotNull { wall(it.start, it.end, it.thickness / 2, 0.0) }
+        }
+        return solidWalls
+    }
+
+    /**
+     * Spazio libero (cm) sulla faccia del muro dal lato `side` (−1 fuori, +1 dentro), partendo da `edge` (sulla mezzeria) verso
+     * `dir`: finisce dove finisce il muro (angolo esterno) o dove c'è un altro muro o una colonna davanti alla faccia (angolo
+     * interno, muro che sporge) o poco prima di un'altra porta o finestra. Al massimo `reach`, anche se il muro stesso non si
+     * trova (forma strana).
+     */
+    private fun faceRoom(edge: Vec2, dir: Vec2, n: Vec2, side: Double, reach: Double): Double {
+        val near = solidWalls().filter { Polygon.distanceToSegment(edge, it.a, it.a + it.u * it.len) <= reach + it.half + it.cap + 5 }
+        // Porte e finestre accanto, sullo stesso muro: l'anta non le copre; se hanno le ante da questa parte, lo spazio si divide a metà.
+        var limit = reach
+        val across = dir.perp()
+        for (f in faceOpenings) {
+            val ta = (f.a - edge) dot dir
+            val tb = (f.b - edge) dot dir
+            val t = minOf(ta, tb)
+            if (t <= 0.5 || t >= 2 * limit) continue // con le ante anche dall'altra parte conta la metà
+            if (abs((f.a - edge) dot across) > half + 1 || abs((f.b - edge) dot across) > half + 1) continue
+            neighbourLimit(f, n * side, nearIsA = ta < tb, t)?.let { limit = minOf(limit, it) }
+        }
+        val columns = plan.columns.filter { it.center.distanceTo(edge) <= limit + it.width + it.depth }
+        fun solid(p: Vec2) = near.any { it.contains(p) } || columns.any { Structure.contains(it, p) }
+        val wallDepth = n * (side * (half - 1))
+        val beyond = n * (side * (half + 2))
+        if (!solid(edge + wallDepth)) return limit
+        var t = 0.0
+        while (t < limit) {
+            val p = edge + dir * (t + 1)
+            if (!solid(p + wallDepth) || solid(p + beyond)) return t
+            t += 1.0
+        }
+        return limit
+    }
+
+    /**
+     * Fin dove arriva un'anta aperta verso la porta o finestra `f` che comincia a `t` cm, sulla faccia del muro verso `face`: a metà
+     * strada se anche lei ha un'anta da questa parte (persiane e scorrevoli fuori, scuri dentro), altrimenti poco prima del suo
+     * bordo (il coprifilo delle porte, il cassonetto della tapparella). Null se da questa parte non c'è (la nicchia dell'altra faccia).
+     */
+    private fun neighbourLimit(f: FaceOpening, face: Vec2, nearIsA: Boolean, t: Double): Double? {
+        val o = f.o
+        val outside = (f.n dot face) < 0
+        val drawn = o.kind.glazed && o.hasShading && o.shape == WindowShape.Rectangle
+        val leaf = drawn && when (o.shading) {
+            Shading.Shutters, Shading.SlidingShutters -> outside
+            Shading.InteriorShutters -> !outside
+            else -> false
+        }
+        if (leaf) {
+            val w = f.a.distanceTo(f.b)
+            val leaves = if (o.shading == Shading.InteriorShutters) o.leaves else o.kind.leaves
+            if (leaves >= 2 || w > 90 || o.hingeLeft == nearIsA) return t / 2
+        }
+        return when {
+            o.kind == OpeningKind.Niche -> if (outside) null else t - 1
+            o.kind == OpeningKind.Passage -> t - 1
+            !o.kind.glazed && !o.frameless -> t - 8
+            else -> t - 4
         }
     }
 
