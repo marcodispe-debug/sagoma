@@ -9,7 +9,7 @@ object TestiControlloFr : TestiControllo() {
     override val cosaControlla: String get() =
         "Cherche les pièces superposées ou presque collées, les murs qui se croisent, les portes et fenêtres en double, plus larges ou plus hautes que le mur, " +
             "les pièces sans porte, la porte d'entrée et les escaliers."
-    override val spiega: String get() = "Ils peuvent fausser surfaces, métré et 3D. «Afficher» y amène et le sélectionne."
+    override val spiega: String get() = "Ils peuvent fausser surfaces, métré et 3D. « Afficher » y amène et le sélectionne."
     override val daCorreggere: String get() = "À corriger"
     override val daControllare: String get() = "À vérifier"
     override val mostra: String get() = "Afficher"
@@ -22,7 +22,7 @@ object TestiControlloFr : TestiControllo() {
     override fun accavallati(a: String, b: String, cm: String): String =
         "$a et $b ont deux murs qui se chevauchent de $cm cm au lieu d'un mur commun : faites glisser ce mur sur celui de l'autre pièce."
     override fun aperturaDoppia(cosa: String, stanze: String): String = "Deux ouvertures au même endroit ($cosa, $stanze) : peut-être posée deux fois. Supprimez-en une."
-    override fun muroZero(a: String, unisci: String): String = "$a : deux angles l'un sur l'autre (un mur de 0 cm). Avec le mur sélectionné, «$unisci» le supprime."
+    override fun muroZero(a: String, unisci: String): String = "$a : deux angles l'un sur l'autre (un mur de 0 cm). Avec le mur sélectionné, « $unisci » le supprime."
     override fun troppoLarga(a: String, cosa: String, cm: String, muro: String): String = "$a : $cosa de $cm cm sur un mur de $muro cm, elle n'y tient pas."
     override fun sopraIlMuro(a: String, cosa: String, cm: String, muro: String): String = "$a : $cosa monte à $cm cm du sol, mais le mur y est haut de $muro cm."
     override fun suMuroTolto(a: String, cosa: String): String = "$a : $cosa sur un mur supprimé (côté ouvert), qui n'existe pas."

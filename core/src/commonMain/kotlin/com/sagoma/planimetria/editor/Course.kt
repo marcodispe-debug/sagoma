@@ -86,6 +86,7 @@ enum class CourseStep(val lesson: Lesson, val action: Boolean = true) {
     Light(Lesson.Elements),
     Stair(Lesson.Elements),
     Info(Lesson.Elements),
+    Check(Lesson.Elements),
     ElementsDone(Lesson.Elements, action = false),
 
     TraceStart(Lesson.OverPlan),
@@ -160,6 +161,12 @@ sealed interface GuideTarget {
     data object InfoPanel : GuideTarget
     /** «↶ Annulla» in alto. */
     data object Undo : GuideTarget
+    /** Il menu «⋮» in alto: fatto quando è aperto. */
+    data object More : GuideTarget
+    /** La voce «Controlla la pianta» del menu «⋮». */
+    data object CheckItem : GuideTarget
+    /** «Chiudi» nella finestra «Controlla la pianta». */
+    data object CheckClose : GuideTarget
 }
 
 /**
@@ -242,6 +249,7 @@ class Course {
             CourseStep.Radiator, CourseStep.Light -> e == TutorialEvent.FixtureAdded
             CourseStep.Stair -> e == TutorialEvent.StairAdded
             CourseStep.Info -> e == TutorialEvent.InfoOpened
+            CourseStep.Check -> e == TutorialEvent.PlanChecked
             CourseStep.TraceStart -> e == TutorialEvent.TracingStarted
             CourseStep.TraceLoad -> e == TutorialEvent.UnderlayLoaded
             // Durante la taratura il passo segue i punti toccati: il terzo tocco ricomincia da A, e la guida torna indietro.
@@ -493,6 +501,7 @@ private class CourseHints(private val s: EditorUiState) {
         else listOf(mark(c.cliccaStanzaLuce, PlanMark(listOf(lightSpot()))))
         CourseStep.Stair -> stairHints()
         CourseStep.Info -> listOf(hint(GuideTarget.Info, c.info))
+        CourseStep.Check -> listOf(hint(GuideTarget.More, c.controlloMenu), hint(GuideTarget.CheckItem, c.controlloVoce), hint(GuideTarget.CheckClose, c.controlloChiudi))
 
         CourseStep.TraceStart -> listOf(hint(GuideTarget.Shape(ShapeChoice.Trace), c.ricalca))
         CourseStep.TraceLoad -> listOf(hint(GuideTarget.GuidePlanImage, c.usaPiantinaGuida))

@@ -88,6 +88,8 @@ sealed interface TutorialEvent {
     data object FreeWallEndDragged : TutorialEvent
     /** Lunghezza, spessore o altro cambiati nella scheda del muro singolo. */
     data object FreeWallChanged : TutorialEvent
+    /** Finestra «Controlla la pianta» chiusa (con «Chiudi» o con «Mostra»). */
+    data object PlanChecked : TutorialEvent
 }
 
 /** Cosa mostra la scheda del tutorial. `detail`: avanzamento dentro il passo (es. lati cambiati). */

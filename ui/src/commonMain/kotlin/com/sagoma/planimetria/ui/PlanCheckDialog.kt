@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.editor.PlanCheck
 import com.sagoma.planimetria.testi.T
 
@@ -61,6 +62,6 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(T.controllo.chiudi) } },
+        confirmButton = { TextButton(onClick = onDismiss, modifier = Modifier.guide(GuideTarget.CheckClose)) { Text(T.controllo.chiudi) } },
     )
 }

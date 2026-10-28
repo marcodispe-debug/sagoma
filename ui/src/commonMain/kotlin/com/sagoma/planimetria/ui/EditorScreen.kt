@@ -169,7 +169,7 @@ fun EditorScreen(
     if (showSite) HouseSiteDialog(state.building.site, onNorth = vm::setNorth, onPlace = vm::setPlace, onDismiss = { showSite = false })
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
-    if (showCheck) PlanCheckDialog(state, vm, onDismiss = { showCheck = false })
+    if (showCheck) PlanCheckDialog(state, vm, onDismiss = { showCheck = false; vm.planCheckClosed() })
     // "Ricalca una piantina" al posto della prima stanza: la finestra resta aperta finché non si carica e si tara la piantina.
     val tracingSetup = state.tracing != null && state.underlayTool == null
     if (showBackground || tracingSetup) BackgroundDialog(state, vm, projectId, tracing = state.tracing != null, onDismiss = {
@@ -1190,7 +1190,7 @@ private fun Toolbar(
         TextButton(onClick = onFit, contentPadding = pad) { Text(T.editor.adatta, maxLines = 1) }
         var menu by remember { mutableStateOf(false) }
         Box {
-            IconButton(onClick = { menu = true }) { Text("⋮", style = MaterialTheme.typography.titleLarge) }
+            IconButton(onClick = { menu = true }, modifier = Modifier.guide(GuideTarget.More, done = menu)) { Text("⋮", style = MaterialTheme.typography.titleLarge) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 // Azioni sulla stanza selezionata; senza selezione restano visibili ma disattivate, così si scoprono.
                 DropdownMenuItem(
@@ -1208,7 +1208,12 @@ private fun Toolbar(
                     onClick = { menu = false; focusedRoom?.let { vm.requestDeleteRoom(it.id) } },
                 )
                 HorizontalDivider()
-                for ((label, action) in extraMenu) DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; action() })
+                for ((label, action) in extraMenu) DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = { menu = false; action() },
+                    // La guida interattiva fa provare il controllo della pianta.
+                    modifier = Modifier.guide(GuideTarget.CheckItem.takeIf { label == T.controllo.voceMenu }),
+                )
                 DropdownMenuItem(text = { Text(T.editor.esportaPng) }, onClick = { menu = false; onExport() })
                 DropdownMenuItem(text = { Text(T.editor.rivediSuggerimenti) }, onClick = { menu = false; vm.resetTips() })
             }

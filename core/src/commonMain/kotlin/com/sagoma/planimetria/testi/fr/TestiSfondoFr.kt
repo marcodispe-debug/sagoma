@@ -51,7 +51,7 @@ object TestiSfondoFr : TestiSfondo() {
     override fun dxfInScala(larghezza: String, altezza: String): String = "Plan DXF chargé déjà à l'échelle ($larghezza × $altezza m) : pas d'étalonnage."
     override fun dxfUnita(cmPerUnita: Double): String =
         "Le fichier n'indique pas son unité : je l'ai lu en " + when (cmPerUnita) { 100.0 -> "mètres"; 0.1 -> "millimètres"; else -> "centimètres" } +
-            ". Si les mesures ne sont pas bonnes, utilisez «Étalonner»."
+            ". Si les mesures ne sont pas bonnes, utilisez « Étalonner »."
     override val dxfSpiega: String get() = "DXF d'AutoCAD ou d'un autre logiciel de CAO (par exemple le plan de l'architecte) : déjà à l'échelle, sans étalonnage."
     override val dxfParziale: String get() = "Dessin très grand : seule une partie des lignes a été chargée."
 }

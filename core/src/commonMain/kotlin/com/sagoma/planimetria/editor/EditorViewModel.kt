@@ -3167,6 +3167,9 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         fitTo(viewBounds(_state.value) ?: return)
     }
 
+    /** Finestra «Controlla la pianta» chiusa: per la guida interattiva, che la fa provare. */
+    fun planCheckClosed() = tutorialEvent(TutorialEvent.PlanChecked)
+
     /**
      * «Controlla la pianta» → «Mostra»: va al piano del problema, seleziona ciò che lo riguarda (o mette a fuoco la stanza) e
      * inquadra la zona, almeno 5 × 5 m attorno perché si capisca dove si è.

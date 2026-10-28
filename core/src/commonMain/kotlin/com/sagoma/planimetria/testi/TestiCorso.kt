@@ -274,6 +274,12 @@ open class TestiCorso {
     open val info: String get() =
         "La scala è selezionata. Per tutte le altre modifiche clicca «${T.schedaStanza.info}»: vale per ogni elemento, porte, finestre, balconi, impianti e scale."
 
+    open val controlloMenu: String get() = "Prima di finire, un aiuto da usare spesso: il controllo della pianta. Clicca il menu «⋮» qui in alto."
+    open val controlloVoce: String get() = "Clicca «${T.controllo.voceMenu}»: cerca gli errori di disegno che di solito sfuggono."
+    open val controlloChiudi: String get() =
+        "Ecco cosa c'è da sistemare (⚠) e cosa controllare (?), per esempio le stanze a cui manca ancora la porta: «${T.controllo.mostra}» porta al punto giusto e lo seleziona. " +
+            "Usalo ogni tanto e prima di esportare. Ora clicca «${T.controllo.chiudi}»."
+
     // ---------- Sopra la tua planimetria ----------
 
     open val ricalca: String get() =

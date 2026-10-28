@@ -231,7 +231,11 @@ object TestiCorsoFr : TestiCorso() {
     override val info: String get() =
         "L'escalier est sélectionné. Pour toutes les autres modifications cliquez sur « $infoTab » : c'est pareil pour chaque élément, portes, fenêtres, balcons, équipements et escaliers."
 
-
+    override val controlloMenu: String get() = "Avant de finir, une aide à utiliser souvent : la vérification du plan. Cliquez sur le menu « ⋮ » ici en haut."
+    override val controlloVoce: String get() = "Cliquez sur « ${T.controllo.voceMenu} » : il cherche les erreurs de dessin qui passent souvent inaperçues."
+    override val controlloChiudi: String get() =
+        "Voici ce qu'il faut corriger (⚠) et ce qu'il faut vérifier (?), par exemple les pièces qui n'ont pas encore de porte : « ${T.controllo.mostra} » amène au bon endroit et le sélectionne. " +
+            "Utilisez-le de temps en temps et avant d'exporter. Cliquez maintenant sur « ${T.controllo.chiudi} »."
     override val ricalca: String get() =
         "Vous avez déjà un plan, du cadastre, du projet ou même une simple photo ? Au choix de la première pièce d'un projet cliquez sur « ${cr.ricalcaPiantina} »."
     override val usaPiantinaGuida: String get() =

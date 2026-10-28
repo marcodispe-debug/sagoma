@@ -7,6 +7,7 @@ import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.GuidePlan
 import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.editor.Lesson
+import com.sagoma.planimetria.editor.PlanCheck
 import com.sagoma.planimetria.editor.ShapeChoice
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.geometry.Polygon
@@ -233,6 +234,19 @@ class CourseTest {
         // Dalla lezione dopo, la casa di prova ha già il tramezzo al suo posto.
         vm.startCourse(Lesson.Elements)
         assertEquals(listOf(GuidePlan.tramezzo.start to GuidePlan.tramezzo.end), vm.state.value.plan.freeWalls.map { it.start to it.end })
+    }
+
+    @Test
+    fun `alla fine degli elementi la guida fa provare il controllo della pianta`() {
+        val vm = emptyProject()
+        vm.startCourse(Lesson.Elements)
+        while (vm.step != CourseStep.Check) vm.skip(vm.step!!)
+        // Menu «⋮», voce «Controlla la pianta», poi «Chiudi» nella finestra: chiusa la finestra il passo è fatto.
+        assertEquals(listOf(GuideTarget.More, GuideTarget.CheckItem, GuideTarget.CheckClose), Course.hints(CourseStep.Check, vm.state.value).map { it.target })
+        vm.planCheckClosed()
+        assertEquals(CourseStep.ElementsDone, vm.step)
+        // La casa della guida, fatta saltando i passi: niente da correggere, solo cose da controllare (porte che mancano, la scala).
+        assertTrue(PlanCheck.of(vm.state.value.fullBuilding).none { it.kind.error }, "${PlanCheck.of(vm.state.value.fullBuilding)}")
     }
 
     @Test
