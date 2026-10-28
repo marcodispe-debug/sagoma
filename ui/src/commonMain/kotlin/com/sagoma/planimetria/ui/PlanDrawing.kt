@@ -44,6 +44,7 @@ import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.Selection
 import com.sagoma.planimetria.geometry.Openings
+import com.sagoma.planimetria.geometry.WallGap
 import com.sagoma.planimetria.geometry.expandCurves
 import com.sagoma.planimetria.geometry.arcOf
 import com.sagoma.planimetria.geometry.wallMiddle
@@ -91,11 +92,9 @@ private fun roomPath(room: Room, cam: Camera) = Path().apply {
 }
 
 /** Fascia del muro da `a` a `b` larga `half` per parte (cm), in coordinate dello schermo. */
-private fun wallBand(a: Vec2, b: Vec2, half: Double, cam: Camera) = Path().apply {
-    val len = a.distanceTo(b)
-    if (len < 1e-6) return@apply
-    val n = (b - a).perp() / len * half
-    listOf(a - n, b - n, b + n, a + n).forEachIndexed { i, p -> val o = cam.o(p); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) }
+private fun polygonPath(points: List<Vec2>, cam: Camera) = Path().apply {
+    if (points.size < 3) return@apply
+    points.forEachIndexed { i, p -> val o = cam.o(p); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) }
     close()
 }
 
@@ -169,18 +168,22 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
             drawLine(fill(r), cam.o(a), cam.o(b), strokeWidth = px + 2f, cap = StrokeCap.Butt)
         }
     }
-    // Muri eliminati: tutto il muro diventa un varco, tranne dove la stanza accanto ha ancora il suo muro.
-    val removed = Openings.removedStretches(plan).filter { g -> rooms.any { it.id == g.roomId } }
-    for (g in removed) clearGap(g.a, g.b, (plan.room(g.roomId)!!.thicknessOf(g.wallIndex) * cam.scale).toFloat().coerceAtLeast(2f))
+    // Muri eliminati: tutto il muro diventa un varco, tranne dove la stanza accanto ha ancora il suo muro e gli angoli con i muri
+    // che restano (il muro accanto finisce dritto; in un ambiente unico i muri di fuori continuano senza tacca).
+    fun openPath(r: Room, g: WallGap) = polygonPath(Openings.openBand(r, g, 1.0 / cam.scale), cam)
+    val removed = Openings.removedStretches(plan).filter { g -> rooms.any { it.id == g.roomId } }.map { g -> g to openPath(plan.room(g.roomId)!!, g) }
+    for ((_, band) in removed) {
+        drawPath(band, background)
+        for (r in rooms) clipPath(paths.getValue(r.id)) { drawPath(band, fill(r)) }
+    }
     // Dove il varco passa sopra l'angolo del muro di un'altra stanza (per esempio il muro di testa che arriva
     // al lato tolto), quel muro torna intero: il muro eliminato non ci lascia una tacca.
-    for (g in removed) {
-        val band = wallBand(g.a, g.b, plan.room(g.roomId)!!.thicknessOf(g.wallIndex) / 2 + 1 / cam.scale, cam)
+    for ((g, band) in removed) {
         for (r in rooms) {
             if (r.outdoor || r.id == g.roomId) continue
             val own = r.removedWalls.filter { it < r.wallCount }
             val clip = if (own.isEmpty()) band else Path().apply {
-                val holes = Path().apply { for (i in own) addPath(wallBand(r.wallStart(i), r.wallEnd(i), r.thicknessOf(i) / 2 + 1 / cam.scale, cam)) }
+                val holes = Path().apply { for (i in own) addPath(openPath(r, WallGap(r.id, i, r.wallStart(i), r.wallEnd(i)))) }
                 op(band, holes, PathOperation.Difference)
             }
             clipPath(clip) { drawPath(wallRing(r, cam), if (r.id == state.focusedRoomId) WallFocusedColor else WallColor) }

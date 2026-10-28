@@ -121,6 +121,18 @@ class PlanDxfTest {
         assertEquals(base - 80 - 100 + 2 * 15 + 2 * hypot(10.0, 15.0), wallLength(dxf), 1e-6)
     }
 
+    @Test
+    fun `ambiente unico senza tacca e lato aperto dritto`() {
+        // Soggiorno e cucina con il muro in comune tolto da tutte e due: fuori 730 × 330, dentro un solo vano 670 × 270.
+        val open = PlanDxf.of(FloorPlan(listOf(living.copy(removedWalls = setOf(1)), kitchen.copy(removedWalls = setOf(3)))))
+        assertEquals(2 * (730 + 330) + 2 * (670 + 270).toDouble(), wallLength(open), 1e-6)
+        assertEquals(8, entities(open).count { it.first == "LINE" && layer(it) == walls })
+        // Il soggiorno da solo, aperto a destra: una C (i muri sopra e sotto finiscono dritti a x = 415).
+        val alone = PlanDxf.of(FloorPlan(listOf(living.copy(removedWalls = setOf(1)))))
+        assertEquals(430 + 30 + 400 + 270 + 400 + 30 + 430 + 330.0, wallLength(alone), 1e-6)
+        assertEquals(8, entities(alone).count { it.first == "LINE" && layer(it) == walls })
+    }
+
     /** Scritte di un livello: testo e rotazione (gradi nel DXF, antiorari). */
     private fun texts(dxf: String, name: String) = entities(dxf).filter { it.first == "TEXT" && layer(it) == name }
         .map { e -> e.second.first { it.first == 1 }.second to (e.second.firstOrNull { it.first == 50 }?.second?.toDouble() ?: 0.0) }

@@ -243,6 +243,58 @@ object Openings {
     }
 
     /**
+     * Dove togliere dal disegno (pianta e DXF) il tratto [g] di un muro eliminato: la striscia del muro, dal filo esterno a quello
+     * interno, più `extra` per parte. All'angolo con un muro della stanza che resta si ferma sulla faccia interna di quel muro:
+     * l'angolo resta muro pieno, così il muro accanto finisce dritto e in un ambiente unico (muro tolto da tutte e due le stanze)
+     * i muri di fuori continuano senza tacca. Dove anche il muro accanto è eliminato va oltre l'angolo, che resta aperto. Vuota
+     * se non resta niente da togliere.
+     */
+    fun openBand(room: Room, g: WallGap, extra: Double): List<Vec2> {
+        val i = g.wallIndex
+        val n = room.wallCount
+        if (i !in 0 until n) return emptyList()
+        val s = room.wallStart(i)
+        val len = s.distanceTo(room.wallEnd(i))
+        if (len < 1e-6) return emptyList()
+        val u = (room.wallEnd(i) - s) / len
+        val sign = if (Polygon.signedArea(room.points) >= 0) 1.0 else -1.0
+        val inward = u.perp() * sign
+        val inner = room.innerThicknesses[i] / 2 + extra
+        val outer = room.outerThicknesses[i] / 2 + extra
+        val ta = (g.a - s) dot u
+        val tb = (g.b - s) dot u
+        /** Dove finiscono, lungo il muro, il lato della striscia verso la stanza e quello verso fuori. */
+        fun end(atEnd: Boolean, t: Double): Pair<Double, Double> {
+            if (if (atEnd) t < len - 0.5 else t > 0.5) return t to t
+            val corner = if (atEnd) len else 0.0
+            val j = if (atEnd) (i + 1) % n else (i - 1 + n) % n
+            val js = room.wallStart(j)
+            val jl = js.distanceTo(room.wallEnd(j))
+            if (jl < 1e-6) return corner to corner
+            val ju = (room.wallEnd(j) - js) / jl
+            if (room.isRemoved(j)) {
+                // Eliminato anche il muro accanto: oltre l'angolo quanto basta a togliere le punte dei due pezzi di muro (poco
+                // dove il muro continua quasi dritto, come i pezzi di un muro curvo; mai oltre la fine del muro accanto).
+                val tanHalf = abs(u.x * ju.y - u.y * ju.x) / max(1e-6, 1 + (u dot ju))
+                val thick = max(room.thicknessOf(i), room.thicknessOf(j))
+                val past = corner + (if (atEnd) 1 else -1) * (min(thick * tanHalf, min(3 * thick, jl)) + extra)
+                return past to past
+            }
+            val jn = ju.perp() * sign
+            val c = u dot jn
+            // Muro accanto quasi dritto (scalino, pezzi di un muro curvo): taglio di traverso all'angolo.
+            if (abs(c) < 0.2) return corner to corner
+            val face = js + jn * (room.innerThicknesses[j] / 2)
+            fun at(side: Vec2) = ((face - s - side) dot jn) / c
+            return at(inward * inner) to at(inward * -outer)
+        }
+        val (in0, out0) = end(false, min(ta, tb))
+        val (in1, out1) = end(true, max(ta, tb))
+        if (in1 - in0 < 0.01 || out1 - out0 < 0.01) return emptyList()
+        return listOf(s + u * in0 + inward * inner, s + u * in1 + inward * inner, s + u * out1 - inward * outer, s + u * out0 - inward * outer)
+    }
+
+    /**
      * Varchi indotti: per ogni porta o apertura senza porta su un muro che combacia (parallelo, entro
      * [SHARED_WALL_TOLERANCE_CM]) con il muro di un'altra stanza, il tratto corrispondente su quel muro.
      */

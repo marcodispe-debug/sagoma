@@ -7,6 +7,7 @@ import com.sagoma.planimetria.geometry.Parapets
 import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.Stairs
 import com.sagoma.planimetria.geometry.Structure
+import com.sagoma.planimetria.geometry.WallGap
 import com.sagoma.planimetria.geometry.expandCurves
 import com.sagoma.planimetria.geometry.formatDecimal
 import com.sagoma.planimetria.geometry.innerThicknesses
@@ -126,18 +127,20 @@ object PlanDxf {
     private const val PARAPET_WALL = 12.0
 
     /**
-     * Pezzi di muro della stanza, uno per muro (i muri eliminati no), tra il filo esterno e quello interno: negli angoli si
-     * incontrano in diagonale; dove un muro cambia spessore restando allineato, con uno scalino.
+     * Pezzi di muro della stanza, uno per muro (dei muri eliminati solo gli angoli), tra il filo esterno e quello interno: negli
+     * angoli si incontrano in diagonale; dove un muro cambia spessore restando allineato, con uno scalino.
      */
     internal fun wallPieces(r: Room): List<List<Vec2>> {
         val n = r.wallCount
         val inner = corners(r.points, r.innerThicknesses.map { it / 2 })
         val outer = corners(r.points, r.outerThicknesses.map { -it / 2 })
-        val quads = (0 until n).filter { !r.isRemoved(it) }.map { i ->
+        val quads = (0 until n).map { i ->
             listOf(outer[i].second, outer[(i + 1) % n].first, inner[(i + 1) % n].first, inner[i].second)
         }
-        // Lato aperto: i muri accanto finiscono dove sarebbe la sua faccia, non a punta dentro il varco.
-        val open = r.removedWalls.filter { it in 0 until n }.map { i -> band(r.wallStart(i), r.wallEnd(i), r.thicknessOf(i) / 2) }
+        // Lato aperto: si toglie il muro eliminato ma non gli angoli con i muri che restano (come sulla pianta), così il muro
+        // accanto finisce dritto e non a punta dentro il varco, e in un ambiente unico i muri di fuori continuano senza tacca.
+        val open = r.removedWalls.filter { it in 0 until n }
+            .map { i -> Openings.openBand(r, WallGap(r.id, i, r.wallStart(i), r.wallEnd(i)), CUT) }.filter { it.size >= 3 }
         return if (open.isEmpty()) quads else quads.flatMap { q -> convex(q).flatMap { Clip.subtractAll(it, open) } }
     }
 
