@@ -88,6 +88,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.min
 
 class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipStore) : ViewModel() {
@@ -2901,6 +2902,16 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         }
     }
 
+    /**
+     * Sfondo già in scala (la pianta DXF di un CAD): niente taratura. `move`: non sta sopra la pianta, lo si sposta subito con il
+     * dito; altrimenti resta dov'è (stesse coordinate della pianta, come quella esportata da qui e rimandata dal professionista).
+     */
+    fun setScaledUnderlay(u: Underlay, move: Boolean) {
+        setUnderlay(u)
+        tutorialEvent(TutorialEvent.Calibrated)
+        if (move) setUnderlayTool(UnderlayTool.Move) else endTracing()
+    }
+
     fun setUnderlayOpacity(opacity: Double) = commit { p -> p.underlay?.let { p.copy(underlay = it.copy(opacity = opacity.coerceIn(0.05, 1.0))) } ?: p }
 
     fun setUnderlayVisible(visible: Boolean) {
@@ -3156,6 +3167,83 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         fitTo(viewBounds(_state.value) ?: return)
     }
 
+    /** Finestra «Controlla la pianta» aperta: per la guida interattiva, che la fa provare. */
+    fun planCheckOpened() = tutorialEvent(TutorialEvent.PlanCheckOpened)
+
+    /** Finestra «Controlla la pianta» chiusa: per la guida interattiva. */
+    fun planCheckClosed() = tutorialEvent(TutorialEvent.PlanChecked)
+
+    /** Toccato un «!» sulla pianta (si apre la sua scheda): per la guida interattiva. */
+    fun checkMarkOpened() = tutorialEvent(TutorialEvent.CheckMarkOpened)
+
+    /**
+     * «Correggi» in «Controlla la pianta»: la correzione automatica del problema ([PlanCheck.fixed]), che si annulla come le altre
+     * modifiche. False se non si riesce da soli.
+     */
+    fun fixIssue(issue: PlanCheck.Issue): Boolean = fixIssueMessage(issue) != null
+
+    /** Come [fixIssue]: l'avviso che dice cosa ha cambiato ([FixSummary.message]), o null se non si corregge. */
+    fun fixIssueMessage(issue: PlanCheck.Issue): String? {
+        val before = _state.value.fullBuilding
+        val fixed = PlanCheck.fixed(before, issue) ?: return null
+        commitBuilding { fixed }
+        tutorialEvent(TutorialEvent.IssuesFixed)
+        return FixSummary.message(1, before, fixed)
+    }
+
+    /**
+     * «Correggi tutti»: la casa `fixed` ([PlanCheck.fixedAll], calcolata fuori dal disegno partendo dalla casa `from`) diventa
+     * quella del disegno, con un solo ↶ per tutte le correzioni. Se intanto la casa è cambiata, false e niente cambia.
+     */
+    fun applyFixes(from: Building, fixed: Building): Boolean {
+        if (_state.value.fullBuilding != from || fixed == from) return false
+        commitBuilding { fixed }
+        tutorialEvent(TutorialEvent.IssuesFixed)
+        return true
+    }
+
+    /**
+     * Toglie (`hidden`) o rimette il «!» del problema sulla pianta: il problema resta nell'elenco di «Controlla la pianta». Si
+     * annulla come le altre modifiche; intanto si dimenticano i problemi tolti che non ci sono più.
+     */
+    fun setCheckHidden(issue: PlanCheck.Issue, hidden: Boolean) = setChecksHidden(listOf(issue), hidden)
+
+    /** Come [setCheckHidden] per più problemi insieme (tutto un gruppo dell'elenco), con un solo ↶. */
+    fun setChecksHidden(issues: List<PlanCheck.Issue>, hidden: Boolean) {
+        commitBuilding { b ->
+            val changed = issues.map { PlanCheck.hideKey(b, it) }
+            val now = runCatching { PlanCheck.of(b) }.getOrDefault(emptyList()).mapTo(HashSet()) { PlanCheck.hideKey(b, it) }
+            val keys = b.hiddenChecks.filterTo(LinkedHashSet()) { it in now }
+            if (hidden) keys += changed else keys -= changed.toSet()
+            if (keys == b.hiddenChecks) b else b.copy(hiddenChecks = keys)
+        }
+        if (hidden && issues.isNotEmpty()) tutorialEvent(TutorialEvent.CheckHidden)
+    }
+
+    /**
+     * «Controlla la pianta» → «Mostra»: va al piano del problema, seleziona ciò che lo riguarda (o mette a fuoco la stanza) e
+     * inquadra la zona, almeno 5 × 5 m attorno perché si capisca dove si è.
+     */
+    fun showIssue(issue: PlanCheck.Issue) {
+        selectFloor(issue.floor)
+        val plan = _state.value.plan
+        val sel = issue.selection?.takeIf { selectionExists(plan, it) }
+        val room = issue.rooms.firstOrNull { plan.room(it) != null }
+        _state.update {
+            it.copy(
+                focusedRoomId = if (sel != null) sel.roomId.takeIf { id -> plan.room(id) != null } else room,
+                selection = sel, multi = emptySet(), selectRect = null,
+            )
+        }
+        val a = issue.area
+        val c = a.center
+        val w = max(a.width, MIN_ISSUE_VIEW) / 2
+        val h = max(a.height, MIN_ISSUE_VIEW) / 2
+        if (!c.x.isFinite() || !c.y.isFinite() || !w.isFinite() || !h.isFinite()) return
+        userAdjustedView = true
+        fitTo(Bounds(c.x - w, c.y - h, c.x + w, c.y + h))
+    }
+
     /** Vista che inquadra `b` nello spazio libero della pianta. */
     private fun fitTo(b: Bounds) {
         if (viewportW <= 0f || viewportH <= 0f) return
@@ -3207,6 +3295,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         /** Trascinando la maniglia della curva, entro questi cm dalla linea dritta il muro torna dritto. */
         private const val BULGE_SNAP = 4.0
         const val AUTOSAVE_DELAY_MS = 400L
+        /** «Mostra» un problema della pianta: la zona inquadrata è almeno così larga e alta (cm). */
+        const val MIN_ISSUE_VIEW = 500.0
         /** Funzioni già spiegate dal tutorial: finito il tutorial, i loro suggerimenti non servono più. */
         val TUTORIAL_TIPS = listOf(Tip.Welcome, Tip.Room, Tip.Wall, Tip.NewRoom, Tip.Opening, Tip.Fixture)
 

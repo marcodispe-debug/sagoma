@@ -1,11 +1,13 @@
 package com.sagoma.planimetria.persistence
 
+import com.sagoma.planimetria.dxf.PlanDxf
 import com.sagoma.planimetria.geometry.Collisions
 import com.sagoma.planimetria.geometry.Dimensions
 import com.sagoma.planimetria.geometry.Glb
 import com.sagoma.planimetria.geometry.Phases
 import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.Takeoff
+import com.sagoma.planimetria.editor.PlanCheck
 import kotlinx.serialization.json.*
 import java.io.File
 import java.util.concurrent.Executors
@@ -16,7 +18,7 @@ import kotlin.test.Test
 
 /**
  * Prova lunga, spenta di solito: copie di un progetto salvato con numeri cambiati a caso (negativi, zero, enormi,
- * piccolissimi). Aprirle non deve far cadere né bloccare 3D, quote, computo e salvataggio.
+ * piccolissimi). Aprirle non deve far cadere né bloccare 3D, quote, computo, pianta in DXF e salvataggio.
  * SAGOMA_FUZZ=progetto.json, SAGOMA_FUZZ_N=quante copie, SAGOMA_FUZZ_FROM=prima copia, SAGOMA_FUZZ_ONLY=1,5,9 (solo quelle),
  * SAGOMA_FUZZ_OUT=cartella dove finiscono esito.txt e le copie che falliscono, SAGOMA_FUZZ_GLB=1 prova anche l'esportazione 3D.
  */
@@ -50,6 +52,8 @@ class DamagedProjectFuzzTest {
         val base = Json.parseToJsonElement(File(src).readText())
         val pool = Executors.newSingleThreadExecutor { r -> Thread(r).apply { isDaemon = true } }
         val log = StringBuilder()
+        // Scritto a ogni caso che fallisce: se la prova si ferma a metà, quello che ha trovato resta.
+        fun note(line: String) { log.appendLine(line); File(outDir, "esito.txt").writeText(log.toString()) }
         var pool2 = pool
         val only = System.getenv("SAGOMA_FUZZ_ONLY")?.split(',')?.map { it.toInt() }?.toSet()
         val from = (System.getenv("SAGOMA_FUZZ_FROM") ?: "0").toInt()
@@ -66,18 +70,20 @@ class DamagedProjectFuzzTest {
                     stage = "dims$i"; Dimensions.of(f.plan)
                     stage = "coll$i"; Collisions.of(f.plan)
                     stage = "phases$i"; Phases.works(f.plan)
+                    stage = "dxf$i"; PlanDxf.of(f.plan, f.levelHeight)
                 }
                 stage = "takeoff"; Takeoff.csv(Takeoff.of(b))
+                stage = "check"; PlanCheck.of(b).forEach { PlanCheck.describe(it, b) }
                 stage = "json"; PlanJson.decodeBuilding(PlanJson.encode(b))
             }
             try {
                 task.get(20, TimeUnit.SECONDS)
             } catch (t: TimeoutException) {
-                log.appendLine("$k TIMEOUT $stage"); File(outDir, "caso-$k.json").writeText(text)
+                note("$k TIMEOUT $stage"); File(outDir, "caso-$k.json").writeText(text)
                 task.cancel(true); pool2 = Executors.newSingleThreadExecutor { r -> Thread(r).apply { isDaemon = true } }
             } catch (t: java.util.concurrent.ExecutionException) {
                 val c = t.cause!!
-                log.appendLine("$k ERR $stage ${c::class.simpleName}: ${c.message?.take(120)} @ ${c.stackTrace.filter { it.className.startsWith("com.sagoma") }.take(5).joinToString(" < ")}")
+                note("$k ERR $stage ${c::class.simpleName}: ${c.message?.take(120)} @ ${c.stackTrace.filter { it.className.startsWith("com.sagoma") }.take(10).joinToString(" < ")}")
                 File(outDir, "caso-$k.json").writeText(text)
             }
         }

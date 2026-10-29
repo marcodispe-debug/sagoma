@@ -24,6 +24,7 @@ open class TestiCorso {
         Lesson.Walls -> cr.muroMuro
         Lesson.FreeWall -> cr.muroSingolo
         Lesson.Elements -> "Porte, finestre e altro"
+        Lesson.Check -> "Controlla la pianta"
         Lesson.OverPlan -> "Sopra la tua planimetria"
     }
 
@@ -71,6 +72,11 @@ open class TestiCorso {
         CourseStep.ElementsDone ->
             "Nella scheda «${T.schedaStanza.info}» cambi misure, tipo e tutto il resto dell'elemento selezionato; si chiude con «▼». " +
                 "Per ogni elemento: lo scegli da «${e.elementiArchitettonici}», lo metti sulla pianta e il resto da «${T.schedaStanza.info}». " +
+                "Nella prossima lezione: il controllo della pianta, che trova da solo gli errori di disegno e molti li sistema."
+        CourseStep.CheckDone ->
+            "Ora sai usare il controllo della pianta: l'elenco completo dal menu «⋮», «✓ ${T.controllo.correggi}» e «✓ Correggi tutti» che " +
+                "sistemano da soli («${e.annulla}» torna indietro), i «!» sulla pianta per vedere cosa c'è in un punto e «${T.controllo.togliDallaPianta}» " +
+                "per quelli che vanno bene così (dall'elenco si rimettono). Prima di esportare, Sagoma ti avvisa se ci sono ancora errori di disegno. " +
                 "Ultima lezione: costruire le stanze sopra la tua planimetria. Serve un progetto nuovo: lo preparo io."
         CourseStep.Finished ->
             "Ecco camera, bagno e soggiorno sopra la piantina, con le misure giuste. Con le altre stanze fai lo stesso: una forma per " +
@@ -266,6 +272,7 @@ open class TestiCorso {
     open val luciElementi: String get() = "Le luci invece vanno dentro la stanza. «${e.elementiArchitettonici}»…"
     open val luci: String get() = "…«${e.luci}»…"
     open val lampadario: String get() = "…per esempio «${FixtureKind.Chandelier.label}»."
+    open val luceSemplice: String get() = "…e qui «${T.arredi.puntoLuceSemplice}»: si mette cliccando nella stanza."
     open val cliccaStanzaLuce: String get() = "Clicca dentro la stanza, dove va la luce: per esempio qui."
     open val cliccaStudio: String get() = "Ultima, la scala. Prima clicca dentro la stanza dove va, per esempio lo studio, qui."
     open val scalaElementi: String get() = "Poi «${e.elementiArchitettonici}»…"
@@ -273,6 +280,26 @@ open class TestiCorso {
     open val chiocciola: String get() = "…e scegli la forma, per esempio «${StairKind.Spiral.label}»."
     open val info: String get() =
         "La scala è selezionata. Per tutte le altre modifiche clicca «${T.schedaStanza.info}»: vale per ogni elemento, porte, finestre, balconi, impianti e scale."
+
+    open val controlloMenu: String get() = "Un aiuto da usare spesso: il controllo della pianta, che cerca gli errori di disegno che di solito sfuggono. Clicca il menu «⋮» qui in alto."
+    open val controlloVoce: String get() = "…e «${T.controllo.voceMenu}»."
+    open val controlloRiapri: String get() = "Riapri il controllo: il menu «⋮» qui in alto…"
+    open val controlloCorreggiTutti: String get() =
+        "Ecco l'elenco: ⚠ cosa sistemare, ? cosa controllare, 📏 i minimi delle norme per la casa. Molti problemi si sistemano da soli: " +
+            "«✓ Correggi tutti» corregge tutto un gruppo insieme (per esempio mette le porte che mancano) e un solo «${e.annulla}» lo disfa. Cliccalo."
+    open val controlloCorreggi: String get() =
+        "Ecco l'elenco: ⚠ cosa sistemare, ? cosa controllare, 📏 i minimi delle norme per la casa. Molti problemi si sistemano da soli: " +
+            "clicca «✓ ${T.controllo.correggi}» (con «${e.annulla}» si torna indietro)."
+    open val controlloChiudi: String get() =
+        "Fatto: l'elenco si aggiorna da solo. «${T.controllo.mostra}» porta al punto giusto e lo seleziona, «${T.controllo.condividi}» manda " +
+            "l'elenco a chi ti aiuta. Ora clicca «${T.controllo.chiudi}»."
+    open val controlloSegno: String get() =
+        "Il controllo lavora anche da solo, mentre disegni: il segnale in alto a sinistra sulla pianta dice quanti problemi ci sono (toccalo " +
+            "per riaprire l'elenco) e un «!» segna il punto di ognuno, rosso per gli errori, giallo per le cose da controllare, blu per le norme. Clicca questo «!»."
+    open val controlloTogli: String get() =
+        "La scheda dice cosa c'è in questo punto, con «✓ ${T.controllo.correggi}» (dove si può) e «${T.controllo.mostra}». Se per te va bene " +
+            "così, «${T.controllo.togliDallaPianta}» toglie il «!»: il problema resta nell'elenco e da lì si rimette. Clicca «${T.controllo.togliDallaPianta}»."
+    open val controlloSegnoDiNuovo: String get() = "Clicca un «!» sulla pianta: si apre la scheda di quel punto."
 
     // ---------- Sopra la tua planimetria ----------
 

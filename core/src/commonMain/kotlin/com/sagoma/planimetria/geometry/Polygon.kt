@@ -87,7 +87,7 @@ object Polygon {
      * Nel vertice `i` il contorno spostato fa lo scalino: i due lati hanno spostamenti diversi e sono allineati, o
      * quasi (es. la fine di un muro curvo che prosegue dritto) tanto che i lati spostati si incontrerebbero lontano.
      */
-    private fun steppedAt(pts: List<Vec2>, i: Int, d: List<Double>): Boolean {
+    internal fun steppedAt(pts: List<Vec2>, i: Int, d: List<Double>): Boolean {
         val n = pts.size
         val prevD = d[(i - 1 + n) % n]
         if (abs(prevD - d[i]) <= 1e-6) return false

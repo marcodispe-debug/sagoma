@@ -61,8 +61,11 @@ object ExteriorChains {
         fun next(i: Int) = (i + 1) % n
     }
 
-    /** Tratto di facciata rivolto verso un lato: da `from` a `to` lungo la catena, col filo interno del muro a `inner` (lungo out). */
-    private class Facade(val shape: Shape, val wall: Int, val from: Double, val to: Double, val inner: Double)
+    /**
+     * Tratto di facciata rivolto verso un lato: da `from` a `to` lungo la catena, col filo interno del muro a `inner` e quello
+     * esterno a `outer` (lungo out).
+     */
+    private class Facade(val shape: Shape, val wall: Int, val from: Double, val to: Double, val inner: Double, val outer: Double)
 
     fun of(plan: FloorPlan): ExteriorDimensions {
         val shapes = plan.rooms.filter { !it.outdoor && it.wallCount >= 3 }.map { r ->
@@ -114,10 +117,11 @@ object ExteriorChains {
             val a = s.room.wallStart(i)
             val u = (s.room.wallEnd(i) - a).normalized()
             val inner = ((s.int[i] dot o) + (s.int[s.next(i)] dot o)) / 2
+            val outer = ((s.ext[i] dot o) + (s.ext[s.next(i)] dot o)) / 2
             for (r in stretches) {
                 val p = (a + u * r.start) dot along
                 val q = (a + u * r.endInclusive) dot along
-                facades[side] += Facade(s, i, min(p, q), max(p, q), inner)
+                facades[side] += Facade(s, i, min(p, q), max(p, q), inner, outer)
             }
         }
 
@@ -131,8 +135,14 @@ object ExteriorChains {
             val total = house.min()..house.max()
             val marks = mutableListOf(total.start, total.endInclusive)
             for (f in facades[side]) {
-                marks += f.from
-                marks += f.to
+                // La facciata continua dritta in quella di un'altra stanza (muro in comune o eliminato tra le due): lì non finisce
+                // niente. I tramezzi si segnano sotto, dai muri pieni; un muro eliminato non lascia il suo spessore nella catena.
+                fun continues(t: Double, forward: Boolean) = facades[side].any { g ->
+                    g !== f && abs(g.outer - f.outer) < SAME_MARK &&
+                        if (forward) g.from <= t + SAME_MARK && g.to > t + SAME_MARK else g.to >= t - SAME_MARK && g.from < t - SAME_MARK
+                }
+                if (!continues(f.from, forward = false)) marks += f.from
+                if (!continues(f.to, forward = true)) marks += f.to
                 // Appena dentro il filo interno della facciata: dove cominciano e finiscono i muri (gli spessori) e le stanze.
                 val base = along * 0.0 + out * (f.inner - PROBE)
                 for (r in merge(solids.flatMap { lineInside(it, base, along) })) {

@@ -46,6 +46,7 @@ open class Lingua(val codice: String) {
     open val pannelli: TestiPannelli = TestiPannelli()
     open val foto: TestiFoto = TestiFoto()
     open val corso: TestiCorso = TestiCorso()
+    open val controllo: TestiControllo = TestiControllo()
 }
 
 object Italiano : Lingua("it")
@@ -98,6 +99,7 @@ object T {
     val pannelli: TestiPannelli get() = lingua.pannelli
     val foto: TestiFoto get() = lingua.foto
     val corso: TestiCorso get() = lingua.corso
+    val controllo: TestiControllo get() = lingua.controllo
 }
 
 /** Titolo e testo di un passo di una guida. */

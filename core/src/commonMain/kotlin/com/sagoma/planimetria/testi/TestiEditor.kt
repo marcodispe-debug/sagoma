@@ -116,6 +116,7 @@ open class TestiEditor {
     open val eliminaStanza: String get() = "Elimina stanza…"
     open fun elimina(name: Any?): String = "Elimina $name…"
     open val esportaPng: String get() = "Esporta PNG"
+    open val esportaDxf: String get() = "Esporta pianta DXF (CAD)"
     open val rivediSuggerimenti: String get() = "Rivedi i suggerimenti"
     open val guidaRicalco: String get() = "Guida al ricalco"
     open val tutorial: String get() = "Tutorial"

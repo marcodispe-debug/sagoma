@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorUiState
+import com.sagoma.planimetria.geometry.HousingRules
 import com.sagoma.planimetria.geometry.Takeoff
 import com.sagoma.planimetria.persistence.ProjectInfo
 import com.sagoma.planimetria.testi.T
@@ -88,16 +89,51 @@ fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Uni
                     T.computo.paretiSuperficieInternaNetto,
                     style = MaterialTheme.typography.bodySmall,
                 )
+                if (res.phased) Text(T.computo.statoDiProgetto, style = MaterialTheme.typography.bodySmall)
+                if (res.works.isNotEmpty()) {
+                    Section(T.computo.opere)
+                    Column(Modifier.horizontalScroll(rememberScrollState())) {
+                        TableRow(listOf(T.computo.voce, T.computo.numero, "m²", "m³"), header = true, widths = worksWidths)
+                        // Con più piani le voci di ogni piano sotto il suo nome, poi quelle di tutta la casa.
+                        val lines = if (res.works.size > 1) res.works + Takeoff.WorksLine(T.computo.totale, res.totalWorks) else res.works
+                        for (l in lines) {
+                            if (lines.size > 1) TableRow(listOf(l.floor), header = true, widths = worksWidths)
+                            for (i in Takeoff.worksItems(l.works)) TableRow(listOf(i.label, i.count?.toString() ?: "", fmt2(i.m2), fmt2(i.m3)), widths = worksWidths)
+                        }
+                    }
+                    Text(T.computo.notaOpere, style = MaterialTheme.typography.bodySmall)
+                }
+                if (res.areas.isNotEmpty()) {
+                    Section(T.computo.superfici)
+                    Column(Modifier.horizontalScroll(rememberScrollState())) {
+                        TableRow(listOf(T.computo.piano, T.computo.utileM2, T.computo.lordaM2, T.computo.balconiM2, ""), header = true)
+                        for (a in res.areas) TableRow(listOf(a.floor, fmt2(a.usable), fmt2(a.gross), fmt2(a.outdoor), ""))
+                    }
+                    Line(T.computo.commerciale, "${fmt2(res.commercial)} m²")
+                    Text(T.computo.notaSuperfici, style = MaterialTheme.typography.bodySmall)
+                }
                 Section(T.computo.pavimentiOrdinare)
                 for (t in res.floorMaterials) Line(t.what, "${fmt2(t.quantity)} m²  (+10% ${fmt2(t.quantity * 1.1)})")
                 Section(T.computo.finiturePareti)
                 for (t in res.wallFinishes) Line(t.what, "${fmt2(t.quantity)} m²")
+                if (res.ceilings > 0) Line(T.computo.soffitti, "${fmt2(res.ceilings)} m²")
                 Section(T.computo.arredi)
                 if (res.furniture.isEmpty()) Text(T.computo.nessunArredo, style = MaterialTheme.typography.bodySmall)
                 for (i in res.furniture) Line("${i.count}× ${i.name}", "${i.size}\n${i.where}")
                 if (res.fixtures.isNotEmpty()) {
                     Section(T.computo.impianti)
                     for (i in res.fixtures) Line("${i.count}× ${i.name}", i.where)
+                }
+                if (res.light.isNotEmpty()) {
+                    Section(T.computo.luceAria)
+                    Column(Modifier.horizontalScroll(rememberScrollState())) {
+                        TableRow(listOf(T.computo.stanza, T.computo.pavM2, T.computo.finM2, T.computo.rapporto, T.computo.almenoUnOttavo), header = true)
+                        val multi = state.fullBuilding.floors.size > 1
+                        for (l in res.light) TableRow(
+                            listOf(if (multi) "${l.rooms} (${l.floor})" else l.rooms, fmt2(l.floorArea), fmt2(l.windowArea), HousingRules.fraction(l.ratio), if (l.enough) T.computo.si else T.computo.no),
+                        )
+                    }
+                    Text(T.computo.notaLuce, style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
@@ -129,13 +165,17 @@ private fun Line(left: String, right: String) {
 
 private val columnWidths: List<Dp> = listOf(120.dp, 64.dp, 72.dp, 72.dp, 130.dp)
 
+/** Colonne delle opere: voce, numero, m², m³. */
+private val worksWidths: List<Dp> = listOf(240.dp, 40.dp, 72.dp, 72.dp)
+
 @Composable
-private fun TableRow(cells: List<String>, header: Boolean = false) {
+private fun TableRow(cells: List<String>, header: Boolean = false, widths: List<Dp> = columnWidths) {
     Row(Modifier.padding(vertical = 2.dp)) {
         cells.forEachIndexed { i, c ->
             Text(
                 c,
-                Modifier.width(columnWidths[i]).padding(end = 6.dp),
+                // Una cella sola (il nome del piano) prende tutta la riga.
+                if (cells.size == 1) Modifier.padding(end = 6.dp) else Modifier.width(widths[i]).padding(end = 6.dp),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = if (header) FontWeight.SemiBold else null,
                 textAlign = if (i in 1..3) TextAlign.End else TextAlign.Start,

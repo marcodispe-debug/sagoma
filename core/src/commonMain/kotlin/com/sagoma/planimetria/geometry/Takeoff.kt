@@ -2,6 +2,7 @@ package com.sagoma.planimetria.geometry
 
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.Covering
+import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorFinish
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.FurnitureCatalog
@@ -10,10 +11,12 @@ import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.ProPalette
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.testi.T
+import kotlin.math.roundToInt
 
 /**
  * Computo metrico della casa: per ogni stanza pavimento, pareti da finire (al netto di porte e finestre),
- * battiscopa e aperture; totali per materiale; elenco di arredi e impianti. Misure in m e m².
+ * battiscopa e aperture; totali per materiale; elenco di arredi e impianti. Misure in m e m², nello stato di progetto (senza
+ * i muri da demolire e le aperture da chiudere).
  */
 object Takeoff {
     data class RoomLine(
@@ -32,6 +35,48 @@ object Takeoff {
 
     data class Total(val what: String, val quantity: Double, val unit: String)
 
+    /**
+     * Superfici di un piano (m², [FloorAreas]): utile (il pavimento delle stanze al chiuso), lorda (con i muri), balconi e
+     * terrazze; per la superficie commerciale anche le zone non calpestabili, la parte dei muri esterni oltre 50 cm e se è
+     * interrato.
+     */
+    data class AreaLine(
+        val floor: String,
+        val usable: Double,
+        val gross: Double,
+        val outdoor: Double,
+        val excluded: Double = 0.0,
+        val extraWall: Double = 0.0,
+        val basement: Boolean = false,
+    ) {
+        /** Quello che conta nella superficie commerciale, prima del peso degli interrati. */
+        val counted: Double get() = (gross - excluded - extraWall).coerceAtLeast(0.0)
+    }
+
+    /** Opere di un piano con demolizioni o parti nuove ([Phases.works]). */
+    data class WorksLine(val floor: String, val works: Phases.Works)
+
+    /** Una voce delle opere; `count` solo per le aperture. */
+    data class WorksItem(val label: String, val count: Int?, val m2: Double, val m3: Double)
+
+    /** Le voci delle opere che ci sono, nell'ordine del cantiere: demolire, aprire i vani, chiudere le aperture, costruire. */
+    fun worksItems(w: Phases.Works): List<WorksItem> = listOfNotNull(
+        WorksItem(T.computo.muriDaDemolire, null, w.demolishM2, w.demolishM3).takeIf { w.demolishM2 > 0.0 },
+        WorksItem(T.computo.vaniDaAprire, w.openingsNew, w.openingsNewM2, w.openingsNewM3).takeIf { w.openingsNew > 0 },
+        WorksItem(T.computo.apertureDaChiudere, w.openingsClosed, w.openingsClosedM2, w.openingsClosedM3).takeIf { w.openingsClosed > 0 },
+        WorksItem(T.computo.muriNuovi, null, w.newM2, w.newM3).takeIf { w.newM2 > 0.0 },
+    )
+
+    /**
+     * Luce e aria di un ambiente da abitare (una stanza, o il soggiorno con la cucina a vista): m² di pavimento e di finestre
+     * apribili che danno fuori ([HousingRules]).
+     */
+    data class LightLine(val floor: String, val rooms: String, val floorArea: Double, val windowArea: Double) {
+        val ratio: Double get() = if (floorArea > 0) windowArea / floorArea else 0.0
+        /** Almeno 1/8, con le misure arrotondate al centesimo come si leggono. */
+        val enough: Boolean get() = (windowArea * 100).roundToInt() >= (floorArea * HousingRules.MIN_RATIO * 100).roundToInt()
+    }
+
     data class Item(val name: String, val size: String, val count: Int, val where: String)
 
     data class Result(
@@ -40,7 +85,22 @@ object Takeoff {
         val wallFinishes: List<Total>,
         val furniture: List<Item>,
         val fixtures: List<Item>,
+        /** m² dei soffitti da dipingere (in mansarda la falda vera, più grande della pianta). */
+        val ceilings: Double = 0.0,
+        /** In casa ci sono parti da demolire o nuove: il computo è quello dello stato di progetto (va detto). */
+        val phased: Boolean = false,
+        /** Luce e aria degli ambienti da abitare (rapporto aeroilluminante), nello stato di progetto. */
+        val light: List<LightLine> = emptyList(),
+        /** Superfici dei piani, nello stato di progetto. */
+        val areas: List<AreaLine> = emptyList(),
+        /** Opere (demolizioni e costruzioni) dei piani che ne hanno. */
+        val works: List<WorksLine> = emptyList(),
     ) {
+        /** Le opere di tutta la casa. */
+        val totalWorks: Phases.Works get() = works.fold(Phases.Works()) { a, l -> a + l.works }
+        /** Superficie commerciale indicativa di tutta la casa (m², DPR 138/1998). */
+        val commercial: Double
+            get() = FloorAreas.commercial(areas.filter { !it.basement }.sumOf { it.counted }, areas.filter { it.basement }.sumOf { it.counted }, areas.sumOf { it.outdoor })
         val totalFloor: Double get() = rooms.sumOf { it.floorArea }
         val totalWalls: Double get() = rooms.sumOf { it.wallArea }
         val totalSkirting: Double get() = rooms.sumOf { it.skirting }
@@ -75,17 +135,42 @@ object Takeoff {
         // La nicchia non buca la parete: si dipinge anche lei.
         val openings = r.openings.filter { it.wallIndex == i && it.kind != OpeningKind.Niche }
         val gaps = induced.filter { it.roomId == r.id && it.wallIndex == i }
-        fun holesBetween(lo: Double, hi: Double) = openings.sumOf { o ->
-            val bottom = o.bottom
-            minOf(o.width, r.wallLength(i)) * ((minOf(bottom + o.height, hi) - maxOf(bottom, lo)).coerceAtLeast(0.0))
-        } + gaps.sumOf { g -> g.a.distanceTo(g.b) * ((minOf(g.height, hi) - maxOf(0.0, lo)).coerceAtLeast(0.0)) }
-        fun area(lo: Double, hi: Double) = ((length * (hi - lo) - holesBetween(lo, hi)) / 10_000.0).coerceAtLeast(0.0)
+        fun holesBetween(lo: Double, hi: Double) = openings.sumOf { o -> Openings.holeArea(r, o, lo, hi) } +
+            gaps.sumOf { g -> gapArea(r, g, lo, hi) }
+        fun area(lo: Double, hi: Double) = ((wallBetween(r, i, length, lo, hi) - holesBetween(lo, hi)) / 10_000.0).coerceAtLeast(0.0)
         val paint = paintName(f.argb)
         if (f.covering == Covering.None) return listOf(paint to area(0.0, height))
         val cover = if (f.covering == Covering.Material) MaterialCatalog.item(f.material)?.nome ?: T.computo.rivestimento else f.covering.label
         val h = f.coverHeight?.coerceAtMost(height) ?: height
         if (h >= height) return listOf(cover to area(0.0, height))
         return listOf(T.computo.finoCm(cover, h.toInt()) to area(0.0, h), paint to area(h, height))
+    }
+
+    /**
+     * Parete `i` tra le quote `lo` e `hi` (cm²), lunga `length` sul filo interno: alta come il muro o, in mansarda, tagliata in
+     * diagonale come nel 3D ([Ceilings.wallTopAt]).
+     */
+    private fun wallBetween(r: Room, i: Int, length: Double, lo: Double, hi: Double): Double {
+        val len = r.wallLength(i)
+        if (Ceilings.effectiveCut(r, i) == null || len < 1e-6) return length * (minOf(hi, r.wallHeight(i)) - lo).coerceAtLeast(0.0)
+        // La cima è dritta e poi scende in linea retta: a strisce sottili lo scarto è di frazioni di cm².
+        val n = 256
+        var sum = 0.0
+        for (k in 0 until n) sum += (minOf(hi, Ceilings.wallTopAt(r, i, len * (k + 0.5) / n)) - lo).coerceAtLeast(0.0)
+        return length * sum / n
+    }
+
+    /**
+     * Varco della porta della stanza accanto sul muro `g.wallIndex` di `r`, tra le quote `lo` e `hi` (cm²): mai più alto della
+     * parete in quel punto (in mansarda scende).
+     */
+    private fun gapArea(r: Room, g: WallGap, lo: Double = 0.0, hi: Double = Double.MAX_VALUE): Double {
+        val s = r.wallStart(g.wallIndex)
+        val dir = r.wallEnd(g.wallIndex) - s
+        val len = dir.length
+        val t = if (len < 1e-6) 0.0 else (((g.a + g.b) / 2.0 - s) dot dir) / len
+        val top = minOf(g.height, Ceilings.wallTopAt(r, g.wallIndex, t.coerceIn(0.0, len)), hi)
+        return g.a.distanceTo(g.b) * (top - maxOf(0.0, lo)).coerceAtLeast(0.0)
     }
 
     /** Somma `v` al totale della voce `key`. */
@@ -103,8 +188,19 @@ object Takeoff {
         val wallTot = LinkedHashMap<String, Double>()
         val furniture = LinkedHashMap<Pair<String, String>, Pair<Int, MutableSet<String>>>()
         val fixtures = LinkedHashMap<String, Pair<Int, MutableSet<String>>>()
-        for (fl in building.floors) {
-            val plan = fl.plan
+        var ceilings = 0.0
+        val light = mutableListOf<LightLine>()
+        val areas = mutableListOf<AreaLine>()
+        val works = mutableListOf<WorksLine>()
+        for ((index, fl) in building.floors.withIndex()) {
+            // Opere: dallo stato di fatto a quello di progetto (sulla pianta com'è disegnata, con tutte le fasi).
+            if (Phases.hasChanges(fl.plan)) Phases.works(fl.plan, fl.levelHeight).takeIf { !it.isEmpty }?.let { works += WorksLine(fl.name, it) }
+            // Luce e aria: [HousingRules] guarda da solo la casa come sarà (muri e aperture da demolire non contano).
+            for (s in HousingRules.livingSpaces(fl.plan)) {
+                light += LightLine(fl.name, s.joinToString(" + ") { it.name }, HousingRules.floorArea(s) / 10_000, HousingRules.windowArea(fl.plan, s) / 10_000)
+            }
+            // Lo stato di progetto: i muri da demolire sono lati aperti, le aperture da chiudere sono muro pieno.
+            val plan = Phases.view(fl.plan, PhaseView.Project)
             // Porte sul muro in comune: il vano buca anche la parete della stanza accanto (che non ha la porta tra le sue).
             val induced = Openings.sharedGaps(plan)
             for (r in plan.rooms) {
@@ -112,6 +208,7 @@ object Takeoff {
                 lines += line
                 floorTot.add(line.floorFinish, line.floorArea)
                 if (!r.outdoor) {
+                    ceilings += Ceilings.areaM2(r)
                     val lengths = r.interiorLengths()
                     for (i in 0 until r.wallCount) if (!r.isRemoved(i)) for ((name, area) in wallParts(r, i, lengths[i], induced)) wallTot.add(name, area)
                 }
@@ -120,6 +217,21 @@ object Takeoff {
                     fixtures[f.kind.label] = (e.first + 1) to e.second.also { it += r.name }
                 }
             }
+            // Superfici del piano (quella utile come nella tabella delle stanze, con o senza le zone non calpestabili).
+            if (plan.rooms.isNotEmpty()) {
+                val indoor = plan.rooms.filter { !it.outdoor }
+                areas += AreaLine(
+                    fl.name,
+                    indoor.sumOf { if (withoutZones) it.usableArea() else it.interiorArea() } / 10_000,
+                    FloorAreas.gross(plan) / 10_000,
+                    FloorAreas.outdoor(plan) / 10_000,
+                    FloorAreas.excluded(plan) / 10_000,
+                    FloorAreas.extraWall(plan) / 10_000,
+                    index < building.ground,
+                )
+            }
+            // Muri singoli (tramezzi, muretti): una riga per piano, con le pareti dei due lati.
+            freeWallsLine(fl, plan, wallTot)?.let { lines += it }
             for (f in plan.furniture) {
                 val name = FurnitureCatalog.item(f.model)?.nome ?: T.computo.arredo
                 val size = T.computo.cm(cm(f.width), cm(f.depth), cm(f.height))
@@ -134,6 +246,11 @@ object Takeoff {
             wallTot.map { (k, v) -> Total(k, v, "m²") },
             furniture.map { (k, v) -> Item(k.first, k.second, v.first, v.second.joinToString(", ")) }.sortedBy { it.name },
             fixtures.map { (k, v) -> Item(k, "", v.first, v.second.joinToString(", ")) },
+            ceilings,
+            building.floors.any { Phases.hasChanges(it.plan) },
+            light,
+            areas,
+            works,
         )
     }
 
@@ -145,19 +262,16 @@ object Takeoff {
         var wall = 0.0
         var holes = 0.0
         // I muri eliminati (lati aperti) non si dipingono e non hanno battiscopa.
-        if (!r.outdoor) for (i in 0 until r.wallCount) if (!r.isRemoved(i)) wall += lengths[i] * r.wallHeight(i) / 10_000.0
+        if (!r.outdoor) for (i in 0 until r.wallCount) if (!r.isRemoved(i)) wall += wallBetween(r, i, lengths[i], 0.0, Double.MAX_VALUE) / 10_000.0
         val openSides = (0 until r.wallCount).filter { r.isRemoved(it) }.sumOf { lengths[it] } / 100.0
         // La nicchia non buca la parete e non è né una porta né una finestra.
         val openings = r.openings.filter { it.kind != OpeningKind.Niche }
-        // Il vano non è mai più largo del muro né più alto della parete (una misura scritta per sbaglio, es. 2100 invece di 210).
-        for (o in openings) if (o.wallIndex < r.wallCount && !r.isRemoved(o.wallIndex)) {
-            val bottom = o.bottom
-            val h = (minOf(bottom + o.height, r.wallHeight(o.wallIndex)) - bottom).coerceAtLeast(0.0)
-            holes += minOf(o.width, r.wallLength(o.wallIndex)) * h / 10_000.0
-        }
+        // Il vano, con la sua forma (ad arco, tonda), non è mai più largo del muro né più alto della parete (una misura scritta
+        // per sbaglio, es. 2100 invece di 210; in mansarda la parete scende).
+        for (o in openings) if (o.wallIndex < r.wallCount && !r.isRemoved(o.wallIndex)) holes += Openings.holeArea(r, o) / 10_000.0
         // Varchi delle porte della stanza accanto sul muro in comune (sui muri eliminati non c'è parete da togliere).
         val gaps = induced.filter { it.roomId == r.id && it.wallIndex < r.wallCount && !r.isRemoved(it.wallIndex) }
-        if (!r.outdoor) for (g in gaps) holes += g.a.distanceTo(g.b) * minOf(g.height, r.wallHeight(g.wallIndex)) / 10_000.0
+        if (!r.outdoor) for (g in gaps) holes += gapArea(r, g) / 10_000.0
         // Il battiscopa si interrompe davanti a porte, porte-finestre e varchi (tutto ciò che arriva a terra), anche quelli
         // delle porte della stanza accanto.
         // Una porta rimasta su un muro eliminato non conta: quel lato è già tolto tutto (altrimenti si toglieva due volte).
@@ -171,6 +285,39 @@ object Takeoff {
             if (r.outdoor) 0.0 else (perimeter - atFloor - openSides).coerceAtLeast(0.0),
             floorFinishName(r), wallName, doors, windows,
         )
+    }
+
+    /**
+     * Muri singoli di `plan` (il piano `fl` nello stato di progetto, senza quelli da demolire): si finiscono sui due lati, alti fino al soffitto o quanto scritto,
+     * lunghi come la loro mezzeria (sull'arco, se curvi: la media dei due lati), al netto dei vani; il battiscopa corre sui due
+     * lati, tranne davanti a porte e varchi. Le finiture vanno nei totali `wallTot`.
+     */
+    private fun freeWallsLine(fl: Floor, plan: FloorPlan, wallTot: MutableMap<String, Double>): RoomLine? {
+        val walls = plan.freeWalls.filter { it.length >= 1.0 }
+        if (walls.isEmpty()) return null
+        var wall = 0.0
+        var holes = 0.0
+        var skirting = 0.0
+        val names = LinkedHashSet<String>()
+        var doors = 0
+        var windows = 0
+        for (w in walls) {
+            val h = Structure.freeWallHeight(plan, w, fl.levelHeight)
+            val host = w.host.copy(ceilingHeight = h, wallFinish = w.finishOrPaint)
+            val length = host.arcOf(0)?.arcLength() ?: w.length
+            for ((name, area) in wallParts(host, 0, length)) {
+                wallTot.add(name, 2 * area)
+                wall += 2 * area
+            }
+            val openings = host.openings.filter { it.kind != OpeningKind.Niche && it.wallIndex == 0 }
+            holes += 2 * openings.sumOf { Openings.holeArea(host, it) } / 10_000.0
+            val atFloor = openings.filter { !it.kind.glazed || it.sillHeight == 0.0 }.sumOf { minOf(it.width, length) }
+            skirting += 2 * (length - atFloor).coerceAtLeast(0.0) / 100.0
+            names += wallFinishName(host, 0)
+            doors += openings.count { !it.kind.glazed }
+            windows += openings.count { it.kind.glazed }
+        }
+        return RoomLine(fl.name, T.computo.muriSingoli, 0.0, 0.0, wall, holes, skirting, "—", names.joinToString(" / "), doors, windows)
     }
 
     private fun cm(v: Double) = if (v == kotlin.math.round(v)) v.toLong().toString() else formatDecimal(v, 1)
@@ -189,17 +336,38 @@ object Takeoff {
         head(T.computo.pianoStanzaPavimentoM2)
         for (l in res.rooms) row(t(l.floor), t(l.room), n(l.floorArea), n(l.perimeter), n(l.wallArea), n(l.openingsArea), n(l.skirting), t(l.floorFinish), t(l.wallFinish), "${l.doors}", "${l.windows}")
         head(T.computo.totale2(n(res.totalFloor), n(res.totalWalls), n(res.totalSkirting)))
+        if (res.works.isNotEmpty()) {
+            appendLine()
+            head(T.computo.opere2)
+            head(T.computo.pianoVoceNumeroM2M3)
+            val lines = if (res.works.size > 1) res.works + WorksLine(T.computo.totale, res.totalWorks) else res.works
+            for (l in lines) for (i in worksItems(l.works)) row(t(l.floor), t(i.label), i.count?.toString() ?: "", n(i.m2), n(i.m3))
+        }
+        if (res.areas.isNotEmpty()) {
+            appendLine()
+            head(T.computo.superfici2)
+            head(T.computo.pianoSuperfici)
+            for (a in res.areas) row(t(a.floor), n(a.usable), n(a.gross), n(a.outdoor))
+            row(t(T.computo.commercialeCsv), n(res.commercial))
+        }
         appendLine()
         head(T.computo.pavimentiM2M210)
         for (x in res.floorMaterials) row(t(x.what), n(x.quantity), n(x.quantity * 1.1))
         appendLine()
         head(T.computo.paretiM22)
         for (x in res.wallFinishes) row(t(x.what), n(x.quantity))
+        if (res.ceilings > 0) row(t(T.computo.soffitti), n(res.ceilings))
         appendLine()
         head(T.computo.arrediMisureQuantitaDove)
         for (i in res.furniture) row(t(i.name), t(i.size), "${i.count}", t(i.where))
         appendLine()
         head(T.computo.impiantiQuantitaDove)
         for (i in res.fixtures) row(t(i.name), "${i.count}", t(i.where))
+        if (res.light.isNotEmpty()) {
+            appendLine()
+            head(T.computo.luceAria2)
+            head(T.computo.pianoStanzaLuce)
+            for (l in res.light) row(t(l.floor), t(l.rooms), n(l.floorArea), n(l.windowArea), HousingRules.fraction(l.ratio), if (l.enough) T.computo.si else T.computo.no)
+        }
     }
 }

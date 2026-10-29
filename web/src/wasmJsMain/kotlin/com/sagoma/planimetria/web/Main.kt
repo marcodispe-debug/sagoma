@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeViewport
 import com.sagoma.planimetria.ui.FurnitureAssets
 import com.sagoma.planimetria.ui.SagomaApp
+import com.sagoma.planimetria.ui.toastMillis
 import kotlinx.browser.document
 import kotlinx.coroutines.delay
 
@@ -25,7 +26,7 @@ fun main() {
         Box(Modifier.fillMaxSize()) {
             SagomaApp(platform)
             platform.message?.let { msg ->
-                LaunchedEffect(msg) { delay(2500); platform.message = null }
+                LaunchedEffect(msg) { delay(toastMillis(msg)); platform.message = null }
                 Snackbar(Modifier.align(Alignment.BottomCenter).padding(24.dp)) { Text(msg) }
             }
         }

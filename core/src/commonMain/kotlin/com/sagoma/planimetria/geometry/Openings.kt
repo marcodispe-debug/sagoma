@@ -3,10 +3,12 @@ package com.sagoma.planimetria.geometry
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
+import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.FramePosition
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.model.WindowShape
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -57,6 +59,47 @@ object Openings {
                 top - rise + rise * sqrt(1 - k * k)
             }
         }
+    }
+
+    /**
+     * Superficie (cm²) del vano dell'apertura `o` tra le quote `lo` e `hi` da terra, con la sua forma (ad arco, tonda) e senza
+     * passare la cima del muro (in mansarda): quella che si toglie dalla parete nel computo.
+     */
+    fun holeArea(room: Room, o: Opening, lo: Double = 0.0, hi: Double = Double.MAX_VALUE): Double {
+        if (o.wallIndex >= room.wallCount) return 0.0
+        val len = room.wallLength(o.wallIndex)
+        val w = min(o.width, len)
+        if (w <= 0) return 0.0
+        val bottom = o.bottom
+        val center = clampPosition(len, w, o.position)
+        val wallTop = Ceilings.wallTopAt(room, o.wallIndex, center)
+        val top = min(bottom + o.height, wallTop)
+        val round = o.shape == WindowShape.Round
+        val style = when {
+            o.kind == OpeningKind.Passage -> o.style
+            o.shape == WindowShape.Arched -> PassageStyle.Arched
+            else -> PassageStyle.Square
+        }
+        val sloped = Ceilings.effectiveCut(room, o.wallIndex) != null
+        if (!round && !style.arched && !sloped) return w * (min(top, hi) - max(bottom, lo)).coerceAtLeast(0.0)
+        // Bordo curvo o muro che scende (mansarda): a strisce verticali sottili. L'oblò è un cerchio largo quanto l'apertura
+        // (come nel 3D); sopra la cima del muro non c'è parete da togliere.
+        val n = 128
+        val c = w / 2
+        var sum = 0.0
+        for (k in 0 until n) {
+            val x = -c + w * (k + 0.5) / n
+            val dy = sqrt(max(0.0, c * c - x * x))
+            val b = if (round) bottom + c - dy else bottom
+            val t = when {
+                round -> bottom + c + dy
+                style.arched -> archTop(style, -c, c, bottom, top, x)
+                else -> top
+            }
+            val roof = if (sloped) Ceilings.wallTopAt(room, o.wallIndex, center + x) else wallTop
+            sum += (minOf(t, roof, hi) - max(b, lo)).coerceAtLeast(0.0)
+        }
+        return sum * w / n
     }
 
     /** Centro dell'apertura limitato al muro, così l'apertura non ne esce mai (anche dopo averlo accorciato). */
@@ -124,7 +167,8 @@ object Openings {
         }
     }
 
-    private const val SPLAY_STEPS = 6
+    /** Pezzi dritti della curva dello sguincio arrotondato. */
+    const val SPLAY_STEPS = 6
 
     /** Normale verso l'interno della stanza (poligoni orari su schermo). */
     fun inwardNormal(room: Room, wallIndex: Int): Vec2 =
@@ -196,6 +240,58 @@ object Openings {
             for (r in ranges) if (r.endInclusive - r.start > 0.5) out += WallGap(room.id, i, s + u * r.start, s + u * r.endInclusive)
         }
         return out
+    }
+
+    /**
+     * Dove togliere dal disegno (pianta e DXF) il tratto [g] di un muro eliminato: la striscia del muro, dal filo esterno a quello
+     * interno, più `extra` per parte. All'angolo con un muro della stanza che resta si ferma sulla faccia interna di quel muro:
+     * l'angolo resta muro pieno, così il muro accanto finisce dritto e in un ambiente unico (muro tolto da tutte e due le stanze)
+     * i muri di fuori continuano senza tacca. Dove anche il muro accanto è eliminato va oltre l'angolo, che resta aperto. Vuota
+     * se non resta niente da togliere.
+     */
+    fun openBand(room: Room, g: WallGap, extra: Double): List<Vec2> {
+        val i = g.wallIndex
+        val n = room.wallCount
+        if (i !in 0 until n) return emptyList()
+        val s = room.wallStart(i)
+        val len = s.distanceTo(room.wallEnd(i))
+        if (len < 1e-6) return emptyList()
+        val u = (room.wallEnd(i) - s) / len
+        val sign = if (Polygon.signedArea(room.points) >= 0) 1.0 else -1.0
+        val inward = u.perp() * sign
+        val inner = room.innerThicknesses[i] / 2 + extra
+        val outer = room.outerThicknesses[i] / 2 + extra
+        val ta = (g.a - s) dot u
+        val tb = (g.b - s) dot u
+        /** Dove finiscono, lungo il muro, il lato della striscia verso la stanza e quello verso fuori. */
+        fun end(atEnd: Boolean, t: Double): Pair<Double, Double> {
+            if (if (atEnd) t < len - 0.5 else t > 0.5) return t to t
+            val corner = if (atEnd) len else 0.0
+            val j = if (atEnd) (i + 1) % n else (i - 1 + n) % n
+            val js = room.wallStart(j)
+            val jl = js.distanceTo(room.wallEnd(j))
+            if (jl < 1e-6) return corner to corner
+            val ju = (room.wallEnd(j) - js) / jl
+            if (room.isRemoved(j)) {
+                // Eliminato anche il muro accanto: oltre l'angolo quanto basta a togliere le punte dei due pezzi di muro (poco
+                // dove il muro continua quasi dritto, come i pezzi di un muro curvo; mai oltre la fine del muro accanto).
+                val tanHalf = abs(u.x * ju.y - u.y * ju.x) / max(1e-6, 1 + (u dot ju))
+                val thick = max(room.thicknessOf(i), room.thicknessOf(j))
+                val past = corner + (if (atEnd) 1 else -1) * (min(thick * tanHalf, min(3 * thick, jl)) + extra)
+                return past to past
+            }
+            val jn = ju.perp() * sign
+            val c = u dot jn
+            // Muro accanto quasi dritto (scalino, pezzi di un muro curvo): taglio di traverso all'angolo.
+            if (abs(c) < 0.2) return corner to corner
+            val face = js + jn * (room.innerThicknesses[j] / 2)
+            fun at(side: Vec2) = ((face - s - side) dot jn) / c
+            return at(inward * inner) to at(inward * -outer)
+        }
+        val (in0, out0) = end(false, min(ta, tb))
+        val (in1, out1) = end(true, max(ta, tb))
+        if (in1 - in0 < 0.01 || out1 - out0 < 0.01) return emptyList()
+        return listOf(s + u * in0 + inward * inner, s + u * in1 + inward * inner, s + u * out1 - inward * outer, s + u * out0 - inward * outer)
     }
 
     /**

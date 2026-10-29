@@ -22,4 +22,5 @@ open class TestiArredi {
     open val modelliPubblicoDominioCc0: String get() = "Modelli di pubblico dominio (CC0)"
     open fun autoreLicenza(p1: Any?, p2: Any?): String = "Autore: $p1 · Licenza: $p2"
     open val autoreSconosciuto: String get() = "autore sconosciuto"
+    open val puntoLuceSemplice: String get() = "Punto luce semplice"
 }
