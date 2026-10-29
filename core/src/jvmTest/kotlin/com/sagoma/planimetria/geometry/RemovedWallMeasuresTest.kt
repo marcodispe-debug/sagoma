@@ -29,6 +29,15 @@ class RemovedWallMeasuresTest {
     }
 
     @Test
+    fun `i metri quadri contano anche dove c'era il muro`() {
+        // Fino alla linea tratteggiata: 392,5 × 285 e 292,5 × 285, insieme come l'ambiente unico 685 × 285.
+        assertEquals(392.5 * 285.0, living.interiorArea(), 1e-6)
+        assertEquals(292.5 * 285.0, kitchen.interiorArea(), 1e-6)
+        assertEquals(685.0 * 285.0, living.usableArea() + kitchen.usableArea(), 1e-6)
+        assertEquals(385.0 * 285.0, rect(1, 0.0, 400.0).interiorArea(), 1e-6)
+    }
+
+    @Test
     fun `le quote in pianta scrivono le misure senza lo spessore del muro eliminato`() {
         val lines = Dimensions.of(FloorPlan(listOf(living, kitchen)))
         val top = lines.filter { kotlin.math.abs(it.a.y) < 1e-6 && kotlin.math.abs(it.b.y) < 1e-6 }.map { it.length }.sorted()

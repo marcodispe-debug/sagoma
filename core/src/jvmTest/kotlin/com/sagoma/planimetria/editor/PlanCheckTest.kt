@@ -351,20 +351,20 @@ class PlanCheckTest {
 
     @Test
     fun `norme - soggiorno con la cucina a vista e stanze da demolire`() {
-        // Soggiorno 400×300 e cucina 300×300 senza muro in mezzo: un ambiente solo di 19,10 m², e le finestre si sommano.
+        // Soggiorno 400×300 e cucina 300×300 senza muro in mezzo: un ambiente solo di 19,52 m² (anche dove c'era il muro), e le finestre si sommano.
         val livingOpen = living.copy(removedWalls = setOf(1), openings = listOf(entrance, Opening.default(3, OpeningKind.Window2, 2, 200.0)))
         val kitchenOpen = kitchen.copy(removedWalls = setOf(3), openings = listOf(Opening.default(4, OpeningKind.Window2, 0, 150.0)))
         val issues = rules(livingOpen, kitchenOpen)
-        // 2,88 m² di finestre per 19,10 m²: basta (1/6,6); il soggiorno è piccolo anche con la cucina (meno di 14 m²)? No: 19,10.
+        // 2,88 m² di finestre per 19,52 m²: basta (1/6,8); il soggiorno è piccolo anche con la cucina (meno di 14 m²)? No: 19,52.
         assertEquals(emptyList(), issues, "$issues")
         // Muro tolto solo dal soggiorno: la cucina ha ancora il suo, due stanze separate. Il soggiorno da solo è sotto i 14 m².
         val apart = rules(livingOpen, kitchenOpen.copy(removedWalls = emptySet()))
         assertEquals(listOf(PlanCheck.Kind.SmallLiving), apart.map { it.kind })
-        // Senza la finestra della cucina: l'ambiente ne ha 1,44 m² su 19,10 (servono 2,39), un avviso solo con tutte e due le stanze.
+        // Senza la finestra della cucina: l'ambiente ne ha 1,44 m² su 19,52 (servono 2,44), un avviso solo con tutte e due le stanze.
         val dim = rules(livingOpen, kitchenOpen.copy(openings = emptyList())).single()
         assertEquals(PlanCheck.Kind.FewWindows, dim.kind)
         assertEquals(listOf(1L, 2L), dim.rooms)
-        assertTrue(PlanCheck.describe(dim, Building.single(FloorPlan(listOf(livingOpen, kitchenOpen)))).startsWith("«Soggiorno» + «Cucina»: finestre apribili di 1,44 m² per 19,10 m²"))
+        assertTrue(PlanCheck.describe(dim, Building.single(FloorPlan(listOf(livingOpen, kitchenOpen)))).startsWith("«Soggiorno» + «Cucina»: finestre apribili di 1,44 m² per 19,52 m²"))
         // Nessuna finestra in tutto il piano (pianta appena letta): un avviso solo, non uno per stanza.
         val bare = rules(livingOpen.copy(openings = listOf(entrance)), kitchenOpen.copy(openings = emptyList(), removedWalls = emptySet()))
         assertEquals(listOf(PlanCheck.Kind.NoFloorWindows, PlanCheck.Kind.SmallLiving), bare.map { it.kind })

@@ -46,8 +46,8 @@ fun Room.interiorLengths(): List<Double> = Polygon.interiorEdgeLengths(points, m
     arcOf(i)?.arcLength(if (isRemoved(i)) 0.0 else thicknessOf(i) / 2) ?: l
 }
 
-/** Superficie calpestabile (cm²). */
-fun Room.interiorArea(): Double = expandCurves().room.let { Polygon.interiorArea(it.points, it.innerThicknesses) }
+/** Superficie calpestabile (cm²). Dove c'era un muro eliminato è pavimento: la stanza arriva fino alla linea tratteggiata, come le misure. */
+fun Room.interiorArea(): Double = expandCurves().room.let { Polygon.interiorArea(it.points, it.measuredThicknesses) }
 
 /** cm² della zona non calpestabile che cadono dentro la stanza (una zona disegnata fin dentro il muro conta solo per la parte interna). */
 fun Room.zoneArea(zone: ExcludedZone): Double {
@@ -100,7 +100,7 @@ fun Room.shiftedEndDeltas(i: Int): Pair<Double, Double> {
 /** Spessore di ogni muro misurato dalla linea della stanza verso dentro, ×2 (il filo interno sta a metà di questo). */
 val Room.innerThicknesses: List<Double> get() = List(wallCount) { thicknessOf(it) - 2 * wallShift(it) }
 
-/** Come [innerThicknesses], ma i muri eliminati valgono zero: il lato su cui si misurano le quote dentro la stanza. */
+/** Come [innerThicknesses], ma i muri eliminati valgono zero: il lato su cui si misurano le quote e i m² della stanza. */
 val Room.measuredThicknesses: List<Double> get() = List(wallCount) { if (isRemoved(it)) 0.0 else thicknessOf(it) - 2 * wallShift(it) }
 
 /** Spessore di ogni muro misurato dalla linea della stanza verso fuori, ×2 (il filo esterno sta a metà di questo). */
