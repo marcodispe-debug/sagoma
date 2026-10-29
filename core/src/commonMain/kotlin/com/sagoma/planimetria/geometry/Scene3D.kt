@@ -1418,30 +1418,13 @@ private class SceneBuilder(
     }
 
     /**
-     * Vuoto nel solaio sopra le scale del piano `lower`: dove sopra c'è una stanza del piano `upper` (anche un balcone o una
-     * terrazza). Fuori dalle sue stanze sopra la scala c'è il tetto piano del piano di sotto: resta aperto solo sopra i gradini che
-     * lo attraverserebbero (il corrimano lì sotto si ferma sotto il soffitto, vedi [railing]). Senza il piano di sopra nella scena il
-     * vuoto resta tutto.
+     * Vuoto nel solaio sopra le scale del piano `lower` ([Stairs.openWell]): dove sopra c'è una stanza del piano `upper`; fuori il
+     * tetto piano, aperto solo sopra i gradini che lo attraverserebbero (il corrimano lì sotto si ferma sotto il soffitto, vedi
+     * [railing]). Senza il piano di sopra nella scena il vuoto resta tutto.
      */
     private fun stairWells(lower: Level, upper: FloorPlan?): List<List<Vec2>> {
-        if (upper == null) return lower.plan.stairs.flatMap { Stairs.well(it, lower.levelHeight) }
-        val cover = upper.rooms.filter { it.points.size >= 3 }.flatMap { r ->
-            Triangulation.triangulate(r.points).map { (a, b, c) -> listOf(r.points[a], r.points[b], r.points[c]) }
-        }
-        val out = mutableListOf<List<Vec2>>()
-        for (s in lower.plan.stairs) {
-            val l = Stairs.layout(s, lower.levelHeight)
-            for (piece in Stairs.well(s, lower.levelHeight, l)) {
-                for (t in cover) Clip.intersect(piece, t)?.let { out += it }
-                for (st in l.steps) {
-                    val center = st.polygon.reduce { a, b -> a + b } / st.polygon.size.toDouble()
-                    if (st.top + 5.0 < Structure.ceilingAt(lower.plan, center, lower.levelHeight)) continue
-                    val part = Clip.intersect(piece, st.polygon) ?: continue
-                    out += Clip.subtractAll(part, cover)
-                }
-            }
-        }
-        return out
+        val cover = upper?.let { Stairs.cover(it) }
+        return lower.plan.stairs.flatMap { Stairs.openWell(it, lower.levelHeight, lower.plan, cover) }
     }
 
     /** I tratti `runs` (ringhiere) solo dove stanno dentro una stanza del piano (pavimento sotto), a pezzi di 10 cm. */

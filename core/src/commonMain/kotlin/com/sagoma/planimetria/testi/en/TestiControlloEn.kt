@@ -88,6 +88,8 @@ object TestiControlloEn : TestiControllo() {
             ". To climb comfortably a riser is usually 18-20 cm at most and two risers plus a tread make 62-64 cm: add risers or choose a gentler slope (stairs Info → Steps)."
     override fun scalaStretta(larga: String): String =
         "Stairs $larga cm wide: inside a home at least 80 are usually needed (set by the local building code)."
+    override fun scalaTestaBassaTetto(h: String): String =
+        "Above the stairs there are $h cm up to the ceiling: there is no room of the floor above there, only the roof, and you hit your head (at least 200 are needed). Extend the room above over the stairs or move the stairs."
     override fun scalaTestaBassa(h: String): String =
         "Above the stairs there are $h cm up to the slab of the floor above: you hit your head (at least 200 are needed). Leave more steps uncovered (stairs Info → Floor above)."
     override fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =

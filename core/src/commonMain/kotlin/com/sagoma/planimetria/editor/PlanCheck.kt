@@ -1508,7 +1508,7 @@ object PlanCheck {
             Kind.NoWater -> t.senzaAcqua(name(0))
             Kind.StairSteep -> t.scalaRipida(cm1(i.a), if (i.b > 0) cm1(i.b) else null)
             Kind.StairNarrow -> t.scalaStretta(cm(i.a))
-            Kind.StairLowHead -> t.scalaTestaBassa(cm(i.a))
+            Kind.StairLowHead -> if (i.b > 0.5) t.scalaTestaBassaTetto(cm(i.a)) else t.scalaTestaBassa(cm(i.a))
             Kind.SwingClash -> t.anteSiUrtano(i.rooms.indices.joinToString(" / ") { name(it) }, cosa, i.opening2?.let { T.lingua.minuscola(it.label) } ?: "")
             Kind.SwingHitsThing -> {
                 val thing = i.furniture?.let { id -> plan?.furniture?.firstOrNull { it.id == id } }
@@ -1964,7 +1964,8 @@ object PlanCheck {
         /**
          * Scale che salgono dove non c'è un piano o arrivano fuori dalle sue stanze; ripide (alzate oltre [Stairs.STEEP_RISER] o passo
          * più corto di [Stairs.MIN_STRIDE]), strette (meno di [Stairs.MIN_WIDTH]) o con meno di [Stairs.MIN_HEADROOM] sopra la testa
-         * dove il pavimento di sopra copre i primi gradini. Le scale a chiocciola si guardano solo per l'alzata.
+         * dove il pavimento di sopra copre i primi gradini o, fuori dalle stanze di sopra, il tetto ([Stairs.headroomUnder]). Le scale
+         * a chiocciola si guardano solo per l'alzata.
          */
         fun stairs(rise: Double, above: FloorPlan?, top: Boolean) {
             for (s in plan.stairs) {
@@ -1977,8 +1978,11 @@ object PlanCheck {
                 }
                 if (!spiral && s.width < Stairs.MIN_WIDTH - 0.5) add(Issue(Kind.StairNarrow, floor, emptyList(), box, Selection.Stair(s.id), a = s.width))
                 if (above != null && !top) {
-                    Stairs.headroom(s, rise, Floor.SLAB)?.let { h ->
-                        if (h < Stairs.MIN_HEADROOM - 0.5) add(Issue(Kind.StairLowHead, floor, emptyList(), box, Selection.Stair(s.id), a = h))
+                    // Sotto il pavimento di sopra (gradini coperti) e sotto il tetto, dove la scala esce dalle stanze di sopra.
+                    Stairs.headroomUnder(s, rise, Floor.SLAB, plan, above)?.let { h ->
+                        if (h.height < Stairs.MIN_HEADROOM - 0.5) {
+                            add(Issue(Kind.StairLowHead, floor, emptyList(), box, Selection.Stair(s.id), a = h.height, b = if (h.underRoof) 1.0 else 0.0))
+                        }
                     }
                 }
                 if (top) {

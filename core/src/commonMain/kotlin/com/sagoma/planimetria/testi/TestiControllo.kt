@@ -98,6 +98,8 @@ open class TestiControllo {
             ". Per salire comodi l'alzata di solito è al massimo 18-20 cm e due alzate più una pedata fanno 62-64 cm: aggiungi alzate o scegli una pendenza più dolce (Info della scala → Gradini)."
     open fun scalaStretta(larga: String): String =
         "Scala larga $larga cm: dentro casa di solito ne servono almeno 80 (lo dice il regolamento edilizio del comune)."
+    open fun scalaTestaBassaTetto(h: String): String =
+        "Sopra la scala restano $h cm fino al soffitto: lì sopra non c'è una stanza del piano di sopra, c'è il tetto, e si batte la testa (ne servono almeno 200). Allarga la stanza di sopra fin sopra la scala o sposta la scala."
     open fun scalaTestaBassa(h: String): String =
         "Sopra la scala restano $h cm fino al solaio del piano di sopra: si batte la testa (ne servono almeno 200). Lascia scoperti più gradini (Info della scala → Piano sopra)."
     open fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =

@@ -88,6 +88,8 @@ object TestiControlloEs : TestiControllo() {
             ". Para subir cómodos la contrahuella suele ser de 18-20 cm como mucho y dos contrahuellas más una huella suman 62-64 cm: añade peldaños o elige una pendiente más suave (Info de la escalera → Peldaños)."
     override fun scalaStretta(larga: String): String =
         "Escalera de $larga cm de ancho: dentro de una vivienda suelen hacer falta al menos 80 (lo fija la normativa urbanística local)."
+    override fun scalaTestaBassaTetto(h: String): String =
+        "Encima de la escalera quedan $h cm hasta el techo: ahí encima no hay una habitación de la planta de arriba, sino el tejado, y te das con la cabeza (hacen falta al menos 200). Amplía la habitación de arriba sobre la escalera o mueve la escalera."
     override fun scalaTestaBassa(h: String): String =
         "Encima de la escalera quedan $h cm hasta el forjado de la planta de arriba: te das con la cabeza (hacen falta al menos 200). Deja más peldaños descubiertos (Info de la escalera → Piso sup.)."
     override fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =

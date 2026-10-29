@@ -311,6 +311,60 @@ object Stairs {
         return rise - slab - l.steps[k - 1].top
     }
 
+    /** Triangoli delle stanze del piano di sopra (anche balconi e terrazze): solo sopra di loro il vano scala si apre nel pavimento. */
+    fun cover(upper: FloorPlan): List<List<Vec2>> = upper.rooms.filter { it.points.size >= 3 }.flatMap { r ->
+        Triangulation.triangulate(r.points).map { (a, b, c) -> listOf(r.points[a], r.points[b], r.points[c]) }
+    }
+
+    /**
+     * Vuoto vero nel solaio sopra la scala `s` del piano `lower`: il [well] dove sopra c'è una stanza del piano di sopra (`cover`,
+     * vedi [cover]). Fuori dalle sue stanze sopra la scala c'è il tetto piano del piano di sotto: resta aperto solo sopra i gradini che
+     * lo attraverserebbero. Con `cover` null (il piano di sopra non si conosce) il vuoto resta tutto.
+     */
+    fun openWell(s: Stair, rise: Double, lower: FloorPlan, cover: List<List<Vec2>>?, l: Layout = layout(s, rise)): List<List<Vec2>> {
+        val well = well(s, rise, l)
+        if (cover == null) return well
+        val out = mutableListOf<List<Vec2>>()
+        for (piece in well) {
+            for (t in cover) Clip.intersect(piece, t)?.let { out += it }
+            for (st in l.steps) {
+                if (st.top + 5.0 < Structure.ceilingAt(lower, center(st.polygon), rise)) continue
+                val part = Clip.intersect(piece, st.polygon) ?: continue
+                out += Clip.subtractAll(part, cover)
+            }
+        }
+        return out
+    }
+
+    /** Altezza libera più bassa sopra la scala ([MIN_HEADROOM]); `underRoof`: lì sopra c'è il tetto, non una stanza del piano di sopra. */
+    class Headroom(val height: Double, val underRoof: Boolean)
+
+    /**
+     * Altezza libera più bassa sopra i gradini della scala `s` del piano `lower` che stanno sotto il solaio chiuso: quelli coperti dal
+     * pavimento di sopra (fino al solaio, spessore `slab`) e quelli fuori dalle stanze del piano `upper`, sotto il tetto piano (fino al
+     * soffitto). Null se il vuoto è sopra tutti i gradini.
+     */
+    fun headroomUnder(s: Stair, rise: Double, slab: Double, lower: FloorPlan, upper: FloorPlan): Headroom? {
+        val l = layout(s, rise)
+        val cover = cover(upper)
+        val open = openWell(s, rise, lower, cover, l)
+        var best: Headroom? = null
+        for (st in l.steps) {
+            val c = center(st.polygon)
+            // Il centro e i vertici appena dentro il gradino: basta un punto fuori dal vuoto perché ci si batta la testa.
+            val probes = listOf(c) + st.polygon.map { it + (c - it) * 0.15 }
+            val closed = probes.filter { p -> open.none { Polygon.contains(it, p) } }
+            if (closed.isEmpty()) continue
+            val roof = closed.any { p -> cover.none { Polygon.contains(it, p) } }
+            val top = if (roof) min(rise - slab, closed.minOf { Structure.ceilingAt(lower, it, rise) }) else rise - slab
+            val h = top - st.top
+            if (best == null || h < best.height) best = Headroom(h, roof)
+        }
+        return best
+    }
+
+    private fun center(poly: List<Vec2>) = poly.reduce { a, b -> a + b } / poly.size.toDouble()
+
     /** Ingombro di tutte le scale di una pianta (per inquadrarla). */
     fun footprint(plan: FloorPlan, rise: Double): List<Vec2> = plan.stairs.flatMap { layout(it, rise).pieces.flatten() }
 }

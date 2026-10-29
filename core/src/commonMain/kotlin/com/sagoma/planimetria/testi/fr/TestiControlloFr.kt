@@ -88,6 +88,8 @@ object TestiControlloFr : TestiControllo() {
             ". Pour monter confortablement, la contremarche fait d'habitude 18-20 cm au plus et deux contremarches plus un giron font 62-64 cm : ajoutez des marches ou choisissez une pente plus douce (Infos de l'escalier → Marches)."
     override fun scalaStretta(larga: String): String =
         "Escalier large de $larga cm : dans un logement il en faut d'habitude au moins 80 (selon le règlement d'urbanisme local)."
+    override fun scalaTestaBassaTetto(h: String): String =
+        "Au-dessus de l'escalier il reste $h cm jusqu'au plafond : il n'y a pas de pièce de l'étage supérieur à cet endroit, seulement le toit, et on se cogne la tête (il en faut au moins 200). Agrandissez la pièce du dessus au-dessus de l'escalier ou déplacez l'escalier."
     override fun scalaTestaBassa(h: String): String =
         "Au-dessus de l'escalier il reste $h cm jusqu'au plancher de l'étage supérieur : on se cogne la tête (il en faut au moins 200). Laissez plus de marches découvertes (Infos de l'escalier → Étage sup.)."
     override fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =

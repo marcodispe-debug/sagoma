@@ -1020,6 +1020,35 @@ class PlanCheckTest {
     }
 
     @Test
+    fun `scala che esce dalla stanza di sopra con poca altezza sotto il tetto`() {
+        // Prova di Marco del 29/10: il piano di sopra copre solo la metà della scala verso l'arrivo; sopra l'altra metà c'è il
+        // tetto piano, chiuso, e ci si batte la testa. Prima l'avviso guardava solo i gradini coperti dal pavimento di sopra.
+        val hall = rect(1, "Salone", RoomType.Soggiorno, 800.0, 600.0, openings = listOf(entrance))
+        val stair = Stair(1, StairKind.Straight, Vec2(400.0, 300.0))
+        val l = com.sagoma.planimetria.geometry.Stairs.layout(stair, 300.0)
+        val start = l.path.first()
+        val end = l.path.last()
+        assertTrue(end.y < start.y)
+        fun two(upper: Room) = Building(
+            listOf(
+                Floor(1, "Piano terra", FloorPlan(listOf(hall), stairs = listOf(stair)), levelHeight = 300.0),
+                Floor(2, "Primo piano", FloorPlan(listOf(upper))),
+            ),
+        )
+        fun low(upper: Room) = PlanCheck.of(two(upper)).filter { it.kind == PlanCheck.Kind.StairLowHead }
+        val half = rect(2, "Camera", RoomType.Camera, 800.0, (start.y + end.y) / 2)
+        val issue = low(half).single()
+        // Sotto il tetto (soffitto a 270) il gradino più alto fuori dalla stanza di sopra è a metà scala.
+        assertTrue(issue.a > 70.0 && issue.a < 200.0, "altezza ${issue.a}")
+        assertTrue(issue.b > 0.5)
+        val text = PlanCheck.describe(issue, two(half))
+        assertTrue(text.startsWith("Sopra la scala restano") && "c'è il tetto" in text, text)
+        // La stanza di sopra sopra tutta la scala, o solo i primi gradini fuori (bassi): niente avviso.
+        assertEquals(emptyList(), low(rect(2, "Camera", RoomType.Camera, 800.0, 600.0)))
+        assertEquals(emptyList(), low(rect(2, "Camera", RoomType.Camera, 800.0, start.y - 60.0)))
+    }
+
+    @Test
     fun `porte nella casa come sara`() {
         // La porta tra soggiorno e cucina è da chiudere: nella casa come sarà in cucina non si entra.
         val closing = Building.single(FloorPlan(listOf(living.copy(openings = listOf(entrance, inner.copy(phase = Phase.Demolish), living.openings[2])), kitchen)))
