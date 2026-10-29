@@ -54,6 +54,7 @@ import com.sagoma.planimetria.model.Fixture
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.geometry.Stairs
 import com.sagoma.planimetria.model.Floor
+import com.sagoma.planimetria.model.MaterialCatalog
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Stair
 import com.sagoma.planimetria.model.StairKind
@@ -561,7 +562,15 @@ private fun StairPanel(sel: Selection.Stair, plan: FloorPlan, vm: EditorViewMode
                     structurePreview(it, stepColor)
                 }
             }
-            ColorPicker(T.pannelli.gradini, StairMaterial.entries.map { it.label to it.argb }, s.material.ordinal, { k -> update { it.copy(material = StairMaterial.entries[k]) } })
+            // Gradini: come il pavimento, dai materiali fotografici; senza le foto (browser) i colori di sempre.
+            if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS) && MaterialCatalog.items.isNotEmpty()) {
+                MaterialPicker(T.pannelli.gradini, s.treadMaterial, forFloor = true, currentName = T.lingua.minuscola(s.material.label)) { id ->
+                    val m = MaterialCatalog.item(id) ?: return@MaterialPicker
+                    update { it.copy(treadMaterial = m.id, material = StairMaterial.closestTo(m.argb)) }
+                }
+            } else {
+                ColorPicker(T.pannelli.gradini, StairMaterial.entries.map { it.label to it.argb }, s.material.ordinal, { k -> update { it.copy(material = StairMaterial.entries[k], treadMaterial = null) } })
+            }
             ModelPicker(T.pannelli.ringhiera2, StairRailing.entries, s.railing, { it.label }, { v -> update { it.copy(railing = v) } }) {
                 railingPreview(it, stepColor)
             }
@@ -1006,7 +1015,7 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                 }
                 // Davanzale della finestra (soglia del balcone): senza, o una lastra di marmo, pietra o legno.
                 if (!o.isBay && o.shape != WindowShape.Round) {
-                    SillChoice(if (o.kind.isWindow) T.pannelli.davanzale else T.pannelli.soglia, o.sillMaterial) { m -> update { it.copy(sillMaterial = m) } }
+                    SillChoice(if (o.kind.isWindow) T.pannelli.davanzale else T.pannelli.soglia, o, ::update)
                 }
             } else {
                 // Le porte da garage hanno il loro pannello (a doghe o a sezioni): si sceglie solo il colore.
@@ -1022,7 +1031,7 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                     }
                 }
                 // Soglia sotto la porta (es. quella di marmo all'ingresso): non per la porta da garage.
-                if (!o.isGarage) SillChoice(T.pannelli.soglia, o.sillMaterial) { m -> update { it.copy(sillMaterial = m) } }
+                if (!o.isGarage) SillChoice(T.pannelli.soglia, o, ::update)
             }
             // Come la pittura dei muri: i colori soliti degli infissi (legni, bianco, grigi) in testa, poi la tavolozza e il colore libero.
             val finishes = Finish.entries
@@ -1133,13 +1142,26 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
     }
 }
 
-/** Davanzale o soglia: senza, o una lastra di marmo, pietra o legno. */
+/**
+ * Davanzale o soglia: senza, o una lastra di uno dei materiali fotografici dei pavimenti (sotto resta il materiale di sempre
+ * col colore più vicino, per chi non vede le foto). Senza le foto (browser): marmo, pietra o legno.
+ */
 @Composable
-private fun SillChoice(label: String, selected: StairMaterial?, onSelect: (StairMaterial?) -> Unit) {
+private fun SillChoice(label: String, o: Opening, update: ((Opening) -> Opening) -> Unit) {
+    if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS) && MaterialCatalog.items.isNotEmpty()) {
+        MaterialPicker(
+            label, o.sillFloorMaterial.takeIf { o.sillMaterial != null }, forFloor = true, allowNone = true, noneLabel = T.pannelli.senza,
+            noneSelected = o.sillMaterial == null, currentName = o.sillMaterial?.let { T.lingua.minuscola(it.label) },
+        ) { id ->
+            val m = MaterialCatalog.item(id)
+            update { it.copy(sillMaterial = m?.let { StairMaterial.closestTo(it.argb) }, sillFloorMaterial = m?.id) }
+        }
+        return
+    }
     val materials = listOf(null, StairMaterial.Marble, StairMaterial.Stone, StairMaterial.Wood)
     Row(Modifier.padding(end = 8.dp)) {
-        Choice(label, materials.map { it?.label ?: T.pannelli.senza }, materials.indexOf(selected).coerceAtLeast(0), Modifier.weight(1f)) { i ->
-            onSelect(materials[i])
+        Choice(label, materials.map { it?.label ?: T.pannelli.senza }, materials.indexOf(o.sillMaterial).coerceAtLeast(0), Modifier.weight(1f)) { i ->
+            update { it.copy(sillMaterial = materials[i], sillFloorMaterial = null) }
         }
     }
 }

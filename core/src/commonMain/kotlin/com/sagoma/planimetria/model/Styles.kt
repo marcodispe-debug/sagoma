@@ -147,6 +147,14 @@ enum class StairMaterial(val argb: Long) {
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.stairMaterial(this)
+
+    companion object {
+        /** Il materiale col colore più vicino a `argb`: quello che resta sotto la foto scelta dai pavimenti, per chi non la vede. */
+        fun closestTo(argb: Long): StairMaterial = entries.minBy { m ->
+            fun ch(c: Long, s: Int) = ((c shr s) and 0xFF).toInt()
+            listOf(16, 8, 0).sumOf { s -> (ch(m.argb, s) - ch(argb, s)).let { it * it } }
+        }
+    }
 }
 
 /** Ringhiera della scala, sui lati liberi (non contro i muri). */

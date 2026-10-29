@@ -224,6 +224,11 @@ data class Opening(
      * materiale dei gradini (marmo, pietra, legno…). null = niente lastra, come nei progetti fatti prima.
      */
     val sillMaterial: StairMaterial? = null,
+    /**
+     * Davanzale o soglia con un materiale fotografico dei pavimenti ([MaterialCatalog]): vince su [sillMaterial] nel 3D e nei
+     * nomi, che resta per dire se la lastra c'è e per chi non ha le foto.
+     */
+    val sillFloorMaterial: String? = null,
     /** Vetro satinato: fa passare la luce ma non la vista (es. la finestra del bagno, la porta a vetri del bagno). */
     val frosted: Boolean = false,
 ) {
@@ -244,6 +249,10 @@ data class Opening(
      * la porta da garage.
      */
     val sill: StairMaterial? get() = if (kind.hasLeaves && !isBay && !isGarage && shape != WindowShape.Round) sillMaterial else null
+    /** Materiale fotografico del davanzale o della soglia che si vede ([sill]), se è stato scelto. */
+    val sillPhoto: MaterialCatalog.Item? get() = if (sill != null) MaterialCatalog.item(sillFloorMaterial) else null
+    /** Nome del materiale del davanzale o della soglia che si vede: quello della foto se c'è. */
+    val sillLabel: String? get() = sill?.let { sillPhoto?.nome ?: it.label }
     /**
      * C'è un vetro trasparente che si può satinare: finestre e balconi (non il vetromattone, già smerigliato) e porte con il vetro
      * nell'anta, il sopraluce o il vetro di fianco (l'anta della porta tutto vetro è già satinata).
@@ -286,10 +295,10 @@ data class Opening(
     fun withStyleOf(from: Opening): Opening = if (!sameStyleFamily(from)) this else if (kind.glazed) copy(
         color = from.color, customColor = from.customColor,
         shading = from.shading, shadingColor = from.shadingColor, grille = from.grille,
-        insectScreen = from.insectScreen, awning = from.awning, awningColor = from.awningColor, sillMaterial = from.sillMaterial,
+        insectScreen = from.insectScreen, awning = from.awning, awningColor = from.awningColor, sillMaterial = from.sillMaterial, sillFloorMaterial = from.sillFloorMaterial,
         frosted = from.frosted,
     ).withWindowModel(from.windowModel) else copy(
-        doorModel = from.doorModel, color = from.color, customColor = from.customColor, frameless = from.frameless, sillMaterial = from.sillMaterial,
+        doorModel = from.doorModel, color = from.color, customColor = from.customColor, frameless = from.frameless, sillMaterial = from.sillMaterial, sillFloorMaterial = from.sillFloorMaterial,
         frosted = from.frosted,
     )
 
@@ -882,6 +891,8 @@ data class Stair(
     /** Struttura, materiale dei gradini e ringhiera. */
     val structure: StairStructure = StairStructure.Masonry,
     val material: StairMaterial = StairMaterial.Wood,
+    /** Gradini con un materiale fotografico dei pavimenti ([MaterialCatalog]): vince su [material], che resta per chi non ha le foto. */
+    val treadMaterial: String? = null,
     val railing: StairRailing = StairRailing.None,
     /** Ringhiera attorno al vano scala al piano di sopra (lasciando libero l'arrivo). */
     val wellRailing: StairRailing = StairRailing.None,

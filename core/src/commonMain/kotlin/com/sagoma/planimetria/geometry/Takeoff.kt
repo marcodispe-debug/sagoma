@@ -124,9 +124,9 @@ object Takeoff {
             val e = openings.getOrPut(k) { 0 to mutableSetOf() }
             openings[k] = (e.first + 1) to e.second.also { it += where }
             // La lastra del davanzale o della soglia: misure arrotondate al cm in su, come si ordinano.
-            val m = o.sill ?: return
+            val m = o.sillLabel ?: return
             val (length, depth) = Openings.sillSize(host, o)
-            val name = T.pannelli.davanzaleIn(T.lingua.minuscola(m.label), balcony = !o.kind.isWindow).replaceFirstChar { it.uppercaseChar() }
+            val name = T.pannelli.davanzaleIn(T.lingua.minuscola(m), balcony = !o.kind.isWindow).replaceFirstChar { it.uppercaseChar() }
             val size = T.computo.cm(cm(ceil(length - 1e-6)), cm(ceil(depth - 1e-6)), cm(Openings.SILL_THICKNESS))
             val s = sills.getOrPut(name to size) { 0 to mutableSetOf() }
             sills[name to size] = (s.first + 1) to s.second.also { it += where }

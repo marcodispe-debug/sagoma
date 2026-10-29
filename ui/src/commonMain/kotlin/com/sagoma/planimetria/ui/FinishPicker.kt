@@ -344,16 +344,21 @@ private fun CustomColorDialog(initial: Long, onDismiss: () -> Unit, onPick: (Lon
 
 /**
  * Materiali fotografici della libreria: categorie e campioni. `forFloor` mostra quelli
- * adatti ai pavimenti, altrimenti quelli per le pareti; con `allowNone` c'è anche "Nessuno".
+ * adatti ai pavimenti, altrimenti quelli per le pareti; con `allowNone` c'è anche "Nessuno" (o `noneLabel`, es. «Senza»
+ * per il davanzale). `currentName`: cosa scrivere quando non c'è una foto scelta (es. il materiale di prima dei gradini);
+ * `noneSelected` dice se «Nessuno» è quello scelto.
  */
 @Composable
-fun MaterialPicker(label: String, selected: String?, forFloor: Boolean, allowNone: Boolean = false, onSelect: (String?) -> Unit) {
+fun MaterialPicker(
+    label: String, selected: String?, forFloor: Boolean, allowNone: Boolean = false, noneLabel: String = T.finiture.nessuno,
+    noneSelected: Boolean = selected == null, currentName: String? = null, onSelect: (String?) -> Unit,
+) {
     val all = remember(forFloor) { MaterialCatalog.items.filter { if (forFloor) it.forFloor else it.forWall } }
     if (all.isEmpty()) return
     val categories = remember(all) { all.map { it.category }.distinct() }
     var category by remember(selected) { mutableStateOf(MaterialCatalog.item(selected)?.category?.takeIf { it in categories } ?: categories.first()) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("$label: ${MaterialCatalog.item(selected)?.nome ?: T.lingua.minuscola(T.finiture.nessuno)}", style = MaterialTheme.typography.labelMedium)
+        Text("$label: ${MaterialCatalog.item(selected)?.nome ?: currentName ?: T.lingua.minuscola(noneLabel)}", style = MaterialTheme.typography.labelMedium)
         ArrowLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(end = 8.dp)) {
             items(categories) { c ->
                 androidx.compose.material3.FilterChip(selected = c == category, onClick = { category = c }, label = { Text(T.nomi.categoria(c)) })
@@ -361,7 +366,7 @@ fun MaterialPicker(label: String, selected: String?, forFloor: Boolean, allowNon
         }
         ArrowLazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 8.dp)) {
             if (allowNone) item {
-                Swatch(T.finiture.nessuno, null, selected == null) { onSelect(null) }
+                Swatch(noneLabel, null, noneSelected) { onSelect(null) }
             }
             items(all.filter { it.category == category }) { m ->
                 Swatch(m.nome, m.id, m.id == selected) { onSelect(m.id) }

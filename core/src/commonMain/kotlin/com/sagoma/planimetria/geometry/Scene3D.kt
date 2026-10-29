@@ -756,7 +756,9 @@ private class SceneBuilder(
     private fun stair(s: Stair, rise: Double) {
         val layout = Stairs.layout(s, rise)
         val pick = Pick.Stair(s.id)
-        val material = Rgba.argb(s.material.argb)
+        // Gradini con il materiale fotografico dei pavimenti: il suo colore sui fronti e la foto sulle pedate.
+        val photo = MaterialCatalog.item(s.treadMaterial)
+        val material = Rgba.argb(photo?.argb ?: s.material.argb)
         val top = tint(material, pick)
         val face = tint(material.mix(Rgba(0f, 0f, 0f), 0.1f), pick)
         val plaster = tint(stairSide, pick)
@@ -775,6 +777,11 @@ private class SceneBuilder(
                     val thick = if (st.landing) 12.0 else if (structure == StairStructure.Floating) 7.0 else 5.0
                     solid(st.polygon, st.top - thick, st.top, face, top, pick)
                 }
+            }
+            if (photo != null) for (k in 1 until st.polygon.size - 1) {
+                val p = st.polygon
+                fun uv(q: Vec2) = Vec2(q.x / photo.size, q.y / photo.size)
+                texTri(photo.id, p[0].at(st.top + 0.03), p[k].at(st.top + 0.03), p[k + 1].at(st.top + 0.03), uv(p[0]), uv(p[k]), uv(p[k + 1]), Vec3.Up)
             }
         }
         if (structure == StairStructure.Stringers) stringers(layout, metal, pick)
@@ -2428,8 +2435,15 @@ private class SceneBuilder(
             a - u * ear + outer, b + u * ear + outer, b + u * ear, b + u * (splay + ear) + n * half,
             b + u * (splay + ear) + inner, a - u * (splay + ear) + inner, a - u * (splay + ear) + n * half, a - u * ear,
         )
-        val c = tint(Rgba.argb(m.argb), pick)
+        // Con il materiale fotografico dei pavimenti: il suo colore sui lati e la foto sopra, ripetuta come sul pavimento.
+        val photo = o.sillPhoto
+        val c = tint(Rgba.argb(photo?.argb ?: m.argb), pick)
         solid(poly, bottom - Openings.SILL_THICKNESS + 0.5, bottom + 0.5, c, c, pick)
+        if (photo != null) for (k in 1 until poly.size - 1) {
+            fun uv(p: Vec2) = Vec2(p.x / photo.size, p.y / photo.size)
+            val y = bottom + 0.53
+            texTri(photo.id, poly[0].at(y), poly[k].at(y), poly[k + 1].at(y), uv(poly[0]), uv(poly[k]), uv(poly[k + 1]), Vec3.Up)
+        }
     }
 
     /**
