@@ -54,6 +54,10 @@ compose.desktop {
             targetFormats(TargetFormat.Msi, TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "Sagoma"
             packageVersion = "1.0.0"
+            // Icone del programma installato (dal marchio, come l'icona della finestra in Marchio.kt).
+            windows { iconFile.set(project.file("icone/sagoma.ico")) }
+            macOS { iconFile.set(project.file("icone/sagoma.icns")) }
+            linux { iconFile.set(project.file("icone/sagoma.png")) }
         }
     }
 }

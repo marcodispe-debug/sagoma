@@ -151,6 +151,10 @@ class DesktopGlSceneRenderer(
      * allarga: più immagini al secondo, un po' meno nitide. Appena ci si ferma torna piena e nitida (vedi [sharpen]).
      */
     internal var motionScale = 1f
+    /** Foto in corso (solo sul thread "Sagoma 3D"): misure, definizione dei materiali e immagine letta (vedi [renderPhoto]). */
+    private var photoSize: IntSize? = null
+    private var photoQuality: MaterialResolution? = null
+    private var photoResult: Bitmap? = null
     private var lastFrameEnd = 0L
     @Volatile private var frames = 0L
     private val sharpen = Executors.newSingleThreadScheduledExecutor { Thread(it, "Sagoma 3D nitido").apply { isDaemon = true } }
@@ -236,9 +240,12 @@ class DesktopGlSceneRenderer(
 
     private fun renderFrame(mode: Mode = Mode.AUTO) {
         if (released || context?.isOpen != true) return
-        val full = size
+        val full = photoSize ?: size
         if (full.width <= 0 || full.height <= 0) return
         ensureFramebuffer(full)
+        // Scheda grafica senza memoria per un'immagine così grande (succede solo con le foto): niente disegno.
+        glBindFramebuffer(GL_FRAMEBUFFER, fboMsaa)
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return
         pendingScene?.let { res.retryMissing(); upload(it); pendingScene = null }
         val start = System.nanoTime()
         val moving = mode == Mode.MOVING || mode == Mode.AUTO && start - lastFrameEnd < MOTION_GAP_NS
@@ -338,9 +345,12 @@ class DesktopGlSceneRenderer(
             setMaterial(useVertexColor = true, roughness = 0.85f, metallic = 0f)
             glUniformMatrix4fv(u("uModel"), false, IDENTITY)
             drawArrays(program, opaqueVbo, opaqueCount, Format.SCENE)
+            // Nella foto i materiali più definiti stanno sulla scheda grafica solo mentre si disegna il loro materiale.
+            val quality = photoQuality ?: materials
             for ((id, buf) in textured) {
-                setMaterial(albedo = res.material(id, "color", materials), normal = res.material(id, "normal", materials), orm = res.material(id, "orm", materials), ormHasAo = true, roughness = 1f, metallic = 1f, macro = id == GRASS)
+                setMaterial(albedo = res.material(id, "color", quality), normal = res.material(id, "normal", quality), orm = res.material(id, "orm", quality), ormHasAo = true, roughness = 1f, metallic = 1f, macro = id == GRASS)
                 drawArrays(program, buf.first, buf.second, Format.TEXTURED)
+                if (quality != materials) res.dropMaterial(id, quality)
             }
             forEachFurniturePart(opaqueOnly = true) { part, m ->
                 setFurnitureMaterial(part)
@@ -404,6 +414,14 @@ class DesktopGlSceneRenderer(
      */
     private fun readPixels(s: IntSize, sky: FloatArray) {
         glBindFramebuffer(GL_FRAMEBUFFER, fboResolve)
+        if (photoSize != null) {
+            // Foto: letta subito e tenuta per chi l'ha chiesta, lo schermo resta con l'immagine di prima.
+            val buf = pixels!!
+            buf.clear()
+            glReadPixels(0, 0, s.width, s.height, GL_RGBA, GL_UNSIGNED_BYTE, buf)
+            photoResult = bitmapOf(s, MemoryUtil.memAddress(buf))
+            return
+        }
         if (!asyncRead) {
             val buf = pixels!!
             buf.clear()
@@ -452,8 +470,16 @@ class DesktopGlSceneRenderer(
         pboFence[i] = 0L
     }
 
-    /** Immagine per Compose dai pixel RGBA (`s`) all'indirizzo `pixels`, copiati direttamente nella sua memoria. */
+    /** Immagine per Compose dai pixel RGBA (`s`) all'indirizzo `pixels`. */
     private fun show(s: IntSize, pixels: Long, sky: FloatArray) {
+        val bitmap = bitmapOf(s, pixels)
+        bitmap.setImmutable()
+        image = bitmap.asComposeImageBitmap()
+        skyColor = Color(sky[0], sky[1], sky[2])
+    }
+
+    /** Bitmap dai pixel RGBA (`s`) all'indirizzo `pixels`, copiati direttamente nella sua memoria. */
+    private fun bitmapOf(s: IntSize, pixels: Long): Bitmap {
         val bytes = s.width * s.height * 4
         val bitmap = Bitmap()
         bitmap.allocPixels(ImageInfo(s.width, s.height, ColorType.RGBA_8888, ColorAlphaType.PREMUL))
@@ -465,9 +491,7 @@ class DesktopGlSceneRenderer(
         } else {
             bitmap.installPixels(ByteArray(bytes).also { MemoryUtil.memByteBuffer(pixels, bytes).get(it) })
         }
-        bitmap.setImmutable()
-        image = bitmap.asComposeImageBitmap()
-        skyColor = Color(sky[0], sky[1], sky[2])
+        return bitmap
     }
 
     /** Misura il tempo della scheda grafica per `block` (solo con [timing]). */
@@ -1072,6 +1096,37 @@ class DesktopGlSceneRenderer(
         size = IntSize(width, height)
         gl.submit { renderFrame(mode) }.get()
         return image
+    }
+
+    override val canRenderPhoto: Boolean get() = true
+
+    /**
+     * Foto della vista: la stessa scena e la stessa telecamera, disegnate fuori schermo con il lato lungo di `longSide` pixel
+     * (al massimo quello che la scheda grafica regge) e i materiali 4K. Lo schermo poi torna alle sue misure.
+     */
+    override fun renderPhoto(longSide: Int, onDone: (ImageBitmap?) -> Unit) {
+        if (released) return onDone(null)
+        gl.execute {
+            val photo = runCatching {
+                val view = size
+                if (view.width <= 0 || view.height <= 0 || context?.isOpen != true) return@runCatching null
+                val max = minOf(glGetInteger(GL_MAX_RENDERBUFFER_SIZE), glGetInteger(GL_MAX_TEXTURE_SIZE))
+                val k = minOf(longSide, max).toDouble() / maxOf(view.width, view.height)
+                photoSize = IntSize((view.width * k).roundToInt().coerceAtLeast(1), (view.height * k).roundToInt().coerceAtLeast(1))
+                photoQuality = MaterialResolution.K4
+                photoResult = null
+                // Si riprova quello che mancava: i 4K appena arrivati dal server.
+                res.retryMissing()
+                renderFrame(Mode.STILL)
+                photoResult
+            }.onFailure { it.printStackTrace() }.getOrNull()
+            photoSize = null
+            photoQuality = null
+            photoResult = null
+            onDone(photo?.let { it.setImmutable(); it.asComposeImageBitmap() })
+            // Lo schermo torna alle sue misure (i framebuffer si rifanno al prossimo disegno).
+            request()
+        }
     }
 
     @Composable

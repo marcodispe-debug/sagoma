@@ -4,18 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sagoma</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <style>
         html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
         /* Sfondo solo su html: quello del body coprirebbe il canvas della vista 3D, che sta sotto l'app. */
         html { background: #F8F9FA; }
         body { background: transparent; }
-        #caricamento { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-            font-family: system-ui, sans-serif; color: #2F5D62; font-size: 18px; }
+        #caricamento { position: fixed; inset: 0; display: flex; flex-direction: column; gap: 20px; align-items: center;
+            justify-content: center; font-family: system-ui, sans-serif; color: #16202A; font-size: 18px; }
+        #caricamento svg { width: 240px; max-width: 70vw; height: auto; }
     </style>
     <script type="application/javascript" src="sagoma.js"></script>
 </head>
 <body>
-<div id="caricamento">Caricamento di Sagoma…</div>
+<div id="caricamento"><svg role="img" aria-label="Sagoma" xmlns="http://www.w3.org/2000/svg" viewBox="-350 -350 7965 2646"><path d="M590 1538C943 1538 1164 1362 1164 1084C1164 865 1025 736 716 667L565 632C371 587 294 531 294 431C294 309 411 224 576 224C750 224 864 319 875 476H1126C1117 180 910 0 577 0C248 0 29 178 29 444C29 653 166 784 464 852L624 888C823 934 901 995 901 1100C901 1231 778 1315 592 1315C385 1315 261 1208 259 1028H0C0 1347 221 1538 590 1538ZM1626 1531C1798 1531 1887 1459 1937 1365H1941V1514H2189V794C2189 574 2026 437 1751 437C1475 437 1303 576 1291 786H1534C1541 697 1623 633 1746 633C1867 633 1939 697 1939 787V795C1939 867 1872 870 1676 892C1458 915 1261 974 1261 1214C1261 1425 1416 1531 1626 1531ZM1688 1344C1578 1344 1507 1295 1507 1212C1507 1116 1599 1077 1707 1061C1811 1045 1909 1029 1940 1009V1123C1940 1246 1853 1344 1688 1344ZM2846 1946C3132 1946 3345 1814 3345 1487V458H3096V615H3095C3025 494 2910 437 2773 437C2502 437 2318 660 2318 981C2318 1299 2499 1521 2775 1521C2914 1521 3026 1465 3094 1341H3095V1502C3095 1664 3004 1751 2846 1751C2728 1751 2641 1703 2617 1612H2370C2398 1817 2567 1946 2846 1946ZM2834 1313C2678 1313 2573 1194 2573 978C2573 763 2678 643 2834 643C2999 643 3107 775 3107 978C3107 1181 2999 1313 2834 1313ZM4646 1514H4898V884C4898 733 4995 651 5109 651C5221 651 5301 726 5301 841V1514H5546V866C5546 740 5625 651 5753 651C5861 651 5949 713 5949 853V1514H6202V817C6202 569 6048 437 5848 437C5694 437 5568 515 5512 637C5468 516 5351 437 5208 437C5075 437 4954 505 4890 641V458H4646ZM6702 1531C6874 1531 6963 1459 7013 1365H7017V1514H7265V794C7265 574 7102 437 6827 437C6551 437 6379 576 6367 786H6610C6617 697 6699 633 6822 633C6943 633 7015 697 7015 787V795C7015 867 6948 870 6752 892C6534 915 6337 974 6337 1214C6337 1425 6492 1531 6702 1531ZM6764 1344C6654 1344 6583 1295 6583 1212C6583 1116 6675 1077 6783 1061C6887 1045 6985 1029 7016 1009V1123C7016 1246 6929 1344 6764 1344Z" fill="#16202A"/><path d="M4028,557H3869A271,271 0 0 0 3598,828V1144A271,271 0 0 0 3869,1415H4122A271,271 0 0 0 4393,1144V923" fill="none" stroke="#16202A" stroke-width="247"/><path d="M4028,557A366,366 0 0 1 4393,923" fill="none" stroke="#C8553D" stroke-width="89" stroke-linecap="round"/></svg><span id="caricamento-testo">Caricamento di Sagoma…</span></div>
 <script>
     // Stessa scelta della lingua dell'app (Come il sistema se non ancora scelta).
     (function () {
@@ -27,7 +29,7 @@
         var testi = { en: "Loading Sagoma…", fr: "Chargement de Sagoma…", es: "Cargando Sagoma…" };
         if (lingua !== "it") {
             document.documentElement.lang = lingua;
-            document.getElementById("caricamento").textContent = testi[lingua];
+            document.getElementById("caricamento-testo").textContent = testi[lingua];
         }
     })();
 </script>
