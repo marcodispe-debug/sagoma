@@ -929,6 +929,7 @@ private fun ArchitectureButton(
     fun opening(kind: OpeningKind, style: PassageStyle = PassageStyle.Square, sliding: Boolean = false, preset: OpeningPreset = OpeningPreset.None) =
         { vm.startPlacingOpening(PendingOpening(kind, style, sliding, preset)) }
     fun fixture(kind: FixtureKind) = { vm.startPlacingFixture(kind) }
+    val light = rememberLightChoice(vm)
     val lights = listOf(
         FixtureKind.Spotlight, FixtureKind.Neon, FixtureKind.Chandelier, FixtureKind.CeilingLight, FixtureKind.LedStrip,
         FixtureKind.WallLight, FixtureKind.WallSpot, FixtureKind.WallLedStrip,
@@ -1003,7 +1004,7 @@ private fun ArchitectureButton(
                     MenuEntry(
                         T.editor.luci,
                         guide = GuideTarget.Menu(GuideMenu.Lights),
-                        children = lights.map { MenuEntry(it.label, fixture(it), guide = if (it == FixtureKind.Chandelier) GuideTarget.Menu(GuideMenu.Chandelier) else null) },
+                        children = lights.map { MenuEntry(it.label, light(it), guide = if (it == FixtureKind.Chandelier) GuideTarget.Menu(GuideMenu.Chandelier) else null) },
                     ),
                 ),
             ),
@@ -1170,6 +1171,7 @@ private fun FixtureButton(
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
 ) {
     fun place(kind: FixtureKind) = { vm.startPlacingFixture(kind) }
+    val light = rememberLightChoice(vm)
     val lights = listOf(
         FixtureKind.Spotlight, FixtureKind.Neon, FixtureKind.Chandelier, FixtureKind.CeilingLight, FixtureKind.LedStrip,
         FixtureKind.WallLight, FixtureKind.WallSpot, FixtureKind.WallLedStrip,
@@ -1182,11 +1184,25 @@ private fun FixtureButton(
             MenuEntry(T.editor.presaCorrente, place(FixtureKind.Outlet)),
             MenuEntry(T.editor.interruttore, place(FixtureKind.Switch)),
             MenuEntry(T.editor.puntoAcqua, place(FixtureKind.WaterPoint)),
-            MenuEntry(T.editor.luci, children = lights.map { MenuEntry(it.label, place(it)) }),
+            MenuEntry(T.editor.luci, children = lights.map { MenuEntry(it.label, light(it)) }),
         ),
         buttonModifier,
         contentPadding,
     )
+}
+
+/**
+ * Le voci di «Luci»: se il catalogo ha dei modelli di quella luce (lampadari, plafoniere, applique, fari) si apre la scelta
+ * ([LightPickerDialog]), altrimenti (faretti, neon, strisce LED, o senza arredi) si mette subito il punto luce.
+ */
+@Composable
+private fun rememberLightChoice(vm: EditorViewModel): (FixtureKind) -> () -> Unit {
+    var picking by remember { mutableStateOf<FixtureKind?>(null) }
+    val furniture = FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.FURNITURE)
+    picking?.let { kind -> LightPickerDialog(kind, vm) { picking = null } }
+    return { kind ->
+        { if (furniture && com.sagoma.planimetria.model.FurnitureCatalog.lights(kind).isNotEmpty()) picking = kind else vm.startPlacingFixture(kind) }
+    }
 }
 
 /** Voce di menu: esegue un'azione oppure, se ha figli, apre un sottomenu; `hint` è una riga di spiegazione sotto. */

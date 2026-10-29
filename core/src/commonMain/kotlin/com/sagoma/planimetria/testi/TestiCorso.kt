@@ -272,6 +272,7 @@ open class TestiCorso {
     open val luciElementi: String get() = "Le luci invece vanno dentro la stanza. «${e.elementiArchitettonici}»…"
     open val luci: String get() = "…«${e.luci}»…"
     open val lampadario: String get() = "…per esempio «${FixtureKind.Chandelier.label}»."
+    open val luceSemplice: String get() = "…e qui «${T.arredi.puntoLuceSemplice}»: si mette cliccando nella stanza."
     open val cliccaStanzaLuce: String get() = "Clicca dentro la stanza, dove va la luce: per esempio qui."
     open val cliccaStudio: String get() = "Ultima, la scala. Prima clicca dentro la stanza dove va, per esempio lo studio, qui."
     open val scalaElementi: String get() = "Poi «${e.elementiArchitettonici}»…"

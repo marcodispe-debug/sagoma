@@ -131,8 +131,8 @@ enum class ShapeChoice { Square, Rectangle, L, Survey, Walls, Trace, FreeWall }
 /** Campi in cui la guida fa scrivere una misura. `index` in [GuideTarget.Field] dice quale lato o diagonale. */
 enum class GuideField { Side, Width, Depth, MainWidth, MainDepth, ProtrusionWidth, ProtrusionDepth, SurveySide, Diagonal, WallLength, Calibration, WallInfo, FreeWallLength, FreeWallThickness }
 
-/** Voci del menu «Elementi architettonici» che la guida indica. */
-enum class GuideMenu { Room, Doors, Door, Windows, Window, FrenchWindows, FrenchWindow, Systems, Radiator, Lights, Chandelier, Stairs, Spiral, Outdoor, Balcony }
+/** Voci del menu «Elementi architettonici» che la guida indica; `LightPoint` è il punto luce semplice nella scelta delle luci. */
+enum class GuideMenu { Room, Doors, Door, Windows, Window, FrenchWindows, FrenchWindow, Systems, Radiator, Lights, Chandelier, LightPoint, Stairs, Spiral, Outdoor, Balcony }
 
 /** Comandi dell'interfaccia che la guida interattiva sa indicare (l'interfaccia li segna con `Modifier.guide`). */
 sealed interface GuideTarget {
@@ -519,8 +519,10 @@ private class CourseHints(private val s: EditorUiState) {
         else listOfNotNull(frenchSpot()?.let { mark(c.cliccaMuroBalcone, PlanMark(listOf(it))) })
         CourseStep.Radiator -> if (s.pendingFixture == null) menu(c.impiantiElementi, GuideMenu.Systems to c.impianti, GuideMenu.Radiator to c.calorifero)
         else listOf(mark(c.cliccaMuroCalorifero, PlanMark(listOf(radiatorSpot()))))
-        CourseStep.Light -> if (s.pendingFixture == null) menu(c.luciElementi, GuideMenu.Systems to c.impianti, GuideMenu.Lights to c.luci, GuideMenu.Chandelier to c.lampadario)
-        else listOf(mark(c.cliccaStanzaLuce, PlanMark(listOf(lightSpot()))))
+        CourseStep.Light -> if (s.pendingFixture == null) {
+            // Se il catalogo ha dei lampadari si apre la scelta del modello: il punto luce semplice è il primo.
+            menu(c.luciElementi, GuideMenu.Systems to c.impianti, GuideMenu.Lights to c.luci, GuideMenu.Chandelier to c.lampadario, GuideMenu.LightPoint to c.luceSemplice)
+        } else listOf(mark(c.cliccaStanzaLuce, PlanMark(listOf(lightSpot()))))
         CourseStep.Stair -> stairHints()
         CourseStep.Info -> listOf(hint(GuideTarget.Info, c.info))
 

@@ -38,16 +38,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.assets.AssetPaths
 import com.sagoma.planimetria.assets.remote.AssetPriority
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.GuideMenu
+import com.sagoma.planimetria.editor.GuideTarget
+import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.testi.T
 
@@ -95,6 +100,58 @@ private fun FurnitureCatalogDialog(onDismiss: () -> Unit, onPick: (FurnitureCata
                     modifier = Modifier.heightIn(max = 440.dp),
                 ) {
                     items(shown, key = { it.model }) { item -> CatalogCard(item) { onPick(item) } }
+                }
+                TextButton(onClick = { credits = true }) { Text(T.arredi.fontiLicenzeModelli) }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(T.comuni.chiudi) } },
+    )
+    if (credits) CreditsDialog { credits = false }
+}
+
+/**
+ * «Impianti» → «Luci» per una luce che il catalogo ha anche tra gli arredi (lampadari, plafoniere, applique, fari): si sceglie il
+ * modello tra tutti quelli del catalogo. La prima scheda è il punto luce semplice di sempre, che si mette toccando la stanza; un
+ * modello del catalogo entra come gli altri arredi.
+ */
+@Composable
+internal fun LightPickerDialog(kind: FixtureKind, vm: EditorViewModel, onDismiss: () -> Unit) {
+    val models = remember(kind) { FurnitureCatalog.lights(kind) }
+    var credits by remember { mutableStateOf(false) }
+    val measurer = rememberTextMeasurer()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(T.arredi.modelliLuce(kind.label, models.size + 1)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(T.arredi.sceltaLuce, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(100.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.heightIn(max = 440.dp),
+                ) {
+                    item(key = "punto-luce") {
+                        Surface(
+                            onClick = { onDismiss(); vm.startPlacingFixture(kind) },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            modifier = Modifier.guide(if (kind == FixtureKind.Chandelier) GuideTarget.Menu(GuideMenu.LightPoint) else null),
+                        ) {
+                            Column(Modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                // Il campione a muro inquadra solo la parte alta della stanza di prova: il resto si taglia.
+                                Canvas(Modifier.size(width = 88.dp, height = 70.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFF6F5F2))) {
+                                    drawFixtureSample(kind, measurer)
+                                }
+                                Text(
+                                    T.arredi.puntoLuceSemplice, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center,
+                                    minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp),
+                                )
+                                Text(kind.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                    items(models, key = { it.model }) { item -> CatalogCard(item) { onDismiss(); vm.addFurniture(item) } }
                 }
                 TextButton(onClick = { credits = true }) { Text(T.arredi.fontiLicenzeModelli) }
             }

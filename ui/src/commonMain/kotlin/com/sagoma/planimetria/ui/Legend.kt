@@ -181,6 +181,9 @@ private fun opening(
     drawSample(sampleRoom(openings = listOf(o)), m, TopWall)
 }
 
+/** Il simbolo dell'impianto come nella legenda (anche sulla scheda del punto luce semplice, nella scelta delle luci). */
+internal fun DrawScope.drawFixtureSample(kind: FixtureKind, measurer: TextMeasurer) = fixture(kind)(measurer)
+
 /** Impianto a muro al centro del muro in alto, oppure luce al centro della stanza di prova. */
 private fun fixture(kind: FixtureKind): DrawScope.(TextMeasurer) -> Unit = { m ->
     val f = Fixture.default(1, kind).let {

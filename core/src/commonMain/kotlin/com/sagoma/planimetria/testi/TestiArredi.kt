@@ -22,4 +22,8 @@ open class TestiArredi {
     open val modelliPubblicoDominioCc0: String get() = "Modelli di pubblico dominio (CC0)"
     open fun autoreLicenza(p1: Any?, p2: Any?): String = "Autore: $p1 · Licenza: $p2"
     open val autoreSconosciuto: String get() = "autore sconosciuto"
+    open fun modelliLuce(nome: Any?, n: Any?): String = "$nome ($n modelli)"
+    open val puntoLuceSemplice: String get() = "Punto luce semplice"
+    open val sceltaLuce: String get() =
+        "Il punto luce semplice è quello di sempre: si mette toccando la pianta. Gli altri sono i modelli 3D degli arredi."
 }

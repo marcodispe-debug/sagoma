@@ -222,6 +222,7 @@ object TestiCorsoEn : TestiCorso() {
     override val luciElementi: String get() = "Lights instead go inside the room. «${e.elementiArchitettonici}»…"
     override val luci: String get() = "…«${e.luci}»…"
     override val lampadario: String get() = "…for example «${FixtureKind.Chandelier.label}»."
+    override val luceSemplice: String get() = "…and here «${T.arredi.puntoLuceSemplice}»: you place it by clicking in the room."
     override val cliccaStanzaLuce: String get() = "Click inside the room, where the light goes: for example here."
     override val cliccaStudio: String get() = "Last, the stairs. First click inside the room where they go, for example the study, here."
     override val scalaElementi: String get() = "Then «${e.elementiArchitettonici}»…"
