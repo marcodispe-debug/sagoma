@@ -949,6 +949,8 @@ data class FloorPlan(
     /** Quote manuali e testi del disegno. */
     val dimensions: List<Dimension> = emptyList(),
     val annotations: List<TextNote> = emptyList(),
+    /** Oggetti 3D forniti da un professionista (la cucina del negozio), messi in casa da arredi "fornito:<id>". */
+    val supplied: List<SuppliedObject> = emptyList(),
 ) {
     val facadeOrPaint: WallFinish get() = facadeFinish ?: WallFinish.of(facade)
 
@@ -963,6 +965,10 @@ data class FloorPlan(
     fun furniture(id: Long?): Furniture? = furniture.firstOrNull { it.id == id }
     fun replace(f: Furniture): FloorPlan = copy(furniture = furniture.map { if (it.id == f.id) f else it })
     val nextFurnitureId: Long get() = (furniture.maxOfOrNull { it.id } ?: 0L) + 1
+
+    /** Oggetto fornito usato dall'arredo `model`, se è uno di quelli. */
+    fun suppliedFor(model: String): SuppliedObject? = SuppliedObjects.idOf(model)?.let { id -> supplied.firstOrNull { it.id == id } }
+    val nextSuppliedId: Long get() = (supplied.maxOfOrNull { it.id } ?: 0L) + 1
 
     fun freeWall(id: Long?): FreeWall? = freeWalls.firstOrNull { it.id == id }
     fun replace(wall: FreeWall): FloorPlan = copy(freeWalls = freeWalls.map { if (it.id == wall.id) wall else it })

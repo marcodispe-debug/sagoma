@@ -75,7 +75,7 @@ object ParametricFurniture {
     val catalogItems: List<FurnitureCatalog.Item> get() = Kind.entries.mapNotNull { k -> item(model(Spec(k)))?.copy(label = k.label) }
 }
 
-/** Mobili generati alla misura, di qualsiasi famiglia: non hanno file da scaricare. */
+/** Mobili generati alla misura, di qualsiasi famiglia, e oggetti forniti dai professionisti: non hanno file da scaricare. */
 object GeneratedFurniture {
-    fun isGenerated(model: String): Boolean = KitchenModules.isModule(model) || ParametricFurniture.isModel(model)
+    fun isGenerated(model: String): Boolean = KitchenModules.isModule(model) || ParametricFurniture.isModel(model) || SuppliedObjects.isModel(model)
 }

@@ -512,7 +512,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
             drawFloorBelow(state.planBelow, state.camera)
             drawPlan(shown, measurer)
             if (layers.visible(Layer.Structure)) drawStairs(state, measurer)
-            if (layers.visible(Layer.Furniture)) drawFurniture(state.plan.furniture, state.camera, (state.selection as? Selection.Furniture)?.furnitureId)
+            if (layers.visible(Layer.Furniture)) drawFurniture(state.plan.furniture, state.camera, (state.selection as? Selection.Furniture)?.furnitureId, state.plan.supplied)
             // Quote dei muri (solo lettura: le lunghezze si cambiano dalla tendina Info della stanza).
             // Quote: fuori dalla casa a catena; dentro solo quelle che fuori non si leggono. Le scritte crescono un poco con lo zoom.
             val dimScale = dimensionTextScale(state.camera, density.density)

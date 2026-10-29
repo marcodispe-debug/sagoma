@@ -32,6 +32,9 @@ data class Account(
 enum class Right {
     /** Inserire nuovi arredi dal catalogo. */
     InsertFurniture,
+
+    /** Scambiare la planimetria con i programmi dei professionisti in IFC (esportare e rileggere). */
+    ExchangeIfc,
 }
 
 object Rights {
@@ -52,5 +55,7 @@ object Rights {
     fun has(account: Account, right: Right): Boolean = when (right) {
         // Provvisorio: aperto a tutti finché non c'è il pagamento; per i privati diventerà un acquisto per singolo mobile.
         Right.InsertFurniture -> true
+        // Provvisorio come sopra ("per ora tutto gratis", 24/10/2026): nel piano deciso è dei professionisti.
+        Right.ExchangeIfc -> true
     }
 }

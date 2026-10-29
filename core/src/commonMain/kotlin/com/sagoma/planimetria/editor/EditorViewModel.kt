@@ -505,6 +505,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     }
 
     /**
+     * Ritorno dal professionista ([com.sagoma.planimetria.ifc.IfcRoundTrip]): la casa con la planimetria del file IFC e gli arredi
+     * del progetto. Si annulla con Annulla, come ogni modifica.
+     */
+    fun applyIfcReturn(merged: Building) = commitBuilding { merged }
+
+    /**
      * Nomi automatici di stanze e piani nella lingua dell'app (dopo un cambio di lingua): anche negli stati di
      * Annulla, così annullare non riporta i nomi nella lingua di prima. Non è una modifica da annullare.
      */
@@ -808,6 +814,23 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         _state.update { it.copy(focusedRoomId = null, selection = Selection.Furniture(f.id), pendingOpening = null, pendingFixture = null, infoExpanded = false) }
     }
 
+    /**
+     * Oggetto fornito da un professionista (la cucina del negozio dal suo IFC) messo nel piano corrente come un arredo, con le
+     * sue misure vere. `at`: dove stava nel file; si usa se cade dentro la casa (il negozio ha disegnato sulla planimetria di
+     * sagoma), altrimenti l'oggetto va nella stanza in vista, da spostare e girare. Un solo passo da annullare.
+     */
+    fun addSupplied(obj: com.sagoma.planimetria.model.SuppliedObject, at: Vec2?) {
+        val s = _state.value
+        val stored = obj.copy(id = s.plan.nextSuppliedId)
+        val inside = at?.takeIf { p -> s.plan.rooms.any { Polygon.contains(it.points, p) } }
+        val f = Furniture(
+            s.plan.nextFurnitureId, com.sagoma.planimetria.model.SuppliedObjects.model(stored.id), inside ?: placementCenter(s), 0.0,
+            stored.width, stored.depth, stored.height,
+        )
+        commit { it.copy(supplied = it.supplied + stored, furniture = it.furniture + f) }
+        _state.update { it.copy(focusedRoomId = null, selection = Selection.Furniture(f.id), pendingOpening = null, pendingFixture = null, infoExpanded = false) }
+    }
+
     fun selectFurniture(id: Long) = _state.update { it.copy(focusedRoomId = null, selection = Selection.Furniture(id)) }
     fun updateFurniture(f: Furniture) = commit { it.replace(f) }
 
@@ -932,7 +955,11 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     private data class Quad(val item: GroupItem, val a: Vec2, val b: Vec2, val width: Double)
 
     fun removeFurniture(id: Long) {
-        commit { it.copy(furniture = it.furniture.filter { f -> f.id != id }) }
+        commit { p ->
+            val left = p.furniture.filter { f -> f.id != id }
+            // L'oggetto fornito che nessun arredo usa più se ne va con lui (Annulla lo rimette).
+            p.copy(furniture = left, supplied = p.supplied.filter { o -> left.any { it.model == com.sagoma.planimetria.model.SuppliedObjects.model(o.id) } })
+        }
         _state.update { it.copy(selection = null) }
     }
 

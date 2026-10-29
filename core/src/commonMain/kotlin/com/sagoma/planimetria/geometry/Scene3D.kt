@@ -444,6 +444,37 @@ private class SceneBuilder(
     }
 
     /**
+     * Oggetto fornito da un professionista (la cucina del negozio): i suoi triangoli, stirati sulle misure dell'arredo, girati e
+     * specchiati con lui. Se l'oggetto non c'è più resta la scatola grigia dell'ingombro. Come per i mobili generati, il tocco
+     * passa dalla scatola dell'arredo.
+     */
+    private fun suppliedFurniture(f: com.sagoma.planimetria.model.Furniture, obj: com.sagoma.planimetria.model.SuppliedObject?, pick: Pick) {
+        if (obj == null) {
+            val grey = tint(Rgba.argb(0xFFC9C6C0), pick)
+            solid(Furnishings.outline(f), f.elevation, f.elevation + f.height, grey, grey, null)
+            return
+        }
+        val (u, v) = Furnishings.axes(f)
+        val sx = (if (f.mirrored) -1.0 else 1.0) * f.width / obj.width.coerceAtLeast(0.1) / 10
+        val sy = f.height / obj.height.coerceAtLeast(0.1) / 10
+        val sz = f.depth / obj.depth.coerceAtLeast(0.1) / 10
+        for (part in obj.parts) {
+            val color = tint(Rgba.argb(part.argb), pick)
+            val vs = part.vertices
+            fun at(i: Int): Vec3 = (f.center + u * (vs[3 * i] * sx) + v * (vs[3 * i + 2] * sz)).at(f.elevation + vs[3 * i + 1] * sy)
+            val ts = part.triangles
+            var k = 0
+            while (k + 2 < ts.size) {
+                val a = at(ts[k]); val b = at(ts[k + 1]); val c = at(ts[k + 2])
+                k += 3
+                val n = (b - a) cross (c - a)
+                if (n.length < 1e-9) continue
+                tri(a, b, c, n, color, null)
+            }
+        }
+    }
+
+    /**
      * Rettangolo con un materiale sulla faccia di un muro (stesse coordinate di [wallFace]). Con la posa a pezzi i pezzi
      * partono da terra con una fila intera, dal centro del muro (lungo `wallLength`) o dal suo inizio; `seed` cambia la
      * scelta dei pezzi della foto da un muro all'altro.
@@ -660,6 +691,7 @@ private class SceneBuilder(
                 val generated = GeneratedGeometry.parts(f.model, f.width, f.depth, f.height)
                 if (rug != null) rug(f, rug.first, rug.second, pick)
                 else if (generated != null) generatedFurniture(f, generated, pick)
+                else if (com.sagoma.planimetria.model.SuppliedObjects.isModel(f.model)) suppliedFurniture(f, plan.suppliedFor(f.model), pick)
                 else placed += Scene3D.PlacedFurniture(f.id, f.model, f.center.at(f.elevation), f.rotation, f.width, f.depth, f.height, current && pick == selected, f.mirrored)
                 // Le lampade del catalogo fanno luce: dal paralume (in alto) o, se appese, da sotto.
                 val item = FurnitureCatalog.item(f.model)

@@ -111,6 +111,13 @@ import com.sagoma.planimetria.editor.MeasureState
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.persistence.RoomPhotoFiles
 import com.sagoma.planimetria.geometry.Distances
+import com.sagoma.planimetria.access.Right
+import com.sagoma.planimetria.access.Rights
+import com.sagoma.planimetria.ifc.IfcExport
+import com.sagoma.planimetria.ifc.IfcFurniture
+import com.sagoma.planimetria.ifc.IfcImport
+import com.sagoma.planimetria.ifc.IfcRoundTrip
+import com.sagoma.planimetria.model.Building
 
 /**
  * L'editor del progetto `projectId`. `courseLesson`: guida interattiva da far partire appena aperto (poi `onCourseStarted`);
@@ -219,7 +226,11 @@ fun EditorScreen(
         else T.editor.misureInMetri to { vm.setUnits(LengthUnit.Meters) },
         T.editor.linguaMenu to { showLanguage = true },
         T.vista3D.nordCitta to { showSite = true },
-    )
+    ) + if (Rights.has(platform.account, Right.ExchangeIfc)) listOf(
+        T.editor.esportaIfc to { exportIfc(platform, state.fullBuilding, projects.info(projectId)?.name, projectId) },
+        T.editor.rileggiIfc to { readIfc(platform, vm, projectId) },
+        T.editor.cucinaNegozio to { readShopKitchen(platform, vm) },
+    ) else emptyList()
     if (showSite) HouseSiteDialog(state.building.site, onNorth = vm::setNorth, onPlace = vm::setPlace, onDismiss = { showSite = false })
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
@@ -1399,3 +1410,41 @@ private const val NUDGE_FAST_PX = 10.0
 /** Oggetto che WASD e frecce spostano: quello selezionato che si può trascinare, muri compresi. */
 internal fun nudgeTarget(sel: Selection?): DragTarget? =
     if (sel is Selection.Wall) DragTarget.Wall(sel.roomId, sel.index) else selectedDragTarget(sel)
+
+/** Chiave dei GlobalId IFC del progetto: la stessa all'andata e al ritorno, anche se il progetto cambia nome. */
+private fun ifcKey(projectId: Long) = "sagoma-progetto-$projectId"
+
+/** Planimetria nuda in IFC (mai gli arredi del catalogo), da mandare al professionista. */
+private fun exportIfc(platform: Platform, building: Building, name: String?, projectId: Long) {
+    val title = name?.takeIf { it.isNotBlank() } ?: "sagoma"
+    val text = IfcExport.export(building, title, key = ifcKey(projectId), timestamp = isoDate(platform.now()) + "T00:00:00")
+    val file = "${title.replace(Regex("[^A-Za-z0-9 _-]"), "").ifBlank { "sagoma" }}.ifc"
+    platform.saveFile(file, "application/x-step", text.encodeToByteArray()) { ok ->
+        platform.toast(if (ok) T.editor.ifcEsportato else T.vari.esportazioneNonRiuscita)
+    }
+}
+
+/**
+ * La cucina del negozio dal suo IFC (Winner esporta i soli mobili): entra nel piano corrente come oggetto fornito, che non va
+ * nel catalogo e non esce da sagoma. Si annulla con Annulla.
+ */
+private fun readShopKitchen(platform: Platform, vm: EditorViewModel) = platform.openFile(listOf(ANY_FILE)) { file ->
+    file ?: return@openFile
+    val name = file.name.substringBeforeLast('.').ifBlank { T.editor.cucinaNegozio }
+    val read = runCatching { IfcFurniture.read(file.bytes.decodeToString(), id = 1, name = name) }.getOrNull()
+    val obj = read?.obj
+    if (obj == null) { platform.toast(T.editor.cucinaNonLetta); return@openFile }
+    vm.addSupplied(obj, read.center)
+    platform.toast(T.editor.cucinaMessa(obj.elements.size))
+}
+
+/** Ritorno dal professionista: il suo IFC prende il posto della planimetria, gli arredi restano (Annulla torna a prima). */
+private fun readIfc(platform: Platform, vm: EditorViewModel, projectId: Long) = platform.openFile(listOf(ANY_FILE)) { file ->
+    file ?: return@openFile
+    val read = runCatching { IfcImport.read(file.bytes.decodeToString()) }.getOrNull()
+    if (read == null || read.report.rooms + read.report.walls == 0) { platform.toast(T.editor.ifcNonLetto); return@openFile }
+    val merged = IfcRoundTrip.merge(vm.state.value.fullBuilding, read, key = ifcKey(projectId))
+    vm.applyIfcReturn(merged.building)
+    val r = merged.report
+    platform.toast(T.editor.ifcRiletto(r.unchanged, r.moved + r.reshaped, r.added, r.removed, r.toCheck.size))
+}
