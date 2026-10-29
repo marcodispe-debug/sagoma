@@ -64,6 +64,32 @@ class HousingRulesTest {
     }
 
     @Test
+    fun `porta-finestra messa dal lato del balcone`() {
+        // Muro della camera senza aperture; la porta-finestra sta sul lato del balcone (muro 0 del balcone, quello in comune).
+        val room = rect(1, RoomType.Camera, 400.0, 400.0)
+        val door = Opening.default(5, OpeningKind.Balcony2, 0, 120.0)
+        val balcony = rect(2, RoomType.Balcone, 400.0, 150.0, Vec2(0.0, 400.0), openings = listOf(door))
+        val plan = FloorPlan(listOf(room, balcony))
+        val moved = HousingRules.fromOutdoor(plan, room).single()
+        assertEquals(2, moved.wallIndex, "sul muro della camera verso il balcone")
+        assertEquals(400.0 - 120.0, moved.position, 1e-6, "stessa posizione, contata dall'inizio del muro della camera")
+        assertEquals(door.width * door.height, HousingRules.windowArea(plan, listOf(room)), 1e-6)
+        assertFalse(HousingRules.belowMinimum(plan, listOf(room)), "con 2,64 m² su 14,82 basta")
+        // Il balcone stesso non prende luce da sé; sugli altri lati del balcone (verso il vuoto) non conta per la camera.
+        assertTrue(HousingRules.fromOutdoor(plan, balcony).isEmpty())
+        val far = balcony.copy(openings = listOf(door.copy(wallIndex = 2)))
+        assertEquals(0.0, HousingRules.windowArea(FloorPlan(listOf(room, far)), listOf(room)))
+        // Le stesse regole delle finestre della stanza: fissa o da chiudere non conta.
+        for (o in listOf(door.copy(sash = SashType.Fixed), door.copy(phase = Phase.Demolish))) {
+            val p = FloorPlan(listOf(room, balcony.copy(openings = listOf(o))))
+            assertEquals(0.0, HousingRules.windowArea(p, listOf(room)), "$o")
+        }
+        // Stanza al chiuso al posto del balcone: non è luce da fuori.
+        val hall = balcony.copy(type = RoomType.Corridoio)
+        assertTrue(HousingRules.fromOutdoor(FloorPlan(listOf(room, hall)), room).isEmpty())
+    }
+
+    @Test
     fun `ambiente unico dove tutte e due le stanze hanno tolto il muro`() {
         val living = rect(1, RoomType.Soggiorno, 400.0, 300.0).copy(removedWalls = setOf(1))
         val kitchen = rect(2, RoomType.Cucina, 300.0, 300.0, Vec2(400.0, 0.0)).copy(removedWalls = setOf(3))
