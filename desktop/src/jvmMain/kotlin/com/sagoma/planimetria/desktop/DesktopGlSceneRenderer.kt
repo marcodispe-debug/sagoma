@@ -49,7 +49,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.hypot
+import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -156,7 +158,21 @@ class DesktopGlSceneRenderer(
     private var photoQuality: MaterialResolution? = null
     private var photoResult: Bitmap? = null
     private var lastFrameEnd = 0L
+    /** L'immagine di prima era piccola (in movimento), e il tempo medio delle immagini in movimento (ms, 0 = ancora nessuna). */
+    private var lastSmall = false
+    private var motionMs = 0.0
     @Volatile private var frames = 0L
+    /**
+     * Esposizione camminando come la sta vedendo l'occhio (vedi [adaptExposure]): quella dell'ultima immagine, quando, e da dove; null
+     * = la prossima subito giusta. [settling]: non è ancora arrivata a quella della stanza.
+     */
+    private var adapted: Float? = null
+    private var adaptedAt = 0L
+    private var adaptedEye = Vec3.Zero
+    private var snapExposure = true
+    private var settling = false
+    /** Orologio dell'abitudine dell'occhio (le prove lo fanno andare come a 50 immagini al secondo). */
+    internal var exposureClock: () -> Long = System::nanoTime
     private val sharpen = Executors.newSingleThreadScheduledExecutor { Thread(it, "Sagoma 3D nitido").apply { isDaemon = true } }
 
     /** Tempi della scheda grafica per passaggio (SAGOMA_TEMPI_3D=1): medie in ms di [timings], scritte ogni 60 immagini. */
@@ -248,7 +264,12 @@ class DesktopGlSceneRenderer(
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return
         pendingScene?.let { res.retryMissing(); upload(it); pendingScene = null }
         val start = System.nanoTime()
-        val moving = mode == Mode.MOVING || mode == Mode.AUTO && start - lastFrameEnd < MOTION_GAP_NS
+        // In movimento: immagini ravvicinate, o una piccola poco prima (col mouse lento gli spostamenti arrivano più radi: senza,
+        // un'immagine piccola e una piena si alternano e la vista pulsa).
+        val gap = start - lastFrameEnd
+        val moving = mode == Mode.MOVING || mode == Mode.AUTO && (gap < MOTION_GAP_NS || lastSmall && gap < (SHARP_DELAY_MS - 30) * 1_000_000L)
+        // Foto e prove: l'esposizione subito giusta, non quella che l'occhio si sta abituando a vedere.
+        snapExposure = mode == Mode.STILL || photoSize != null
         // Si disegna nell'angolo in basso a sinistra delle texture (grandi quanto la vista) e si legge solo quella parte.
         val s = if (moving && motionScale < 1f) {
             IntSize(maxOf(1, (full.width * motionScale).roundToInt()), maxOf(1, (full.height * motionScale).roundToInt()))
@@ -395,15 +416,24 @@ class DesktopGlSceneRenderer(
         frames++
         if (timing) collectTimings()
         lastFrameEnd = System.nanoTime()
+        lastSmall = s != full
         if (moving) {
-            // Immagine troppo lenta: più piccola; avanza tempo: più grande (a piccoli passi, senza scatti di nitidezza).
-            val k = sqrt(FRAME_MS / ((lastFrameEnd - start) / 1e6)).toFloat()
-            if (k < 0.95f || k > 1.1f) motionScale = (motionScale * k.coerceIn(0.8f, 1.1f)).coerceIn(MIN_SCALE, 1f)
+            // Immagine troppo lenta: più piccola; avanza tempo: più grande. Sul tempo medio delle ultime, solo quando è lontano da
+            // quello voluto e a gradini di 1/20: la nitidezza non cambia a ogni immagine (sembrava una vecchia videocassetta).
+            val ms = (lastFrameEnd - start) / 1e6
+            motionMs = if (motionMs <= 0.0) ms else motionMs * 0.7 + ms * 0.3
+            val k = sqrt(FRAME_MS / motionMs).toFloat()
+            if (k < 0.85f || k > 1.15f) motionScale = ((motionScale * k.coerceIn(0.8f, 1.1f) * 20).roundToInt() / 20f).coerceIn(MIN_SCALE, 1f)
         }
         if (s != full && mode == Mode.AUTO && !released) {
             // Ci si è fermati se dopo questa non ne arrivano altre: allora un'immagine piena e nitida.
             val n = frames
             runCatching { sharpen.schedule({ if (frames == n) request() }, SHARP_DELAY_MS, TimeUnit.MILLISECONDS) }
+        }
+        if (settling && mode == Mode.AUTO && !released) {
+            // L'occhio si sta ancora abituando alla luce della stanza: un'altra immagine fra poco, anche da fermi (poi quella nitida).
+            val n = frames
+            runCatching { sharpen.schedule({ if (frames == n) request() }, ADAPT_FRAME_MS, TimeUnit.MILLISECONDS) }
         }
     }
 
@@ -665,6 +695,28 @@ class DesktopGlSceneRenderer(
 
     private fun toLinear(c: Float) = c.toDouble().pow(2.2).toFloat()
 
+    /**
+     * Esposizione camminando che si abitua piano alla luce della stanza, come l'occhio o una macchina fotografica: passando una porta
+     * tra una stanza più buia e una più luminosa non scatta più di colpo (era un lampo su tutta la vista), arriva in circa mezzo
+     * secondo. Subito giusta nelle foto e nelle prove, alla prima immagine camminando e dopo un salto della telecamera (cambio di
+     * piano, inizio della camminata).
+     */
+    private fun adaptExposure(target: Float): Float {
+        val now = exposureClock()
+        val prev = adapted
+        val d = eye - adaptedEye
+        val out = if (prev == null || snapExposure || d.length > TELEPORT_CM) target else {
+            val dt = ((now - adaptedAt) / 1e9).coerceIn(0.0, 0.25)
+            val a = 1 - exp(-dt / EXPOSURE_TAU_S)
+            exp(ln(prev.toDouble()) + (ln(target.toDouble()) - ln(prev.toDouble())) * a).toFloat()
+        }
+        adapted = out
+        adaptedAt = now
+        adaptedEye = eye
+        settling = abs(ln(out / target)) > 0.02f
+        return out
+    }
+
     /** Luce del giorno, cielo, lampade e finestre per lo shader PBR. */
     private fun setLighting(d: Daylight, viewProj: FloatArray, lightMvp: FloatArray) {
         glUniformMatrix4fv(u("uViewProj"), false, viewProj)
@@ -703,9 +755,13 @@ class DesktopGlSceneRenderer(
             val room = 2 * PI * winK * lights.meterWindows + 0.5 * d.sun[1] * sunK * 0.32 * lights.meterSun + lights.meterLamps +
                 PI * kIn * INDOOR_AMBIENT
             val metered = if (lights.meterIndoor) (EXPOSURE_TARGET / room.toFloat()).coerceIn(1f, MAX_BOOST) else OUTSIDE_BOOST
-            val boost = 1f + (metered - 1f) * d.day
+            val boost = adaptExposure(1f + (metered - 1f) * d.day)
             kIn *= maxOf(INDOOR_AMBIENT, 1f / (boost * boost))
             exposureIn = exposure * boost
+        }
+        if (!walking) {
+            adapted = null
+            settling = false
         }
         glUniform1f(u("uExposureIn"), exposureIn)
         glUniform1f(u("uEyeInside"), if (lights.meterIndoor) 1f else 0f)
@@ -1192,6 +1248,13 @@ class DesktopGlSceneRenderer(
         const val MIN_SCALE = 0.5f
         /** Dopo l'ultima immagine in movimento, quella nitida. */
         const val SHARP_DELAY_MS = 150L
+        /**
+         * Abitudine dell'occhio alla luce della stanza camminando: costante di tempo (s; in mezzo secondo fa quasi tutto), un'immagine
+         * ogni tanto (ms) finché non è arrivata, e uno spostamento della telecamera (cm) oltre cui è un salto (subito giusta).
+         */
+        const val EXPOSURE_TAU_S = 0.25
+        const val ADAPT_FRAME_MS = 33L
+        const val TELEPORT_CM = 150.0
         const val SHADOW_SIZE = 4096
         const val ROOF_SIZE = 2048
         /** Profondità della vista dall'alto dei soffitti (cm): da 50 m sopra fino a 50 m sotto. */
