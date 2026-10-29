@@ -56,6 +56,7 @@ import com.sagoma.planimetria.model.Stair
 import com.sagoma.planimetria.model.StairKind
 import com.sagoma.planimetria.model.LOrientation
 import com.sagoma.planimetria.model.Opening
+import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Parapet
 import com.sagoma.planimetria.model.FloorFinish
@@ -2192,9 +2193,10 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val room = plan.room(roomId) ?: return
         // La nicchia scava una faccia del muro di una stanza: sul muro singolo (due facce uguali) non si mette.
         if (pending.kind == OpeningKind.Niche && room.id < 0) return
+        // Finestre e balconi nuovi con il davanzale (o la soglia) di marmo, come di solito: si cambia o si toglie nella scheda Aspetto.
         val base = pending.preset.apply(
             Opening.default(plan.nextOpeningId, pending.kind, wallIndex, 0.0).copy(style = pending.style, sliding = pending.sliding),
-        )
+        ).let { if (it.kind.glazed) it.copy(sillMaterial = StairMaterial.Marble) else it }
         val pos = Openings.clampPosition(room.wallLength(wallIndex), base.width, Openings.projectOnWall(room, wallIndex, at))
         val opening = base.copy(position = pos)
         commit { it.replace(room.copy(openings = room.openings + opening)) }
@@ -2207,6 +2209,35 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun updateOpening(roomId: Long, opening: Opening) = commit { plan ->
         val room = plan.room(roomId) ?: return@commit plan
         plan.replace(room.copy(openings = room.openings.map { if (it.id == opening.id) opening else it }))
+    }
+
+    /**
+     * Copia l'aspetto dell'apertura `openingId` ([Opening.withStyleOf]) su tutte quelle dello stesso genere del piano:
+     * la finestra sulle finestre, il balcone sui balconi, la porta sulle porte (anche quelle dei muri singoli). Con
+     * `allFloors` su tutti i piani della casa. È una modifica sola: si annulla con ↶. Restituisce quante aperture sono cambiate.
+     */
+    fun copyOpeningStyle(roomId: Long, openingId: Long, allFloors: Boolean = false): Int {
+        val from = _state.value.plan.room(roomId)?.opening(openingId) ?: return 0
+        var changed = 0
+        fun restyle(list: List<Opening>) = list.map { o ->
+            // Finestre e balconi si copiano ognuno sui suoi: chi copia un balcone non vuole cambiare le finestre.
+            val n = if (from.kind.glazed && o.kind.isWindow != from.kind.isWindow) o else o.withStyleOf(from)
+            if (n != o) changed++
+            n
+        }
+        fun restyle(plan: FloorPlan) = plan.copy(
+            rooms = plan.rooms.map { r -> r.copy(openings = restyle(r.openings)) },
+            freeWalls = plan.freeWalls.map { w -> w.copy(openings = restyle(w.openings)) },
+        )
+        if (allFloors) {
+            val b = _state.value.fullBuilding
+            val next = b.copy(floors = b.floors.map { f -> f.copy(plan = restyle(f.plan)) })
+            if (changed > 0) commitBuilding { next }
+        } else {
+            val next = restyle(_state.value.plan)
+            if (changed > 0) commit { next }
+        }
+        return changed
     }
 
     fun removeOpening(roomId: Long, openingId: Long) {

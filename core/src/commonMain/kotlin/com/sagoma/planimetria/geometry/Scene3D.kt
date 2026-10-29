@@ -6,12 +6,14 @@ import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Stair
 import com.sagoma.planimetria.model.StairKind
+import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.Mount
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Parapet
 import com.sagoma.planimetria.model.DoorModel
 import com.sagoma.planimetria.model.Finish
+import com.sagoma.planimetria.model.GarageDoor
 import com.sagoma.planimetria.model.FloorPattern
 import com.sagoma.planimetria.model.LampModel
 import com.sagoma.planimetria.model.RadiatorModel
@@ -397,6 +399,20 @@ private class SceneBuilder(
     }
 
     /**
+     * Foto del materiale `m` sul rettangolo verticale da `a` a `b` (già sulla faccia), da `y0` a `y1`, rivolto verso `side`: si
+     * ripete ogni [MaterialCatalog.Item.size] cm, girata e ingrandita come in `layout` (come sul pavimento). `t0` è dove comincia
+     * lungo il pezzo: i pezzi della stessa anta continuano la stessa foto.
+     */
+    private fun skin(m: MaterialCatalog.Item, layout: MaterialLayout, a: Vec2, b: Vec2, side: Vec2, y0: Double, y1: Double, t0: Double = 0.0) {
+        if (a.distanceTo(b) < 0.05 || y1 - y0 < 0.05) return
+        val t1 = t0 + a.distanceTo(b)
+        fun uv(t: Double, y: Double) = layout.uv(t, -y, m.size)
+        val n = side.dir()
+        texTri(m.id, a.at(y0), b.at(y0), b.at(y1), uv(t0, y0), uv(t1, y0), uv(t1, y1), n)
+        texTri(m.id, a.at(y0), b.at(y1), a.at(y1), uv(t0, y0), uv(t1, y1), uv(t0, y1), n)
+    }
+
+    /**
      * Tappeto di materiale: una lastra sottile del colore del materiale e, sopra, la foto del materiale che
      * gira con il tappeto e si ripete ogni `size` cm (ingrandendo il tappeto il disegno non si stira).
      */
@@ -535,7 +551,16 @@ private class SceneBuilder(
     private val wallTop = Rgba(0.24f, 0.26f, 0.28f)
     private val selectedTint = Rgba(0.10f, 0.44f, 0.76f)
     private val frame = Rgba(0.97f, 0.97f, 0.97f)
+    /** Vetro: trasparenza 0,35. Nel 3D del computer i trasparenti più coprenti sono un velo (zanzariera, vetromattone; vedi PbrShaders). */
     private val glass = Rgba(0.55f, 0.78f, 0.92f, 0.35f)
+
+    /** Vetro satinato delle porte: un velo bianco (tra 0,36 e 0,5 sul computer non lascia passare la luce del cielo). */
+    private val satinGlass = Rgba(0.88f, 0.92f, 0.93f, 0.48f)
+    /** Vetro satinato scelto per finestre e porte ([Opening.frosted]): oltre 0,5, sul computer smerigliato che si illumina col cielo. */
+    private val frostedPane = Rgba(0.90f, 0.93f, 0.94f, 0.85f)
+
+    /** Vetro di porte e finestre: trasparente, o satinato se scelto. */
+    private fun glassOf(o: Opening, pick: Pick): Rgba = (if (o.hasFrostedGlass) frostedPane else glass).let { tint(it, pick).copy(a = it.a) }
     private val wood = Rgba(0.62f, 0.44f, 0.29f)
     private val ceilingColor = Rgba(0.97f, 0.97f, 0.96f)
     /** Tetto piano sopra i piani di sotto (dove il piano di sopra non li copre): guaina grigio chiaro. */
@@ -686,7 +711,8 @@ private class SceneBuilder(
             }
             // Luce delle lampade che passa dalle porte nelle stanze vicine (solo il piano corrente ha le luci).
             if (current) {
-                for (room in plan.rooms) if (!room.outdoor) rooms += Scene3D.SceneRoom(LightZones.of(room.points), base, base + room.ceilingHeight)
+                // Solo stanze vere: una stanza senza punti (file rovinato) non ha zone e farebbe fermare il 3D.
+                for (room in plan.rooms) if (!room.outdoor && room.points.size >= 3) rooms += Scene3D.SceneRoom(LightZones.of(room.points), base, base + room.ceilingHeight)
                 // Finestre: la stanza in cui entra la loro luce (appena dentro, verso l'interno).
                 for (k in windows.indices) {
                     val w = windows[k]
@@ -790,7 +816,9 @@ private class SceneBuilder(
     private fun stair(s: Stair, rise: Double) {
         val layout = Stairs.layout(s, rise)
         val pick = Pick.Stair(s.id)
-        val material = Rgba.argb(s.material.argb)
+        // Gradini con il materiale fotografico dei pavimenti: il suo colore sui fronti e la foto sulle pedate.
+        val photo = MaterialCatalog.item(s.treadMaterial)
+        val material = Rgba.argb(photo?.argb ?: s.material.argb)
         val top = tint(material, pick)
         val face = tint(material.mix(Rgba(0f, 0f, 0f), 0.1f), pick)
         val plaster = tint(stairSide, pick)
@@ -809,6 +837,11 @@ private class SceneBuilder(
                     val thick = if (st.landing) 12.0 else if (structure == StairStructure.Floating) 7.0 else 5.0
                     solid(st.polygon, st.top - thick, st.top, face, top, pick)
                 }
+            }
+            if (photo != null) for (k in 1 until st.polygon.size - 1) {
+                val p = st.polygon
+                fun uv(q: Vec2) = Vec2(q.x / photo.size, q.y / photo.size)
+                texTri(photo.id, p[0].at(st.top + 0.03), p[k].at(st.top + 0.03), p[k + 1].at(st.top + 0.03), uv(p[0]), uv(p[k]), uv(p[k + 1]), Vec3.Up)
             }
         }
         if (structure == StairStructure.Stringers) stringers(layout, metal, pick)
@@ -2197,14 +2230,24 @@ private class SceneBuilder(
         val pick = Pick.Opening(room.id, o.id)
         val bottom = o.bottom
         val top = min(h, bottom + o.height)
+        // Soglia della porta (quella di finestre e balconi si fa con l'infisso, che può stare spostato nello spessore del muro).
+        if (!o.kind.glazed) o.sill?.let { windowSill(room, o, a, b, u, n, bottom, it, pick) }
 
         when {
             o.kind == OpeningKind.Passage || o.kind == OpeningKind.Niche -> Unit // varco libero, nicchia
+            o.kind.glazed && o.isBay -> bayWindow(room, o, a, b, n, bottom, top, pick)
             o.kind.glazed -> {
                 // Infisso a filo esterno o interno: spostato nello spessore del muro.
                 val f = n * Openings.frameOffset(room, o)
                 window(a + f, b + f, u, n, bottom, top, o, pick)
+                // Oscuranti sulle facce del muro, anche con l'infisso spostato a filo esterno o interno.
+                if (o.shape == WindowShape.Rectangle && !o.isGlassBlock) shading(a, b, u, n, bottom, top, o, pick)
+                o.sill?.let { windowSill(room, o, a, b, u, n, bottom, it, pick) }
+                if (o.hasGrille) grille(a, b, u, n * -(room.thicknessOf(o.wallIndex) / 2 + 4.0), bottom, top, pick)
+                if (o.hasInsectScreen) insectScreen(a, b, u, n, bottom, top, o, pick)
+                if (o.hasAwning && !room.outdoor) awning(a, b, u, n, top, h, o, pick)
             }
+            o.isGarage -> garageDoor(a, b, u, n, bottom, top, h, o, pick)
             o.sliding && o.slideOnWall -> {
                 // Porta scorrevole esterna: anta sulla faccia del muro verso la stanza, aperta a metà sopra il muro,
                 // appesa a un binario a vista che corre per tutta la sua corsa.
@@ -2271,6 +2314,57 @@ private class SceneBuilder(
     }
 
     /**
+     * Porta da garage, chiusa, a filo della faccia del muro verso la stanza (come si montano). Sezionale: pannelli
+     * orizzontali con le guide ai lati e i binari che entrano nella stanza sotto il soffitto. Basculante: pannello unico a
+     * doghe verticali con la maniglia in mezzo e i montanti ai lati. Bianca finché non si sceglie un colore.
+     */
+    private fun garageDoor(a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, top: Double, ceiling: Double, o: Opening, pick: Pick) {
+        val w = a.distanceTo(b)
+        // Con la finitura in foto ([Opening.doorFinish]) il pannello ha il colore medio del materiale e la foto sulle due facce.
+        val material = o.doorFinish?.let { MaterialCatalog.item(it) }
+        val c = tint(Rgba.argb(material?.argb ?: o.frameArgb), pick)
+        val groove = c.mix(Rgba(0f, 0f, 0f), 0.25f)
+        val metal = tint(Rgba(0.45f, 0.46f, 0.48f), pick)
+        val face = n * (half - 2.0)
+        box(a + face, b + face, 1.5, bottom, top, c, pick)
+        if (material != null) for (side in listOf(1.0, -1.0)) {
+            val off = face + n * (side * 1.55)
+            skin(material, o.doorMaterialLayout, a + off, b + off, n * side, bottom, top)
+        }
+        val outer = n * (half - 3.6)
+        if (o.garageDoor == GarageDoor.Sectional) {
+            // Giunti tra i pannelli, visibili dai due lati.
+            val panels = maxOf(3, kotlin.math.round((top - bottom) / 52.0).toInt())
+            for (k in 1 until panels) {
+                val y = bottom + (top - bottom) * k / panels
+                box(a + face, b + face, 1.8, y - 0.6, y + 0.6, groove, pick)
+            }
+            // Guide ai lati e binari sotto il soffitto, fin dove arriva il pannello aperto.
+            val reach = Openings.garageReach(o)
+            val railTop = min(ceiling - 1, top + 12)
+            val inner = n * half
+            for (side in listOf(a + u * 4.0, b - u * 4.0)) {
+                box(side + inner, side + inner + n * 5.0, 2.0, bottom, railTop, metal, pick)
+                box(side + inner, side + inner + n * reach, 2.0, railTop - 5, railTop, metal, pick)
+            }
+            box(a + u * 4.0 + inner + n * reach, b - u * 4.0 + inner + n * reach, 1.5, railTop - 5, railTop, metal, pick)
+        } else {
+            // Doghe verticali verso fuori e maniglia a metà.
+            val ribs = maxOf(4, kotlin.math.round(w / 14.0).toInt())
+            for (k in 1 until ribs) {
+                val p = a + u * (w * k / ribs) + outer
+                box(p - u * 0.6, p + u * 0.6, 0.6, bottom + 3, top - 3, groove, pick)
+            }
+            val m = (a + b) / 2.0
+            val y = bottom + min(100.0, (top - bottom) / 2)
+            box(m - u * 8.0 + outer - n * 0.8, m + u * 8.0 + outer - n * 0.8, 1.0, y - 1.5, y + 1.5, metal, pick)
+            // Montanti ai lati verso la stanza, con i contrappesi.
+            val inner = n * (half + 3.0)
+            for (side in listOf(a + u * 3.0, b - u * 3.0)) box(side + inner - u * 2.5, side + inner + u * 2.5, 3.0, bottom, top, metal, pick)
+        }
+    }
+
+    /**
      * Sopraluce e vetro di fianco della porta: vetri fissi con il telaio del colore della porta, a metà muro.
      * Restituisce il tratto e la cima che restano all'anta.
      */
@@ -2281,8 +2375,8 @@ private class SceneBuilder(
         val transom = o.transomCm
         val side = o.sidelightCm
         if (transom <= 0 && side <= 0) return Triple(la, lb, top)
-        val frame = tint(Rgba.argb(o.frameArgb), pick)
-        val glassColor = tint(glass, pick).copy(a = glass.a)
+        val frame = tint(Rgba.argb(o.doorFinish?.let { MaterialCatalog.item(it)?.argb } ?: o.frameArgb), pick)
+        val glassColor = glassOf(o, pick)
         val lt = top - transom
         val f = 3.0
         if (transom > 0) {
@@ -2307,41 +2401,59 @@ private class SceneBuilder(
      * con il disegno del suo modello su entrambe le facce e la maniglia verso l'estremità libera.
      */
     private fun doorLeaf(start: Vec2, dir: Vec2, length: Double, thick: Double, height: Double, o: Opening, pick: Pick, handleAtEnd: Boolean) {
-        val color = tint(Rgba.argb(o.frameArgb), pick)
+        // Con la finitura in foto ([Opening.doorFinish]) l'anta ha il colore medio del materiale e, sopra, la sua foto.
+        val material = o.doorFinish?.let { MaterialCatalog.item(it) }
+        val color = tint(Rgba.argb(material?.argb ?: o.frameArgb), pick)
         val relief = color.mix(Rgba(0f, 0f, 0f), 0.12f)
         val metal = tint(Rgba(0.62f, 0.64f, 0.66f), pick)
-        fun part(from: Double, to: Double, y0: Double, y1: Double, hw: Double, c: Rgba) =
+        val across = dir.perp()
+        /** Un pezzo dell'anta; `skinned`: con la foto del materiale sulle due facce, appena fuori. */
+        fun part(from: Double, to: Double, y0: Double, y1: Double, hw: Double, c: Rgba, skinned: Boolean = false) {
             box(start + dir * (length * from), start + dir * (length * to), hw, y0, y1, c, pick)
+            if (skinned && material != null) for (side in listOf(1.0, -1.0)) {
+                val off = across * (side * (hw + 0.05))
+                skin(material, o.doorMaterialLayout, start + dir * (length * from) + off, start + dir * (length * to) + off, across * side, y0, y1, length * from)
+            }
+        }
         when (o.doorModel) {
-            DoorModel.Flush -> part(0.0, 1.0, 0.0, height, thick, color)
+            DoorModel.Flush -> part(0.0, 1.0, 0.0, height, thick, color, skinned = true)
             DoorModel.Panels -> {
-                part(0.0, 1.0, 0.0, height, thick, color)
+                part(0.0, 1.0, 0.0, height, thick, color, skinned = true)
                 // Riquadri in rilievo: uno alto e uno basso, su tutte e due le facce.
-                part(0.16, 0.84, height * 0.55, height * 0.9, thick + 0.6, relief)
-                part(0.16, 0.84, height * 0.1, height * 0.46, thick + 0.6, relief)
+                part(0.16, 0.84, height * 0.55, height * 0.9, thick + 0.6, relief, skinned = true)
+                part(0.16, 0.84, height * 0.1, height * 0.46, thick + 0.6, relief, skinned = true)
             }
             DoorModel.Glazed -> {
                 // Telaio dell'anta e vetro al centro.
-                part(0.0, 0.16, 0.0, height, thick, color)
-                part(0.84, 1.0, 0.0, height, thick, color)
-                part(0.16, 0.84, 0.0, height * 0.36, thick, color)
-                part(0.16, 0.84, height * 0.88, height, thick, color)
-                pane(start + dir * (length * 0.16), start + dir * (length * 0.84), height * 0.36, height * 0.88, tint(glass, pick).copy(a = glass.a), pick)
+                part(0.0, 0.16, 0.0, height, thick, color, skinned = true)
+                part(0.84, 1.0, 0.0, height, thick, color, skinned = true)
+                part(0.16, 0.84, 0.0, height * 0.36, thick, color, skinned = true)
+                part(0.16, 0.84, height * 0.88, height, thick, color, skinned = true)
+                pane(start + dir * (length * 0.16), start + dir * (length * 0.84), height * 0.36, height * 0.88, glassOf(o, pick), pick)
             }
             DoorModel.Planks -> {
-                part(0.0, 1.0, 0.0, height, thick, color)
+                part(0.0, 1.0, 0.0, height, thick, color, skinned = true)
                 for (k in 1 until 5) part(k / 5.0 - 0.006, k / 5.0 + 0.006, height * 0.02, height * 0.98, thick + 0.25, relief)
             }
             DoorModel.Modern -> {
-                part(0.0, 1.0, 0.0, height, thick, color)
+                part(0.0, 1.0, 0.0, height, thick, color, skinned = true)
                 for (y in listOf(0.3, 0.55, 0.8)) part(0.04, 0.96, height * y - 0.4, height * y + 0.4, thick + 0.25, relief)
+            }
+            DoorModel.AllGlass -> {
+                // Lastra di vetro satinato (un velo sul computer, vedi PbrShaders) con le due cerniere dal lato opposto alla maniglia e la
+                // serratura di metallo.
+                pane(start, start + dir * length, 0.5, height, tint(satinGlass, pick).copy(a = satinGlass.a), pick)
+                val hinge = if (handleAtEnd) 0.0 else 0.94
+                for (y in listOf(20.0, height - 32.0)) part(hinge, hinge + 0.06, y, y + 12.0, thick * 0.4 + 0.8, metal)
+                val lockAt = if (handleAtEnd) 0.84 else 0.04
+                part(lockAt, lockAt + 0.12, 92.0, 110.0, thick * 0.4 + 0.6, metal)
             }
             DoorModel.Armored -> {
                 // Anta più spessa, bugne quadrate in rilievo, serratura sopra la maniglia e spioncino.
-                part(0.0, 1.0, 0.0, height, thick + 1.5, color)
+                part(0.0, 1.0, 0.0, height, thick + 1.5, color, skinned = true)
                 for (row in 0 until 3) {
                     val y0 = height * (0.08 + row * 0.3)
-                    part(0.12, 0.88, y0, y0 + height * 0.24, thick + 2.1, relief)
+                    part(0.12, 0.88, y0, y0 + height * 0.24, thick + 2.1, relief, skinned = true)
                 }
                 val lockAt = if (handleAtEnd) 0.86 else 0.14
                 part(lockAt - 0.02, lockAt + 0.02, 120.0, 128.0, thick + 2.4, metal)
@@ -2357,13 +2469,23 @@ private class SceneBuilder(
 
     /** Coprifilo attorno alla porta, sulle due facce del muro, e rivestimento dello spessore del varco. */
     private fun casing(a: Vec2, b: Vec2, u: Vec2, n: Vec2, top: Double, o: Opening, pick: Pick) {
-        val color = tint(Rgba.argb(o.frameArgb), pick).mix(Rgba.White, 0.08f)
+        // Con la finitura in foto della porta, il coprifilo è dello stesso materiale (la foto sulla faccia davanti).
+        val material = o.doorFinish?.let { MaterialCatalog.item(it) }
+        val color = if (material != null) tint(Rgba.argb(material.argb), pick) else tint(Rgba.argb(o.frameArgb), pick).mix(Rgba.White, 0.08f)
         val trim = 7.0
         for (side in listOf(1.0, -1.0)) {
             val off = n * (side * (half + 0.6))
             box(a - u * trim + off, a + off, 0.6, 0.0, top + trim, color, pick)
             box(b + off, b + u * trim + off, 0.6, 0.0, top + trim, color, pick)
             box(a - u * trim + off, b + u * trim + off, 0.6, top, top + trim, color, pick)
+            if (material != null) {
+                // I montanti fino all'architrave e l'architrave per tutta la larghezza: le foto non si sovrappongono negli angoli.
+                val face = n * (side * (half + 1.25))
+                val w = a.distanceTo(b)
+                skin(material, o.doorMaterialLayout, a - u * trim + face, a + face, n * side, 0.0, top, -trim)
+                skin(material, o.doorMaterialLayout, b + face, b + u * trim + face, n * side, 0.0, top, w)
+                skin(material, o.doorMaterialLayout, a - u * trim + face, b + u * trim + face, n * side, top, top + trim, -trim)
+            }
         }
         box(a, a + u * 1.2, half, 0.0, top, color, pick)
         box(b - u * 1.2, b, half, 0.0, top, color, pick)
@@ -2373,18 +2495,19 @@ private class SceneBuilder(
     /** Finestra o balcone: telaio bianco e vetro; due ante con il montante centrale, scorrevoli sfalsate. */
     private fun window(a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, top: Double, o: Opening, pick: Pick) {
         if (current) windows += Scene3D.SceneWindow(((a + b) / 2.0).at((bottom + top) / 2), n.dir().normalized(), a.distanceTo(b), top - bottom)
+        if (o.isGlassBlock) return glassBlocks(a, b, u, n, bottom, top, pick)
         if (o.shape != WindowShape.Rectangle) return shapedWindow(a, b, u, bottom, top, o, pick)
-        // Minimal e loft: profili sottili; se l'infisso è bianco diventa antracite (nero il loft), come di solito sono.
         val minimal = o.windowModel == WindowModel.Minimal
         val loft = o.windowModel == WindowModel.Loft
-        val f = if (minimal || loft) 3.0 else 5.0
-        val depth = if (minimal || loft) 3.0 else 4.0
-        val frameArgb = if (minimal && o.defaultColor) Finish.Anthracite.argb else o.frameArgb
-        val color = if (loft && o.defaultColor) tint(Rgba(0.1f, 0.1f, 0.11f), pick) else tint(Rgba.argb(frameArgb), pick)
-        shading(a, b, u, n, bottom, top, o, pick)
+        val wood = o.windowModel == WindowModel.Wood
+        val f = profileWidth(o)
+        val depth = if (minimal || loft) 3.0 else if (wood) 5.0 else 4.0
+        val color = windowFrameColor(o, pick)
         val w = a.distanceTo(b)
         val split = w * o.leafSplit
         val glassBottom = bottom + if (bottom > 0) f else 2.0
+        // Sopraluce: un traverso divide le ante (sotto) da un vetro fisso alto circa un quarto della finestra (sopra).
+        val leafTop = if (o.hasTopLight) top - f - ((top - f - glassBottom) * 0.28).coerceIn(25.0, 50.0) else top - f
         // Ante (tratti lungo il varco, in cm da `a`): una, due (anche disuguali), tre o quattro uguali, nessuna divisione se fissa.
         val leaves = when {
             o.sliding -> emptyList()
@@ -2398,10 +2521,10 @@ private class SceneBuilder(
             for ((x0, x1) in leaves) {
                 for (k in 1..2) {
                     val x = x0 + (x1 - x0) * k / 3
-                    box(a + u * (x - 0.8), a + u * (x + 0.8), 1.2, glassBottom, top - f, color, pick)
+                    box(a + u * (x - 0.8), a + u * (x + 0.8), 1.2, glassBottom, leafTop, color, pick)
                 }
                 for (k in 1..2) {
-                    val y = glassBottom + (top - f - glassBottom) * k / 3
+                    val y = glassBottom + (leafTop - glassBottom) * k / 3
                     box(a + u * x0, a + u * x1, 1.2, y - 0.8, y + 0.8, color, pick)
                 }
             }
@@ -2410,18 +2533,18 @@ private class SceneBuilder(
             // Loft: vetro diviso in riquadri di circa 45 × 50 cm da profili neri.
             for ((x0, x1) in leaves) {
                 val cols = maxOf(1, kotlin.math.round((x1 - x0) / 45.0).toInt())
-                val rows = maxOf(1, kotlin.math.round((top - f - glassBottom) / 50.0).toInt())
+                val rows = maxOf(1, kotlin.math.round((leafTop - glassBottom) / 50.0).toInt())
                 for (k in 1 until cols) {
                     val x = x0 + (x1 - x0) * k / cols
-                    box(a + u * (x - 0.8), a + u * (x + 0.8), 1.5, glassBottom, top - f, color, pick)
+                    box(a + u * (x - 0.8), a + u * (x + 0.8), 1.5, glassBottom, leafTop, color, pick)
                 }
                 for (k in 1 until rows) {
-                    val y = glassBottom + (top - f - glassBottom) * k / rows
+                    val y = glassBottom + (leafTop - glassBottom) * k / rows
                     box(a + u * x0, a + u * x1, 1.5, y - 0.8, y + 0.8, color, pick)
                 }
             }
         }
-        val glassColor = tint(glass, pick).copy(a = glass.a)
+        val glassColor = glassOf(o, pick)
         box(a, a + u * f, depth, bottom, top, color, pick)
         box(b - u * f, b, depth, bottom, top, color, pick)
         box(a, b, depth, top - f, top, color, pick)
@@ -2443,14 +2566,29 @@ private class SceneBuilder(
             }
         } else {
             pane(a + u * f, b - u * f, glassBottom, top - f, glassColor, pick)
-            // Montanti tra un'anta e l'altra.
+            // Montanti tra un'anta e l'altra (sotto il traverso del sopraluce, se c'è).
             for (k in 1 until leaves.size) {
                 val mid = a + u * leaves[k].first
-                box(mid - u * 2.5, mid + u * 2.5, depth, glassBottom, top - f, color, pick)
+                box(mid - u * 2.5, mid + u * 2.5, depth, glassBottom, leafTop, color, pick)
+            }
+            if (o.hasTopLight) box(a, b, depth, leafTop - 2.5, leafTop + 2.5, color, pick)
+            // Legno: il fermavetro, listelli sottili verso la stanza attorno al vetro di ogni anta (e del sopraluce).
+            if (wood) {
+                val bead = color.mix(Rgba(0f, 0f, 0f), 0.10f)
+                val inner = n * (depth * 0.55)
+                val panes = leaves.map { (x0, x1) -> Triple(x0 + if (x0 > f) 2.5 else 0.0, x1 - if (x1 < w - f) 2.5 else 0.0, glassBottom to leafTop - if (o.hasTopLight) 2.5 else 0.0) } +
+                    if (o.hasTopLight) listOf(Triple(f, w - f, leafTop + 2.5 to top - f)) else emptyList()
+                for ((x0, x1, ys) in panes) {
+                    val (y0, y1) = ys
+                    box(a + u * x0 + inner, a + u * (x0 + 1.6) + inner, 1.0, y0, y1, bead, pick)
+                    box(a + u * (x1 - 1.6) + inner, a + u * x1 + inner, 1.0, y0, y1, bead, pick)
+                    box(a + u * x0 + inner, a + u * x1 + inner, 1.0, y0, y0 + 1.6, bead, pick)
+                    box(a + u * x0 + inner, a + u * x1 + inner, 1.0, y1 - 1.6, y1, bead, pick)
+                }
             }
             // A bilico: il perno orizzontale a metà altezza, ai due lati.
             if (o.pivotSash) {
-                val y = (glassBottom + top - f) / 2
+                val y = (glassBottom + leafTop) / 2
                 val metal = tint(Rgba(0.62f, 0.64f, 0.66f), pick)
                 for (x in listOf(f + 1.5, w - f - 1.5)) box(a + u * (x - 1.5), a + u * (x + 1.5), depth + 0.6, y - 1.5, y + 1.5, metal, pick)
             }
@@ -2460,7 +2598,7 @@ private class SceneBuilder(
                 val inner = n * (depth + 1.2)
                 if (o.hopper || o.pivotSash) {
                     val c = (a + b) / 2.0 + inner
-                    box(c - u * 6.0, c + u * 6.0, 1.0, top - f - 4, top - f - 2, metal, pick)
+                    box(c - u * 6.0, c + u * 6.0, 1.0, leafTop - 4, leafTop - 2, metal, pick)
                 } else {
                     val y = min(bottom + 105.0, (bottom + top) / 2).coerceAtLeast(glassBottom + 5)
                     val xs = when {
@@ -2476,6 +2614,206 @@ private class SceneBuilder(
     }
 
     /**
+     * Vetromattone: parete di blocchi di vetro di circa 19 × 19 cm e 8 di spessore murati nel vano, senza telaio. Tra un blocco
+     * e l'altro e attorno le fughe di malta chiara, un poco più indietro delle facce dei blocchi; le facce sono vetro
+     * smerigliato, che lascia passare la luce ma non la vista.
+     */
+    private fun glassBlocks(a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, top: Double, pick: Pick) {
+        val w = a.distanceTo(b)
+        val h = top - bottom
+        if (w < 4 || h < 4) return
+        val joint = 1.0
+        val cols = maxOf(1, kotlin.math.round(w / Openings.GLASS_BLOCK).toInt())
+        val rows = maxOf(1, kotlin.math.round(h / Openings.GLASS_BLOCK).toInt())
+        // Passo dei blocchi: le fughe stanno a 0, bw, 2·bw… e l'ultima finisce sul bordo del vano.
+        val bw = (w - joint) / cols
+        val bh = (h - joint) / rows
+        val mortar = tint(Rgba(0.83f, 0.82f, 0.79f), pick)
+        for (k in 0..cols) box(a + u * (bw * k), a + u * (bw * k + joint), 3.6, bottom, top, mortar, pick)
+        for (k in 0..rows) box(a, b, 3.6, bottom + bh * k, bottom + bh * k + joint, mortar, pick)
+        // Ogni faccia: il centro smerigliato e, attorno, il bordo spesso del blocco più bianco e meno trasparente.
+        val face = tint(frostedGlass, pick).copy(a = frostedGlass.a)
+        val rim = tint(glassBlockRim, pick).copy(a = glassBlockRim.a)
+        val e = min(2.0, min(bw, bh) / 5)
+        for (i in 0 until cols) for (j in 0 until rows) {
+            val x0 = bw * i + joint
+            val x1 = bw * (i + 1)
+            val y0 = bottom + bh * j + joint
+            val y1 = bottom + bh * (j + 1)
+            for (side in listOf(4.0, -4.0)) {
+                val d = n * side
+                pane(a + u * (x0 + e) + d, a + u * (x1 - e) + d, y0 + e, y1 - e, face, pick)
+                pane(a + u * x0 + d, a + u * (x0 + e) + d, y0, y1, rim, pick)
+                pane(a + u * (x1 - e) + d, a + u * x1 + d, y0, y1, rim, pick)
+                pane(a + u * (x0 + e) + d, a + u * (x1 - e) + d, y0, y0 + e, rim, pick)
+                pane(a + u * (x0 + e) + d, a + u * (x1 - e) + d, y1 - e, y1, rim, pick)
+            }
+        }
+    }
+
+    private val frostedGlass = Rgba(0.80f, 0.88f, 0.91f, 0.62f)
+    private val glassBlockRim = Rgba(0.90f, 0.94f, 0.95f, 0.85f)
+
+    /** Larghezza dei profili dell'infisso (cm): sottili minimal e loft, larghi quelli in legno. */
+    private fun profileWidth(o: Opening): Double = when (o.windowModel) {
+        WindowModel.Minimal, WindowModel.Loft -> 3.0
+        WindowModel.Wood -> 7.0
+        else -> 5.0
+    }
+
+    /**
+     * Colore dell'infisso: quello scelto; senza scelta minimal antracite, loft nero e legno rovere, come di solito sono
+     * (gli altri bianchi).
+     */
+    private fun windowFrameColor(o: Opening, pick: Pick): Rgba = when {
+        o.windowModel == WindowModel.Loft && o.defaultColor -> tint(Rgba(0.1f, 0.1f, 0.11f), pick)
+        o.windowModel == WindowModel.Minimal && o.defaultColor -> tint(Rgba.argb(Finish.Anthracite.argb), pick)
+        o.windowModel == WindowModel.Wood && o.defaultColor -> tint(Rgba.argb(Finish.Oak.argb), pick)
+        else -> tint(Rgba.argb(o.frameArgb), pick)
+    }
+
+    private val wroughtIron = Rgba(0.13f, 0.13f, 0.14f)
+
+    /**
+     * Davanzale (finestre) o soglia (balconi e porte): lastra di 3 cm sotto l'infisso per tutto lo spessore del muro, che sporge
+     * [Openings.SILL_IN] verso la stanza e [Openings.SILL_OUT] fuori, con le «orecchie» di [Openings.SILL_EAR] per lato infilate
+     * nei lati del vano ([Openings.sillSize]). Con lo sguincio, verso la stanza si allarga come il vano. Sta mezzo cm sopra il
+     * fondo del varco: copre il muro sotto senza sfarfallare.
+     */
+    private fun windowSill(room: Room, o: Opening, a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, m: StairMaterial, pick: Pick) {
+        val splay = Openings.splayOf(room, o)
+        val ear = Openings.SILL_EAR
+        val inner = n * (half + Openings.SILL_IN)
+        val outer = n * -(half + Openings.SILL_OUT)
+        val poly = if (splay < 0.5) listOf(a - u * ear + outer, b + u * ear + outer, b + u * ear + inner, a - u * ear + inner)
+        else listOf(
+            a - u * ear + outer, b + u * ear + outer, b + u * ear, b + u * (splay + ear) + n * half,
+            b + u * (splay + ear) + inner, a - u * (splay + ear) + inner, a - u * (splay + ear) + n * half, a - u * ear,
+        )
+        // Con il materiale fotografico dei pavimenti: il suo colore sui lati e la foto sopra, ripetuta come sul pavimento.
+        val photo = o.sillPhoto
+        val c = tint(Rgba.argb(photo?.argb ?: m.argb), pick)
+        solid(poly, bottom - Openings.SILL_THICKNESS + 0.5, bottom + 0.5, c, c, pick)
+        if (photo != null) for (k in 1 until poly.size - 1) {
+            fun uv(p: Vec2) = Vec2(p.x / photo.size, p.y / photo.size)
+            val y = bottom + 0.53
+            texTri(photo.id, poly[0].at(y), poly[k].at(y), poly[k + 1].at(y), uv(poly[0]), uv(poly[k]), uv(poly[k + 1]), Vec3.Up)
+        }
+    }
+
+    /**
+     * Zanzariera avvolgibile nel vano: la rete grigia (trasparente) dal davanzale al cassonetto in alto, con le guide ai
+     * lati. Sta verso fuori; con l'infisso a filo esterno sta verso la stanza.
+     */
+    private fun insectScreen(a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, top: Double, o: Opening, pick: Pick) {
+        val side = if (o.frame == com.sagoma.planimetria.model.FramePosition.Outside) 1.0 else -1.0
+        val at = n * (side * (half - 1.5))
+        val frame = tint(Rgba.argb(if (o.defaultColor) Finish.White.argb else o.frameArgb), pick)
+        val box = 7.0
+        pane(a + at, b + at, bottom + 1, top - box, tint(Rgba(0.22f, 0.23f, 0.24f), pick).copy(a = 0.38f), pick)
+        box(a + at, b + at, 3.0, top - box, top, frame, pick)
+        box(a + at, a + u * 2.5 + at, 1.6, bottom, top - box, frame, pick)
+        box(b - u * 2.5 + at, b + at, 1.6, bottom, top - box, frame, pick)
+        // Barra in fondo alla rete, appena sopra il davanzale.
+        box(a + u * 2.5 + at, b - u * 2.5 + at, 1.2, bottom + 1, bottom + 4, frame, pick)
+    }
+
+    /**
+     * Tenda da sole sopra l'apertura, fuori: telo a righe (o del colore scelto) dal cassonetto sul muro fino al terminale,
+     * con la mantovana e i bracci. Sui balconi sporge [Openings.awningReach] quasi in piano; sulle finestre scende a caduta.
+     */
+    private fun awning(a: Vec2, b: Vec2, u: Vec2, n: Vec2, top: Double, wallTop: Double, o: Opening, pick: Pick) {
+        val out = n * -1.0
+        val reach = Openings.awningReach(o)
+        val balcony = o.bottom <= 0.0
+        val y0 = min(top + 18, wallTop - 4)
+        val drop = if (balcony) reach * 0.25 else reach * 1.1
+        val valance = if (balcony) 22.0 else 14.0
+        // Il telo sporge 12 cm per parte, meno accanto a un angolo, a un muro che sporge o alla tenda della finestra vicina.
+        val p0 = a - u * faceRoom(a, u * -1.0, n, -1.0, 12.0, awning = true) + out * (half + 8)
+        val p1 = b + u * faceRoom(b, u, n, -1.0, 12.0, awning = true) + out * (half + 8)
+        val w = p0.distanceTo(p1)
+        val front = out * reach
+        val colors = o.awningColor?.let { listOf(Rgba.argb(it)) } ?: listOf(Rgba.argb(Opening.AWNING_GREEN), Rgba.argb(Opening.AWNING_CREAM))
+        val stripes = if (colors.size == 1) 1 else maxOf(2, kotlin.math.round(w / 16.0).toInt())
+        val up = ((p1 - p0).dir() cross (front.dir() - Vec3(0.0, drop, 0.0))).normalized().let { if (it.y < 0) it * -1.0 else it }
+        for (k in 0 until stripes) {
+            val c = tint(colors[k % colors.size], pick)
+            val s0 = p0 + (p1 - p0) * (k.toDouble() / stripes)
+            val s1 = p0 + (p1 - p0) * ((k + 1).toDouble() / stripes)
+            // Telo, con il sotto appena staccato (le due facce non nello stesso piano).
+            val t0 = s0.at(y0); val t1 = s1.at(y0)
+            val f0 = (s0 + front).at(y0 - drop); val f1 = (s1 + front).at(y0 - drop)
+            quad(t0, t1, f1, f0, up, c, pick)
+            val dn = up * -0.6
+            quad(t0 + dn, t1 + dn, f1 + dn, f0 + dn, up * -1.0, c.mix(Rgba(0f, 0f, 0f), 0.12f), pick)
+            // Mantovana davanti, che pende.
+            val outward = out.dir()
+            quad(f0, f1, f1 - Vec3(0.0, valance, 0.0), f0 - Vec3(0.0, valance, 0.0), outward, c, pick)
+            quad(f0 - outward * 0.5, f1 - outward * 0.5, f1 - outward * 0.5 - Vec3(0.0, valance, 0.0), f0 - outward * 0.5 - Vec3(0.0, valance, 0.0), outward * -1.0, c, pick)
+        }
+        val metal = tint(Rgba(0.86f, 0.86f, 0.85f), pick)
+        // Cassonetto sul muro e terminale davanti.
+        box(p0 - out * 6.0, p1 - out * 6.0, 6.0, y0 - 4, y0 + 8, metal, pick)
+        box(p0 + front, p1 + front, 2.0, y0 - drop - 3, y0 - drop + 1, metal, pick)
+        // Bracci: dai lati sul muro, più in basso, fino al terminale.
+        for (s in listOf(p0 + u * 6.0, p1 - u * 6.0)) {
+            val from = (s - out * 6.0).at(if (balcony) y0 - 35 else y0 - drop - 25)
+            beam(from, (s + front).at(y0 - drop - 1), 1.5, metal, pick)
+        }
+    }
+
+    /** Inferriata: sbarre tonde ogni 12 cm e tre piatti orizzontali, appena fuori dalla faccia esterna (`out`). */
+    private fun grille(a: Vec2, b: Vec2, u: Vec2, out: Vec2, bottom: Double, top: Double, pick: Pick) {
+        val w = a.distanceTo(b)
+        val c = tint(wroughtIron, pick)
+        val bars = maxOf(2, kotlin.math.round(w / 12.0).toInt())
+        for (k in 1 until bars) {
+            val p = a + u * (w * k / bars) + out
+            box(p - u * 0.8, p + u * 0.8, 0.8, bottom + 2, top - 2, c, pick)
+        }
+        val rails = if (top - bottom > 120) listOf(bottom + 10, (bottom + top) / 2, top - 10) else listOf(bottom + 10, top - 10)
+        for (y in rails) box(a + out, b + out, 1.2, y - 2.0, y + 2.0, c, pick)
+        // Le due sbarre di bordo, murate ai lati del vano.
+        box(a + out, a + u * 2.0 + out, 1.2, bottom, top, c, pick)
+        box(b - u * 2.0 + out, b + out, 1.2, bottom, top, c, pick)
+    }
+
+    /**
+     * Bovindo ([Openings.bayOutline]): la finestra sporge dal muro su tre lati vetrati, con la base in pietra sotto e il
+     * tettuccio sopra. Il vano nel muro resta aperto verso la stanza.
+     */
+    private fun bayWindow(room: Room, o: Opening, a: Vec2, b: Vec2, n: Vec2, bottom: Double, top: Double, pick: Pick) {
+        if (current) windows += Scene3D.SceneWindow(((a + b) / 2.0).at((bottom + top) / 2), n.dir().normalized(), a.distanceTo(b), top - bottom)
+        val poly = Openings.bayOutline(room, o)
+        val color = windowFrameColor(o, pick)
+        val glassColor = glassOf(o, pick)
+        val stone = tint(Rgba(0.88f, 0.87f, 0.84f), pick)
+        val roof = tint(Rgba(0.30f, 0.31f, 0.33f), pick)
+        // Base e tettuccio: lo stesso trapezio, appoggiato alla faccia esterna del muro.
+        solid(poly, bottom - 12, bottom, stone, stone, pick)
+        solid(poly, top, top + 14, roof, roof, pick)
+        for (k in 0 until poly.size - 1) {
+            val p0 = poly[k]
+            val p1 = poly[k + 1]
+            val len = p0.distanceTo(p1)
+            if (len < 5) continue
+            val d = (p1 - p0) / len
+            val f = profileWidth(o)
+            box(p0, p0 + d * f, 3.0, bottom, top, color, pick)
+            box(p1 - d * f, p1, 3.0, bottom, top, color, pick)
+            box(p0, p1, 3.0, top - f, top, color, pick)
+            box(p0, p1, 3.0, bottom, bottom + f, color, pick)
+            pane(p0 + d * f, p1 - d * f, bottom + f, top - f, glassColor, pick)
+            // Il davanti largo ha il montante in mezzo, come una finestra a due ante.
+            if (k == 1 && len > 100) {
+                val m = (p0 + p1) / 2.0
+                box(m - d * 2.5, m + d * 2.5, 3.0, bottom + f, top - f, color, pick)
+            }
+        }
+    }
+
+    /**
      * Finestra ad arco o tonda: telaio che segue il bordo del varco (a fettine) e vetro dentro. Ad arco con due ante ha il
      * montante centrale fino all'imposta dell'arco; l'oblò ha una croce sottile se è grande.
      */
@@ -2483,9 +2821,9 @@ private class SceneBuilder(
         val w = a.distanceTo(b)
         val round = o.shape == WindowShape.Round
         val gap = Gap(0.0, w, bottom, top, if (round) PassageStyle.Square else PassageStyle.Arched, pick, round = round)
-        val color = tint(Rgba.argb(if (o.windowModel == WindowModel.Minimal && o.defaultColor) Finish.Anthracite.argb else o.frameArgb), pick)
-        val glassColor = tint(glass, pick).copy(a = glass.a)
-        val f = if (o.windowModel == WindowModel.Minimal) 3.0 else 5.0
+        val color = windowFrameColor(o, pick)
+        val glassColor = glassOf(o, pick)
+        val f = profileWidth(o)
         val depth = 3.5
         val slices = 24
         val n = (b - a).perp().normalized()
@@ -2627,12 +2965,10 @@ private class SceneBuilder(
                 val leaves = if (o.kind.leaves == 2 || w > 90) 2 else 1
                 val lw = w / leaves
                 val sides = if (leaves == 2) listOf(a to -1.0, b to 1.0) else listOf((if (o.hingeLeft) a else b) to (if (o.hingeLeft) -1.0 else 1.0))
-                for ((edge, dirSign) in sides) {
-                    val p0 = edge + out
-                    val p1 = edge + u * (dirSign * lw) + out
-                    box(p0, p1, 1.5, bottom, top, c, pick)
+                for ((edge, dirSign) in sides) for (leaf in openLeaf(edge, u * dirSign, n, -1.0, half + 1.8, lw)) {
+                    box(leaf.p0, leaf.p1, 1.5, bottom, top, c, pick)
                     var y = bottom + 6
-                    while (y < top - 4) { box(p0, p1, 2.1, y, y + 1.2, slat, pick); y += 6.0 }
+                    while (y < top - 4) { box(leaf.p0, leaf.p1, 2.1, y, y + 1.2, slat, pick); y += 6.0 }
                 }
             }
             Shading.RollerShutter -> {
@@ -2661,25 +2997,227 @@ private class SceneBuilder(
                 box(b - u * 3.0 + out, b + out, 2.6, bottom, top, guide, pick)
                 box(a + out, b + out, 3.0, top - 6, top, c, pick)
             }
+            Shading.RomanShutter -> {
+                // Persiana alla romana: un pannello a stecche incernierato in alto, aperto in fuori di 30° (il fondo si stacca dal muro).
+                val c = tint(Rgba.argb(o.shadingArgb), pick)
+                val slat = c.mix(Rgba(0f, 0f, 0f), 0.2f)
+                val len = (top - bottom) * 0.92
+                val ang = kotlin.math.PI / 6
+                val away = n * -1.0
+                val reach = away * (len * kotlin.math.sin(ang))
+                val drop = len * kotlin.math.cos(ang)
+                val p0 = a + out
+                val p1 = b + out
+                val tl = p0.at(top)
+                val tr = p1.at(top)
+                val bl = (p0 + reach).at(top - drop)
+                val br = (p1 + reach).at(top - drop)
+                // Normale del pannello verso fuori e in alto.
+                val pn = ((tr - tl) cross (bl - tl)).normalized().let { if ((it dot away.dir()) < 0) it * -1.0 else it }
+                // Pannello spesso 1 cm: le due facce non stanno nello stesso piano, così da dentro si vede il retro (in ombra) e non il davanti al buio.
+                val back = pn * -1.0
+                quad(tl, tr, br, bl, pn, c, pick)
+                quad(tl + back, tr + back, br + back, bl + back, back, c, pick)
+                quad(bl, br, br + back, bl + back, (bl - tl).normalized(), c, pick)
+                // Stecche ogni 6 cm lungo il pannello, appena staccate sul davanti.
+                val steps = (len / 6.0).toInt()
+                for (k in 1 until steps) {
+                    val t = k.toDouble() / steps
+                    val t2 = (k + 0.25) / steps
+                    val l0 = tl + (bl - tl) * t + pn * 0.4
+                    val r0 = tr + (br - tr) * t + pn * 0.4
+                    val l1 = tl + (bl - tl) * t2 + pn * 0.4
+                    val r1 = tr + (br - tr) * t2 + pn * 0.4
+                    quad(l0, r0, r1, l1, pn, slat, pick)
+                }
+                // Cerniera in alto e due bracci che tengono il pannello aperto.
+                box(p0, p1, 2.0, top - 3, top, slat, pick)
+                for (p in listOf(p0 + u * 4.0, p1 - u * 4.0)) {
+                    val foot = p + reach * 0.5
+                    box(p, foot, 0.6, top - drop * 0.5 - 1, top - drop * 0.5 + 1, slat, pick)
+                }
+            }
+            Shading.SlidingShutters -> {
+                // Persiane scorrevoli: ante a stecche un poco staccate dal muro, aperte di lato accanto al vano (ognuna larga metà
+                // vano più la battuta), appese a un binario che corre sopra la finestra e sopra le ante aperte.
+                val c = tint(Rgba.argb(o.shadingArgb), pick)
+                val slat = c.mix(Rgba(0f, 0f, 0f), 0.18f)
+                val rail = c.mix(Rgba(0f, 0f, 0f), 0.3f)
+                val off = n * -(half + 3.5)
+                val leaves = if (o.kind.leaves == 2 || w > 90) 2 else 1
+                val lw = w / leaves + 3.0
+                val sides = if (leaves == 2) listOf(a to -1.0, b to 1.0) else listOf((if (o.hingeLeft) a else b) to (if (o.hingeLeft) -1.0 else 1.0))
+                val low = maxOf(bottom - 3, 0.0)
+                // Spazio libero sulla faccia esterna ai due lati: accanto a un angolo o a un muro che sporge l'anta si ferma
+                // prima e copre in parte il vano (con due ante mai oltre la metà); il binario non va oltre.
+                val roomA = faceRoom(a, u * -1.0, n, -1.0, lw + 3)
+                val roomB = faceRoom(b, u, n, -1.0, lw + 3)
+                var reachA = minOf(3.0, roomA)
+                var reachB = minOf(3.0, roomB)
+                for ((edge, dirSign) in sides) {
+                    val room = if (dirSign < 0) roomA else roomB
+                    val end = maxOf(minOf(lw + 1, room), if (leaves == 2) lw - w / 2 else 0.0)
+                    val p0 = edge + u * (dirSign * (end - lw)) + off
+                    val p1 = edge + u * (dirSign * end) + off
+                    box(p0, p1, 1.5, low, top + 3, c, pick)
+                    var y = low + 6
+                    while (y < top) { box(p0, p1, 2.1, y, y + 1.2, slat, pick); y += 6.0 }
+                    val reach = maxOf(end, minOf(end + 1, room))
+                    if (dirSign < 0) reachA = reach else reachB = reach
+                }
+                // Il binario: sopra le ante aperte e il vano (con un'anta sola fino a poco oltre l'altro lato).
+                box(a - u * reachA + off, b + u * reachB + off, 2.5, top + 3, top + 8, rail, pick)
+            }
             Shading.InteriorShutters -> {
                 // Scuri interni: ante piene di legno (colore dell'infisso), aperte sulla faccia del muro verso la stanza.
                 val c = tint(Rgba.argb(o.shadingArgb), pick).mix(Rgba(0f, 0f, 0f), 0.05f)
                 val relief = c.mix(Rgba(0f, 0f, 0f), 0.12f)
-                val inner = n * (half + 1.6)
                 val leaves = if (o.leaves >= 2 || w > 90) 2 else 1
                 val lw = w / leaves
                 val sides = if (leaves == 2) listOf(a to -1.0, b to 1.0) else listOf((if (o.hingeLeft) a else b) to (if (o.hingeLeft) -1.0 else 1.0))
                 for ((edge, dirSign) in sides) {
-                    val p0 = edge + inner
-                    val p1 = edge + u * (dirSign * lw) + inner
-                    box(p0, p1, 1.5, bottom, top, c, pick)
-                    // Due riquadri in rilievo verso la stanza.
-                    val q0 = p0 + u * (dirSign * lw * 0.15) + n * 0.6
-                    val q1 = p0 + u * (dirSign * lw * 0.85) + n * 0.6
+                    val open = openLeaf(edge, u * dirSign, n, 1.0, half + 1.6, lw)
+                    for (leaf in open) box(leaf.p0, leaf.p1, 1.5, bottom, top, c, pick)
+                    // Due riquadri in rilievo sulla faccia che si vede (verso la stanza, o verso il vano se è aperto a 90°).
+                    val leaf = open.last()
+                    val q0 = leaf.p0 + (leaf.p1 - leaf.p0) * 0.15 + leaf.front * 0.6
+                    val q1 = leaf.p0 + (leaf.p1 - leaf.p0) * 0.85 + leaf.front * 0.6
                     box(q0, q1, 1.5, bottom + (top - bottom) * 0.1, bottom + (top - bottom) * 0.45, relief, pick)
                     box(q0, q1, 1.5, bottom + (top - bottom) * 0.55, bottom + (top - bottom) * 0.9, relief, pick)
                 }
             }
+        }
+    }
+
+    /** Anta di un oscurante aperta: mezzeria da [p0] a [p1] (spessa 3 cm), con la faccia che si vede verso [front]. */
+    private class OpenLeaf(val p0: Vec2, val p1: Vec2, val front: Vec2)
+
+    /**
+     * Anta larga `lw` incernierata in `edge`, aperta verso `dir` sulla faccia del muro dal lato `side` (−1 fuori, +1 dentro) a
+     * `face` dalla mezzeria: distesa sul muro se c'è spazio; piegata in due (due strati larghi metà) se ce n'è almeno per metà;
+     * altrimenti aperta a 90°, di taglio. Così accanto a un angolo o a un muro che sporge non esce dal muro e non lo attraversa.
+     */
+    private fun openLeaf(edge: Vec2, dir: Vec2, n: Vec2, side: Double, face: Double, lw: Double): List<OpenLeaf> {
+        val room = faceRoom(edge, dir, n, side, lw + 2)
+        val off = n * (side * face)
+        val front = n * side
+        return when {
+            room >= lw - 0.5 -> listOf(OpenLeaf(edge + off, edge + dir * lw + off, front))
+            room >= lw / 2 - 0.5 -> {
+                val outer = n * (side * (face + 3.2))
+                listOf(OpenLeaf(edge + off, edge + dir * (lw / 2) + off, front), OpenLeaf(edge + outer, edge + dir * (lw / 2) + outer, front))
+            }
+            else -> {
+                val p0 = edge + dir * 1.5 + n * (side * (half + 0.3))
+                listOf(OpenLeaf(p0, p0 + n * (side * lw), dir * -1.0))
+            }
+        }
+    }
+
+    /** Muro pieno del piano: mezzeria da `a` lunga `len` verso `u`, mezzo spessore `half`, e quanto continua oltre gli estremi. */
+    private class SolidWall(val a: Vec2, val u: Vec2, val len: Double, val half: Double, val cap: Double) {
+        fun contains(p: Vec2): Boolean {
+            val d = p - a
+            val along = d dot u
+            return along >= -cap && along <= len + cap && abs(d dot u.perp()) <= half + 0.01
+        }
+    }
+
+    /** Porta o finestra del piano vista dagli oscuranti accanto: estremi sulla mezzeria del suo muro e normale verso la sua stanza. */
+    private class FaceOpening(val o: Opening, val a: Vec2, val b: Vec2, val n: Vec2)
+
+    private var solidWallsOf: FloorPlan? = null
+    private var solidWalls = emptyList<SolidWall>()
+    private var faceOpenings = emptyList<FaceOpening>()
+
+    /**
+     * Muri pieni di [plan] (calcolati una volta per piano, con le sue porte e finestre): quelli delle stanze sporgono di mezzo
+     * spessore oltre gli estremi (negli angoli si incontrano), i muri singoli finiscono dritti (i curvi a pezzi).
+     */
+    private fun solidWalls(): List<SolidWall> {
+        if (solidWallsOf !== plan) {
+            solidWallsOf = plan
+            faceOpenings = plan.rooms.flatMap { r ->
+                r.openings.filter { it.wallIndex < r.wallCount }.map { o ->
+                    val (a, b) = Openings.span(r, o)
+                    FaceOpening(o, a, b, Openings.inwardNormal(r, o.wallIndex))
+                }
+            } + plan.freeWalls.flatMap { it.pieces() }.flatMap { w ->
+                w.openings.map { o -> Openings.span(w.host, o).let { (a, b) -> FaceOpening(o, a, b, Openings.inwardNormal(w.host, 0)) } }
+            }
+            fun wall(a: Vec2, b: Vec2, half: Double, cap: Double): SolidWall? {
+                val len = a.distanceTo(b)
+                return if (len < 0.01) null else SolidWall(a, (b - a) / len, len, half, cap)
+            }
+            solidWalls = plan.rooms.flatMap { r ->
+                (0 until r.wallCount).mapNotNull { i ->
+                    val shift = r.outwardOf(i) * r.wallShift(i)
+                    wall(r.wallStart(i) + shift, r.wallEnd(i) + shift, r.thicknessOf(i) / 2, r.thicknessOf(i) / 2)
+                }
+            } + plan.freeWalls.flatMap { it.pieces() }.mapNotNull { wall(it.start, it.end, it.thickness / 2, 0.0) }
+        }
+        return solidWalls
+    }
+
+    /**
+     * Spazio libero (cm) sulla faccia del muro dal lato `side` (−1 fuori, +1 dentro), partendo da `edge` (sulla mezzeria) verso
+     * `dir`: finisce dove finisce il muro (angolo esterno) o dove c'è un altro muro o una colonna davanti alla faccia (angolo
+     * interno, muro che sporge) o poco prima di un'altra porta o finestra. Al massimo `reach`, anche se il muro stesso non si
+     * trova (forma strana).
+     */
+    private fun faceRoom(edge: Vec2, dir: Vec2, n: Vec2, side: Double, reach: Double, awning: Boolean = false): Double {
+        val near = solidWalls().filter { Polygon.distanceToSegment(edge, it.a, it.a + it.u * it.len) <= reach + it.half + it.cap + 5 }
+        // Porte e finestre accanto, sullo stesso muro: l'anta non le copre; se hanno le ante da questa parte, lo spazio si divide a metà.
+        var limit = reach
+        val across = dir.perp()
+        for (f in faceOpenings) {
+            val ta = (f.a - edge) dot dir
+            val tb = (f.b - edge) dot dir
+            val t = minOf(ta, tb)
+            if (t <= 0.5 || t >= 2 * limit) continue // con le ante anche dall'altra parte conta la metà
+            if (abs((f.a - edge) dot across) > half + 1 || abs((f.b - edge) dot across) > half + 1) continue
+            neighbourLimit(f, n * side, nearIsA = ta < tb, t, awning)?.let { limit = minOf(limit, it) }
+        }
+        val columns = plan.columns.filter { it.center.distanceTo(edge) <= limit + it.width + it.depth }
+        fun solid(p: Vec2) = near.any { it.contains(p) } || columns.any { Structure.contains(it, p) }
+        val wallDepth = n * (side * (half - 1))
+        val beyond = n * (side * (half + 2))
+        if (!solid(edge + wallDepth)) return limit
+        var t = 0.0
+        while (t < limit) {
+            val p = edge + dir * (t + 1)
+            if (!solid(p + wallDepth) || solid(p + beyond)) return t
+            t += 1.0
+        }
+        return limit
+    }
+
+    /**
+     * Fin dove arriva un'anta aperta verso la porta o finestra `f` che comincia a `t` cm, sulla faccia del muro verso `face`: a metà
+     * strada se anche lei ha un'anta da questa parte (persiane e scorrevoli fuori, scuri dentro), altrimenti poco prima del suo
+     * bordo (il coprifilo delle porte, il cassonetto della tapparella). Null se da questa parte non c'è (la nicchia dell'altra faccia).
+     * Per la tenda da sole (`awning`, più in alto) conta solo la tenda della finestra vicina: a metà strada.
+     */
+    private fun neighbourLimit(f: FaceOpening, face: Vec2, nearIsA: Boolean, t: Double, awning: Boolean): Double? {
+        val o = f.o
+        val outside = (f.n dot face) < 0
+        if (awning) return if (outside && o.hasAwning) t / 2 else null
+        val drawn = o.kind.glazed && o.hasShading && o.shape == WindowShape.Rectangle
+        val leaf = drawn && when (o.shading) {
+            Shading.Shutters, Shading.SlidingShutters -> outside
+            Shading.InteriorShutters -> !outside
+            else -> false
+        }
+        if (leaf) {
+            val w = f.a.distanceTo(f.b)
+            val leaves = if (o.shading == Shading.InteriorShutters) o.leaves else o.kind.leaves
+            if (leaves >= 2 || w > 90 || o.hingeLeft == nearIsA) return t / 2
+        }
+        return when {
+            o.kind == OpeningKind.Niche -> if (outside) null else t - 1
+            o.kind == OpeningKind.Passage -> t - 1
+            !o.kind.glazed && !o.frameless -> t - 8
+            else -> t - 4
         }
     }
 

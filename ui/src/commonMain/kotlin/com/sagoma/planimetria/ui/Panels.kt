@@ -21,6 +21,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,11 +54,13 @@ import com.sagoma.planimetria.model.Fixture
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.geometry.Stairs
 import com.sagoma.planimetria.model.Floor
+import com.sagoma.planimetria.model.MaterialCatalog
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Stair
 import com.sagoma.planimetria.model.StairKind
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
+import com.sagoma.planimetria.model.GarageDoor
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.DoorModel
@@ -567,7 +570,15 @@ private fun StairPanel(sel: Selection.Stair, plan: FloorPlan, vm: EditorViewMode
                     structurePreview(it, stepColor)
                 }
             }
-            ColorPicker(T.pannelli.gradini, StairMaterial.entries.map { it.label to it.argb }, s.material.ordinal, { k -> update { it.copy(material = StairMaterial.entries[k]) } })
+            // Gradini: come il pavimento, dai materiali fotografici; senza le foto (browser) i colori di sempre.
+            if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS) && MaterialCatalog.items.isNotEmpty()) {
+                MaterialPicker(T.pannelli.gradini, s.treadMaterial, forFloor = true, currentName = T.lingua.minuscola(s.material.label)) { id ->
+                    val m = MaterialCatalog.item(id) ?: return@MaterialPicker
+                    update { it.copy(treadMaterial = m.id, material = StairMaterial.closestTo(m.argb)) }
+                }
+            } else {
+                ColorPicker(T.pannelli.gradini, StairMaterial.entries.map { it.label to it.argb }, s.material.ordinal, { k -> update { it.copy(material = StairMaterial.entries[k], treadMaterial = null) } })
+            }
             ModelPicker(T.pannelli.ringhiera2, StairRailing.entries, s.railing, { it.label }, { v -> update { it.copy(railing = v) } }) {
                 railingPreview(it, stepColor)
             }
@@ -832,7 +843,8 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
     val room = plan.room(sel.roomId) ?: return
     val o = room.opening(sel.openingId) ?: return
     fun update(f: (Opening) -> Opening) = vm.updateOpening(room.id, f(o))
-    val color = Color(o.frameArgb)
+    // Con la finitura in foto, le anteprime dei modelli hanno il colore medio del materiale.
+    val color = Color(o.doorFinish?.let { com.sagoma.planimetria.model.MaterialCatalog.item(it)?.argb } ?: o.frameArgb)
 
     val tabs = buildList {
         add(InfoTab("misure", T.schedaStanza.misure) {
@@ -847,13 +859,20 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
             }
             WallGapsInfo(sel, plan, vm, Floor.DEFAULT_LEVEL_HEIGHT)
             // Finestre e balconi non scorrevoli: rettangolari, ad arco o (finestre) tonde.
-            if (o.kind.glazed && !o.sliding) Row(Modifier.padding(end = 8.dp)) {
+            if (o.kind.glazed && !o.sliding && !o.isGlassBlock) Row(Modifier.padding(end = 8.dp)) {
                 val shapes = WindowShape.entries.filter { it != WindowShape.Round || o.kind.isWindow }
                 Choice(T.pannelli.formaFinestra, shapes.map { it.label }, shapes.indexOf(o.shape).coerceAtLeast(0), Modifier.weight(1f)) { i ->
                     update { if (shapes[i] == WindowShape.Round) it.copy(windowShape = shapes[i], height = it.width) else it.copy(windowShape = shapes[i]) }
                 }
             }
-            if (o.kind.glazed) {
+            // Finestre rettangolari: nel muro o a bovindo (sporgente su tre lati).
+            if (o.kind.isWindow && !o.sliding && o.shape == WindowShape.Rectangle && !o.isGlassBlock) Row(Modifier.padding(end = 8.dp)) {
+                Choice(T.pannelli.posizioneFinestra, listOf(T.pannelli.nelMuro, T.pannelli.bovindo), if (o.bay) 1 else 0, Modifier.weight(1f)) { i ->
+                    update { it.copy(bay = i == 1) }
+                }
+            }
+            // Il bovindo sta fuori dal muro: posizione dell'infisso e sguincio non contano.
+            if (o.kind.glazed && !o.isBay) {
                 // Nei muri spessi: infisso verso l'esterno e lati del vano inclinati verso la stanza.
                 Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Choice(T.pannelli.infisso, FramePosition.entries.map { it.label }, o.frame.ordinal, Modifier.weight(2f)) { i ->
@@ -881,7 +900,8 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
             }
         })
         // Porte, finestre e balconi: come si aprono, da che parte e verso dove.
-        if (o.kind.hasLeaves) add(InfoTab("apertura", T.schedaStanza.schedaApertura) {
+        // Il vetromattone non si apre: niente linguetta Apertura.
+        if (o.kind.hasLeaves && !o.isGlassBlock) add(InfoTab("apertura", T.schedaStanza.schedaApertura) {
             if (o.kind.glazed) {
                 // Infissi: a battente o scorrevoli; quelli non scorrevoli a battente, anta-ribalta, vasistas (solo finestre) o fissi.
                 Row(Modifier.padding(end = 8.dp)) {
@@ -906,11 +926,23 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                         update { it.copy(sash = sashes[i]) }
                     }
                 }
+                // Sopraluce: traverso in alto e vetro fisso sopra le ante (non nel bovindo).
+                if (!o.sliding && !o.fixed && !o.isBay && o.shape == WindowShape.Rectangle) Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.sopraluce, listOf(T.pannelli.senza, T.pannelli.con), if (o.topLight) 1 else 0, Modifier.weight(1f)) { i ->
+                        update { it.copy(topLight = i == 1) }
+                    }
+                }
             } else {
+                // Porte da garage: basculante o sezionale; allora niente battente, verso e cardine.
+                Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.daGarage, listOf(T.pannelli.no, T.pannelli.basculante, T.pannelli.sezionale), o.garageDoor.ordinal, Modifier.weight(1f)) { i ->
+                        update { it.copy(garage = GarageDoor.entries[i], sliding = it.sliding && i == 0, folding = it.folding && i == 0, pivot = it.pivot && i == 0) }
+                    }
+                }
                 // Porte: a battente, scorrevoli, a libro o (con un'anta) a bilico.
                 val options = listOf(T.pannelli.battente, T.pannelli.scorrevole, T.pannelli.aLibro) + if (o.kind.leaves == 1) listOf(T.pannelli.aBilico) else emptyList()
                 val current = when { o.sliding -> 1; o.folding -> 2; o.pivots -> 3; else -> 0 }
-                Row(Modifier.padding(end = 8.dp)) {
+                if (!o.isGarage) Row(Modifier.padding(end = 8.dp)) {
                     Choice(T.pannelli.apertura, options, current, Modifier.weight(1f)) { i ->
                         update { it.copy(sliding = i == 1, folding = i == 2, pivot = i == 3) }
                     }
@@ -954,33 +986,89 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
         // Aspetto: modello, oscuranti e colore (si vedono nel 3D).
         if (o.kind.hasLeaves) add(InfoTab("aspetto", T.schedaStanza.schedaAspetto) {
             if (o.kind.glazed) {
-                ModelPicker(T.comuni.modello, WindowModel.entries, o.windowModel, { it.label }, { v -> update { it.copy(windowModel = v) } }) {
+                ModelPicker(T.comuni.modello, WindowModel.entries, o.windowModel, { it.label }, { v -> update { it.withWindowModel(v) } }) {
                     windowPreview(it, Shading.None, color)
                 }
-                ModelPicker(T.pannelli.oscuranti, Shading.entries, o.shading, { it.label }, { v -> update { it.copy(shading = v) } }) {
+                // Vetro satinato (es. in bagno): passa la luce, non la vista. Il vetromattone lo è già.
+                if (o.hasClearGlass) FrostedChoice(o.frosted) { f -> update { it.copy(frosted = f) } }
+                // Il bovindo non ha oscuranti: sporge dal muro, non c'è dove aprirli.
+                if (!o.isBay && !o.isGlassBlock) ModelPicker(T.pannelli.oscuranti, Shading.entries, o.shading, { it.label }, { v -> update { it.copy(shading = v) } }) {
                     windowPreview(o.windowModel, it, color, Color(o.copy(shading = it).shadingArgb))
                 }
                 // Colore dell'oscurante: senza scelta resta quello solito (es. persiane verdi con l'infisso bianco).
-                if (o.shading != Shading.None) {
+                if (o.hasShading) {
                     FreeColorPicker(T.pannelli.coloreOscurante, o.shadingArgb) { c -> update { it.copy(shadingColor = c) } }
                 }
+                if (!o.isBay && !o.isGlassBlock) Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.inferriata, listOf(T.pannelli.senza, T.pannelli.con), if (o.grille) 1 else 0, Modifier.weight(1f)) { i ->
+                        update { it.copy(grille = i == 1) }
+                    }
+                }
+                // Accessori: zanzariera nel vano e tenda da sole fuori (a righe o a tinta unita del colore scelto).
+                if (!o.isBay && !o.isGlassBlock && o.shape == WindowShape.Rectangle) Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.zanzariera, listOf(T.pannelli.senza, T.pannelli.con), if (o.insectScreen) 1 else 0, Modifier.weight(1f)) { i ->
+                        update { it.copy(insectScreen = i == 1) }
+                    }
+                }
+                if (!o.isBay && !o.isGlassBlock) Row(Modifier.padding(end = 8.dp)) {
+                    Choice(T.pannelli.tendaDaSole, listOf(T.pannelli.senza, T.pannelli.con), if (o.awning) 1 else 0, Modifier.weight(1f)) { i ->
+                        update { it.copy(awning = i == 1) }
+                    }
+                }
+                if (o.hasAwning) {
+                    Row(Modifier.padding(end = 8.dp)) {
+                        Choice(T.pannelli.telo, listOf(T.pannelli.aRighe, T.pannelli.tintaUnita), if (o.awningColor == null) 0 else 1, Modifier.weight(1f)) { i ->
+                            update { it.copy(awningColor = if (i == 0) null else it.awningColor ?: Opening.AWNING_GREEN) }
+                        }
+                    }
+                    o.awningColor?.let { c0 -> FreeColorPicker(T.pannelli.coloreTenda, c0) { c -> update { it.copy(awningColor = c) } } }
+                }
+                // Davanzale della finestra (soglia del balcone): senza, o una lastra di marmo, pietra o legno.
+                if (!o.isBay && o.shape != WindowShape.Round) {
+                    SillChoice(if (o.kind.isWindow) T.pannelli.davanzale else T.pannelli.soglia, o, ::update)
+                }
             } else {
-                ModelPicker(T.comuni.modello, DoorModel.entries, o.doorModel, { it.label }, { v -> update { it.copy(doorModel = v) } }) {
+                // Le porte da garage hanno il loro pannello (a doghe o a sezioni): si sceglie solo il colore.
+                if (!o.isGarage) ModelPicker(T.comuni.modello, DoorModel.entries, o.doorModel, { it.label }, { v -> update { it.copy(doorModel = v) } }) {
                     doorPreview(it, color)
                 }
+                // Porta con il vetro (a vetri, sopraluce, vetro di fianco): trasparente o satinato.
+                if (o.hasClearGlass) FrostedChoice(o.frosted) { f -> update { it.copy(frosted = f) } }
                 // Porta a battente: con il coprifilo attorno o filo muro (senza cornice).
                 if (o.swings && !o.folds) Row(Modifier.padding(end = 8.dp)) {
                     Choice(T.pannelli.cornice, listOf(T.pannelli.coprifilo, T.pannelli.filoMuro), if (o.frameless) 1 else 0, Modifier.weight(1f)) { i ->
                         update { it.copy(frameless = i == 1) }
                     }
                 }
+                // Soglia sotto la porta (es. quella di marmo all'ingresso): non per la porta da garage.
+                if (!o.isGarage) SillChoice(T.pannelli.soglia, o, ::update)
             }
             // Come la pittura dei muri: i colori soliti degli infissi (legni, bianco, grigi) in testa, poi la tavolozza e il colore libero.
             val finishes = Finish.entries
-            FreeColorPicker(if (o.kind.glazed) T.pannelli.coloreInfisso else T.comuni.colore, o.frameArgb, finishes.map { it.label to it.argb }) { c ->
+            if (!o.isGlassBlock && o.doorFinish == null) FreeColorPicker(if (o.kind.glazed) T.pannelli.coloreInfisso else T.comuni.colore, o.frameArgb, finishes.map { it.label to it.argb }) { c ->
                 val named = finishes.firstOrNull { it.argb == c }
                 update { it.copy(color = named, customColor = if (named == null) c else null) }
             }
+            // Porte: al posto del colore una finitura in foto (legni, marmi…), con verso e misura come per il pavimento. «Nessuna»
+            // torna al colore.
+            if (o.canHaveDoorMaterial && FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS)) {
+                MaterialPicker(T.pannelli.finituraInFoto, o.doorFinish, forFloor = true, allowNone = true, exclude = DOOR_EXCLUDED_MATERIALS) { id ->
+                    update { it.copy(doorMaterial = id) }
+                }
+                if (o.doorFinish != null) MaterialLayoutControls(o.doorMaterialLayout, o.doorFinish, pieces = false) { l -> update { it.copy(doorMaterialLayout = l) } }
+            }
+            // Lo stesso aspetto su tutte le finestre (o i balconi, o le porte) del piano, o della casa se ha più piani: una modifica sola, si annulla con ↶.
+            // Non dal vetromattone: le finestre non diventano vetromattone, e lui ha solo il davanzale.
+            var copied by remember(o.id) { mutableStateOf<Int?>(null) }
+            if (!o.isGlassBlock) OutlinedButton(onClick = { copied = vm.copyOpeningStyle(room.id, o.id) }, modifier = Modifier.padding(top = 4.dp, end = 8.dp)) {
+                Text(if (o.kind.isWindow) T.pannelli.applicaStileFinestre else if (o.kind.glazed) T.pannelli.applicaStileBalconi else T.pannelli.applicaStilePorte)
+            }
+            if (!o.isGlassBlock && vm.state.collectAsState().value.building.floors.size > 1) {
+                OutlinedButton(onClick = { copied = vm.copyOpeningStyle(room.id, o.id, allFloors = true) }, modifier = Modifier.padding(end = 8.dp)) {
+                    Text(if (o.kind.isWindow) T.pannelli.applicaStileFinestreCasa else if (o.kind.glazed) T.pannelli.applicaStileBalconiCasa else T.pannelli.applicaStilePorteCasa)
+                }
+            }
+            copied?.let { n -> Text(if (n == 0) T.pannelli.giaUguali else T.pannelli.stileCopiato(n), style = MaterialTheme.typography.bodySmall) }
         })
         add(InfoTab("progetto", T.schedaStanza.progetto) {
             PhaseChoice(o.phase, PhaseLabels.opening) { vm.setOpeningPhase(room.id, o.id, it) }
@@ -1073,21 +1161,45 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
     }
 }
 
-/** Nome dell'apertura come lo si mostra: "Porta ad 1 anta", "Finestra 2 ante scorrevole"… */
-internal fun openingLabel(o: Opening): String {
-    val name = if (o.leaves > 2) T.pannelli.anteN(o.kind == OpeningKind.Balcony2, o.leaves) else o.kind.label
-    return when {
-        o.lifts -> T.pannelli.alzante2(name)
-        o.sliding && o.slideOnWall && !o.kind.glazed -> T.pannelli.scorrevoleEsterna2(name)
-        o.sliding -> T.pannelli.scorrevole2(name)
-        o.folds -> T.pannelli.aLibro2(name)
-        o.pivots -> T.pannelli.aBilico2(name)
-        o.kind.glazed && o.sash != SashType.Casement -> T.pannelli.conAnta(name, o.sash.label)
-        o.unequal -> T.pannelli.disuguali2(name)
-        o.frameless && !o.kind.glazed -> T.pannelli.filoMuro2(name)
-        else -> name
+/**
+ * Davanzale o soglia: senza, o una lastra di uno dei materiali fotografici dei pavimenti (sotto resta il materiale di sempre
+ * col colore più vicino, per chi non vede le foto). Senza le foto (browser): marmo, pietra o legno.
+ */
+@Composable
+private fun SillChoice(label: String, o: Opening, update: ((Opening) -> Opening) -> Unit) {
+    if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS) && MaterialCatalog.items.isNotEmpty()) {
+        MaterialPicker(
+            label, o.sillFloorMaterial.takeIf { o.sillMaterial != null }, forFloor = true, allowNone = true, noneLabel = T.pannelli.senza,
+            noneSelected = o.sillMaterial == null, currentName = o.sillMaterial?.let { T.lingua.minuscola(it.label) },
+        ) { id ->
+            val m = MaterialCatalog.item(id)
+            update { it.copy(sillMaterial = m?.let { StairMaterial.closestTo(it.argb) }, sillFloorMaterial = m?.id) }
+        }
+        return
+    }
+    val materials = listOf(null, StairMaterial.Marble, StairMaterial.Stone, StairMaterial.Wood)
+    Row(Modifier.padding(end = 8.dp)) {
+        Choice(label, materials.map { it?.label ?: T.pannelli.senza }, materials.indexOf(o.sillMaterial).coerceAtLeast(0), Modifier.weight(1f)) { i ->
+            update { it.copy(sillMaterial = materials[i], sillFloorMaterial = null) }
+        }
     }
 }
+
+/** Categorie dei materiali del pavimento che su una porta non hanno senso: moquette e pavimenti da esterni (prato, porfido…). */
+private val DOOR_EXCLUDED_MATERIALS = setOf("Moquette", "Esterni")
+
+/** Vetro di finestre e porte: trasparente o satinato. */
+@Composable
+private fun FrostedChoice(frosted: Boolean, onSelect: (Boolean) -> Unit) {
+    Row(Modifier.padding(end = 8.dp)) {
+        Choice(T.pannelli.vetro, listOf(T.pannelli.trasparente, T.pannelli.satinato), if (frosted) 1 else 0, Modifier.weight(1f)) { i ->
+            onSelect(i == 1)
+        }
+    }
+}
+
+/** Nome dell'apertura come lo si mostra: "Porta ad 1 anta", "Finestra 2 ante scorrevole"… */
+internal fun openingLabel(o: Opening): String = com.sagoma.planimetria.geometry.Openings.label(o)
 
 /** Campo numerico in cm che applica il valore a ogni modifica valida (il riquadro si aggiorna dal vivo). */
 @Composable

@@ -42,6 +42,7 @@ object NomiEs : Nomi() {
         DoorModel.Planks -> "De tablas"
         DoorModel.Modern -> "Moderna"
         DoorModel.Armored -> "Acorazada"
+        DoorModel.AllGlass -> "Toda de vidrio"
     }
 
     override fun finish(v: Finish): String = when (v) {
@@ -72,6 +73,8 @@ object NomiEs : Nomi() {
         WindowModel.Minimal -> "Minimalista"
         WindowModel.English -> "Apertura exterior"
         WindowModel.Loft -> "Loft"
+        WindowModel.Wood -> "Madera con junquillo"
+        WindowModel.GlassBlock -> "Pavés de vidrio"
     }
 
     override fun framePosition(v: FramePosition): String = when (v) {
@@ -86,6 +89,8 @@ object NomiEs : Nomi() {
         Shading.RollerShutter -> "Persiana enrollable"
         Shading.Venetian -> "Veneciana exterior"
         Shading.InteriorShutters -> "Contraventanas interiores"
+        Shading.RomanShutter -> "Persiana a la romana"
+        Shading.SlidingShutters -> "Contraventanas correderas"
     }
 
     override fun stairStructure(v: StairStructure): String = when (v) {

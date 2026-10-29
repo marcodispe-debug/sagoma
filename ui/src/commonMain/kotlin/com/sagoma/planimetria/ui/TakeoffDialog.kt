@@ -56,7 +56,7 @@ internal fun ExcludedZonesChoice(building: com.sagoma.planimetria.model.Building
 
 /**
  * Computo metrico e lista degli arredi di tutta la casa: pavimenti, pareti al netto delle aperture,
- * battiscopa, totali per materiale; si esporta in CSV (Excel, LibreOffice) o si condivide come testo.
+ * battiscopa, totali per materiale, porte e finestre da ordinare; si esporta in CSV (Excel, LibreOffice) o si condivide come testo.
  */
 @Composable
 fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Unit) {
@@ -117,6 +117,16 @@ fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Uni
                 Section(T.computo.finiturePareti)
                 for (t in res.wallFinishes) Line(t.what, "${fmt2(t.quantity)} m²")
                 if (res.ceilings > 0) Line(T.computo.soffitti, "${fmt2(res.ceilings)} m²")
+                if (res.openings.isNotEmpty()) {
+                    Section(T.computo.porteFinestre)
+                    for (i in res.openings) Line("${i.count}× ${i.name}", "${i.size}\n${i.where}", i.details)
+                    Text(T.computo.porteFinestreNota, style = MaterialTheme.typography.bodySmall)
+                }
+                if (res.sills.isNotEmpty()) {
+                    Section(T.computo.davanzaliSoglie)
+                    for (i in res.sills) Line("${i.count}× ${i.name}", "${i.size}\n${i.where}")
+                    Text(T.computo.davanzaliSoglieNota, style = MaterialTheme.typography.bodySmall)
+                }
                 Section(T.computo.arredi)
                 if (res.furniture.isEmpty()) Text(T.computo.nessunArredo, style = MaterialTheme.typography.bodySmall)
                 for (i in res.furniture) Line("${i.count}× ${i.name}", "${i.size}\n${i.where}")
@@ -155,10 +165,14 @@ private fun Section(title: String) {
     }
 }
 
+/** Riga dell'elenco: a sinistra il nome (con sotto, in piccolo, `detail` se c'è), a destra misure o quantità. */
 @Composable
-private fun Line(left: String, right: String) {
+private fun Line(left: String, right: String, detail: String = "") {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(left, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Column(Modifier.weight(1f)) {
+            Text(left, style = MaterialTheme.typography.bodyMedium)
+            if (detail.isNotEmpty()) Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         Text(right, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.End)
     }
 }

@@ -30,7 +30,7 @@ object Clip {
      * lato del buco si tiene la parte che sta fuori e si prosegue con quella che sta dentro.
      */
     fun subtract(poly: List<Vec2>, hole: List<Vec2>): List<List<Vec2>> {
-        if (hole.size < 3 || !overlaps(poly, hole)) return listOf(poly)
+        if (hole.size < 3 || !overlaps(poly, hole) || apart(poly, hole) || apart(hole, poly)) return listOf(poly)
         val sign = if (Polygon.signedArea(hole) >= 0) 1.0 else -1.0
         val out = mutableListOf<List<Vec2>>()
         var rest = poly
@@ -50,20 +50,55 @@ object Clip {
      * (es. tutti i triangoli delle stanze del piano di sotto) provarli tutti su ogni pezzo bloccava il 3D per minuti.
      */
     fun subtractAll(poly: List<Vec2>, holes: List<List<Vec2>>): List<List<Vec2>> {
-        val near = holes.filter { it.size >= 3 && overlaps(poly, it) }.map(::Hole)
+        val area = Box(poly)
+        val near = holes.mapNotNull { if (it.size < 3) null else Box(it).takeIf { b -> b.overlaps(area) }?.let { b -> Hole(it, b) } }
         if (near.isEmpty()) return listOf(poly)
-        // Un pezzo tutto dentro un buco che deve ancora venire sparisce comunque: tolto subito, non si fa a pezzi.
-        // Basta guardare i pezzi nuovi: uno rimasto uguale era già stato provato con gli stessi buchi.
-        fun alive(piece: List<Vec2>, from: Int) = (from until near.size).none { near[it].contains(piece) }
-        var pieces = if (alive(poly, 0)) listOf(poly) else return emptyList()
-        for ((k, hole) in near.withIndex()) {
-            pieces = pieces.flatMap { piece ->
-                val cut = subtract(piece, hole.points)
-                if (cut.size == 1 && cut[0] === piece) cut else cut.filter { alive(it, k + 1) }
+        // Ogni pezzo ricorda il primo buco che non ha ancora provato: si taglia col primo che lo tocca davvero e i pezzi
+        // nuovi ripartono dal buco dopo. Così ogni pezzo guarda i buchi una volta sola, invece di riprovare tutti i pezzi
+        // rimasti a ogni buco (con tante stanze sovrapposte erano migliaia di pezzi per migliaia di buchi: minuti).
+        val out = mutableListOf<List<Vec2>>()
+        val todo = ArrayDeque<Pair<List<Vec2>, Int>>()
+        todo.addLast(poly to 0)
+        while (todo.isNotEmpty()) {
+            val (piece, from) = todo.removeLast()
+            val box = Box(piece)
+            var cut: List<List<Vec2>>? = null
+            var cutAt = 0
+            var inside = false
+            for (k in from until near.size) {
+                val hole = near[k]
+                if (!hole.touches(box)) continue
+                // Un pezzo tutto dentro un buco che deve ancora venire sparisce comunque: tolto subito, non si fa a pezzi.
+                if (hole.contains(piece, box)) { inside = true; break }
+                if (cut == null) {
+                    val c = subtract(piece, hole.points)
+                    if (c.size != 1 || c[0] !== piece) { cut = c; cutAt = k }
+                }
             }
-            if (pieces.isEmpty()) break
+            if (inside) continue
+            if (cut == null) out += piece else for (c in cut) todo.addLast(c to cutAt + 1)
         }
-        return pieces
+        return out
+    }
+
+    /** Il rettangolo che contiene un poligono. */
+    private class Box(points: List<Vec2>) {
+        var minX = Double.POSITIVE_INFINITY; private set
+        var maxX = Double.NEGATIVE_INFINITY; private set
+        var minY = Double.POSITIVE_INFINITY; private set
+        var maxY = Double.NEGATIVE_INFINITY; private set
+
+        init {
+            for (p in points) {
+                if (p.x < minX) minX = p.x
+                if (p.x > maxX) maxX = p.x
+                if (p.y < minY) minY = p.y
+                if (p.y > maxY) maxY = p.y
+            }
+        }
+
+        /** I due rettangoli si sovrappongono (toccarsi su un lato non basta). */
+        fun overlaps(o: Box) = o.maxX > minX && maxX > o.minX && o.maxY > minY && maxY > o.minY
     }
 
     /** Parte comune di due poligoni convessi, o null se non si toccano (o la parte è una scheggia). */
@@ -79,16 +114,15 @@ object Clip {
     }
 
     /** Buco convesso con il suo verso e il rettangolo che lo contiene, calcolati una volta sola. */
-    private class Hole(val points: List<Vec2>) {
+    private class Hole(val points: List<Vec2>, private val box: Box) {
         private val sign = if (Polygon.signedArea(points) >= 0) 1.0 else -1.0
-        private val minX = points.minOf { it.x }
-        private val maxX = points.maxOf { it.x }
-        private val minY = points.minOf { it.y }
-        private val maxY = points.maxOf { it.y }
 
-        /** Il poligono `piece` sta tutto dentro il buco (bordi compresi). */
-        fun contains(piece: List<Vec2>): Boolean {
-            if (piece.any { it.x < minX - 1e-9 || it.x > maxX + 1e-9 || it.y < minY - 1e-9 || it.y > maxY + 1e-9 }) return false
+        /** Il rettangolo del buco e quello del pezzo si sovrappongono (se no il buco non lo taglia). */
+        fun touches(piece: Box) = box.overlaps(piece)
+
+        /** Il poligono `piece` (dentro il rettangolo `pieceBox`) sta tutto dentro il buco (bordi compresi). */
+        fun contains(piece: List<Vec2>, pieceBox: Box): Boolean {
+            if (pieceBox.minX < box.minX - 1e-9 || pieceBox.maxX > box.maxX + 1e-9 || pieceBox.minY < box.minY - 1e-9 || pieceBox.maxY > box.maxY + 1e-9) return false
             for (k in points.indices) {
                 val a = points[k]
                 val b = points[(k + 1) % points.size]
@@ -100,6 +134,23 @@ object Clip {
 
     /** Pezzi più piccoli di così (cm²) non si tengono: sono schegge invisibili che moltiplicherebbero i tagli. */
     private const val MIN_PIECE = 0.01
+
+    /**
+     * Il poligono convesso `b` sta tutto da una parte di un lato di `a` (al più lo tocca): i due non si sovrappongono, e il
+     * buco non deve fare a pezzi il poligono lungo i prolungamenti dei suoi lati (pezzi inutili che si moltiplicavano).
+     */
+    private fun apart(a: List<Vec2>, b: List<Vec2>): Boolean {
+        val sign = if (Polygon.signedArea(a) >= 0) 1.0 else -1.0
+        for (k in a.indices) {
+            val p = a[k]
+            val q = a[(k + 1) % a.size]
+            // Un lato cortissimo (resto di un taglio) non ha una direzione sicura: non decide niente.
+            val length = p.distanceTo(q)
+            if (length < 1e-6) continue
+            if (b.all { cross(p, q, it) * sign <= 1e-7 * length }) return true
+        }
+        return false
+    }
 
     /** I rettangoli che contengono i due poligoni si toccano (se no il buco non taglia niente). */
     private fun overlaps(a: List<Vec2>, b: List<Vec2>): Boolean =

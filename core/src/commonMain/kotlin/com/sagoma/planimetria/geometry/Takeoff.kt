@@ -7,16 +7,19 @@ import com.sagoma.planimetria.model.FloorFinish
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.model.MaterialCatalog
+import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
+import com.sagoma.planimetria.model.Phase
 import com.sagoma.planimetria.model.ProPalette
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.testi.T
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
  * Computo metrico della casa: per ogni stanza pavimento, pareti da finire (al netto di porte e finestre),
- * battiscopa e aperture; totali per materiale; elenco di arredi e impianti. Misure in m e m², nello stato di progetto (senza
- * i muri da demolire e le aperture da chiudere).
+ * battiscopa e aperture; totali per materiale; elenco di porte e finestre, arredi e impianti. Misure in m e m², nello stato di
+ * progetto (senza i muri da demolire e le aperture da chiudere).
  */
 object Takeoff {
     data class RoomLine(
@@ -79,12 +82,19 @@ object Takeoff {
 
     data class Item(val name: String, val size: String, val count: Int, val where: String)
 
+    /** Porte e finestre uguali (stesso tipo, aspetto e misure del vano), per chiedere i preventivi. */
+    data class OpeningItem(val name: String, val details: String, val size: String, val count: Int, val where: String)
+
     data class Result(
         val rooms: List<RoomLine>,
         val floorMaterials: List<Total>,
         val wallFinishes: List<Total>,
         val furniture: List<Item>,
         val fixtures: List<Item>,
+        /** Porte e finestre della casa (anche dei muri singoli), senza quelle da chiudere: prima le porte, poi gli infissi. */
+        val openings: List<OpeningItem> = emptyList(),
+        /** Lastre di davanzali e soglie uguali (materiale e misure), per il marmista. */
+        val sills: List<Item> = emptyList(),
         /** m² dei soffitti da dipingere (in mansarda la falda vera, più grande della pianta). */
         val ceilings: Double = 0.0,
         /** In casa ci sono parti da demolire o nuove: il computo è quello dello stato di progetto (va detto). */
@@ -188,6 +198,24 @@ object Takeoff {
         val wallTot = LinkedHashMap<String, Double>()
         val furniture = LinkedHashMap<Pair<String, String>, Pair<Int, MutableSet<String>>>()
         val fixtures = LinkedHashMap<String, Pair<Int, MutableSet<String>>>()
+        // Chiave: ordine del tipo (prima le porte, poi finestre e balconi), nome, aspetto e misure del vano.
+        val openings = LinkedHashMap<OpeningKey, Pair<Int, MutableSet<String>>>()
+        val multi = building.floors.size > 1
+        val sills = LinkedHashMap<Pair<String, String>, Pair<Int, MutableSet<String>>>()
+        fun addOpening(host: Room, o: Opening, where: String) {
+            // Le aperture da chiudere (tamponare) nel progetto non ci sono; varchi e nicchie non si ordinano.
+            if (!o.kind.hasLeaves || o.phase == Phase.Demolish) return
+            val k = OpeningKey(o.kind.ordinal, Openings.label(o), Openings.description(o), o.width, o.height)
+            val e = openings.getOrPut(k) { 0 to mutableSetOf() }
+            openings[k] = (e.first + 1) to e.second.also { it += where }
+            // La lastra del davanzale o della soglia: misure arrotondate al cm in su, come si ordinano.
+            val m = o.sillLabel ?: return
+            val (length, depth) = Openings.sillSize(host, o)
+            val name = T.pannelli.davanzaleIn(T.lingua.minuscola(m), balcony = !o.kind.isWindow).replaceFirstChar { it.uppercaseChar() }
+            val size = T.computo.cm(cm(ceil(length - 1e-6)), cm(ceil(depth - 1e-6)), cm(Openings.SILL_THICKNESS))
+            val s = sills.getOrPut(name to size) { 0 to mutableSetOf() }
+            sills[name to size] = (s.first + 1) to s.second.also { it += where }
+        }
         var ceilings = 0.0
         val light = mutableListOf<LightLine>()
         val areas = mutableListOf<AreaLine>()
@@ -216,7 +244,12 @@ object Takeoff {
                     val e = fixtures.getOrPut(f.kind.label) { 0 to mutableSetOf() }
                     fixtures[f.kind.label] = (e.first + 1) to e.second.also { it += r.name }
                 }
+                // Su un muro eliminato (lato aperto) o da demolire la porta non c'è più.
+                for (o in r.openings) if (o.wallIndex < r.wallCount && !r.isRemoved(o.wallIndex) && r.phaseOf(o.wallIndex) != Phase.Demolish) {
+                    addOpening(r, o, if (multi) "${r.name} (${fl.name})" else r.name)
+                }
             }
+            for (w in plan.freeWalls) if (w.phase != Phase.Demolish) for (o in w.openings) addOpening(w.host, o, if (multi) "${T.vari.muroSingolo} (${fl.name})" else T.vari.muroSingolo)
             // Superfici del piano (quella utile come nella tabella delle stanze, con o senza le zone non calpestabili).
             if (plan.rooms.isNotEmpty()) {
                 val indoor = plan.rooms.filter { !it.outdoor }
@@ -246,6 +279,9 @@ object Takeoff {
             wallTot.map { (k, v) -> Total(k, v, "m²") },
             furniture.map { (k, v) -> Item(k.first, k.second, v.first, v.second.joinToString(", ")) }.sortedBy { it.name },
             fixtures.map { (k, v) -> Item(k, "", v.first, v.second.joinToString(", ")) },
+            openings.entries.sortedWith(compareBy({ it.key.order }, { it.key.name }, { it.key.details }, { it.key.width }, { it.key.height }))
+                .map { (k, v) -> OpeningItem(k.name, k.details, T.computo.misuraVano(cm(k.width), cm(k.height)), v.first, v.second.joinToString(", ")) },
+            sills.map { (k, v) -> Item(k.first, k.second, v.first, v.second.joinToString(", ")) }.sortedBy { it.name },
             ceilings,
             building.floors.any { Phases.hasChanges(it.plan) },
             light,
@@ -253,6 +289,8 @@ object Takeoff {
             works,
         )
     }
+
+    private data class OpeningKey(val order: Int, val name: String, val details: String, val width: Double, val height: Double)
 
     private fun roomLine(floor: String, plan: FloorPlan, r: Room, induced: List<WallGap>, withoutZones: Boolean): RoomLine {
         // Con withoutZones gli stessi m² scritti sulla pianta: senza le zone non calpestabili, dove il pavimento non si posa.
@@ -358,6 +396,14 @@ object Takeoff {
         for (x in res.wallFinishes) row(t(x.what), n(x.quantity))
         if (res.ceilings > 0) row(t(T.computo.soffitti), n(res.ceilings))
         appendLine()
+        head(T.computo.porteFinestreCsv)
+        for (i in res.openings) row(t(i.name), t(i.details), t(i.size), "${i.count}", t(i.where))
+        appendLine()
+        if (res.sills.isNotEmpty()) {
+            head(T.computo.davanzaliSoglieCsv)
+            for (i in res.sills) row(t(i.name), t(i.size), "${i.count}", t(i.where))
+            appendLine()
+        }
         head(T.computo.arrediMisureQuantitaDove)
         for (i in res.furniture) row(t(i.name), t(i.size), "${i.count}", t(i.where))
         appendLine()

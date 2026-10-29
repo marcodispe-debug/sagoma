@@ -1,14 +1,21 @@
 package com.sagoma.planimetria.geometry
 
+import com.sagoma.planimetria.model.Finish
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.MaterialCatalog
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.FramePosition
+import com.sagoma.planimetria.model.GarageDoor
 import com.sagoma.planimetria.model.PassageStyle
+import com.sagoma.planimetria.model.ProPalette
 import com.sagoma.planimetria.model.Room
+import com.sagoma.planimetria.model.SashType
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.model.WindowModel
 import com.sagoma.planimetria.model.WindowShape
+import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -21,6 +28,134 @@ import kotlin.math.sqrt
 data class WallGap(val roomId: Long, val wallIndex: Int, val a: Vec2, val b: Vec2, val height: Double = 0.0)
 
 object Openings {
+    /** Quanto sporge il bovindo dalla faccia esterna del muro (cm); i fianchi sono a 45°. */
+    const val BAY_DEPTH = 60.0
+
+    /** Davanzale e soglia: spessore della lastra, quanto sporge verso la stanza e fuori, e le orecchie nei lati del vano (cm). */
+    const val SILL_THICKNESS = 3.0
+    const val SILL_IN = 2.0
+    const val SILL_OUT = 3.0
+    const val SILL_EAR = 3.0
+
+    /** Vetromattone: lato dei blocchi di vetro, fuga compresa (cm). */
+    const val GLASS_BLOCK = 19.0
+
+    /** Vetromattone: quanti blocchi ci stanno in larghezza e in altezza nel vano (almeno uno per verso). */
+    fun glassBlockGrid(o: Opening): Pair<Int, Int> =
+        maxOf(1, kotlin.math.round(o.width / GLASS_BLOCK).toInt()) to maxOf(1, kotlin.math.round(o.height / GLASS_BLOCK).toInt())
+
+    /**
+     * Lastra del davanzale (o della soglia) da ordinare, in cm: lunghezza, con le orecchie e, con lo sguincio, larga quanto il vano
+     * verso la stanza; profondità, tutto il muro più quanto sporge dentro e fuori.
+     */
+    fun sillSize(room: Room, o: Opening): Pair<Double, Double> {
+        val (a, b) = span(room, o)
+        return (a.distanceTo(b) + 2 * (SILL_EAR + splayOf(room, o))) to (room.thicknessOf(o.wallIndex) + SILL_IN + SILL_OUT)
+    }
+
+    /** Nome dell'apertura negli elenchi e nei titoli: «Finestra 2 ante, vasistas», «Porta ad 1 anta scorrevole», «Bovindo». */
+    fun label(o: Opening): String {
+        val name = if (o.leaves > 2) T.pannelli.anteN(o.kind == OpeningKind.Balcony2, o.leaves) else o.kind.label
+        return when {
+            o.isBay -> T.editor.bovindo
+            o.isGlassBlock -> o.windowModel.label
+            o.garageDoor == GarageDoor.UpAndOver -> T.editor.portaBasculante
+            o.garageDoor == GarageDoor.Sectional -> T.editor.portaSezionale
+            o.lifts -> T.pannelli.alzante2(name)
+            o.sliding && o.slideOnWall && !o.kind.glazed -> T.pannelli.scorrevoleEsterna2(name)
+            o.sliding -> T.pannelli.scorrevole2(name)
+            o.folds -> T.pannelli.aLibro2(name)
+            o.pivots -> T.pannelli.aBilico2(name)
+            o.kind.glazed && o.sash != SashType.Casement -> T.pannelli.conAnta(name, o.sash.label)
+            o.unequal -> T.pannelli.disuguali2(name)
+            o.frameless && !o.kind.glazed -> T.pannelli.filoMuro2(name)
+            else -> name
+        }
+    }
+
+    /**
+     * Aspetto dell'apertura per chi deve fare il preventivo: modello e colore, forma, sopraluce, oscurante, accessori e
+     * davanzale («Legno con fermavetro, rovere · persiane · inferriata · davanzale in marmo»). Vuoto per varchi e nicchie.
+     */
+    fun description(o: Opening): String {
+        if (!o.kind.hasLeaves) return ""
+        val low = T.lingua::minuscola
+        // Senza colore scelto, i modelli loft, minimal e legno hanno il loro (nero, antracite, rovere): come nel 3D.
+        val material = o.doorFinish?.let { MaterialCatalog.item(it)?.nome }
+        val color = when {
+            // Il vetromattone non ha telaio: niente modello (è già nel nome) né colore.
+            o.isGlassBlock -> null
+            // Porta con la finitura in foto (es. «Liscia, noce»): il materiale al posto del colore.
+            material != null -> material
+            o.customColor != null -> ProPalette.nameOf(o.customColor)
+            !o.defaultColor -> o.finish.label
+            o.kind.glazed && o.windowModel == WindowModel.Loft -> null
+            o.kind.glazed && o.windowModel == WindowModel.Minimal -> Finish.Anthracite.label
+            o.kind.glazed && o.windowModel == WindowModel.Wood -> Finish.Oak.label
+            else -> o.finish.label
+        }?.let(low)
+        val model = when {
+            o.isGlassBlock -> null
+            o.kind.glazed -> o.windowModel.label
+            o.isGarage -> null
+            else -> o.doorModel.label
+        }
+        val parts = mutableListOf(listOfNotNull(model, color).joinToString(", ").replaceFirstChar { it.uppercaseChar() })
+        if (o.kind.glazed) {
+            if (o.isGlassBlock) Openings.glassBlockGrid(o).let { (c, r) -> parts += T.pannelli.blocchiVetro(c * r) }
+            if (o.shape != WindowShape.Rectangle) parts += low(o.shape.label)
+            if (o.hasFrostedGlass) parts += low(T.pannelli.vetroSatinato)
+            if (o.hasTopLight) parts += low(T.pannelli.sopraluce)
+            if (o.hasShading) parts += low(o.shading.label)
+            if (o.hasGrille) parts += low(T.pannelli.inferriata)
+            if (o.hasInsectScreen) parts += low(T.pannelli.zanzariera)
+            if (o.hasAwning) parts += low(T.pannelli.tendaDaSole)
+            o.sillLabel?.let { parts += T.pannelli.davanzaleIn(low(it), balcony = !o.kind.isWindow) }
+        } else {
+            if (o.transomCm > 0) parts += low(T.pannelli.sopraluce)
+            if (o.sidelightCm > 0) parts += low(T.pannelli.vetroDiFianco)
+            if (o.hasFrostedGlass) parts += low(T.pannelli.vetroSatinato)
+            o.sillLabel?.let { parts += T.pannelli.davanzaleIn(low(it), balcony = true) }
+        }
+        return parts.filter { it.isNotBlank() }.joinToString(" · ")
+    }
+
+    /**
+     * Bovindo in pianta: i quattro angoli sulla faccia esterna del muro e davanti, in ordine (inizio del varco sul muro,
+     * davanti, davanti, fine del varco sul muro). La sporgenza si riduce sulle finestre strette, così il davanti resta
+     * largo almeno 30 cm.
+     */
+    fun bayOutline(room: Room, o: Opening): List<Vec2> {
+        val (a, b) = span(room, o)
+        val w = a.distanceTo(b)
+        val u = (b - a) / max(w, 1e-9)
+        val out = inwardNormal(room, o.wallIndex) * -1.0
+        val half = room.thicknessOf(o.wallIndex) / 2
+        val d = bayDepth(w)
+        val a0 = a + out * half
+        val b0 = b + out * half
+        return listOf(a0, a0 + out * d + u * d, b0 + out * d - u * d, b0)
+    }
+
+    /** Sporgenza del bovindo largo `w`: [BAY_DEPTH], meno se la finestra è stretta. */
+    fun bayDepth(w: Double): Double = min(BAY_DEPTH, max(0.0, (w - 30.0) / 2))
+
+    /**
+     * Quanto entra nella stanza la porta da garage aperta (cm, dalla faccia interna del muro): la basculante circa tre quarti
+     * della sua altezza, la sezionale tutta l'altezza più la curva dei binari.
+     */
+    fun garageReach(o: Opening): Double = when (o.garageDoor) {
+        GarageDoor.UpAndOver -> o.height * 0.75
+        GarageDoor.Sectional -> o.height + 40.0
+        GarageDoor.None -> 0.0
+    }
+
+    /**
+     * Quanto sporge dal muro la tenda da sole (cm): sui balconi è una tenda a bracci che copre il terrazzo, sulle finestre
+     * una tenda a caduta poco sporgente.
+     */
+    fun awningReach(o: Opening): Double = if (o.bottom <= 0.0) 200.0 else min(80.0, o.height * 0.6)
+
     /** Perno della porta a bilico: a un quinto della larghezza dal lato del cardine. */
     const val PIVOT_AT = 0.2
 
@@ -174,7 +309,7 @@ object Openings {
 
     /** Sguincio effettivo (cm per lato): solo finestre e balconi, mai più dello spessore del muro. */
     fun splayOf(room: Room, o: Opening): Double =
-        if (o.kind.glazed && o.wallIndex < room.wallCount) o.splay.coerceIn(0.0, room.thicknessOf(o.wallIndex)) else 0.0
+        if (o.kind.glazed && !o.isBay && o.wallIndex < room.wallCount) o.splay.coerceIn(0.0, room.thicknessOf(o.wallIndex)) else 0.0
 
     /**
      * Lato del vano con lo sguincio, dal punto `p` sulla mezzeria (bordo del varco) alla faccia del muro verso la stanza:
@@ -221,7 +356,10 @@ object Openings {
         for (room in plan.rooms) {
             pts += room.points
             for (o in room.openings) {
-                if (o.wallIndex >= room.wallCount || !o.swings || o.opensInward) continue
+                if (o.wallIndex >= room.wallCount) continue
+                // Il bovindo sporge fuori dal muro.
+                if (o.isBay) pts += bayOutline(room, o)
+                if (!o.swings || o.opensInward) continue
                 val (a, b) = span(room, o)
                 val out = inwardNormal(room, o.wallIndex) * -(o.width + room.thicknessOf(o.wallIndex) / 2)
                 pts += a + out

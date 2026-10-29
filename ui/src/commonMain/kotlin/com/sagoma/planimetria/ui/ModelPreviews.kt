@@ -32,6 +32,9 @@ private val Ink = Color(0xFF3A3F44)
 private val GlassBlue = Color(0xFFBFDCEB)
 private val WallBack = Color(0xFFE9E6E0)
 private val Metal = Color(0xFF4A4E53)
+private val Mortar = Color(0xFFD4D1C9)
+private val FrostedGlass = Color(0xFFCFE2E8)
+private val SatinGlass = Color(0xFFDDE8EA)
 
 /** Stesso colore, più scuro (`k` < 1) o più chiaro (`k` > 1). */
 internal fun Color.shade(k: Float): Color =
@@ -77,6 +80,12 @@ internal fun DrawScope.doorPreview(model: DoorModel, color: Color) {
             for (y in listOf(0.3f, 0.55f, 0.8f)) drawLine(line, px(l + 0.03f, y), px(r - 0.03f, y), thin)
             drawLine(Metal, px(r - 0.07f, 0.35f), px(r - 0.07f, 0.75f), 2.5f * density, cap = StrokeCap.Round)
         }
+        DoorModel.AllGlass -> {
+            // Lastra satinata con le cerniere di metallo.
+            box(l, t, r, b, SatinGlass)
+            box(l, t, r, b, color.shade(0.72f), thin)
+            for (y in listOf(0.2f, 0.82f)) box(l, y, l + 0.03f, y + 0.06f, Metal)
+        }
         DoorModel.Armored -> {
             // Tre bugne quadrate, serratura e spioncino.
             for (k in 0 until 3) {
@@ -98,6 +107,19 @@ internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color
     val r = 0.7f
     val t = 0.2f
     val b = 0.86f
+    // Vetromattone: blocchi di vetro chiari con le fughe di malta, senza telaio né oscuranti.
+    if (model == WindowModel.GlassBlock) {
+        box(l, t, r, b, Mortar)
+        val cols = 4
+        val rows = 6
+        val g = 0.008f
+        for (i in 0 until cols) for (j in 0 until rows) {
+            val x0 = l + (r - l) * i / cols
+            val y0 = t + (b - t) * j / rows
+            box(x0 + g, y0 + g, x0 + (r - l) / cols - g, y0 + (b - t) / rows - g, FrostedGlass)
+        }
+        return
+    }
     // Persiane aperte ai lati.
     if (shading == Shading.Shutters) {
         val sc = shadingColor
@@ -109,15 +131,21 @@ internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color
     }
     val frame = when (model) {
         WindowModel.Minimal, WindowModel.Loft -> 0.025f
+        WindowModel.Wood -> 0.07f
         else -> 0.05f
     }
     val fc = when {
         model == WindowModel.Minimal && color.red > 0.9f -> Color(0xFF383B3F)
         model == WindowModel.Loft && color.red > 0.9f -> Color(0xFF1A1A1C)
+        model == WindowModel.Wood && color.red > 0.9f && color.blue > 0.9f -> Color(0xFF9E7148)
         else -> color
     }
     box(l, t, r, b, fc)
     box(l + frame, t + frame * 1.3f, r - frame, b - frame * 1.3f, GlassBlue)
+    // Legno: il fermavetro, un filo più scuro attorno al vetro di ogni anta.
+    if (model == WindowModel.Wood) for ((x0, x1) in listOf(l + frame to 0.5f - frame * 0.4f, 0.5f + frame * 0.4f to r - frame)) {
+        box(x0, t + frame * 1.3f, x1, b - frame * 1.3f, fc.shade(0.75f), 1.4f * density)
+    }
     // Montante centrale (due ante).
     drawLine(fc, px(0.5f, t), px(0.5f, b), size.width * frame * 0.8f)
     if (model == WindowModel.English) {
@@ -139,6 +167,23 @@ internal fun DrawScope.windowPreview(model: WindowModel, shading: Shading, color
         box(l - 0.02f, t - 0.06f, r + 0.02f, t, shadingColor.shade(0.8f))
         var y = t + 0.03f
         while (y < t + (b - t) * 0.66f) { drawLine(shadingColor, px(l, y), px(r, y), 2.2f * density); y += 0.045f }
+    }
+    // Persiana alla romana: il pannello a stecche aperto in fuori copre la parte alta della finestra.
+    if (shading == Shading.RomanShutter) {
+        val bottom = t + (b - t) * 0.7f
+        box(l - 0.03f, t - 0.02f, r + 0.03f, bottom, shadingColor)
+        var y = t + 0.03f
+        while (y < bottom) { drawLine(shadingColor.shade(0.7f), px(l - 0.03f, y), px(r + 0.03f, y), 1f * density); y += 0.05f }
+    }
+    // Persiane scorrevoli: le ante aperte di lato, appese al binario sopra la finestra.
+    if (shading == Shading.SlidingShutters) {
+        val sc = shadingColor
+        box(0.04f, t - 0.07f, 0.96f, t - 0.03f, sc.shade(0.7f))
+        for ((a, z) in listOf(0.07f to l - 0.01f, r + 0.01f to 0.93f)) {
+            box(a, t - 0.03f, z, b + 0.02f, sc)
+            var y = t + 0.02f
+            while (y < b) { drawLine(sc.shade(0.7f), px(a, y), px(z, y), 1f * density); y += 0.06f }
+        }
     }
     if (shading == Shading.InteriorShutters) {
         val sc = shadingColor.shade(0.92f)

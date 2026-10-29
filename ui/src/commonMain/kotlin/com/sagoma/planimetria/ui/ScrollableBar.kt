@@ -71,16 +71,20 @@ fun ScrollableBar(
     }
 }
 
-/** Come `LazyRow`, con le frecce ‹ › ai bordi e la rotellina del mouse che scorre di lato. */
+/**
+ * Come `LazyRow`, con le frecce ‹ › ai bordi e la rotellina del mouse che scorre di lato. `firstVisible`: la scheda da cui
+ * parte la fila quando compare (es. vicino a quella scelta, così si vede subito).
+ */
 @Composable
 fun ArrowLazyRow(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
     verticalAlignment: Alignment.Vertical = Alignment.Top,
+    firstVisible: Int = 0,
     content: LazyListScope.() -> Unit,
 ) {
-    val state = rememberLazyListState()
+    val state = rememberLazyListState(initialFirstVisibleItemIndex = firstVisible)
     EdgeArrows(state, modifier) {
         LazyRow(
             Modifier.wheelScrollsSideways(state),

@@ -5,6 +5,8 @@ import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.persistence.PlanJson
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -53,5 +55,55 @@ class UndersideManyRoomsTest {
         val left = listOf(Vec2(-10.0, -10.0), Vec2(60.0, -10.0), Vec2(60.0, 200.0), Vec2(-10.0, 200.0))
         val right = listOf(Vec2(40.0, -10.0), Vec2(200.0, -10.0), Vec2(200.0, 200.0), Vec2(40.0, 200.0))
         assertEquals(0.0, Clip.subtractAll(tri, listOf(left, right)).sumOf { Polygon.area(it) }, 1e-6)
+    }
+
+    @Test
+    fun casaDellaProvaDiResistenzaConTanteStanzeSovrapposte() {
+        // Tre piani da 124 stanze messe a caso, che si sovrappongono, metà con un muro curvo (solo le stanze del progetto
+        // salvato dalla prova di resistenza). Il 3D ci metteva quasi due minuti: l'app restava bloccata.
+        val text = javaClass.getResource("/casa-stanze-sovrapposte.json")!!.readText()
+        val b = PlanJson.decodeBuilding(text)
+        val start = System.nanoTime()
+        Scene3D.build(b.floors[2].plan, null, null, ceilings = false, levelHeight = 300.0, below = b.floors.take(2))
+        val seconds = (System.nanoTime() - start) / 1e9
+        // Prima della correzione circa 50 s; ora qualche secondo.
+        assertTrue(seconds < 25, "3D del piano di sopra in $seconds s")
+    }
+
+    @Test
+    fun centinaiaDiStanzeSovrappostePezziGiusti() {
+        // Il ritaglio più veloce deve lasciare esattamente la parte scoperta: un pavimento di 20 × 20 m sopra 400 stanze
+        // messe a caso, che si coprono a vicenda.
+        val rnd = Random(7)
+        val floor = listOf(Vec2(0.0, 0.0), Vec2(2000.0, 0.0), Vec2(2000.0, 2000.0), Vec2(0.0, 2000.0))
+        val rooms = (0 until 400).map {
+            val x = rnd.nextInt(-30, 200) * 10.0
+            val y = rnd.nextInt(-30, 200) * 10.0
+            val w = rnd.nextInt(5, 40) * 10.0
+            val h = rnd.nextInt(5, 40) * 10.0
+            listOf(Vec2(x, y), Vec2(x + w, y), Vec2(x + w, y + h), Vec2(x, y + h))
+        }
+        // Come nel 3D, stanze e pavimento ritagliati a triangoli (le diagonali danno rettangoli che si toccano senza sovrapporsi).
+        fun triangles(r: List<Vec2>) = listOf(listOf(r[0], r[1], r[2]), listOf(r[0], r[2], r[3]))
+        val holes = rooms.flatMap(::triangles)
+        val start = System.nanoTime()
+        val pieces = triangles(floor).flatMap { Clip.subtractAll(it, holes) }
+        val seconds = (System.nanoTime() - start) / 1e9
+        // Il pezzo scoperto, calcolato a strisce verticali: in ogni striscia la lunghezza non coperta da nessuna stanza.
+        val xs = (rooms.flatMap { r -> listOf(r[0].x, r[1].x) } + listOf(0.0, 2000.0)).map { it.coerceIn(0.0, 2000.0) }.distinct().sorted()
+        var free = 0.0
+        for (i in 0 until xs.size - 1) {
+            val mid = (xs[i] + xs[i + 1]) / 2
+            val spans = rooms.filter { it[0].x < mid && mid < it[1].x }.map { it[0].y.coerceIn(0.0, 2000.0) to it[2].y.coerceIn(0.0, 2000.0) }.sortedBy { it.first }
+            var covered = 0.0
+            var end = 0.0
+            for ((a, b) in spans) {
+                if (b > end) { covered += b - maxOf(a, end); end = b }
+            }
+            free += (xs[i + 1] - xs[i]) * (2000.0 - covered)
+        }
+        assertTrue(free > 0, "la prova deve lasciare qualcosa di scoperto")
+        assertEquals(free, pieces.sumOf { Polygon.area(it) }, 1.0)
+        assertTrue(seconds < 5, "ritaglio in $seconds s")
     }
 }

@@ -31,6 +31,8 @@ open class TestiPdf {
     open val paretiNettoAperture: String get() = "Pareti (al netto delle aperture)"
     open val arredi: String get() = "Arredi"
     open val impianti: String get() = "Impianti"
+    open val porteFinestre: String get() = "Porte e finestre"
+    open val davanzaliSoglie: String get() = "Davanzali e soglie"
     open val tavolaPdfNonDisponibile: String get() = "Tavola PDF non disponibile su questa piattaforma"
     open val esportazioneNonRiuscita: String get() = "Esportazione non riuscita"
     open val tavolaPdfSalvataMarchio: String get() = "Tavola PDF salvata con il marchio Sagoma"

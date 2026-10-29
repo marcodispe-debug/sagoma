@@ -772,6 +772,38 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
             for (k in 0 until profile.size - 1) drawLine(color, cam.o(profile[k]), cam.o(profile[k + 1]), strokeWidth = thin)
         } else drawLine(color, cam.o(p - n * half), cam.o(p + n * half), strokeWidth = thin)
     }
+    // Bovindo: il trapezio che sporge fuori dal muro, con il vetro sui tre lati (linea doppia).
+    if (o.isBay) {
+        val poly = Openings.bayOutline(room, o)
+        for (k in 0 until poly.size - 1) {
+            val p0 = poly[k]
+            val p1 = poly[k + 1]
+            val d = (p1 - p0).normalized().perp() * 1.5
+            drawLine(color, cam.o(p0 + d), cam.o(p1 + d), strokeWidth = thin)
+            drawLine(color, cam.o(p0 - d), cam.o(p1 - d), strokeWidth = thin)
+        }
+        return
+    }
+    // Vetromattone: la parete di blocchi spessa 8 cm (linea doppia) con le fughe tra un blocco e l'altro, senza ante.
+    if (o.isGlassBlock) {
+        val f = n * Openings.frameOffset(room, o)
+        val g = n * minOf(4.0, half)
+        drawLine(color, cam.o(a + f - g), cam.o(b + f - g), strokeWidth = thin)
+        drawLine(color, cam.o(a + f + g), cam.o(b + f + g), strokeWidth = thin)
+        val cols = Openings.glassBlockGrid(o).first
+        val w = a.distanceTo(b)
+        for (k in 1 until cols) {
+            val p = a + u * (w * k / cols) + f
+            drawLine(color, cam.o(p - g), cam.o(p + g), strokeWidth = thin)
+        }
+        return
+    }
+    // Inferriata: fila di puntini appena fuori dalla faccia esterna del muro.
+    if (o.hasGrille) {
+        val out = n * -(half + 4)
+        val dots = PathEffect.dashPathEffect(floatArrayOf(1.5.dp.toPx(), 3.dp.toPx()))
+        drawLine(color, cam.o(a + out), cam.o(b + out), strokeWidth = 2.dp.toPx(), pathEffect = dots)
+    }
     // Infisso a filo esterno o interno: linea doppia dove sta, e le ante partono da lì.
     val frame = Openings.frameOffset(room, o)
     if (frame != 0.0) {
@@ -785,6 +817,17 @@ internal fun DrawScope.drawOpening(room: Room, o: Opening, cam: Camera) {
 
     if (o.sliding && o.kind.hasLeaves) {
         drawSliding(o, a, b, n, color, line, cam, room.thicknessOf(o.wallIndex))
+        return
+    }
+    // Porta da garage: il pannello chiuso a filo della faccia verso la stanza e, tratteggiato, dove va quando è aperta
+    // (in alto dentro la stanza, sopra il piano di taglio).
+    if (o.isGarage) {
+        drawLine(color, cam.o(a + n * (half - 2)), cam.o(b + n * (half - 2)), strokeWidth = line)
+        val reach = n * (half + Openings.garageReach(o))
+        val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
+        drawLine(color, cam.o(a + n * half), cam.o(a + reach), strokeWidth = thin, pathEffect = dash)
+        drawLine(color, cam.o(b + n * half), cam.o(b + reach), strokeWidth = thin, pathEffect = dash)
+        drawLine(color, cam.o(a + reach), cam.o(b + reach), strokeWidth = thin, pathEffect = dash)
         return
     }
     // Vetro fisso e vasistas: il vetro nel muro, senza arco; il vasistas ha in più l'anta che si ribalta verso la stanza.

@@ -42,6 +42,7 @@ open class Nomi {
         DoorModel.Planks -> "A doghe"
         DoorModel.Modern -> "Moderna"
         DoorModel.Armored -> "Blindata"
+        DoorModel.AllGlass -> "Tutto vetro"
     }
 
     open fun finish(v: Finish): String = when (v) {
@@ -72,6 +73,8 @@ open class Nomi {
         WindowModel.Minimal -> "Minimal"
         WindowModel.English -> "All'inglese"
         WindowModel.Loft -> "Loft"
+        WindowModel.Wood -> "Legno con fermavetro"
+        WindowModel.GlassBlock -> "Vetromattone"
     }
 
     open fun framePosition(v: FramePosition): String = when (v) {
@@ -86,6 +89,8 @@ open class Nomi {
         Shading.RollerShutter -> "Tapparella"
         Shading.Venetian -> "Veneziana esterna"
         Shading.InteriorShutters -> "Scuri interni"
+        Shading.RomanShutter -> "Persiana alla romana"
+        Shading.SlidingShutters -> "Persiane scorrevoli"
     }
 
     open fun stairStructure(v: StairStructure): String = when (v) {

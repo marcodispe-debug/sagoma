@@ -77,4 +77,11 @@ object TestiComputoEn : TestiComputo() {
     override val luceAria2: String get() = "LIGHT AND AIR"
     override val pianoStanzaLuce: String get() = "Floor;Room;Floor area m²;Opening windows m²;Ratio;At least 1/8"
     override val impiantiQuantitaDove: String get() = "FIXTURES;Quantity;Where"
+    override val porteFinestre: String get() = "Doors and windows"
+    override val porteFinestreNota: String get() = "Opening sizes (width × height), to be checked by whoever quotes them. Openings to be filled in are left out."
+    override fun misuraVano(w: Any?, h: Any?): String = "$w×$h cm"
+    override val porteFinestreCsv: String get() = "DOORS AND WINDOWS;Look;Opening size;Quantity;Where"
+    override val davanzaliSoglie: String get() = "Sills and thresholds"
+    override val davanzaliSoglieNota: String get() = "Slabs to order: length × depth × thickness, including the parts set into the sides of the opening and those projecting from the wall."
+    override val davanzaliSoglieCsv: String get() = "SILLS AND THRESHOLDS;Size;Quantity;Where"
 }

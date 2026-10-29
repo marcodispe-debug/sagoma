@@ -17,6 +17,8 @@ enum class DoorModel {
     Modern,
     /** Blindata: anta spessa con le bugne, serratura e spioncino. */
     Armored,
+    /** Tutto vetro: anta di vetro temperato satinato, senza telaio, con le cerniere e la maniglia di metallo. */
+    AllGlass,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
@@ -44,6 +46,10 @@ enum class WindowModel {
     English,
     /** Vetrata stile loft: profili neri sottili e vetro diviso a riquadri. */
     Loft,
+    /** Infisso in legno: telaio più grosso, vetro fermato dai listelli (fermavetro); di solito rovere. */
+    Wood,
+    /** Vetromattone: blocchi di vetro murati, fissi (niente ante, oscuranti, inferriata, zanzariera o tenda). */
+    GlassBlock,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
@@ -62,6 +68,18 @@ enum class SashType {
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.sashType(this)
+}
+
+/**
+ * Porta da garage: invece di aprirsi a battente il pannello sale e va sotto il soffitto, dentro la stanza. Si possono
+ * aggiungere tipi, non rinominarli (finiscono nel file).
+ */
+enum class GarageDoor {
+    None,
+    /** Basculante: un pannello unico che si ribalta in alto. */
+    UpAndOver,
+    /** Sezionale: pannelli orizzontali che scorrono su binari fino sotto il soffitto. */
+    Sectional,
 }
 
 /** Forma di finestre e balconi. Si possono aggiungere forme, non rinominarle (finiscono nel file). */
@@ -97,6 +115,10 @@ enum class Shading {
     Venetian,
     /** Scuri interni: ante di legno sulla faccia del muro verso la stanza, aperte ai lati della finestra. */
     InteriorShutters,
+    /** Persiana alla romana (a sporgere): incernierata in alto, aperta in fuori con il fondo staccato dal muro. */
+    RomanShutter,
+    /** Persiane scorrevoli: ante a stecche appese a un binario sopra la finestra, aperte di lato lungo il muro (fuori dal vano). */
+    SlidingShutters,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
@@ -125,6 +147,14 @@ enum class StairMaterial(val argb: Long) {
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.stairMaterial(this)
+
+    companion object {
+        /** Il materiale col colore più vicino a `argb`: quello che resta sotto la foto scelta dai pavimenti, per chi non la vede. */
+        fun closestTo(argb: Long): StairMaterial = entries.minBy { m ->
+            fun ch(c: Long, s: Int) = ((c shr s) and 0xFF).toInt()
+            listOf(16, 8, 0).sumOf { s -> (ch(m.argb, s) - ch(argb, s)).let { it * it } }
+        }
+    }
 }
 
 /** Ringhiera della scala, sui lati liberi (non contro i muri). */

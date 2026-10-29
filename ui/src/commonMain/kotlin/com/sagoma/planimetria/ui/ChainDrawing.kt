@@ -132,7 +132,9 @@ internal fun DrawScope.drawOpeningSizes(
             // Fuori casa; dentro casa dal lato opposto a quello in cui apre la porta (finestre e scorrevoli: nella stanza).
             val toOutside = outside || (!o.kind.glazed && !o.sliding && o.opensInward)
             val n = if (toOutside) outward else outward * -1.0
-            val face = r.thicknessOf(o.wallIndex) / 2 + (if (toOutside) 1 else -1) * r.wallShift(o.wallIndex)
+            // Il bovindo sporge: le misure vanno oltre il suo davanti.
+            val face = r.thicknessOf(o.wallIndex) / 2 + (if (toOutside) 1 else -1) * r.wallShift(o.wallIndex) +
+                if (toOutside && o.isBay) Openings.bayDepth(a.distanceTo(b)) else 0.0
             val w = measurer.measure(PlanUnits.format(o.width), style)
             val h = measurer.measure(PlanUnits.format(o.height), style)
             val stack = w.size.height + h.size.height + 3f
