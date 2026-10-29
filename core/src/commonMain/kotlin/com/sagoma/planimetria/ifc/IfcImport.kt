@@ -17,6 +17,7 @@ import com.sagoma.planimetria.model.DoorModel
 import com.sagoma.planimetria.model.Finish
 import com.sagoma.planimetria.model.FramePosition
 import com.sagoma.planimetria.model.GarageDoor
+import com.sagoma.planimetria.model.MaterialLayout
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.SashType
 import com.sagoma.planimetria.model.Shading
@@ -357,6 +358,12 @@ internal class IfcReader(val f: StepFile) {
             awningColor = propNum(h.id, IfcExport.PSET, "AwningColor")?.toLong(),
             sillMaterial = e("SillMaterial", StairMaterial.entries),
             frosted = b("FrostedGlass"),
+            sillFloorMaterial = propStr(h.id, IfcExport.PSET, "SillFloorMaterial"),
+            doorMaterial = propStr(h.id, IfcExport.PSET, "DoorMaterial"),
+            doorMaterialLayout = MaterialLayout(
+                rotation = propNum(h.id, IfcExport.PSET, "DoorMaterialRotation") ?: 0.0,
+                scale = propNum(h.id, IfcExport.PSET, "DoorMaterialScale") ?: 1.0,
+            ),
         )
         if (h.kind != null) return o
         // File non uscito da sagoma: il modo di aprirsi dai nomi dell'IFC.

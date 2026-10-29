@@ -3,6 +3,7 @@ package com.sagoma.planimetria.ifc
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.GarageDoor
+import com.sagoma.planimetria.model.MaterialLayout
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
@@ -225,19 +226,20 @@ class IfcOpeningTypesTest {
         assertEquals(4, back.building.floors.single().plan.rooms.single().openings.single().leafCount)
     }
 
-    /** Terzo gruppo: finestre e porte nuove della notte del 28/10 (inferriata, sopraluce, bovindo, legno, romana, scorrevoli, vetromattone, garage, tutto vetro, zanzariera, tenda, davanzali, vetro satinato). */
+    /** Terzo gruppo: finestre e porte nuove della notte del 28/10 (inferriata, sopraluce, bovindo, legno, romana, scorrevoli, vetromattone, garage, tutto vetro, zanzariera, tenda, davanzali, vetro satinato), poi del 29/10 (finitura in foto delle porte, davanzale in foto). */
     private val group3 = listOf(
-        Opening(1, OpeningKind.Window1, 0, 100.0, 80.0, 120.0, sillHeight = 90.0, grille = true, sillMaterial = StairMaterial.Marble, shading = Shading.SlidingShutters),
+        Opening(1, OpeningKind.Window1, 0, 100.0, 80.0, 120.0, sillHeight = 90.0, grille = true, sillMaterial = StairMaterial.Marble, shading = Shading.SlidingShutters, sillFloorMaterial = "marble006"),
         Opening(2, OpeningKind.Window1, 0, 250.0, 80.0, 160.0, sillHeight = 90.0, topLight = true, windowModel = WindowModel.Wood, shading = Shading.RomanShutter, insectScreen = true, frosted = true),
         Opening(3, OpeningKind.Window2, 0, 450.0, 140.0, 140.0, sillHeight = 90.0, bay = true),
         Opening(4, OpeningKind.Window1, 0, 650.0, 76.0, 114.0, sillHeight = 100.0, windowModel = WindowModel.GlassBlock, sash = SashType.Fixed),
-        Opening(5, OpeningKind.Door, 2, 150.0, 250.0, 210.0, garage = GarageDoor.UpAndOver),
+        Opening(5, OpeningKind.Door, 2, 150.0, 250.0, 210.0, garage = GarageDoor.UpAndOver, doorMaterial = "ph_wood_planks", doorMaterialLayout = MaterialLayout(rotation = 90.0)),
         Opening(6, OpeningKind.Door, 2, 450.0, 250.0, 215.0, garage = GarageDoor.Sectional),
         Opening(7, OpeningKind.Door, 2, 680.0, 80.0, 210.0, doorModel = DoorModel.AllGlass, sillMaterial = StairMaterial.Stone),
         Opening(8, OpeningKind.Balcony2, 3, 250.0, 120.0, 240.0, awning = true, awningColor = 0xFF9C2F2F, insectScreen = true, sillMaterial = StairMaterial.Wood),
+        Opening(9, OpeningKind.Door, 1, 250.0, 80.0, 210.0, doorModel = DoorModel.Panels, doorMaterial = "woodfloor064", doorMaterialLayout = MaterialLayout(rotation = 90.0, scale = 0.6)),
     )
 
-    private fun look3(o: Opening) = look2(o) + listOf(o.grille, o.topLight, o.bay, o.garage, o.insectScreen, o.awning, o.awningColor, o.sillMaterial, o.frosted)
+    private fun look3(o: Opening) = look2(o) + listOf(o.grille, o.topLight, o.bay, o.garage, o.insectScreen, o.awning, o.awningColor, o.sillMaterial, o.frosted, o.sillFloorMaterial, o.doorMaterial, o.doorMaterialLayout)
 
     @Test
     fun `terzo gruppo - garage con i nomi standard, il resto torna uguale`() {

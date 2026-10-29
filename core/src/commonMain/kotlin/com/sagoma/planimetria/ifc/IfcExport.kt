@@ -129,6 +129,7 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
     fun int(v: Long) = "IFCINTEGER($v)"
     fun length(cm: Double) = "IFCLENGTHMEASURE(${num(cm * 10)})"
     fun bool(v: Boolean) = "IFCBOOLEAN(${StepWriter.bool(v)})"
+    fun real(v: Double) = "IFCREAL(${num(v)})"
 
     fun status(p: Phase) = label(when (p) { Phase.Existing -> "EXISTING"; Phase.Demolish -> "DEMOLISH"; Phase.New -> "NEW" })
 
@@ -551,6 +552,11 @@ private class IfcExporter(val building: Building, val name: String, val key: Str
             o.awningColor?.let { add("AwningColor" to int(it)) }
             o.sillMaterial?.let { add("SillMaterial" to label(it.name)) }
             if (o.frosted) add("FrostedGlass" to bool(true))
+            // Materiali in foto del catalogo (id): davanzale o soglia, e la finitura della porta con il suo verso (gradi) e la misura.
+            o.sillFloorMaterial?.let { add("SillFloorMaterial" to label(it)) }
+            o.doorMaterial?.let { add("DoorMaterial" to label(it)) }
+            if (o.doorMaterialLayout.rotation != 0.0) add("DoorMaterialRotation" to real(o.doorMaterialLayout.rotation))
+            if (o.doorMaterialLayout.scale != 1.0) add("DoorMaterialScale" to real(o.doorMaterialLayout.scale))
         }
     }
 
