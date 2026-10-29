@@ -6,8 +6,8 @@ import com.sagoma.planimetria.geometry.Openings
 import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.arcOf
 import com.sagoma.planimetria.geometry.expandCurves
-import com.sagoma.planimetria.geometry.innerThicknesses
 import com.sagoma.planimetria.geometry.interiorLengths
+import com.sagoma.planimetria.geometry.measuredThicknesses
 import com.sagoma.planimetria.geometry.toDegrees
 import com.sagoma.planimetria.geometry.toRadians
 import com.sagoma.planimetria.geometry.wallShift
@@ -114,7 +114,7 @@ internal object DxfDimensions {
             if (logical.wallCount < 3) continue
             val expanded = logical.expandCurves()
             val room = expanded.room
-            val edges = Polygon.insetEdges(room.points, room.innerThicknesses.map { it / 2 })
+            val edges = Polygon.insetEdges(room.points, room.measuredThicknesses.map { it / 2 })
             val lengths = room.interiorLengths()
             val sign = if (Polygon.signedArea(room.points) >= 0) 1.0 else -1.0
             val drawn = mutableListOf<Pair<Vec2, Vec2>>()
@@ -122,6 +122,7 @@ internal object DxfDimensions {
                 if (logical.arcOf(expanded.origin[i]) != null) continue
                 if ((logical.id to expanded.origin[i]) in d.covered) continue
                 val len = lengths[i]
+                if (Dimensions.openSideDrawnBefore(plan, room, i, len)) continue
                 val (p, q) = edges[i]
                 if (!(len >= 3 * INSIDE) || !len.isFinite()) continue
                 val u = (q - p).normalized()

@@ -44,6 +44,19 @@ class ExteriorChainsTest {
     }
 
     @Test
+    fun `il muro eliminato tra due stanze non lascia il suo spessore nella catena`() {
+        val plan = FloorPlan(listOf(rect(1, 0.0, 0.0, 400.0, 300.0).copy(removedWalls = setOf(1)), rect(2, 400.0, 0.0, 300.0, 300.0).copy(removedWalls = setOf(3))))
+        val d = ExteriorChains.of(plan)
+        // Muro esterno, ambiente unico fino all'altro muro esterno, muro esterno: niente 15 in mezzo dove c'era il tramezzo.
+        assertSegments(listOf(15.0, 685.0, 15.0), d.side(Vec2(0.0, -1.0)))
+        assertSegments(listOf(15.0, 685.0, 15.0), d.side(Vec2(0.0, 1.0)))
+        assertEquals(715.0, d.side(Vec2(0.0, -1.0)).total.let { it.endInclusive - it.start }, 1e-6)
+        // Le misure delle due stanze lungo la facciata non sono nella catena: si scrivono dentro.
+        assertFalse((1L to 0) in d.covered)
+        assertFalse((2L to 0) in d.covered)
+    }
+
+    @Test
     fun `la stanza in mezzo si quota dentro`() {
         val rooms = (0 until 9).map { k -> rect(k + 1L, (k % 3) * 200.0, (k / 3) * 200.0, 200.0, 200.0) }
         val d = ExteriorChains.of(FloorPlan(rooms))

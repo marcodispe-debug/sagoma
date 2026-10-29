@@ -11,7 +11,7 @@ import com.sagoma.planimetria.geometry.interior
 import com.sagoma.planimetria.geometry.exterior
 import com.sagoma.planimetria.geometry.exteriorOutline
 import com.sagoma.planimetria.geometry.interiorOutline
-import com.sagoma.planimetria.geometry.innerThicknesses
+import com.sagoma.planimetria.geometry.measuredThicknesses
 import com.sagoma.planimetria.geometry.shiftedEndDeltas
 import com.sagoma.planimetria.geometry.wallShift
 import com.sagoma.planimetria.geometry.interiorLengths
@@ -369,7 +369,7 @@ internal fun DrawScope.drawWallDimensions(
         // Muri curvi: le quote dei muri dritti si prendono dalla stanza srotolata; sull'arco una sola misura (sotto).
         val expanded = logical.expandCurves()
         val room = expanded.room
-        val edges = Polygon.insetEdges(room.points, room.innerThicknesses.map { it / 2 })
+        val edges = Polygon.insetEdges(room.points, room.measuredThicknesses.map { it / 2 })
         val lengths = room.interiorLengths()
         val sign = if (Polygon.signedArea(room.points) >= 0) 1.0 else -1.0
         for (i in 0 until logical.wallCount) {
@@ -394,6 +394,7 @@ internal fun DrawScope.drawWallDimensions(
             if (logical.arcOf(expanded.origin[i]) != null) continue
             if (skip(logical.id, expanded.origin[i])) continue
             val len = lengths[i]
+            if (Dimensions.openSideDrawnBefore(plan, room, i, len)) continue
             val (p, q) = edges[i]
             val lenPx = (len * cam.scale).toFloat()
             if (len <= 0 || lenPx < 3 * offset) continue

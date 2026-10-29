@@ -101,6 +101,21 @@ object Dimensions {
     }
 
     /**
+     * Il muro `i` di `room` è un lato aperto (muro eliminato) che una stanza che viene prima nella pianta ha tolto anche lei, con la
+     * stessa luce `length`: la misura la scrive solo quella, non due volte ai lati della linea tratteggiata.
+     */
+    fun openSideDrawnBefore(plan: FloorPlan, room: Room, i: Int, length: Double): Boolean {
+        if (!room.isRemoved(i)) return false
+        val a = room.wallStart(i)
+        val b = room.wallEnd(i)
+        return plan.rooms.takeWhile { it.id != room.id }.any { o ->
+            (0 until o.wallCount).any { j ->
+                o.isRemoved(j) && sharesWall(a, b, o.wallStart(j), o.wallEnd(j)) && abs(o.interiorLengths()[j] - length) < 0.5
+            }
+        }
+    }
+
+    /**
      * Dove centrare un'etichetta lunga `textCm` sul muro a→b senza coprire aperture: di qualunque
      * stanza, quindi anche quelle della stanza confinante sullo stesso muro. Usata anche dai campi lunghezza.
      */
