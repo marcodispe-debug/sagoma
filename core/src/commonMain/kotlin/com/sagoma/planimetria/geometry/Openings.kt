@@ -110,12 +110,12 @@ object Openings {
             if (o.hasGrille) parts += low(T.pannelli.inferriata)
             if (o.hasInsectScreen) parts += low(T.pannelli.zanzariera)
             if (o.hasAwning) parts += low(T.pannelli.tendaDaSole)
-            o.sill?.let { parts += T.pannelli.davanzaleIn(low(it.label), balcony = !o.kind.isWindow) }
+            o.sillLabel?.let { parts += T.pannelli.davanzaleIn(low(it), balcony = !o.kind.isWindow) }
         } else {
             if (o.transomCm > 0) parts += low(T.pannelli.sopraluce)
             if (o.sidelightCm > 0) parts += low(T.pannelli.vetroDiFianco)
             if (o.hasFrostedGlass) parts += low(T.pannelli.vetroSatinato)
-            o.sill?.let { parts += T.pannelli.davanzaleIn(low(it.label), balcony = true) }
+            o.sillLabel?.let { parts += T.pannelli.davanzaleIn(low(it), balcony = true) }
         }
         return parts.filter { it.isNotBlank() }.joinToString(" · ")
     }
