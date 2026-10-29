@@ -3,6 +3,7 @@ package com.sagoma.planimetria.geometry
 import com.sagoma.planimetria.model.Finish
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.MaterialCatalog
 import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.FramePosition
@@ -80,9 +81,12 @@ object Openings {
         if (!o.kind.hasLeaves) return ""
         val low = T.lingua::minuscola
         // Senza colore scelto, i modelli loft, minimal e legno hanno il loro (nero, antracite, rovere): come nel 3D.
+        val material = o.doorFinish?.let { MaterialCatalog.item(it)?.nome }
         val color = when {
             // Il vetromattone non ha telaio: niente modello (è già nel nome) né colore.
             o.isGlassBlock -> null
+            // Porta con la finitura in foto (es. «Liscia, noce»): il materiale al posto del colore.
+            material != null -> material
             o.customColor != null -> ProPalette.nameOf(o.customColor)
             !o.defaultColor -> o.finish.label
             o.kind.glazed && o.windowModel == WindowModel.Loft -> null

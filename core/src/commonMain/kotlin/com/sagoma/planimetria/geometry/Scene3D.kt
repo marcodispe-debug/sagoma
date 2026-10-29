@@ -399,6 +399,20 @@ private class SceneBuilder(
     }
 
     /**
+     * Foto del materiale `m` sul rettangolo verticale da `a` a `b` (già sulla faccia), da `y0` a `y1`, rivolto verso `side`: si
+     * ripete ogni [MaterialCatalog.Item.size] cm, girata e ingrandita come in `layout` (come sul pavimento). `t0` è dove comincia
+     * lungo il pezzo: i pezzi della stessa anta continuano la stessa foto.
+     */
+    private fun skin(m: MaterialCatalog.Item, layout: MaterialLayout, a: Vec2, b: Vec2, side: Vec2, y0: Double, y1: Double, t0: Double = 0.0) {
+        if (a.distanceTo(b) < 0.05 || y1 - y0 < 0.05) return
+        val t1 = t0 + a.distanceTo(b)
+        fun uv(t: Double, y: Double) = layout.uv(t, -y, m.size)
+        val n = side.dir()
+        texTri(m.id, a.at(y0), b.at(y0), b.at(y1), uv(t0, y0), uv(t1, y0), uv(t1, y1), n)
+        texTri(m.id, a.at(y0), b.at(y1), a.at(y1), uv(t0, y0), uv(t1, y1), uv(t0, y1), n)
+    }
+
+    /**
      * Tappeto di materiale: una lastra sottile del colore del materiale e, sopra, la foto del materiale che
      * gira con il tappeto e si ripete ogni `size` cm (ingrandendo il tappeto il disegno non si stira).
      */
@@ -2299,11 +2313,17 @@ private class SceneBuilder(
      */
     private fun garageDoor(a: Vec2, b: Vec2, u: Vec2, n: Vec2, bottom: Double, top: Double, ceiling: Double, o: Opening, pick: Pick) {
         val w = a.distanceTo(b)
-        val c = tint(Rgba.argb(o.frameArgb), pick)
+        // Con la finitura in foto ([Opening.doorFinish]) il pannello ha il colore medio del materiale e la foto sulle due facce.
+        val material = o.doorFinish?.let { MaterialCatalog.item(it) }
+        val c = tint(Rgba.argb(material?.argb ?: o.frameArgb), pick)
         val groove = c.mix(Rgba(0f, 0f, 0f), 0.25f)
         val metal = tint(Rgba(0.45f, 0.46f, 0.48f), pick)
         val face = n * (half - 2.0)
         box(a + face, b + face, 1.5, bottom, top, c, pick)
+        if (material != null) for (side in listOf(1.0, -1.0)) {
+            val off = face + n * (side * 1.55)
+            skin(material, o.doorMaterialLayout, a + off, b + off, n * side, bottom, top)
+        }
         val outer = n * (half - 3.6)
         if (o.garageDoor == GarageDoor.Sectional) {
             // Giunti tra i pannelli, visibili dai due lati.
@@ -2348,7 +2368,7 @@ private class SceneBuilder(
         val transom = o.transomCm
         val side = o.sidelightCm
         if (transom <= 0 && side <= 0) return Triple(la, lb, top)
-        val frame = tint(Rgba.argb(o.frameArgb), pick)
+        val frame = tint(Rgba.argb(o.doorFinish?.let { MaterialCatalog.item(it)?.argb } ?: o.frameArgb), pick)
         val glassColor = glassOf(o, pick)
         val lt = top - transom
         val f = 3.0
@@ -2374,33 +2394,42 @@ private class SceneBuilder(
      * con il disegno del suo modello su entrambe le facce e la maniglia verso l'estremità libera.
      */
     private fun doorLeaf(start: Vec2, dir: Vec2, length: Double, thick: Double, height: Double, o: Opening, pick: Pick, handleAtEnd: Boolean) {
-        val color = tint(Rgba.argb(o.frameArgb), pick)
+        // Con la finitura in foto ([Opening.doorFinish]) l'anta ha il colore medio del materiale e, sopra, la sua foto.
+        val material = o.doorFinish?.let { MaterialCatalog.item(it) }
+        val color = tint(Rgba.argb(material?.argb ?: o.frameArgb), pick)
         val relief = color.mix(Rgba(0f, 0f, 0f), 0.12f)
         val metal = tint(Rgba(0.62f, 0.64f, 0.66f), pick)
-        fun part(from: Double, to: Double, y0: Double, y1: Double, hw: Double, c: Rgba) =
+        val across = dir.perp()
+        /** Un pezzo dell'anta; `skinned`: con la foto del materiale sulle due facce, appena fuori. */
+        fun part(from: Double, to: Double, y0: Double, y1: Double, hw: Double, c: Rgba, skinned: Boolean = false) {
             box(start + dir * (length * from), start + dir * (length * to), hw, y0, y1, c, pick)
+            if (skinned && material != null) for (side in listOf(1.0, -1.0)) {
+                val off = across * (side * (hw + 0.05))
+                skin(material, o.doorMaterialLayout, start + dir * (length * from) + off, start + dir * (length * to) + off, across * side, y0, y1, length * from)
+            }
+        }
         when (o.doorModel) {
-            DoorModel.Flush -> part(0.0, 1.0, 0.0, height, thick, color)
+            DoorModel.Flush -> part(0.0, 1.0, 0.0, height, thick, color, skinned = true)
             DoorModel.Panels -> {
-                part(0.0, 1.0, 0.0, height, thick, color)
+                part(0.0, 1.0, 0.0, height, thick, color, skinned = true)
                 // Riquadri in rilievo: uno alto e uno basso, su tutte e due le facce.
-                part(0.16, 0.84, height * 0.55, height * 0.9, thick + 0.6, relief)
-                part(0.16, 0.84, height * 0.1, height * 0.46, thick + 0.6, relief)
+                part(0.16, 0.84, height * 0.55, height * 0.9, thick + 0.6, relief, skinned = true)
+                part(0.16, 0.84, height * 0.1, height * 0.46, thick + 0.6, relief, skinned = true)
             }
             DoorModel.Glazed -> {
                 // Telaio dell'anta e vetro al centro.
-                part(0.0, 0.16, 0.0, height, thick, color)
-                part(0.84, 1.0, 0.0, height, thick, color)
-                part(0.16, 0.84, 0.0, height * 0.36, thick, color)
-                part(0.16, 0.84, height * 0.88, height, thick, color)
+                part(0.0, 0.16, 0.0, height, thick, color, skinned = true)
+                part(0.84, 1.0, 0.0, height, thick, color, skinned = true)
+                part(0.16, 0.84, 0.0, height * 0.36, thick, color, skinned = true)
+                part(0.16, 0.84, height * 0.88, height, thick, color, skinned = true)
                 pane(start + dir * (length * 0.16), start + dir * (length * 0.84), height * 0.36, height * 0.88, glassOf(o, pick), pick)
             }
             DoorModel.Planks -> {
-                part(0.0, 1.0, 0.0, height, thick, color)
+                part(0.0, 1.0, 0.0, height, thick, color, skinned = true)
                 for (k in 1 until 5) part(k / 5.0 - 0.006, k / 5.0 + 0.006, height * 0.02, height * 0.98, thick + 0.25, relief)
             }
             DoorModel.Modern -> {
-                part(0.0, 1.0, 0.0, height, thick, color)
+                part(0.0, 1.0, 0.0, height, thick, color, skinned = true)
                 for (y in listOf(0.3, 0.55, 0.8)) part(0.04, 0.96, height * y - 0.4, height * y + 0.4, thick + 0.25, relief)
             }
             DoorModel.AllGlass -> {
@@ -2414,10 +2443,10 @@ private class SceneBuilder(
             }
             DoorModel.Armored -> {
                 // Anta più spessa, bugne quadrate in rilievo, serratura sopra la maniglia e spioncino.
-                part(0.0, 1.0, 0.0, height, thick + 1.5, color)
+                part(0.0, 1.0, 0.0, height, thick + 1.5, color, skinned = true)
                 for (row in 0 until 3) {
                     val y0 = height * (0.08 + row * 0.3)
-                    part(0.12, 0.88, y0, y0 + height * 0.24, thick + 2.1, relief)
+                    part(0.12, 0.88, y0, y0 + height * 0.24, thick + 2.1, relief, skinned = true)
                 }
                 val lockAt = if (handleAtEnd) 0.86 else 0.14
                 part(lockAt - 0.02, lockAt + 0.02, 120.0, 128.0, thick + 2.4, metal)
@@ -2433,13 +2462,23 @@ private class SceneBuilder(
 
     /** Coprifilo attorno alla porta, sulle due facce del muro, e rivestimento dello spessore del varco. */
     private fun casing(a: Vec2, b: Vec2, u: Vec2, n: Vec2, top: Double, o: Opening, pick: Pick) {
-        val color = tint(Rgba.argb(o.frameArgb), pick).mix(Rgba.White, 0.08f)
+        // Con la finitura in foto della porta, il coprifilo è dello stesso materiale (la foto sulla faccia davanti).
+        val material = o.doorFinish?.let { MaterialCatalog.item(it) }
+        val color = if (material != null) tint(Rgba.argb(material.argb), pick) else tint(Rgba.argb(o.frameArgb), pick).mix(Rgba.White, 0.08f)
         val trim = 7.0
         for (side in listOf(1.0, -1.0)) {
             val off = n * (side * (half + 0.6))
             box(a - u * trim + off, a + off, 0.6, 0.0, top + trim, color, pick)
             box(b + off, b + u * trim + off, 0.6, 0.0, top + trim, color, pick)
             box(a - u * trim + off, b + u * trim + off, 0.6, top, top + trim, color, pick)
+            if (material != null) {
+                // I montanti fino all'architrave e l'architrave per tutta la larghezza: le foto non si sovrappongono negli angoli.
+                val face = n * (side * (half + 1.25))
+                val w = a.distanceTo(b)
+                skin(material, o.doorMaterialLayout, a - u * trim + face, a + face, n * side, 0.0, top, -trim)
+                skin(material, o.doorMaterialLayout, b + face, b + u * trim + face, n * side, 0.0, top, w)
+                skin(material, o.doorMaterialLayout, a - u * trim + face, b + u * trim + face, n * side, top, top + trim, -trim)
+            }
         }
         box(a, a + u * 1.2, half, 0.0, top, color, pick)
         box(b - u * 1.2, b, half, 0.0, top, color, pick)

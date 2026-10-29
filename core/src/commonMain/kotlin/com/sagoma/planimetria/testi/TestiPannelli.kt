@@ -190,6 +190,8 @@ open class TestiPannelli {
     open val trasparente: String get() = "Trasparente"
     open val satinato: String get() = "Satinato"
     open val vetroSatinato: String get() = "Vetro satinato"
+    /** Porte: la finitura in foto dell'anta (materiali del catalogo, come per il pavimento). */
+    open val finituraInFoto: String get() = "Finitura"
     open val giaUguali: String get() = "Hanno già tutte questo stile."
     open fun stileCopiato(n: Any?): String = if (n == 1) "Stile copiato su 1 apertura (↶ per annullare)." else "Stile copiato su $n aperture (↶ per annullare)."
     open val lampadarioSoffittoTrascinaloSpostarlo: String get() = "Lampadario a soffitto: trascinalo per spostarlo."

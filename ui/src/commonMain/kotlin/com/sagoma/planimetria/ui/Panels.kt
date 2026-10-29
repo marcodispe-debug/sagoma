@@ -831,7 +831,8 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
     val room = plan.room(sel.roomId) ?: return
     val o = room.opening(sel.openingId) ?: return
     fun update(f: (Opening) -> Opening) = vm.updateOpening(room.id, f(o))
-    val color = Color(o.frameArgb)
+    // Con la finitura in foto, le anteprime dei modelli hanno il colore medio del materiale.
+    val color = Color(o.doorFinish?.let { com.sagoma.planimetria.model.MaterialCatalog.item(it)?.argb } ?: o.frameArgb)
 
     val tabs = buildList {
         add(InfoTab("misure", T.schedaStanza.misure) {
@@ -1031,9 +1032,17 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
             }
             // Come la pittura dei muri: i colori soliti degli infissi (legni, bianco, grigi) in testa, poi la tavolozza e il colore libero.
             val finishes = Finish.entries
-            if (!o.isGlassBlock) FreeColorPicker(if (o.kind.glazed) T.pannelli.coloreInfisso else T.comuni.colore, o.frameArgb, finishes.map { it.label to it.argb }) { c ->
+            if (!o.isGlassBlock && o.doorFinish == null) FreeColorPicker(if (o.kind.glazed) T.pannelli.coloreInfisso else T.comuni.colore, o.frameArgb, finishes.map { it.label to it.argb }) { c ->
                 val named = finishes.firstOrNull { it.argb == c }
                 update { it.copy(color = named, customColor = if (named == null) c else null) }
+            }
+            // Porte: al posto del colore una finitura in foto (legni, marmi…), con verso e misura come per il pavimento. «Nessuna»
+            // torna al colore.
+            if (o.canHaveDoorMaterial && FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS)) {
+                MaterialPicker(T.pannelli.finituraInFoto, o.doorFinish, forFloor = true, allowNone = true, exclude = DOOR_EXCLUDED_MATERIALS) { id ->
+                    update { it.copy(doorMaterial = id) }
+                }
+                if (o.doorFinish != null) MaterialLayoutControls(o.doorMaterialLayout, o.doorFinish, pieces = false) { l -> update { it.copy(doorMaterialLayout = l) } }
             }
             // Lo stesso aspetto su tutte le finestre (o le porte) del piano, o della casa se ha più piani: una modifica sola, si annulla con ↶.
             // Non dal vetromattone: le finestre non diventano vetromattone, e lui ha solo il davanzale.
@@ -1148,6 +1157,9 @@ private fun SillChoice(label: String, selected: StairMaterial?, onSelect: (Stair
         }
     }
 }
+
+/** Categorie dei materiali del pavimento che su una porta non hanno senso: moquette e pavimenti da esterni (prato, porfido…). */
+private val DOOR_EXCLUDED_MATERIALS = setOf("Moquette", "Esterni")
 
 /** Vetro di finestre e porte: trasparente o satinato. */
 @Composable

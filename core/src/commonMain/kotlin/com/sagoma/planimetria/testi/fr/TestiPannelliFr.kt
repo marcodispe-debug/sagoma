@@ -189,6 +189,7 @@ object TestiPannelliFr : TestiPannelli() {
     override val trasparente: String get() = "Transparent"
     override val satinato: String get() = "Dépoli"
     override val vetroSatinato: String get() = "Verre dépoli"
+    override val finituraInFoto: String get() = "Finition"
     override val giaUguali: String get() = "Elles ont déjà toutes ce style."
     override fun stileCopiato(n: Any?): String = if (n == 1) "Style copié sur 1 ouverture (↶ pour annuler)." else "Style copié sur $n ouvertures (↶ pour annuler)."
     override val lampadarioSoffittoTrascinaloSpostarlo: String get() = "Lustre au plafond : faites-le glisser pour le déplacer."
