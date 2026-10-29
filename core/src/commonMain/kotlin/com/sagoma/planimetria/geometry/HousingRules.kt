@@ -119,9 +119,43 @@ object HousingRules {
         }
     }
 
-    /** Superficie (cm²) delle finestre apribili verso fuori dell'ambiente, misurate sul vano del muro con la loro forma. */
+    /**
+     * Finestre e porte-finestre messe dal lato del balcone (o della terrazza) sul muro che il balcone ha in comune con la stanza:
+     * appartengono al balcone ma sono nel muro della stanza (il 3D le apre nel muro della casa) e le danno luce e aria. Portate
+     * sul muro della stanza, alla stessa posizione; le stesse regole di [windows].
+     */
+    fun fromOutdoor(plan: FloorPlan, room: Room): List<Opening> {
+        if (room.outdoor) return emptyList()
+        val out = mutableListOf<Opening>()
+        for (other in plan.rooms) {
+            if (!other.outdoor || other.id == room.id) continue
+            for (o in other.openings) {
+                val i = o.wallIndex
+                if (!o.kind.glazed || i !in 0 until other.wallCount || other.isRemoved(i) || o.phase == Phase.Demolish ||
+                    other.phaseOf(i) == Phase.Demolish || !(o.sliding || o.sash != SashType.Fixed) || o.width <= 0 || o.height <= 0
+                ) continue
+                val (a, b) = Openings.span(other, o)
+                val len = a.distanceTo(b)
+                if (len < 1e-6) continue
+                val j = (0 until room.wallCount).firstOrNull { j ->
+                    !room.isRemoved(j) && room.phaseOf(j) != Phase.Demolish && room.arcOf(j) == null &&
+                        Dimensions.overlap(a, b, room.wallStart(j), room.wallEnd(j)) >= 0.5 * len
+                } ?: continue
+                out += o.copy(wallIndex = j, position = Openings.projectOnWall(room, j, (a + b) / 2.0))
+            }
+        }
+        return out
+    }
+
+    /** Tutte le aperture che danno luce e aria alla stanza: le sue ([windows]) e quelle dal lato del balcone ([fromOutdoor]). */
+    fun lightOpenings(plan: FloorPlan, room: Room): List<Opening> = windows(plan, room) + fromOutdoor(plan, room)
+
+    /**
+     * Superficie (cm²) delle finestre apribili verso fuori dell'ambiente, misurate sul vano del muro con la loro forma (anche le
+     * porte-finestre messe dal lato del balcone).
+     */
     fun windowArea(plan: FloorPlan, space: List<Room>): Double =
-        space.sumOf { r -> windows(plan, r).sumOf { Openings.holeArea(r, it) } }
+        space.sumOf { r -> lightOpenings(plan, r).sumOf { Openings.holeArea(r, it) } }
 
     /** Pavimento (cm²) dell'ambiente, senza le zone non calpestabili: quello dei metri quadri della pianta. */
     fun floorArea(space: List<Room>): Double = space.sumOf { it.usableArea() }

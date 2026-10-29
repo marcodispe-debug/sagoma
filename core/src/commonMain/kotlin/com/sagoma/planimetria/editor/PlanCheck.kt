@@ -2042,7 +2042,7 @@ object PlanCheck {
                     if (hundredths(area) < hundredths(min)) add(Issue(Kind.SmallBedroom, floor, listOf(r.id), box, a = area / 10_000, b = min / 10_000))
                 }
                 // Bagno senza finestra apribile verso fuori: serve l'aspirazione meccanica (non se il piano non ha ancora finestre).
-                if (r.type == RoomType.Bagno && !windowless && HousingRules.windows(plan, r).isEmpty()) add(Issue(Kind.BathNoWindow, floor, listOf(r.id), box))
+                if (r.type == RoomType.Bagno && !windowless && HousingRules.lightOpenings(plan, r).isEmpty()) add(Issue(Kind.BathNoWindow, floor, listOf(r.id), box))
             }
             // Soggiorno: con la cucina a vista conta tutto l'ambiente.
             for (s in spaces) {
