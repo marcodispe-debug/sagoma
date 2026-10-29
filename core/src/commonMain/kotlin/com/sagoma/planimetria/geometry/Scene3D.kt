@@ -564,7 +564,7 @@ private class SceneBuilder(
 
     fun build(): Scene3D {
         var previous: Level? = null
-        for (level in levels) {
+        for ((index, level) in levels.withIndex()) {
             plan = level.plan
             roomBounds = plan.rooms.map { if (it.points.isEmpty()) Bounds(0.0, 0.0, -1.0, -1.0) else Polygon.bounds(it.points) }
             openingSpans = plan.rooms.map { r -> r.openings.filter { it.wallIndex < r.wallCount }.map { it to Openings.span(r, it) } }
@@ -577,7 +577,8 @@ private class SceneBuilder(
             levelHeight = level.levelHeight
             // Piano di sopra (camminando): si guarda solo dal basso, dal vano scala. Il suo pavimento non si
             // disegna (da sotto lo copre il soffitto, e con l'interpiano uguale all'altezza del soffitto starebbe
-            // alla stessa quota e sfarfallerebbe) e i suoi muri partono appena sopra il soffitto, non dentro il solaio.
+            // alla stessa quota e sfarfallerebbe) e i suoi muri scendono nel solaio solo fino a 1 cm sopra il soffitto di sotto
+            // ([bottomOver]): da fuori casa continuano i muri di sotto, senza fessura.
             // Tutto il piano di sopra 1 cm più in alto (invisibile): muri, colonne, scale e arredi non toccano il
             // piano del soffitto, altrimenti le loro facce di sotto sfarfallerebbero con lui.
             val aboveCurrent = level.base > 0
@@ -605,17 +606,21 @@ private class SceneBuilder(
                 if (ceilings && current) ceiling(room)
                 // Soffitti per la luce: del piano corrente e di quello di sopra (camminando), che è dentro casa.
                 if (current || base > 0) roof(room)
-                // Piani di sotto: chiusi in alto dal solaio (dove il piano di sopra non li copre si vede il tetto piano).
-                // Le stanze con una scala che sale restano aperte: dal vano nel pavimento di sopra si vede la scala.
-                if (!current && plan.stairs.none { Polygon.contains(room.points, it.center) }) { ceiling(room); coverSlab(room) }
-                for (i in 0 until room.wallCount) wall(room, i)
+                // Piani di sotto: chiusi in alto dal solaio (dove il piano di sopra non li copre si vede il tetto piano), anche
+                // le stanze con una scala che sale, tranne il suo vano: da lì (e dal vano nel pavimento di sopra) si vede la scala.
+                if (!current) { ceiling(room); coverSlab(room) }
+                for (i in 0 until room.wallCount) {
+                    if (aboveCurrent && previous != null) wallBottom = bottomOver(previous, room.wallStart(i), room.wallEnd(i))
+                    wall(room, i)
+                }
+                if (aboveCurrent) wallBottom = 0.0
                 for (o in room.openings) if (o.wallIndex < room.wallCount) openingModel(room, o)
                 for (f in room.fixtures) fixture(room, f)
             }
             // Vuoto della scala nel pavimento: si vede lo spessore del solaio (non nel piano di sopra visto da sotto, senza pavimento).
-            if (!aboveCurrent && previous != null && holes.isNotEmpty()) floorHoleSides()
+            if (!aboveCurrent && previous != null && holes.isNotEmpty()) floorHoleSides(previous)
             // Camminando si vede il vano scala nel soffitto: i suoi bordi nello spessore del solaio.
-            if (ceilings && current) wellSides()
+            if (ceilings && current) wellSides(levels.getOrNull(index + 1))
             for (s in plan.stairs) stair(s, level.levelHeight)
             // Colonne dal pavimento al soffitto e travi appese al soffitto.
             val plaster = Rgba(0.91f, 0.90f, 0.87f)
@@ -744,11 +749,24 @@ private class SceneBuilder(
         return hole
     }
 
-    /** Faccia superiore del solaio sopra una stanza di un piano di sotto: il tetto piano visto dall'alto. */
+    /**
+     * Faccia superiore del solaio sopra una stanza di un piano di sotto: il tetto piano visto dall'alto, senza il vano delle
+     * scale che salgono da questo piano ([holesAbove]), da cui si vede la scala.
+     */
     private fun coverSlab(room: Room) {
-        for ((pa, pb, pc) in Ceilings.triangles(room)) {
-            val lift = Vec3(0.0, base + 2.0, 0.0)
-            tri(pa + lift, pb + lift, pc + lift, Vec3.Up, slabTop, null)
+        val lift = Vec3(0.0, base + 2.0, 0.0)
+        for ((qa, qb, qc) in Ceilings.triangles(room)) {
+            val pa = qa + lift; val pb = qb + lift; val pc = qc + lift
+            if (holesAbove.isEmpty()) { tri(pa, pb, pc, Vec3.Up, slabTop, null); continue }
+            val n = ((pb - pa) cross (pc - pa)).normalized()
+            if (n.length < 0.5) continue // triangolo degenere
+            // Come per il soffitto: ogni pezzo che resta torna sul piano del triangolo (in mansarda, in pendenza).
+            val flat = listOf(Vec2(pa.x, pa.z), Vec2(pb.x, pb.z), Vec2(pc.x, pc.z))
+            fun yAt(p: Vec2) = if (abs(n.y) < 1e-9) pa.y else pa.y - (n.x * (p.x - pa.x) + n.z * (p.y - pa.z)) / n.y
+            for (poly in Clip.subtractAll(flat, holesAbove)) for (k in 1 until poly.size - 1) {
+                val a = poly[0]; val b = poly[k]; val c = poly[k + 1]
+                tri(Vec3(a.x, yAt(a), a.y), Vec3(b.x, yAt(b), b.y), Vec3(c.x, yAt(c), c.y), Vec3.Up, slabTop, null)
+            }
         }
     }
 
@@ -1349,9 +1367,10 @@ private class SceneBuilder(
 
     /**
      * Bordi del vano scala nel soffitto: fasce verticali dal soffitto della stanza fino al pavimento di sopra
-     * (lo spessore del solaio), sul contorno del vuoto (non dove due pezzi del vuoto confinano).
+     * (lo spessore del solaio), sul contorno del vuoto (non dove due pezzi del vuoto confinano). Dove sopra non c'è una stanza
+     * del piano `next` la scala esce sul tetto: il bordo si vede anche da fuori casa.
      */
-    private fun wellSides() {
+    private fun wellSides(next: Level?) {
         val plaster = slabEdge
         for ((a, b, inward) in holeEdgeRuns(holesAbove)) {
             val mid = (a + b) / 2.0
@@ -1361,21 +1380,47 @@ private class SceneBuilder(
             if (levelHeight - y0 < 1.0) continue
             val n = Vec3(inward.x, 0.0, inward.y)
             quad(a.at(y0), b.at(y0), b.at(levelHeight), a.at(levelHeight), n, plaster, null)
+            if (next == null || next.plan.rooms.none { !it.outdoor && Polygon.contains(it.points, mid) }) {
+                val out = inward * -0.4
+                quad((a + out).at(y0), (b + out).at(y0), (b + out).at(levelHeight), (a + out).at(levelHeight), n * -1.0, plaster, null)
+            }
         }
     }
 
     /**
      * Bordi del vuoto della scala nel pavimento di questo piano: lo spessore del solaio ([Floor.SLAB], da sotto il pavimento
-     * a filo del pavimento) visto dall'alto. Solo sul contorno del vuoto (mai dove due pezzi confinano) e dentro una stanza del piano.
+     * a filo del pavimento) visto dall'alto. Solo sul contorno del vuoto (mai dove due pezzi confinano); fuori dalle stanze del
+     * piano, dal tetto piano del piano di sotto al pavimento.
      */
-    private fun floorHoleSides() {
+    private fun floorHoleSides(previous: Level) {
         for ((a, b, inward) in holeEdgeRuns(holes)) {
-            if (plan.rooms.none { !it.outdoor && Polygon.contains(it.points, (a + b) / 2.0) }) continue
+            val mid = (a + b) / 2.0
             val n = Vec3(inward.x, 0.0, inward.y)
             // Appena dentro il vuoto, così non si sovrappone alla faccia di un muro contro cui sta la scala.
             val lift = inward * 0.2
-            quad((a + lift).at(-Floor.SLAB), (b + lift).at(-Floor.SLAB), (b + lift).at(0.0), (a + lift).at(0.0), n, slabEdge, null)
+            if (plan.rooms.any { !it.outdoor && Polygon.contains(it.points, mid) }) {
+                quad((a + lift).at(-Floor.SLAB), (b + lift).at(-Floor.SLAB), (b + lift).at(0.0), (a + lift).at(0.0), n, slabEdge, null)
+                continue
+            }
+            // Fuori dalle stanze di questo piano la scala esce sul tetto piano del piano di sotto, più in basso del pavimento: il
+            // bordo del vano sale dal tetto al pavimento, da dentro e da fuori, e la ringhiera attorno al vano ci sta sopra.
+            val below = Structure.roomAt(previous.plan, mid - inward * 1.0) ?: continue
+            val roof = previous.base + Ceilings.heightAt(below, mid) + 2.0 - base
+            if (roof > -0.5) continue
+            quad((a + lift).at(roof), (b + lift).at(roof), (b + lift).at(0.0), (a + lift).at(0.0), n, slabEdge, null)
+            quad((a - lift).at(roof), (b - lift).at(roof), (b - lift).at(0.0), (a - lift).at(0.0), n * -1.0, slabEdge, null)
         }
+    }
+
+    /**
+     * Piano di sopra (camminando): quota (relativa al piano) da cui parte il muro p0→p1. Scende nel solaio fino a 1 cm sopra il
+     * soffitto più alto del piano di sotto lungo il muro: da fuori continua il muro di sotto senza una fessura (da cui si
+     * vedrebbe dentro il piano di sopra, che lì non ha pavimento), e dentro casa resta nascosto sopra il soffitto.
+     */
+    private fun bottomOver(previous: Level, p0: Vec2, p1: Vec2): Double {
+        val steps = max(1, (p0.distanceTo(p1) / 50.0).toInt() + 1)
+        val top = (0..steps).maxOf { k -> Structure.ceilingAt(previous.plan, p0 + (p1 - p0) * (k.toDouble() / steps), previous.levelHeight) }
+        return min(0.0, previous.base + top + 1.0 - base)
     }
 
     // ---------- Muri con i varchi ----------
