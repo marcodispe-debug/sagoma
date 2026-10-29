@@ -199,6 +199,7 @@ private fun ColumnPanel(sel: Selection.Column, plan: FloorPlan, vm: EditorViewMo
         DuplicateButton(vm)
         TextButton(onClick = { vm.removeColumn(c.id) }) { Text(T.comuni.rimuovi, color = MaterialTheme.colorScheme.error) }
     }
+    WallGapsInfo(sel, plan, vm, levelHeight)
     ModelPicker(T.comuni.forma, ColumnShape.entries, c.shape, { it.label }, { v -> update { it.copy(shape = v) } }) { columnPreview(it) }
     Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (c.shape == ColumnShape.Round) {
@@ -299,6 +300,7 @@ private fun FurniturePanel(sel: Selection.Furniture, plan: FloorPlan, vm: Editor
                 NumberField(T.comuni.profondita, f.depth, Modifier.weight(1f)) { v -> if (v >= 5) update { it.copy(depth = v) } }
                 NumberField(T.comuni.altezza, f.height, Modifier.weight(1f)) { v -> if (v >= 1) update { it.copy(height = v) } }
             }
+            WallGapsInfo(sel, plan, vm, levelHeight)
             Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 NumberField(T.comuni.daTerra, f.elevation, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(elevation = v) } }
                 NumberField(T.comuni.rotazione, f.rotation, Modifier.weight(1f), allowZero = true, suffix = "°") { v -> update { it.copy(rotation = ((v % 360) + 360) % 360) } }
@@ -469,6 +471,7 @@ private fun StairPanel(sel: Selection.Stair, plan: FloorPlan, vm: EditorViewMode
     }, tabs = listOf(
         // Forma: tipo, verso, larghezza, pedata (o diametro della chiocciola), rotazione.
         InfoTab("forma", T.schedaStanza.schedaForma) {
+            WallGapsInfo(sel, plan, vm, levelHeight)
             ModelPicker(
                 T.comuni.tipo,
                 listOf(StairKind.Straight, StairKind.StraightLanding, StairKind.LTurn, StairKind.LWinder, StairKind.UTurn, StairKind.Spiral),
@@ -842,6 +845,7 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
                     NumberField(T.comuni.daTerra, o.sillHeight, Modifier.weight(1f), allowZero = true) { v -> update { it.copy(sillHeight = v) } }
                 }
             }
+            WallGapsInfo(sel, plan, vm, Floor.DEFAULT_LEVEL_HEIGHT)
             // Finestre e balconi non scorrevoli: rettangolari, ad arco o (finestre) tonde.
             if (o.kind.glazed && !o.sliding) Row(Modifier.padding(end = 8.dp)) {
                 val shapes = WindowShape.entries.filter { it != WindowShape.Round || o.kind.isWindow }
@@ -1005,6 +1009,7 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
         DuplicateButton(vm)
         TextButton(onClick = { vm.removeFixture(room.id, f.id) }) { Text(T.comuni.rimuovi, color = MaterialTheme.colorScheme.error) }
     }
+    WallGapsInfo(sel, plan, vm, Floor.DEFAULT_LEVEL_HEIGHT)
     Collisions.of(plan).firstOrNull { it.roomId == room.id && it.fixtureId == f.id }?.let { CollisionWarning(it) }
     Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         when (f.kind) {

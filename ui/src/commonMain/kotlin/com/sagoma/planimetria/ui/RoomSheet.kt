@@ -581,12 +581,14 @@ private fun SectionTitle(text: String) {
  * muri, dove applicare ogni cifra digitata deformerebbe la stanza mentre si scrive.
  */
 @Composable
-internal fun CommitNumberField(label: String, value: Double, modifier: Modifier, onCommit: (Double) -> Unit) {
+internal fun CommitNumberField(label: String, value: Double, modifier: Modifier, allowZero: Boolean = false, onCommit: (Double) -> Unit) {
     val focusManager = LocalFocusManager.current
     var text by remember(value) { mutableStateOf(formatCm(value)) }
     var focused by remember { mutableStateOf(false) }
+    // Distanze dai muri: anche 0 (oggetto contro il muro).
+    fun parse(t: String) = if (allowZero) parseNumber(t)?.takeIf { it >= 0 } else parsePositive(t)
     fun commit() {
-        val v = parsePositive(text)
+        val v = parse(text)
         if (v != null && formatCm(v) != formatCm(value)) onCommit(v) else text = formatCm(value)
     }
     SelectAllTextField(
@@ -595,7 +597,7 @@ internal fun CommitNumberField(label: String, value: Double, modifier: Modifier,
         label = label,
         numeric = true,
         suffix = "cm",
-        isError = parsePositive(text) == null,
+        isError = parse(text) == null,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { commit(); focusManager.clearFocus() }),
         modifier = modifier.onFocusChanged {
