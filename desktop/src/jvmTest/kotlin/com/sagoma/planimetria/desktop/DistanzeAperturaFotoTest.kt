@@ -11,7 +11,6 @@ import com.sagoma.planimetria.editor.Tip
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.geometry.MeasureTarget
 import com.sagoma.planimetria.geometry.RoomFactory
-import com.sagoma.planimetria.geometry.WallDistances
 import com.sagoma.planimetria.geometry.WallSide
 import com.sagoma.planimetria.model.Column
 import com.sagoma.planimetria.model.Building
@@ -103,14 +102,12 @@ class DistanzeAperturaFotoTest {
                 vm.toggleWallGaps()
                 shot("colonna-distanze")
                 // Scritta una distanza: 100 cm dal muro a sinistra.
-                val left = WallDistances.of(vm.state.value.plan, MeasureTarget.Column(1), vm.state.value.levelHeight).first { it.side == WallSide.Left }
-                vm.setWallDistance(DragTarget.Column(1), left, 100.0)
+                vm.setWallDistance(DragTarget.Column(1), MeasureTarget.Column(1), WallSide.Left, 100.0)
                 shot("colonna-100-da-sinistra")
                 // La finestra: i due angoli e «Al centro del muro».
                 vm.selectOpening(1, 1)
                 shot("finestra-distanze")
-                val gaps = WallDistances.of(vm.state.value.plan, MeasureTarget.Opening(1, 1), vm.state.value.levelHeight)
-                vm.setWallDistance(DragTarget.Opening(1, 1), gaps[0], (gaps[0].distance + gaps[1].distance) / 2)
+                vm.centerOnWall(DragTarget.Opening(1, 1), MeasureTarget.Opening(1, 1))
                 shot("finestra-al-centro")
                 // Colonna fuori casa: distanze dalla faccia esterna dei muri vicini.
                 vm.selectColumn(2)

@@ -2222,12 +2222,22 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
 
     /**
      * Distanza da un muro scritta nella scheda: l'oggetto si sposta verso quel muro (o se ne allontana) finché è `value` cm,
-     * senza agganci, con un solo passo di «Annulla».
+     * senza agganci, con un solo passo di «Annulla». La distanza di adesso si rimisura qui, così scrivere due volte lo stesso
+     * numero (Invio e poi uscita dal campo) non sposta di nuovo l'oggetto.
      */
-    fun setWallDistance(target: DragTarget, d: com.sagoma.planimetria.geometry.WallDistance, value: Double) {
+    fun setWallDistance(target: DragTarget, measure: com.sagoma.planimetria.geometry.MeasureTarget, side: com.sagoma.planimetria.geometry.WallSide, value: Double) {
         if (value < 0) return
+        val d = com.sagoma.planimetria.geometry.WallDistances.of(_state.value.plan, measure, _state.value.levelHeight).firstOrNull { it.side == side } ?: return
+        if (kotlin.math.abs(d.distance - value) < 1e-6) return
         nudge(target, d.toward * (d.distance - value))
         endNudge()
+    }
+
+    /** «⟷ Al centro del muro»: porta o finestra alla stessa distanza dai due angoli. */
+    fun centerOnWall(target: DragTarget, measure: com.sagoma.planimetria.geometry.MeasureTarget) {
+        val gaps = com.sagoma.planimetria.geometry.WallDistances.of(_state.value.plan, measure, _state.value.levelHeight)
+        if (gaps.size != 2) return
+        setWallDistance(target, measure, gaps[0].side, (gaps[0].distance + gaps[1].distance) / 2)
     }
 
     /** Spostamento con la tastiera in corso: quanto (cm) dall'inizio; null se non c'è. */

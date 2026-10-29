@@ -55,23 +55,40 @@ object WallDistances {
         val c = b.center
         // Dentro una stanza: il filo interno dei suoi muri; fuori casa: il filo esterno di tutte le stanze. Muri singoli sempre.
         val room = roomAt(plan, c)
+        // Un muro singolo su cui l'oggetto è appoggiato non conta: si misura dai muri che ha intorno.
         val outlines = (room?.let { listOf(it.interiorOutline()) } ?: plan.rooms.filter { it.wallCount >= 3 }.map { it.exteriorOutline() }) +
-            plan.freeWalls.map { Structure.outline(it) }
+            plan.freeWalls.map { Structure.outline(it) }.filterNot { overlaps(it, b) }
         return directions.mapNotNull { (side, d) ->
-            val hit = outlines.mapNotNull { rayHit(it, c, d) }.minOrNull() ?: return@mapNotNull null
             // Bordo dell'oggetto verso quel muro: il suo punto più sporgente da quella parte.
             val reach = pts.maxOf { (it - c) dot d }
+            // Solo i muri oltre il bordo: un oggetto appoggiato sopra un muro non misura da quello che ha sotto, così
+            // scrivendo una distanza la si ottiene esatta (il muro da cui si misura non cambia spostandolo).
+            val hit = outlines.mapNotNull { rayHit(it, c, d, reach - 1e-6) }.minOrNull() ?: return@mapNotNull null
             val from = c + d * reach
             WallDistance(side, from, c + d * hit, (hit - reach).coerceAtLeast(0.0), d)
         }
+    }
+
+    /** Il contorno tocca il rettangolo (un vertice dentro l'altro o lati che si incrociano). */
+    private fun overlaps(outline: List<Vec2>, b: Bounds): Boolean {
+        val box = listOf(Vec2(b.minX, b.minY), Vec2(b.maxX, b.minY), Vec2(b.maxX, b.maxY), Vec2(b.minX, b.maxY))
+        if (outline.any { Polygon.contains(box, it) } || box.any { Polygon.contains(outline, it) }) return true
+        return outline.indices.any { i -> box.indices.any { j ->
+            segmentsIntersect(outline[i], outline[(i + 1) % outline.size], box[j], box[(j + 1) % 4])
+        } }
+    }
+
+    private fun segmentsIntersect(a: Vec2, b: Vec2, c: Vec2, d: Vec2): Boolean {
+        fun o(p: Vec2, q: Vec2, r: Vec2) = (q - p).cross(r - p)
+        return (o(c, d, a) > 0) != (o(c, d, b) > 0) && (o(a, b, c) > 0) != (o(a, b, d) > 0)
     }
 
     /** Stanza che contiene il punto, la più piccola se più di una. */
     private fun roomAt(plan: FloorPlan, p: Vec2): Room? =
         plan.rooms.filter { it.wallCount >= 3 && Polygon.contains(it.interiorOutline(), p) }.minByOrNull { abs(Polygon.signedArea(it.points)) }
 
-    /** Distanza dal punto `c`, lungo `d` (unitario), al primo lato del contorno; null se non ne incontra. */
-    private fun rayHit(outline: List<Vec2>, c: Vec2, d: Vec2): Double? {
+    /** Distanza dal punto `c`, lungo `d` (unitario), al primo lato del contorno oltre `minT`; null se non ne incontra. */
+    private fun rayHit(outline: List<Vec2>, c: Vec2, d: Vec2, minT: Double): Double? {
         var best: Double? = null
         for (i in outline.indices) {
             val a = outline[i]
@@ -81,7 +98,7 @@ object WallDistances {
             val w = a - c
             val t = (w.x * e.y - w.y * e.x) / den
             val s = (w.x * d.y - w.y * d.x) / den
-            if (t > 1e-6 && s in -1e-9..1.0 + 1e-9 && (best == null || t < best)) best = t
+            if (t > maxOf(minT, 1e-6) && s in -1e-9..1.0 + 1e-9 && (best == null || t < best)) best = t
         }
         return best
     }

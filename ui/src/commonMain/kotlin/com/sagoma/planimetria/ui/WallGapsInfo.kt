@@ -10,6 +10,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -35,10 +36,13 @@ internal fun WallGapsInfo(sel: Selection, plan: FloorPlan, vm: EditorViewModel, 
         OutlinedButton(onClick = vm::toggleWallGaps) { Text(if (on) T.schedaStanza.nascondiDistanzeDaiMuri else T.schedaStanza.distanzeDaiMuri) }
         if (!on) return@Column
         val gaps = WallDistances.of(plan, target, levelHeight).sortedBy { it.side.ordinal }
+        // Un campo per lato (key): fuori casa i lati con un muro possono cambiare spostando l'oggetto.
         for (row in gaps.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (g in row) CommitNumberField(sideLabel(g.side), g.distance, Modifier.weight(1f), allowZero = true) { v -> vm.setWallDistance(drag, g, v) }
+            for (g in row) key(g.side) {
+                CommitNumberField(sideLabel(g.side), g.distance, Modifier.weight(1f), allowZero = true) { v -> vm.setWallDistance(drag, target, g.side, v) }
+            }
         }
-        if (sel is Selection.Opening && gaps.size == 2) TextButton(onClick = { vm.setWallDistance(drag, gaps[0], (gaps[0].distance + gaps[1].distance) / 2) }) {
+        if (sel is Selection.Opening && gaps.size == 2) TextButton(onClick = { vm.centerOnWall(drag, target) }) {
             Text(T.schedaStanza.alCentroDelMuro)
         }
     }
