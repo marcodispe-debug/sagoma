@@ -6,6 +6,7 @@ import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Stair
 import com.sagoma.planimetria.model.StairKind
+import com.sagoma.planimetria.model.StairRailing
 import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
 import kotlin.test.Test
@@ -79,9 +80,13 @@ class RoofOverStairTest {
         assertTrue(well.none { Polygon.contains(it, open) } && !Polygon.contains(upper.rooms[0].points, open))
         assertTrue(roofed(open), "stanza della scala aperta in alto: ${upAt(scene, open)}")
         assertTrue(roofed(Vec2(950.0, 300.0)), "camera accanto")
-        // Sopra la scala il vano resta aperto: dall'alto si vede la scala.
-        val inWell = well.first().let { pts -> pts.reduce { a, b -> a + b } / pts.size.toDouble() }
-        assertTrue(!roofed(inWell), "vano della scala chiuso")
+        // La scala sta tutta fuori dalla stanza di sopra: il tetto la copre, aperto solo sopra gli ultimi gradini, che lo
+        // attraverserebbero.
+        val l = Stairs.layout(stair, 300.0)
+        fun center(st: Stairs.Step) = st.polygon.reduce { a, b -> a + b } / st.polygon.size.toDouble()
+        assertTrue(roofed(center(l.steps.first())), "primi gradini senza tetto")
+        assertTrue(!roofed(center(l.steps.last())), "ultimo gradino sotto il tetto")
+        assertTrue(well.isNotEmpty())
     }
 
     @Test
@@ -112,5 +117,27 @@ class RoofOverStairTest {
         // Dentro il soggiorno, appena sotto il soffitto: il muro di sopra non sporge sotto il soffitto.
         val inside = firstHit(scene, Vec3(250.0, 265.0, 500.0), Vec3(0.0, 0.0, -1.0))
         assertTrue(inside != null && inside > 450.0, "muro di sopra sotto il soffitto: $inside")
+    }
+
+    @Test
+    fun `vano e ringhiera solo dentro la stanza di sopra`() {
+        // Foto di Marco: il vano della scala usciva dalla stanza di sopra e la sua ringhiera stava fuori, sul tetto. Ora la stanza
+        // di sopra copre solo la metà della scala verso l'arrivo: l'altra metà resta sotto il tetto, senza ringhiera.
+        val s = Stair(1, StairKind.Straight, Vec2(400.0, 300.0), wellRailing = StairRailing.Metal)
+        val l = Stairs.layout(s, 300.0)
+        val start = l.path.first()
+        val end = l.path.last()
+        assertTrue(end.y < start.y, "la scala sale verso y più piccole: ${l.path}")
+        val midY = (start.y + end.y) / 2
+        val down = FloorPlan(listOf(room(1, 800.0, 600.0)), stairs = listOf(s))
+        val up = FloorPlan(listOf(room(3, 800.0, midY)))
+        val scene = Scene3D.build(up, null, null, ceilings = false, levelHeight = 300.0, below = listOf(Floor(1, "Terra", down, 300.0)))
+        val side = l.bounds.minX
+        // Ringhiera (chi cammina si ferma) lungo il lato del vano dentro la stanza, non fuori.
+        assertTrue(scene.blocked(Vec2(side, (end.y + midY) / 2), 5.0), "ringhiera dentro la stanza")
+        assertTrue(!scene.blocked(Vec2(side, (start.y + midY) / 2 + 20.0), 5.0), "ringhiera fuori dalla stanza, sul tetto")
+        // Fuori dalla stanza sopra i primi gradini il tetto è chiuso.
+        val lid = -300.0 + 270.0 + 2.0
+        assertTrue(upAt(scene, Vec2(400.0, (start.y + midY) / 2 + 20.0)).any { abs(it - lid) < 0.5 }, "vano aperto fuori dalla stanza")
     }
 }

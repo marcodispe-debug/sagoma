@@ -571,9 +571,9 @@ private class SceneBuilder(
             expanded = level.expanded
             base = level.base
             current = level.current
-            holes = previous?.let { p -> p.plan.stairs.flatMap { Stairs.well(it, p.levelHeight) } }.orEmpty()
+            holes = previous?.let { p -> stairWells(p, plan) }.orEmpty()
             // Vuoto nel soffitto sopra le scale di questo piano che salgono (lo stesso del pavimento di sopra).
-            holesAbove = plan.stairs.flatMap { Stairs.well(it, level.levelHeight) }
+            holesAbove = stairWells(level, levels.getOrNull(index + 1)?.plan)
             levelHeight = level.levelHeight
             // Piano di sopra (camminando): si guarda solo dal basso, dal vano scala. Il suo pavimento non si
             // disegna (da sotto lo copre il soffitto, e con l'interpiano uguale all'altezza del soffitto starebbe
@@ -674,11 +674,11 @@ private class SceneBuilder(
                 pickBox(outline, f.elevation, f.elevation + f.height, pick)
                 if (f.elevation < 60 && f.elevation + f.height > 40) for (k in outline.indices) obstacles += Obstacle(outline[k], outline[(k + 1) % outline.size])
             }
-            // Ringhiere attorno ai vani delle scale che salgono dal piano di sotto.
+            // Ringhiere attorno ai vani delle scale che salgono dal piano di sotto: solo dentro le stanze di questo piano (fuori c'è il tetto).
             previous?.let { p ->
                 val walls = Structure.wallLines(plan)
                 for (s in p.plan.stairs) if (s.wellRailing != StairRailing.None) {
-                    for ((a, b) in Stairs.wellRailingRunsAlong(s, p.levelHeight, walls)) {
+                    for ((a, b) in insideRooms(Stairs.wellRailingRunsAlong(s, p.levelHeight, walls))) {
                         wellRail(a, b, s.wellRailing, Pick.StairWell(s.id))
                         if (current) obstacles += Obstacle(a, b)
                     }
@@ -920,8 +920,13 @@ private class SceneBuilder(
         }
         // Tagliata dal solaio (a scelta): niente sopra la faccia inferiore del solaio, cioè sotto lo spessore di [Floor.SLAB]
         // che sta tra il soffitto e il pavimento del piano di sopra (non a filo del pavimento, che è la faccia superiore).
-        val cap = if (s.railingAboveFloor) Double.MAX_VALUE else rise - Floor.SLAB
+        val fullCap = if (s.railingAboveFloor) Double.MAX_VALUE else rise - Floor.SLAB
         for ((a, b, st) in runs) {
+            // Fuori dal vano (la scala esce dalle stanze del piano di sopra, lì c'è il soffitto): niente sopra il soffitto.
+            val mid = (a + b) / 2.0
+            val inside = st.polygon.reduce { p, q -> p + q } / st.polygon.size.toDouble()
+            val probe = mid + (inside - mid).normalized() * 2.0
+            val cap = if (holesAbove.any { Polygon.contains(it, probe) }) fullCap else min(fullCap, Structure.ceilingAt(plan, probe, rise) - 3.0)
             if (st.top >= cap) continue
             val ha = railAt(a)
             val hb = railAt(b)
@@ -1410,6 +1415,51 @@ private class SceneBuilder(
             quad((a + lift).at(roof), (b + lift).at(roof), (b + lift).at(0.0), (a + lift).at(0.0), n, slabEdge, null)
             quad((a - lift).at(roof), (b - lift).at(roof), (b - lift).at(0.0), (a - lift).at(0.0), n * -1.0, slabEdge, null)
         }
+    }
+
+    /**
+     * Vuoto nel solaio sopra le scale del piano `lower`: dove sopra c'è una stanza del piano `upper` (anche un balcone o una
+     * terrazza). Fuori dalle sue stanze sopra la scala c'è il tetto piano del piano di sotto: resta aperto solo sopra i gradini che
+     * lo attraverserebbero (il corrimano lì sotto si ferma sotto il soffitto, vedi [railing]). Senza il piano di sopra nella scena il
+     * vuoto resta tutto.
+     */
+    private fun stairWells(lower: Level, upper: FloorPlan?): List<List<Vec2>> {
+        if (upper == null) return lower.plan.stairs.flatMap { Stairs.well(it, lower.levelHeight) }
+        val cover = upper.rooms.filter { it.points.size >= 3 }.flatMap { r ->
+            Triangulation.triangulate(r.points).map { (a, b, c) -> listOf(r.points[a], r.points[b], r.points[c]) }
+        }
+        val out = mutableListOf<List<Vec2>>()
+        for (s in lower.plan.stairs) {
+            val l = Stairs.layout(s, lower.levelHeight)
+            for (piece in Stairs.well(s, lower.levelHeight, l)) {
+                for (t in cover) Clip.intersect(piece, t)?.let { out += it }
+                for (st in l.steps) {
+                    val center = st.polygon.reduce { a, b -> a + b } / st.polygon.size.toDouble()
+                    if (st.top + 5.0 < Structure.ceilingAt(lower.plan, center, lower.levelHeight)) continue
+                    val part = Clip.intersect(piece, st.polygon) ?: continue
+                    out += Clip.subtractAll(part, cover)
+                }
+            }
+        }
+        return out
+    }
+
+    /** I tratti `runs` (ringhiere) solo dove stanno dentro una stanza del piano (pavimento sotto), a pezzi di 10 cm. */
+    private fun insideRooms(runs: List<Pair<Vec2, Vec2>>): List<Pair<Vec2, Vec2>> {
+        val out = mutableListOf<Pair<Vec2, Vec2>>()
+        for ((a, b) in runs) {
+            val n = (a.distanceTo(b) / 10.0).toInt().coerceIn(1, 2000)
+            var start: Vec2? = null
+            for (k in 0 until n) {
+                val p0 = a + (b - a) * (k.toDouble() / n)
+                val p1 = a + (b - a) * ((k + 1).toDouble() / n)
+                val inside = plan.rooms.any { it.points.size >= 3 && Polygon.contains(it.points, (p0 + p1) / 2.0) }
+                if (inside && start == null) start = p0
+                if (!inside && start != null) { out += start to p0; start = null }
+            }
+            if (start != null) out += start to b
+        }
+        return out
     }
 
     /**
