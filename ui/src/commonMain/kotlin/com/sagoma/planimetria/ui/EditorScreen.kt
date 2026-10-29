@@ -1192,8 +1192,8 @@ private fun FixtureButton(
 }
 
 /**
- * Le voci di «Luci»: se il catalogo ha dei modelli di quella luce (lampadari, plafoniere, applique, fari) si apre la scelta
- * ([LightPickerDialog]), altrimenti (faretti, neon, strisce LED, o senza arredi) si mette subito il punto luce.
+ * Le voci di «Luci»: se il catalogo ha dei modelli di quella luce (lampadari, plafoniere, applique, fari) si aprono gli arredi con
+ * quei modelli già scelti ([LightPickerDialog]), altrimenti (faretti, neon, strisce LED, o senza arredi) si mette subito il punto luce.
  */
 @Composable
 private fun rememberLightChoice(vm: EditorViewModel): (FixtureKind) -> () -> Unit {
