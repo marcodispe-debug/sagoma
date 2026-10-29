@@ -134,7 +134,7 @@ object PdfExport {
             drawPlan(state, measurer, background = Color.White)
             // Solo i livelli visibili (es. tavola senza arredi per il Comune).
             if (shown(com.sagoma.planimetria.model.Layer.Structure)) for (s in plan.stairs) drawStair(s, fl.levelHeight, cam, measurer, selected = false)
-            if (shown(com.sagoma.planimetria.model.Layer.Furniture)) drawFurniture(plan.furniture, cam, null)
+            if (shown(com.sagoma.planimetria.model.Layer.Furniture)) drawFurniture(plan.furniture, cam, null, plan.supplied)
             if (shown(com.sagoma.planimetria.model.Layer.Structure)) drawStructures(plan, cam, measurer)
             val pad = 8.dp.toPx()
             val labels = measureRoomLabels(plan, measurer) { true }

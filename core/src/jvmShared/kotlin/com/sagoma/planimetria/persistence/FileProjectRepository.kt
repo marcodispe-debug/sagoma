@@ -17,6 +17,9 @@ import java.util.zip.ZipOutputStream
  * la casa in `planimetria.json` e l'eventuale pianta di sfondo) e l'elenco in `projects/index.json`.
  * Alla prima apertura la casa della versione precedente (un solo file) diventa il primo progetto.
  */
+/** File della casa nella cartella del progetto. */
+private const val PLAN = "planimetria.json"
+
 class FileProjectRepository(private val root: File) : ProjectRepository {
     private val dir = File(root, "projects").also { it.mkdirs() }
     private val index = File(dir, "index.json")
@@ -152,9 +155,12 @@ class FileProjectRepository(private val root: File) : ProjectRepository {
             zip.putNextEntry(ZipEntry("progetto.json"))
             zip.write(json.encodeToString(ProjectInfo.serializer(), p).toByteArray())
             zip.closeEntry()
-            folder(id).listFiles()?.filter { it.isFile && !it.name.endsWith(".tmp") }?.forEach { f ->
+            // La casa senza la forma degli oggetti forniti (la cucina del negozio non si deve poter estrarre); fuori le copie
+            // della casa messe da parte.
+            folder(id).listFiles()?.filter { it.isFile && !it.name.endsWith(".tmp") && (it.name == PLAN || !it.name.startsWith("planimetria.")) }?.forEach { f ->
                 zip.putNextEntry(ZipEntry("file/" + f.name))
-                f.inputStream().use { it.copyTo(zip) }
+                if (f.name == PLAN) zip.write(PlanJson.encodeForSharing(f.readText()).toByteArray())
+                else f.inputStream().use { it.copyTo(zip) }
                 zip.closeEntry()
             }
         }

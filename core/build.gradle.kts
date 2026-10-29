@@ -174,6 +174,23 @@ tasks.register<Test>("realDataQuality") {
     outputs.upToDateWhen { false }
 }
 
+// Scambio IFC (prove senza app): esporta un progetto .sagoma in .ifc, o rilegge un .ifc (e con -Porig rimette gli arredi).
+//   ./gradlew :core:ifc -Pin=<progetto.sagoma> [-Pout=<casa.ifc>]
+//   ./gradlew :core:ifc -Pin=<casa.ifc> [-Porig=<progetto.sagoma>] [-Pout=<planimetria.json>]
+tasks.register<JavaExec>("ifc") {
+    group = "application"
+    description = "Esporta un progetto in IFC o rilegge un file IFC (-Pin=… [-Pout=…] [-Porig=…])."
+    val jvmMain = kotlin.targets.getByName("jvm").compilations.getByName("main")
+    dependsOn("jvmMainClasses")
+    classpath = files(jvmMain.output.allOutputs, jvmMain.runtimeDependencyFiles)
+    mainClass.set("com.sagoma.planimetria.ifc.IfcCli")
+    args = listOf(
+        providers.gradleProperty("in").orNull ?: "",
+        providers.gradleProperty("out").orNull ?: "",
+        providers.gradleProperty("orig").orNull ?: "",
+    )
+}
+
 // Piantina letta (prove senza server): dalla lettura JSON e dall'immagine della piantina a un progetto .sagoma da importare.
 //   ./gradlew :core:readPlan -Preading=<lettura.json> -Pimage=<piantina.jpg> -Pout=<progetto.sagoma> [-Pname=<nome>]
 tasks.register<JavaExec>("readPlan") {
