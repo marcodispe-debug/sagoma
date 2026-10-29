@@ -231,6 +231,13 @@ data class Opening(
     val sillFloorMaterial: String? = null,
     /** Vetro satinato: fa passare la luce ma non la vista (es. la finestra del bagno, la porta a vetri del bagno). */
     val frosted: Boolean = false,
+    /**
+     * Porte: finitura dell'anta (e del coprifilo) con un materiale in foto del catalogo ([MaterialCatalog.Item.id], es. un legno),
+     * al posto del colore. null = il colore, come nei progetti fatti prima.
+     */
+    val doorMaterial: String? = null,
+    /** Verso e misura della foto di [doorMaterial] sull'anta, come per il pavimento. */
+    val doorMaterialLayout: MaterialLayout = MaterialLayout(),
 ) {
     /** Colore effettivo di anta e telaio. */
     val finish: Finish get() = color ?: if (kind.glazed || isGarage) Finish.White else Finish.Oak
@@ -264,6 +271,10 @@ data class Opening(
     }
     /** Vetro satinato che si vede ([frosted] dove c'è un vetro trasparente). */
     val hasFrostedGlass: Boolean get() = frosted && hasClearGlass
+    /** Porta che può avere la finitura in foto ([doorMaterial]): tutte, anche quelle da garage, tranne la porta tutto vetro. */
+    val canHaveDoorMaterial: Boolean get() = kind.hasLeaves && !kind.glazed && (isGarage || doorModel != DoorModel.AllGlass)
+    /** La finitura in foto che si vede: [doorMaterial] dove la porta la può avere. */
+    val doorFinish: String? get() = doorMaterial?.takeIf { canHaveDoorMaterial }
     /** Tenda da sole: finestre e balconi, non sul bovindo (ha il suo tettuccio) né sul vetromattone. */
     val hasAwning: Boolean get() = awning && kind.glazed && !isBay && !isGlassBlock
     /** Porta da garage effettiva: solo porte non scorrevoli, a libro o a bilico. */
@@ -299,7 +310,7 @@ data class Opening(
         frosted = from.frosted,
     ).withWindowModel(from.windowModel) else copy(
         doorModel = from.doorModel, color = from.color, customColor = from.customColor, frameless = from.frameless, sillMaterial = from.sillMaterial, sillFloorMaterial = from.sillFloorMaterial,
-        frosted = from.frosted,
+        frosted = from.frosted, doorMaterial = from.doorMaterial, doorMaterialLayout = from.doorMaterialLayout,
     )
 
     /**
@@ -1187,6 +1198,11 @@ data class Building(
      * [MIN_LAMP_BRIGHTNESS] a [MAX_LAMP_BRIGHTNESS].
      */
     val lampBrightness: Double = 1.0,
+    /**
+     * Problemi di «Controlla la pianta» il cui «!» è stato tolto dalla pianta (restano nell'elenco e si possono rimettere): le
+     * chiavi di [com.sagoma.planimetria.editor.PlanCheck.hideKey].
+     */
+    val hiddenChecks: Set<String> = emptySet(),
 ) {
     init {
         require(floors.isNotEmpty()) { "Serve almeno un piano" }

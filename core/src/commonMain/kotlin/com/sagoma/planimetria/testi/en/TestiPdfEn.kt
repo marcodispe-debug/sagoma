@@ -4,6 +4,7 @@ import com.sagoma.planimetria.testi.TestiPdf
 
 object TestiPdfEn : TestiPdf() {
     override fun pianta(p1: Any?): String = "Plan, $p1"
+    override val livelliDxf: List<String> get() = listOf("WALLS", "WALL_FILL", "DOORS_WINDOWS", "SWINGS", "ROOMS", "TEXT", "STAIRS", "COLUMNS", "RAILINGS", "WALL_LENGTHS", "DIMENSIONS", "NOTES")
     override val progetto: String get() = "PROJECT"
     override val progetto2: String get() = "Project"
     override val cliente: String get() = "CLIENT"

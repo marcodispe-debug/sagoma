@@ -153,12 +153,14 @@ fun SelectionPanel(
     levelHeight: Double = Floor.DEFAULT_LEVEL_HEIGHT,
     planBelow: FloorPlan? = null,
     levelHeightBelow: Double = levelHeight,
+    /** Pianta del piano di sopra (null all'ultimo piano): serve per l'altezza libera sopra le scale. */
+    planAbove: FloorPlan? = null,
 ) {
     // Muri, porte e finestre, scale, muri singoli e arredi: divisi in schede come la stanza (parte fissa in alto e schede).
     when (selection) {
         is Selection.Wall -> return WallPanel(selection, plan, vm, modifier)
         is Selection.Opening -> return OpeningPanel(selection, plan, vm, modifier)
-        is Selection.Stair -> return StairPanel(selection, plan, vm, levelHeight, modifier)
+        is Selection.Stair -> return StairPanel(selection, plan, vm, levelHeight, planAbove, modifier)
         is Selection.FreeWall -> return FreeWallPanel(selection, plan, vm, levelHeight, modifier)
         is Selection.Furniture -> return FurniturePanel(selection, plan, vm, levelHeight, modifier)
         else -> Unit
@@ -183,7 +185,7 @@ fun SelectionPanel(
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(end = 8.dp),
                 )
-                WellRailingPicker(s, levelHeightBelow) { vm.updateStairBelow(it) }
+                WellRailingPicker(s, levelHeightBelow, planBelow, plan) { vm.updateStairBelow(it) }
             }
         }
     }
@@ -392,10 +394,11 @@ private fun BeamPanel(sel: Selection.Beam, plan: FloorPlan, vm: EditorViewModel,
 
 /**
  * Pavimento del piano di sopra sopra i primi gradini (e il pianerottolo): il vuoto nel solaio si accorcia.
- * Mostra l'altezza libera sopra l'ultimo gradino coperto, con l'avviso se è meno di 2 m.
+ * Mostra l'altezza libera sopra l'ultimo gradino coperto, con l'avviso se è meno di 2 m; se la scala esce dalle stanze del piano
+ * di sopra (`upper`) e lì il tetto è più basso, l'altezza sotto il tetto ([Stairs.headroomUnder]).
  */
 @Composable
-private fun CoveredStepsPicker(s: Stair, rise: Double, onChange: (Stair) -> Unit) {
+private fun CoveredStepsPicker(s: Stair, rise: Double, lower: FloorPlan, upper: FloorPlan?, onChange: (Stair) -> Unit) {
     val l = remember(s, rise) { Stairs.layout(s, rise) }
     val max = Stairs.maxCovered(l)
     if (max == 0) return
@@ -418,10 +421,12 @@ private fun CoveredStepsPicker(s: Stair, rise: Double, onChange: (Stair) -> Unit
     if (landing != null && k != landing + 1) {
         TextButton(onClick = { onChange(s.copy(coveredSteps = landing + 1)) }) { Text(T.pannelli.copriFinoPianerottolo) }
     }
-    Stairs.headroom(s, rise, Floor.SLAB)?.let { h ->
+    val under = remember(s, rise, lower, upper) { upper?.let { Stairs.headroomUnder(s, rise, Floor.SLAB, lower, it) } }
+    val roof = under?.takeIf { it.underRoof }
+    (roof?.height ?: Stairs.headroom(s, rise, Floor.SLAB))?.let { h ->
         val low = h < Stairs.MIN_HEADROOM
         Text(
-            T.pannelli.altezzaLiberaSopraUltimo(formatCm(h)) +
+            (if (roof != null) T.pannelli.altezzaLiberaSottoTetto(formatCm(h)) else T.pannelli.altezzaLiberaSopraUltimo(formatCm(h))) +
                 if (low) T.pannelli.troppoBassaServonoAlmeno(formatCm(Stairs.MIN_HEADROOM)) else "",
             style = MaterialTheme.typography.bodySmall,
             color = if (low) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -434,8 +439,8 @@ private fun CoveredStepsPicker(s: Stair, rise: Double, onChange: (Stair) -> Unit
  * attorno al vano scala. Si sceglie sia dalla scala sia dal suo vano al piano di sopra.
  */
 @Composable
-private fun WellRailingPicker(s: Stair, rise: Double, onChange: (Stair) -> Unit) {
-    CoveredStepsPicker(s, rise, onChange)
+private fun WellRailingPicker(s: Stair, rise: Double, lower: FloorPlan, upper: FloorPlan?, onChange: (Stair) -> Unit) {
+    CoveredStepsPicker(s, rise, lower, upper, onChange)
     if (s.railing != StairRailing.None) {
         Choice(
             T.pannelli.ringhieraScalaPianoSopra,
@@ -454,7 +459,7 @@ private fun WellRailingPicker(s: Stair, rise: Double, onChange: (Stair) -> Unit)
  * Numero e altezza dei gradini vengono dall'interpiano e si mostrano soltanto.
  */
 @Composable
-private fun StairPanel(sel: Selection.Stair, plan: FloorPlan, vm: EditorViewModel, levelHeight: Double, modifier: Modifier) {
+private fun StairPanel(sel: Selection.Stair, plan: FloorPlan, vm: EditorViewModel, levelHeight: Double, planAbove: FloorPlan?, modifier: Modifier) {
     val s = plan.stair(sel.stairId) ?: return
     val layout = Stairs.layout(s, levelHeight)
     fun update(g: (Stair) -> Stair) = vm.updateStair(g(s))
@@ -577,7 +582,7 @@ private fun StairPanel(sel: Selection.Stair, plan: FloorPlan, vm: EditorViewMode
         },
         // Al piano di sopra: gradini coperti dal pavimento e ringhiera del vano, scelti anche da qui senza salire di piano.
         InfoTab("piano-sopra", T.schedaStanza.schedaPianoSopra) {
-            WellRailingPicker(s, levelHeight) { vm.updateStair(it) }
+            WellRailingPicker(s, levelHeight, plan, planAbove) { vm.updateStair(it) }
         },
     ))
 }
@@ -835,7 +840,8 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
     val room = plan.room(sel.roomId) ?: return
     val o = room.opening(sel.openingId) ?: return
     fun update(f: (Opening) -> Opening) = vm.updateOpening(room.id, f(o))
-    val color = Color(o.frameArgb)
+    // Con la finitura in foto, le anteprime dei modelli hanno il colore medio del materiale.
+    val color = Color(o.doorFinish?.let { com.sagoma.planimetria.model.MaterialCatalog.item(it)?.argb } ?: o.frameArgb)
 
     val tabs = buildList {
         add(InfoTab("misure", T.schedaStanza.misure) {
@@ -1035,9 +1041,17 @@ private fun OpeningPanel(sel: Selection.Opening, plan: FloorPlan, vm: EditorView
             }
             // Come la pittura dei muri: i colori soliti degli infissi (legni, bianco, grigi) in testa, poi la tavolozza e il colore libero.
             val finishes = Finish.entries
-            if (!o.isGlassBlock) FreeColorPicker(if (o.kind.glazed) T.pannelli.coloreInfisso else T.comuni.colore, o.frameArgb, finishes.map { it.label to it.argb }) { c ->
+            if (!o.isGlassBlock && o.doorFinish == null) FreeColorPicker(if (o.kind.glazed) T.pannelli.coloreInfisso else T.comuni.colore, o.frameArgb, finishes.map { it.label to it.argb }) { c ->
                 val named = finishes.firstOrNull { it.argb == c }
                 update { it.copy(color = named, customColor = if (named == null) c else null) }
+            }
+            // Porte: al posto del colore una finitura in foto (legni, marmi…), con verso e misura come per il pavimento. «Nessuna»
+            // torna al colore.
+            if (o.canHaveDoorMaterial && FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS)) {
+                MaterialPicker(T.pannelli.finituraInFoto, o.doorFinish, forFloor = true, allowNone = true, exclude = DOOR_EXCLUDED_MATERIALS) { id ->
+                    update { it.copy(doorMaterial = id) }
+                }
+                if (o.doorFinish != null) MaterialLayoutControls(o.doorMaterialLayout, o.doorFinish, pieces = false) { l -> update { it.copy(doorMaterialLayout = l) } }
             }
             // Lo stesso aspetto su tutte le finestre (o i balconi, o le porte) del piano, o della casa se ha più piani: una modifica sola, si annulla con ↶.
             // Non dal vetromattone: le finestre non diventano vetromattone, e lui ha solo il davanzale.
@@ -1165,6 +1179,9 @@ private fun SillChoice(label: String, o: Opening, update: ((Opening) -> Opening)
         }
     }
 }
+
+/** Categorie dei materiali del pavimento che su una porta non hanno senso: moquette e pavimenti da esterni (prato, porfido…). */
+private val DOOR_EXCLUDED_MATERIALS = setOf("Moquette", "Esterni")
 
 /** Vetro di finestre e porte: trasparente o satinato. */
 @Composable

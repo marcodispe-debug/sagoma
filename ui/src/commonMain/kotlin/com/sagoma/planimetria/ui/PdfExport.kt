@@ -43,6 +43,8 @@ import com.sagoma.planimetria.access.Rights
 import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.geometry.Openings
+import com.sagoma.planimetria.geometry.PhaseView
+import com.sagoma.planimetria.geometry.HousingRules
 import com.sagoma.planimetria.geometry.Takeoff
 import com.sagoma.planimetria.geometry.expandCurves
 import com.sagoma.planimetria.model.Building
@@ -97,13 +99,13 @@ object PdfExport {
         val result = floors.mapIndexed { i, fl ->
             PdfPage(o.paper.w, o.paper.h) {
                 drawPlanSheet(fl, info, o, measurer, i + 1, sheets, date, building.layers)
-                if (o.watermark) with(Watermark) { drawWatermark(measurer, Watermark.exportLetterPx(size.width, size.height)) }
+                if (o.watermark) with(Watermark) { drawWatermark(Watermark.exportLetterPx(size.width, size.height)) }
             }
         }.toMutableList()
         takeoff.forEachIndexed { k, lines ->
             result += PdfPage(o.paper.w, o.paper.h) {
                 drawTakeoffSheet(lines, info, o.paper, floors.size + k + 1, sheets, measurer, date)
-                if (o.watermark) with(Watermark) { drawWatermark(measurer, Watermark.exportLetterPx(size.width, size.height)) }
+                if (o.watermark) with(Watermark) { drawWatermark(Watermark.exportLetterPx(size.width, size.height)) }
             }
         }
         return result
@@ -281,17 +283,38 @@ object PdfExport {
         val w = listOf(colW * 0.30f, colW * 0.13f, colW * 0.15f, colW * 0.14f, colW * 0.28f)
         val multi = res.rooms.map { it.floor }.distinct().size > 1
         val nums = setOf(1, 2, 3)
-        title(T.pdf.stanze)
+        // Con demolizioni o parti nuove il computo è quello dello stato di progetto, anche in una tavola dello stato di fatto.
+        title(if (res.phased) "${T.pdf.stanze} · ${PhaseView.Project.title}" else T.pdf.stanze)
         row(listOf(T.pdf.stanza, T.pdf.pavM2, T.pdf.paretiM2, T.pdf.battiscM, T.pdf.pavimento), w, bold = true, right = nums)
         for (l in res.rooms) row(listOf(if (multi) "${l.room} (${l.floor})" else l.room, fmt2(l.floorArea), fmt2(l.wallArea), fmt2(l.skirting), l.floorFinish), w, right = nums)
         row(listOf(T.pdf.totale, fmt2(res.totalFloor), fmt2(res.totalWalls), fmt2(res.totalSkirting), ""), w, bold = true, right = nums)
         val w2 = listOf(colW * 0.55f, colW * 0.2f, colW * 0.25f)
         val nums2 = setOf(1, 2)
+        if (res.works.isNotEmpty()) {
+            title(T.computo.opere)
+            val w4 = listOf(colW * 0.55f, colW * 0.11f, colW * 0.17f, colW * 0.17f)
+            val nums3 = setOf(1, 2, 3)
+            row(listOf(T.computo.voce, T.computo.numero, "m²", "m³"), w4, bold = true, right = nums3)
+            val lines = if (res.works.size > 1) res.works + Takeoff.WorksLine(T.pdf.totale, res.totalWorks) else res.works
+            for (l in lines) {
+                if (lines.size > 1) row(listOf(l.floor), listOf(colW), bold = true)
+                for (i in Takeoff.worksItems(l.works)) row(listOf(i.label, i.count?.toString() ?: "", fmt2(i.m2), fmt2(i.m3)), w4, right = nums3)
+            }
+            row(listOf(T.computo.notaOperePdf), listOf(colW))
+        }
+        if (res.areas.isNotEmpty()) {
+            title(T.computo.superfici)
+            row(listOf(T.computo.piano, T.computo.utileM2, T.computo.lordaM2, T.computo.balconiM2, ""), w, bold = true, right = nums)
+            for (a in res.areas) row(listOf(a.floor, fmt2(a.usable), fmt2(a.gross), fmt2(a.outdoor), ""), w, right = nums)
+            row(listOf(T.computo.commerciale, fmt2(res.commercial), ""), w2, bold = true, right = nums2)
+            row(listOf(T.computo.notaSuperficiPdf), listOf(colW))
+        }
         title(T.pdf.pavimenti)
         row(listOf(T.pdf.materiale, "m²", T.pdf.n10Sfrido), w2, bold = true, right = nums2)
         for (t in res.floorMaterials) row(listOf(t.what, fmt2(t.quantity), fmt2(t.quantity * 1.1)), w2, right = nums2)
         title(T.pdf.paretiNettoAperture)
         for (t in res.wallFinishes) row(listOf(t.what, fmt2(t.quantity), ""), w2, right = nums2)
+        if (res.ceilings > 0) row(listOf(T.computo.soffitti, fmt2(res.ceilings), ""), w2, right = nums2)
         if (res.openings.isNotEmpty()) {
             title(T.pdf.porteFinestre)
             val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.20f, colW * 0.32f)
@@ -315,6 +338,14 @@ object PdfExport {
             title(T.pdf.impianti)
             val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.52f)
             for (i in res.fixtures) row(listOf("${i.count}×", i.name, i.where), w3)
+        }
+        if (res.light.isNotEmpty()) {
+            title(T.computo.luceAria)
+            row(listOf(T.pdf.stanza, T.pdf.pavM2, T.computo.finM2, T.computo.rapporto, T.computo.almenoUnOttavo), w, bold = true, right = nums)
+            for (l in res.light) {
+                row(listOf(if (multi) "${l.rooms} (${l.floor})" else l.rooms, fmt2(l.floorArea), fmt2(l.windowArea), HousingRules.fraction(l.ratio), if (l.enough) T.computo.si else T.computo.no), w, right = nums)
+            }
+            row(listOf(T.computo.notaLucePdf), listOf(colW))
         }
         return sheets.filter { it.isNotEmpty() }
     }

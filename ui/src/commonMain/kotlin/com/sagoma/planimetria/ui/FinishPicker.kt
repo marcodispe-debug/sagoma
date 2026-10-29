@@ -120,14 +120,15 @@ fun FinishPicker(label: String, finish: WallFinish, onChange: (WallFinish) -> Un
  * applicano quando si lasciano.
  */
 @Composable
-fun MaterialLayoutControls(layout: MaterialLayout, material: String?, onChange: (MaterialLayout) -> Unit) {
+fun MaterialLayoutControls(layout: MaterialLayout, material: String?, pieces: Boolean = true, onChange: (MaterialLayout) -> Unit) {
     var rotation by remember(layout.rotation) { mutableStateOf(layout.rotation.toFloat()) }
     var scale by remember(layout.scale) { mutableStateOf((layout.scale * 100).toFloat()) }
     val item = MaterialCatalog.item(material)
-    val canLay = MaterialPieces.canLay(material)
+    // Senza `pieces` (es. l'anta di una porta) la foto non si posa a pezzi: solo verso e misura.
+    val canLay = pieces && MaterialPieces.canLay(material)
     val laying = layout.laying?.takeIf { canLay }
     Column(Modifier.fillMaxWidth().padding(end = 8.dp)) {
-        if (item != null) {
+        if (item != null && pieces) {
             if (canLay) {
                 Choice(T.finiture.posa, listOf(T.finiture.comeNellaFoto, T.finiture.aPezzi), if (laying == null) 0 else 1) { i ->
                     onChange(layout.copy(laying = if (i == 0) null else MaterialPieces.defaultLaying(item)))
@@ -344,16 +345,16 @@ private fun CustomColorDialog(initial: Long, onDismiss: () -> Unit, onPick: (Lon
 
 /**
  * Materiali fotografici della libreria: categorie e campioni. `forFloor` mostra quelli
- * adatti ai pavimenti, altrimenti quelli per le pareti; con `allowNone` c'è anche "Nessuno" (o `noneLabel`, es. «Senza»
- * per il davanzale). `currentName`: cosa scrivere quando non c'è una foto scelta (es. il materiale di prima dei gradini);
- * `noneSelected` dice se «Nessuno» è quello scelto.
+ * adatti ai pavimenti, altrimenti quelli per le pareti, senza le categorie `exclude`; con `allowNone` c'è anche "Nessuno" (o
+ * `noneLabel`, es. «Senza» per il davanzale). `currentName`: cosa scrivere quando non c'è una foto scelta (es. il materiale di
+ * prima dei gradini); `noneSelected` dice se «Nessuno» è quello scelto.
  */
 @Composable
 fun MaterialPicker(
     label: String, selected: String?, forFloor: Boolean, allowNone: Boolean = false, noneLabel: String = T.finiture.nessuno,
-    noneSelected: Boolean = selected == null, currentName: String? = null, onSelect: (String?) -> Unit,
+    noneSelected: Boolean = selected == null, currentName: String? = null, exclude: Set<String> = emptySet(), onSelect: (String?) -> Unit,
 ) {
-    val all = remember(forFloor) { MaterialCatalog.items.filter { if (forFloor) it.forFloor else it.forWall } }
+    val all = remember(forFloor, exclude) { MaterialCatalog.items.filter { (if (forFloor) it.forFloor else it.forWall) && it.category !in exclude } }
     if (all.isEmpty()) return
     val categories = remember(all) { all.map { it.category }.distinct() }
     var category by remember(selected) { mutableStateOf(MaterialCatalog.item(selected)?.category?.takeIf { it in categories } ?: categories.first()) }

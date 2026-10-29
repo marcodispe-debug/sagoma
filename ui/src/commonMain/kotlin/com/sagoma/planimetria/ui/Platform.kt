@@ -193,6 +193,12 @@ data class SketchScanOutcome(
     val widthOverrides: Map<Long, Double> = emptyMap(),
 )
 
+/**
+ * Quanto resta un messaggio breve ([Platform.toast]) dove lo mostra l'app (computer, web), in ms: 2,5 secondi, di più per quelli
+ * lunghi da leggere (come «Corretti 3 problemi (aggiunto: …)»), al massimo 8.
+ */
+fun toastMillis(message: String): Long = (2500L + 50L * (message.length - 60).coerceAtLeast(0)).coerceAtMost(8000L)
+
 /** Tipo MIME che accetta qualsiasi file. */
 const val ANY_FILE = "*" + "/" + "*"
 

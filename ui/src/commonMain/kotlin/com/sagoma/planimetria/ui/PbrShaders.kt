@@ -107,6 +107,8 @@ object PbrShaders {
         uniform vec3 uLampColor[$MAX_LAMPS];
         uniform vec4 uLampBox[${MAX_LAMPS * LightZones.MAX}];
         uniform vec4 uLampAxis[$MAX_LAMPS];
+        // 1: stessi rettangoli della lampada prima (stessa stanza), non si riprovano.
+        uniform float uLampSame[$MAX_LAMPS];
         // Finestre: rettangoli di cielo che illuminano la loro stanza, e il sole che entra (vedi LitShaders.Lights.skyWindows).
         uniform int uWinCount;
         uniform vec4 uWin[$MAX_WINDOWS];
@@ -331,29 +333,40 @@ object PbrShaders {
             float ssao = uUseAo > 0.5 ? texture2D(uAoTex, gl_FragCoord.xy / uViewport).r : 1.0;
             ao *= ssao;
             float ndlSun = max(dot(N, uToSun), 0.0);
-            if (ndlSun > 0.0) color += shade(N, V, uToSun, uSun, albedo, rough, metal) * sunShadow();
+            // Di notte (sole sotto l'orizzonte, uSun nero) niente ombre da campionare: davano zero luce lo stesso.
+            if (ndlSun > 0.0 && uSun.r + uSun.g + uSun.b > 0.0) color += shade(N, V, uToSun, uSun, albedo, rough, metal) * sunShadow();
+            bool lampInRoom = false;
             for (int i = 0; i < $MAX_LAMPS; i++) {
                 if (i >= uLampCount) break;
                 // La lampada illumina solo la sua stanza, cioè i suoi rettangoli (niente luce attraverso i muri, né sul prato).
-                bool inRoom = false;
-                for (int z = 0; z < ${LightZones.MAX}; z++) {
-                    vec4 box = uLampBox[i * ${LightZones.MAX} + z];
-                    if (vPos.x >= box.x && vPos.x <= box.z && vPos.z >= box.y && vPos.z <= box.w) inRoom = true;
+                // Le lampade della stessa stanza sono una dopo l'altra: i rettangoli si provano solo per la prima.
+                if (uLampSame[i] < 0.5) {
+                    lampInRoom = false;
+                    for (int z = 0; z < ${LightZones.MAX}; z++) {
+                        vec4 box = uLampBox[i * ${LightZones.MAX} + z];
+                        if (vPos.x >= box.x && vPos.x <= box.z && vPos.z >= box.y && vPos.z <= box.w) lampInRoom = true;
+                    }
                 }
-                if (!inRoom) continue;
+                if (!lampInRoom) continue;
                 vec3 d = uLamp[i].xyz - vPos;
                 // Sotto i 50 cm la luce non cresce più: niente macchie bruciate vicino alla lampada (le lampade vere hanno un
                 // diffusore, non sono un punto).
                 float dist2 = max(dot(d, d), 2500.0);
-                // Intensità che cala col quadrato della distanza, con un raggio di influenza di ~6 m.
-                float fall = clamp(1.0 - dist2 / 360000.0, 0.0, 1.0);
-                // Forma della luce della lampada (faretto, plafoniera, paralume…), come nei profili IES.
-                float beam = lightBeam(uLampAxis[i].w, dot(-normalize(d), uLampAxis[i].xyz));
-                vec3 rad = uLampColor[i] * uLamp[i].w * 28000.0 / dist2 * fall * fall * beam;
-                color += shade(N, V, normalize(d), rad, albedo, rough, metal) * mix(1.0, ao, 0.6);
                 // Luce rimbalzata su pareti, pavimento e soffitto: quasi uguale in tutta la stanza, così la luce è diffusa e
                 // arriva anche dove la lampada non illumina diretta (in una stanza vera è una buona parte di quella che si vede).
                 color += albedo * (1.0 - metal) * uLampColor[i] * uLamp[i].w * 0.065 / (1.0 + dist2 / 900000.0) * ao;
+                // Intensità che cala col quadrato della distanza, con un raggio di influenza di ~6 m: oltre, niente luce diretta
+                // (e niente conti).
+                float fall = clamp(1.0 - dist2 / 360000.0, 0.0, 1.0);
+                if (fall <= 0.0) continue;
+                // Superficie girata dall'altra parte: niente luce diretta.
+                vec3 L = normalize(d);
+                if (dot(N, L) <= 0.0) continue;
+                // Forma della luce della lampada (faretto, plafoniera, paralume…), come nei profili IES.
+                float beam = lightBeam(uLampAxis[i].w, dot(-L, uLampAxis[i].xyz));
+                if (beam <= 0.0) continue;
+                vec3 rad = uLampColor[i] * uLamp[i].w * 28000.0 / dist2 * fall * fall * beam;
+                color += shade(N, V, L, rad, albedo, rough, metal) * mix(1.0, ao, 0.6);
             }
             for (int i = 0; i < $MAX_WINDOWS; i++) {
                 if (i >= uWinCount) break;

@@ -23,4 +23,5 @@ object TestiArrediFr : TestiArredi() {
     override val modelliPubblicoDominioCc0: String get() = "Modèles du domaine public (CC0)"
     override fun autoreLicenza(p1: Any?, p2: Any?): String = "Auteur : $p1 · Licence : $p2"
     override val autoreSconosciuto: String get() = "auteur inconnu"
+    override val puntoLuceSemplice: String get() = "Point lumineux simple"
 }

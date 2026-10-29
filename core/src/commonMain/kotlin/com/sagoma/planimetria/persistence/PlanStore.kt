@@ -47,16 +47,22 @@ object PlanJson {
 
     /** Adegua i dati letti da file scritti con versioni precedenti dell'app. */
     private fun migrate(plan: FloorPlan): FloorPlan = plan.copy(
-        freeWalls = uniqueFreeWallIds(plan.freeWalls),
+        // Le aperture dei muri singoli stanno tutte sul muro 0: un altro numero (file rovinato) faceva cadere il 3D.
+        freeWalls = uniqueFreeWallIds(plan.freeWalls).map { w ->
+            if (w.openings.all { it.wallIndex == 0 }) w else w.copy(openings = w.openings.map { it.copy(wallIndex = 0) })
+        },
         rooms = uniqueRoomIds(plan.rooms).map { room ->
             // Porte e impianti su un muro con numero negativo (file rovinato o scritto da altri programmi): non stanno su
             // nessun muro e facevano cadere 3D e quote. Si tolgono.
             val placed = if (room.openings.none { it.wallIndex < 0 } && room.fixtures.none { it.kind.mount == Mount.Wall && it.wallIndex < 0 }) room
             else room.copy(openings = room.openings.filter { it.wallIndex >= 0 }, fixtures = room.fixtures.filter { it.kind.mount != Mount.Wall || it.wallIndex >= 0 })
+            // Muri eliminati con un numero che non c'è (stesso caso): il 3D cadeva cercando i varchi per la luce. Si tolgono.
+            val opened = if (placed.removedWalls.all { it in 0 until placed.wallCount }) placed
+            else placed.copy(removedWalls = placed.removedWalls.filter { it in 0 until placed.wallCount }.toSet())
             // Muri a spessore zero o negativo (stesso caso): il 3D cadeva sugli sguinci delle finestre. Diventano sottili
             // quanto il minimo che l'app permette.
-            val r = if (placed.wallThickness >= MIN_WALL && placed.wallThicknesses.values.all { it >= MIN_WALL }) placed
-            else placed.copy(wallThickness = placed.wallThickness.coerceAtLeast(MIN_WALL), wallThicknesses = placed.wallThicknesses.mapValues { it.value.coerceAtLeast(MIN_WALL) })
+            val r = if (opened.wallThickness >= MIN_WALL && opened.wallThicknesses.values.all { it >= MIN_WALL }) opened
+            else opened.copy(wallThickness = opened.wallThickness.coerceAtLeast(MIN_WALL), wallThicknesses = opened.wallThicknesses.mapValues { it.value.coerceAtLeast(MIN_WALL) })
             // La porta-finestra non è più un tipo a sé: diventa un balcone ad 1 anta con le stesse misure.
             if (r.openings.none { it.kind == OpeningKind.FrenchDoor }) r
             else r.copy(openings = r.openings.map { if (it.kind == OpeningKind.FrenchDoor) it.copy(kind = OpeningKind.Balcony1) else it })

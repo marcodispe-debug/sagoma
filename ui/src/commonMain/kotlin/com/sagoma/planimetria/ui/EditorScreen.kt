@@ -41,6 +41,11 @@ import com.sagoma.planimetria.model.LengthUnit
 import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import com.sagoma.planimetria.editor.LiveCheck
+import com.sagoma.planimetria.editor.PlanCheck
 import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -59,6 +64,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -142,19 +148,68 @@ fun EditorScreen(
     // anche un clic sulla pianta la riprende (vedi PlanCanvas), così le scorciatoie funzionano sempre.
     LaunchedEffect(state.view3d) { if (!state.view3d) keyFocus.requestFocusSafely() }
     val exportPng = rememberPngExporter(state.plan, state.building.layers)
+    val exportDxf = rememberDxfExporter(state)
     // Strumenti professionali: tavola PDF in scala, computo, pianta di sfondo da ricalcare.
     var showPdf by remember { mutableStateOf(false) }
     var showTakeoff by remember { mutableStateOf(false) }
+    var showCheck by remember { mutableStateOf(false) }
     var showBackground by remember { mutableStateOf(false) }
     var showLayers by remember { mutableStateOf(false) }
     var showTheme by remember { mutableStateOf(false) }
     var showLanguage by remember { mutableStateOf(false) }
     var showSite by remember { mutableStateOf(false) }
+    // «Controlla la pianta» in tempo reale: poco dopo l'ultima modifica (mai mentre si trascina), fuori dal filo della pianta. Il
+    // segnale sulla pianta dice quanti problemi ci sono; un errore di disegno appena fatto si dice subito con un avviso breve.
+    var liveIssues by remember(vm) { mutableStateOf<List<PlanCheck.Issue>?>(null) }
+    var liveNotice by remember(vm) { mutableStateOf<PlanCheck.Issue?>(null) }
+    // I problemi del «!» toccato sulla pianta, nella scheda in alto.
+    var openMark by remember(vm) { mutableStateOf<List<PlanCheck.Issue>?>(null) }
+    // La casa intera si ricostruisce solo quando cambia (a ogni spostamento della vista no): i confronti dopo sono istantanei.
+    val liveBuilding = remember(state.building, state.plan) { state.fullBuilding }
+    LaunchedEffect(liveBuilding, state.dragging) {
+        if (state.dragging) return@LaunchedEffect
+        delay(LiveCheck.DELAY_MS)
+        val now = withContext(Dispatchers.Default) { runCatching { PlanCheck.of(liveBuilding) }.getOrDefault(emptyList()) }
+        val before = liveIssues
+        liveIssues = now
+        // Annullato o corretto, l'avviso sparisce. Appena aperto il progetto solo il segnale; durante la guida niente avvisi
+        // (ha già le sue schede); niente avviso per un errore già tolto dalla pianta.
+        val still = liveNotice?.let { LiveCheck.stillThere(it, now) }
+        val fresh = if (before != null && state.course == null && state.tutorial == null) LiveCheck.notice(before, now, liveBuilding) else null
+        liveNotice = fresh ?: still
+        // Nella scheda di un «!» restano i problemi che ci sono ancora; un errore appena fatto la chiude.
+        openMark = if (fresh != null) null else openMark?.mapNotNull { LiveCheck.stillThere(it, now) }?.takeIf { it.isNotEmpty() }
+    }
+    // «Correggi» nell'avviso: per i problemi da provare prima ([PlanCheck.triesFirst], come le stanze sovrapposte) solo se
+    // correggerli riesce davvero (si prova fuori dal filo della pianta).
+    val noticeFixable by produceState(false, liveNotice, liveBuilding) {
+        val n = liveNotice
+        value = when {
+            n == null || !PlanCheck.canFix(n) -> false
+            !PlanCheck.triesFirst(n) -> true
+            else -> withContext(Dispatchers.Default) { runCatching { PlanCheck.canFix(liveBuilding, n) }.getOrDefault(false) }
+        }
+    }
+    LaunchedEffect(liveNotice?.let(LiveCheck::key)) {
+        if (liveNotice == null) return@LaunchedEffect
+        delay(LiveCheck.NOTICE_MS)
+        liveNotice = null
+    }
+    // Prima di esportare (tavola PDF, DXF): se la pianta ha errori di disegno lo dice, e si può controllare o andare avanti; dopo
+    // «Esporta lo stesso» non lo chiede più finché il progetto resta aperto.
+    var exportAnyway by remember { mutableStateOf(false) }
+    var pendingExport by remember { mutableStateOf<Pair<Int, () -> Unit>?>(null) }
+    fun checked(action: () -> Unit): () -> Unit = {
+        val errors = if (exportAnyway) 0 else drawingErrors(vm.state.value.fullBuilding)
+        if (errors == 0) action() else pendingExport = errors to action
+    }
     val extraMenu = listOf(
         T.editor.progetti to { vm.saveNow(); onOpenProjects() },
         T.editor.livelli to { showLayers = true },
-        T.editor.tavolaPdfScala to { showPdf = true },
+        T.editor.tavolaPdfScala to checked { showPdf = true },
         T.editor.computoListaArredi to { showTakeoff = true },
+        T.controllo.voceMenu to { showCheck = true },
+        T.editor.esportaDxf to checked(exportDxf),
         T.editor.piantaSfondo to { showBackground = true },
         T.editor.temaChiaroScuro to { showTheme = true },
         if (state.building.units == LengthUnit.Meters) T.editor.misureInCentimetri to { vm.setUnits(LengthUnit.Centimeters) }
@@ -165,6 +220,15 @@ fun EditorScreen(
     if (showSite) HouseSiteDialog(state.building.site, onNorth = vm::setNorth, onPlace = vm::setPlace, onDismiss = { showSite = false })
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
+    if (showCheck) PlanCheckDialog(state, vm, onDismiss = { showCheck = false; vm.planCheckClosed() }, projectName = projects.info(projectId)?.name)
+    pendingExport?.let { (errors, action) ->
+        ExportCheckDialog(
+            errors,
+            onCheck = { pendingExport = null; showCheck = true },
+            onExport = { pendingExport = null; exportAnyway = true; action() },
+            onDismiss = { pendingExport = null },
+        )
+    }
     // "Ricalca una piantina" al posto della prima stanza: la finestra resta aperta finché non si carica e si tara la piantina.
     val tracingSetup = state.tracing != null && state.underlayTool == null
     if (showBackground || tracingSetup) BackgroundDialog(state, vm, projectId, tracing = state.tracing != null, onDismiss = {
@@ -357,6 +421,17 @@ fun EditorScreen(
             }
             // Marchio del piano gratuito sopra pianta e 3D (non sui pulsanti), così resta anche in uno screenshot.
             WatermarkOverlay(Modifier.fillMaxSize())
+            // «!» sulla pianta dove c'è un problema (non quelli tolti dalla pianta; non durante la guida, che ha le sue schede, tranne
+            // nella lezione sul controllo della pianta, né mentre si disegna o si mette qualcosa, dove il tocco serve alla pianta): il
+            // tocco apre la scheda di quel punto.
+            val drawing = state.creation != null || state.wallDraw != null || state.pendingOpening != null || state.pendingFixture != null ||
+                state.pasting || state.measure != null || state.underlayTool != null || state.selectMode
+            val guided = state.course != null && state.course?.step?.lesson != Lesson.Check
+            if (!state.view3d && !drawing && !guided && state.tutorial == null) liveIssues?.let { issues ->
+                val floor = state.building.current
+                val marks = remember(issues, state.plan, liveBuilding.hiddenChecks, floor) { checkMarks(issues, liveBuilding, floor, state.plan) }
+                CheckMarkers(marks, state.camera, onOpen = { m -> liveNotice = null; openMark = m.issues; vm.checkMarkOpened() }, modifier = Modifier.fillMaxSize())
+            }
             // Suggerimento durante il posizionamento di un'apertura o di un impianto.
             val placingHint = state.pendingOpening?.let { T.editor.toccaMuroCuiPosizionare(T.lingua.minuscola(it.kind.label)) }
                 ?: state.pendingFixture?.let {
@@ -506,7 +581,7 @@ fun EditorScreen(
                     modifier = panelModifier.guide(GuideTarget.InfoPanel),
                     actions = { SnapToggle(state.snapOn, vm::setSnapOn, compact = true, guide = GuideTarget.Snap) },
                 ) { contentModifier ->
-                    if (sel != null) SelectionPanel(sel, state.plan, vm, contentModifier, state.levelHeight, state.planBelow, state.levelHeightBelow)
+                    if (sel != null) SelectionPanel(sel, state.plan, vm, contentModifier, state.levelHeight, state.planBelow, state.levelHeightBelow, state.building.floors.getOrNull(state.building.current + 1)?.plan)
                     else if (focusedRoom != null) RoomInfo(focusedRoom, state.plan, vm, contentModifier)
                 }
             }
@@ -563,6 +638,49 @@ fun EditorScreen(
                     top = with(density) { coveredTopPx.toDp() } + 8.dp,
                 ),
             )
+            // Segnale di «Controlla la pianta» in alto a sinistra, sotto le schede in alto: il tocco apre l'elenco.
+            if (!state.view3d) liveIssues?.let { issues ->
+                LiveCheckChip(
+                    LiveCheck.counts(issues.filter { !PlanCheck.hidden(liveBuilding, it) }),
+                    onClick = { showCheck = true },
+                    modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = with(density) { coveredTopPx.toDp() } + 8.dp),
+                )
+            }
+            // Errore appena fatto: sotto le schede in alto (la pianta non si sposta), finché non si chiude, si corregge, si
+            // annulla o passa qualche secondo.
+            if (!state.view3d) liveNotice?.let { n ->
+                LiveCheckNotice(
+                    n, liveBuilding,
+                    onShow = { liveNotice = null; vm.showIssue(n) },
+                    onFix = if (noticeFixable) {
+                        { liveNotice = null; platform.toast(vm.fixIssueMessage(n) ?: T.controllo.nonSiCorregge) }
+                    } else null,
+                    onClose = { liveNotice = null },
+                    modifier = Modifier.align(Alignment.TopCenter)
+                        .padding(start = 8.dp, end = 8.dp, top = with(density) { coveredTopPx.toDp() } + 8.dp)
+                        .widthIn(max = 520.dp),
+                )
+            }
+            // Scheda del «!» toccato: nello stesso posto dell'avviso (ce n'è uno alla volta).
+            if (!state.view3d && liveNotice == null) openMark?.let { list ->
+                fun drop(i: PlanCheck.Issue) {
+                    openMark = list.filter { it != i }.takeIf { it.isNotEmpty() }
+                }
+                CheckSpotCard(
+                    list, liveBuilding,
+                    onFix = { i ->
+                        val message = vm.fixIssueMessage(i)
+                        if (message != null) drop(i)
+                        platform.toast(message ?: T.controllo.nonSiCorregge)
+                    },
+                    onShow = { i -> openMark = null; vm.showIssue(i) },
+                    onHide = { i -> vm.setCheckHidden(i, true); drop(i) },
+                    onClose = { openMark = null },
+                    modifier = Modifier.align(Alignment.TopCenter)
+                        .padding(start = 8.dp, end = 8.dp, top = with(density) { coveredTopPx.toDp() } + 8.dp)
+                        .widthIn(max = 520.dp),
+                )
+            }
             // Ora del giorno: su schermo largo o telefono girato, verticale a sinistra (sopra il joystick).
             if (state.view3d) {
                 if (wide || compactHeight) TimeOfDayPanel(
@@ -811,6 +929,7 @@ private fun ArchitectureButton(
     fun opening(kind: OpeningKind, style: PassageStyle = PassageStyle.Square, sliding: Boolean = false, preset: OpeningPreset = OpeningPreset.None) =
         { vm.startPlacingOpening(PendingOpening(kind, style, sliding, preset)) }
     fun fixture(kind: FixtureKind) = { vm.startPlacingFixture(kind) }
+    val light = rememberLightChoice(vm)
     val lights = listOf(
         FixtureKind.Spotlight, FixtureKind.Neon, FixtureKind.Chandelier, FixtureKind.CeilingLight, FixtureKind.LedStrip,
         FixtureKind.WallLight, FixtureKind.WallSpot, FixtureKind.WallLedStrip,
@@ -893,7 +1012,7 @@ private fun ArchitectureButton(
                     MenuEntry(
                         T.editor.luci,
                         guide = GuideTarget.Menu(GuideMenu.Lights),
-                        children = lights.map { MenuEntry(it.label, fixture(it), guide = if (it == FixtureKind.Chandelier) GuideTarget.Menu(GuideMenu.Chandelier) else null) },
+                        children = lights.map { MenuEntry(it.label, light(it), guide = if (it == FixtureKind.Chandelier) GuideTarget.Menu(GuideMenu.Chandelier) else null) },
                     ),
                 ),
             ),
@@ -1060,6 +1179,7 @@ private fun FixtureButton(
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
 ) {
     fun place(kind: FixtureKind) = { vm.startPlacingFixture(kind) }
+    val light = rememberLightChoice(vm)
     val lights = listOf(
         FixtureKind.Spotlight, FixtureKind.Neon, FixtureKind.Chandelier, FixtureKind.CeilingLight, FixtureKind.LedStrip,
         FixtureKind.WallLight, FixtureKind.WallSpot, FixtureKind.WallLedStrip,
@@ -1072,11 +1192,25 @@ private fun FixtureButton(
             MenuEntry(T.editor.presaCorrente, place(FixtureKind.Outlet)),
             MenuEntry(T.editor.interruttore, place(FixtureKind.Switch)),
             MenuEntry(T.editor.puntoAcqua, place(FixtureKind.WaterPoint)),
-            MenuEntry(T.editor.luci, children = lights.map { MenuEntry(it.label, place(it)) }),
+            MenuEntry(T.editor.luci, children = lights.map { MenuEntry(it.label, light(it)) }),
         ),
         buttonModifier,
         contentPadding,
     )
+}
+
+/**
+ * Le voci di «Luci»: se il catalogo ha dei modelli di quella luce (lampadari, plafoniere, applique, fari) si aprono gli arredi con
+ * quei modelli già scelti ([LightPickerDialog]), altrimenti (faretti, neon, strisce LED, o senza arredi) si mette subito il punto luce.
+ */
+@Composable
+private fun rememberLightChoice(vm: EditorViewModel): (FixtureKind) -> () -> Unit {
+    var picking by remember { mutableStateOf<FixtureKind?>(null) }
+    val furniture = FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.FURNITURE)
+    picking?.let { kind -> LightPickerDialog(kind, vm) { picking = null } }
+    return { kind ->
+        { if (furniture && com.sagoma.planimetria.model.FurnitureCatalog.lights(kind).isNotEmpty()) picking = kind else vm.startPlacingFixture(kind) }
+    }
 }
 
 /** Voce di menu: esegue un'azione oppure, se ha figli, apre un sottomenu; `hint` è una riga di spiegazione sotto. */
@@ -1193,7 +1327,7 @@ private fun Toolbar(
         TextButton(onClick = onFit, contentPadding = pad) { Text(T.editor.adatta, maxLines = 1) }
         var menu by remember { mutableStateOf(false) }
         Box {
-            IconButton(onClick = { menu = true }) { Text("⋮", style = MaterialTheme.typography.titleLarge) }
+            IconButton(onClick = { menu = true }, modifier = Modifier.guide(GuideTarget.More, done = menu)) { Text("⋮", style = MaterialTheme.typography.titleLarge) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 // Azioni sulla stanza selezionata; senza selezione restano visibili ma disattivate, così si scoprono.
                 DropdownMenuItem(
@@ -1211,7 +1345,12 @@ private fun Toolbar(
                     onClick = { menu = false; focusedRoom?.let { vm.requestDeleteRoom(it.id) } },
                 )
                 HorizontalDivider()
-                for ((label, action) in extraMenu) DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; action() })
+                for ((label, action) in extraMenu) DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = { menu = false; action() },
+                    // La guida interattiva fa provare il controllo della pianta.
+                    modifier = Modifier.guide(GuideTarget.CheckItem.takeIf { label == T.controllo.voceMenu }),
+                )
                 DropdownMenuItem(text = { Text(T.editor.esportaPng) }, onClick = { menu = false; onExport() })
                 DropdownMenuItem(text = { Text(T.editor.rivediSuggerimenti) }, onClick = { menu = false; vm.resetTips() })
             }

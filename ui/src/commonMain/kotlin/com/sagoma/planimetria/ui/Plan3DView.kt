@@ -168,6 +168,7 @@ class View3DState {
         renderer?.release()
         val r = platform.createSceneRenderer()
         renderer = r
+        canTakePhoto = r.canRenderPhoto
         scene?.let(r::setScene)
         refresh()
         return r
@@ -176,6 +177,23 @@ class View3DState {
     fun detach() {
         renderer?.release()
         renderer = null
+        canTakePhoto = false
+    }
+
+    /** Il renderer sa fare la foto in 4K della vista (sul computer). */
+    var canTakePhoto by mutableStateOf(false)
+        private set
+    /** Foto in preparazione: il pulsante aspetta che finisca. */
+    var photoBusy by mutableStateOf(false)
+
+    /** La scena che si sta guardando (null prima della prima). */
+    val currentScene: Scene3D? get() = scene
+
+    /** Foto della vista com'è adesso, con il lato lungo di `longSide` pixel; `onDone` arriva da un altro thread. */
+    fun renderPhoto(longSide: Int, onDone: (androidx.compose.ui.graphics.ImageBitmap?) -> Unit) {
+        val r = renderer ?: return onDone(null)
+        refresh()
+        r.renderPhoto(longSide, onDone)
     }
 
     fun setScene(s: Scene3D) {
@@ -708,6 +726,11 @@ fun View3DControls(state: EditorUiState, view: View3DState, modifier: Modifier =
         }
         if (view.walking) view.stopWalking() else view.startWalking(state.plan, state.focusedRoomId ?: furnitureRoom)
     })
+    // Foto in 4K della vista (sul computer): mentre si prepara il pulsante resta, ma non ne parte un'altra.
+    if (view.canTakePhoto) {
+        val photo = rememberPhoto4k(state, view)
+        LegendButton(if (view.photoBusy) "📷 …" else T.vista3D.foto4k, modifier = modifier, onClick = photo)
+    }
 }
 
 /**

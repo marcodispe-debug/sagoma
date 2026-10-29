@@ -778,4 +778,48 @@ class OpeningTypesTest {
         val plan = FloorPlan(listOf(room(f, door.copy(id = 2, wallIndex = 2, doorModel = DoorModel.Glazed))))
         assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
     }
+
+    @Test
+    fun `porte con la finitura in foto - anta, coprifilo e garage nel 3D, verso e misura, computo, stile e file`() {
+        val saved = MaterialCatalog.items
+        try {
+            MaterialCatalog.set(listOf(MaterialCatalog.Item("noce_prova", "Noce", "Legno", size = 50.0, argb = 0xFF6B4A33, use = "pavimento")))
+            val door = Opening.default(1, OpeningKind.Door, 0, 200.0)
+            val wood = door.copy(doorMaterial = "noce_prova")
+            assertTrue(wood.canHaveDoorMaterial)
+            assertEquals("noce_prova", wood.doorFinish)
+            fun triangles(s: Scene3D) = (s.textured["noce_prova"]?.size ?: 0) / 24
+            // Senza materiale niente foto; con il materiale l'anta (due facce) e il coprifilo (tre pezzi per lato).
+            assertEquals(0, triangles(scene(door)))
+            assertTrue(triangles(scene(wood)) >= 2 * 2 + 6 * 2, "${triangles(scene(wood))}")
+            // Filo muro: niente coprifilo, resta l'anta.
+            assertTrue(triangles(scene(wood.copy(frameless = true))) in 4 until triangles(scene(wood)))
+            // Tutti i modelli (anche a riquadri, a vetri, blindata), la porta a 2 ante e quella da garage; non la porta tutto vetro.
+            for (m in DoorModel.entries - DoorModel.AllGlass) assertTrue(triangles(scene(wood.copy(doorModel = m))) > 0, "$m")
+            assertTrue(triangles(scene(wood.copy(kind = OpeningKind.Door2, width = 140.0))) > 0)
+            assertTrue(triangles(scene(OpeningPreset.GarageSectional.apply(wood))) > 0)
+            assertFalse(wood.copy(doorModel = DoorModel.AllGlass).canHaveDoorMaterial)
+            assertEquals(0, triangles(scene(wood.copy(doorModel = DoorModel.AllGlass))))
+            // Finestre e balconi no (il materiale è solo delle porte).
+            val window = Opening.default(1, OpeningKind.Window2, 0, 200.0).copy(doorMaterial = "noce_prova")
+            assertNull(window.doorFinish)
+            assertEquals(0, triangles(scene(window)))
+            // La misura: con la foto grande il doppio le coordinate nella foto sono la metà.
+            fun maxU(s: Scene3D): Float {
+                val f = s.textured.getValue("noce_prova")
+                return (6 until f.size step 8).maxOf { kotlin.math.abs(f[it]) }
+            }
+            val big = scene(wood.copy(doorMaterialLayout = MaterialLayout(scale = 2.0)))
+            assertEquals(maxU(scene(wood)) / 2, maxU(big), 0.01f)
+            // Nel computo il materiale al posto del colore; lo copia «Applica stile»; resta nel file.
+            assertTrue(Openings.description(wood).startsWith(door.doorModel.label + ", noce"), Openings.description(wood))
+            val other = Opening.default(2, OpeningKind.Door, 1, 150.0)
+            assertEquals("noce_prova", other.withStyleOf(wood.copy(doorMaterialLayout = MaterialLayout(rotation = 90.0))).doorMaterial)
+            assertEquals(90.0, other.withStyleOf(wood.copy(doorMaterialLayout = MaterialLayout(rotation = 90.0))).doorMaterialLayout.rotation)
+            val plan = FloorPlan(listOf(room(wood.copy(doorMaterialLayout = MaterialLayout(rotation = 90.0, scale = 1.5)))))
+            assertEquals(plan.rooms.single().openings, PlanJson.decode(PlanJson.encode(plan)).rooms.single().openings)
+        } finally {
+            MaterialCatalog.set(saved)
+        }
+    }
 }

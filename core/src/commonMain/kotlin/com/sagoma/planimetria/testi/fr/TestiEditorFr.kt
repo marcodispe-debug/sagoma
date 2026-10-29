@@ -126,6 +126,7 @@ object TestiEditorFr : TestiEditor() {
     override val eliminaStanza: String get() = "Supprimer la pièce…"
     override fun elimina(name: Any?): String = "Supprimer $name…"
     override val esportaPng: String get() = "Exporter en PNG"
+    override val esportaDxf: String get() = "Exporter le plan en DXF (CAO)"
     override val rivediSuggerimenti: String get() = "Revoir les conseils"
     override val guidaRicalco: String get() = "Guide du décalque"
     override val tutorial: String get() = "Tutoriel"

@@ -214,6 +214,11 @@ object LitShaders {
         val lampBoxes = FloatArray(MAX_LAMPS * LightZones.MAX * 4)
         /** Asse di ogni lampada (x, y, z) e forma della sua luce ([com.sagoma.planimetria.geometry.LightProfile.ordinal]). */
         val lampAxes = FloatArray(MAX_LAMPS * 4)
+        /**
+         * 1 se la lampada ha gli stessi rettangoli di quella prima (stessa stanza): lo shader non li riprova. Le lampade della stessa
+         * stanza sono messe una dopo l'altra, così con tante luci (strisce LED, faretti) ogni punto prova pochi rettangoli.
+         */
+        val lampSame = FloatArray(MAX_LAMPS)
         var lampCount = 0
         val windows = FloatArray(MAX_WINDOWS * 4)
         val windowDirs = FloatArray(MAX_WINDOWS * 4)
@@ -263,7 +268,11 @@ object LitShaders {
         init {
             if (scene != null && daylight.lampsOn) {
                 // Prima le lampade vere, poi le luci che passano dalle porte (deboli): con troppe luci restano fuori quelle.
-                for (l in scene.lights.sortedWith(compareBy({ it.spill }, { (it.position - viewer).length })).take(MAX_LAMPS)) {
+                val chosen = scene.lights.sortedWith(compareBy({ it.spill }, { (it.position - viewer).length })).take(MAX_LAMPS)
+                // Stessa stanza una dopo l'altra (nell'ordine in cui compare la prima lampada di ogni stanza).
+                val byRoom = chosen.groupBy { it.zones ?: listOfNotNull(it.room) }.values.flatten()
+                var previous: List<com.sagoma.planimetria.geometry.Bounds>? = null
+                for (l in byRoom) {
                     val i = lampCount++
                     // Una plafoniera da ~1000 lumen illumina bene una stanza a 2 m.
                     val s = (l.lumens / 1000.0 * 0.9).toFloat() * brightness
@@ -278,6 +287,8 @@ object LitShaders {
                     // Gli angoli della stanza sono in mezzeria dei muri: poco oltre ci sono le facce interne (illuminate),
                     // mentre le facce esterne restano fuori (buie).
                     val zones = l.zones ?: listOfNotNull(l.room)
+                    lampSame[i] = if (i > 0 && zones == previous) 1f else 0f
+                    previous = zones
                     meterLamp(zones, s, viewer)
                     val m = 3.0
                     for (z in 0 until LightZones.MAX) {

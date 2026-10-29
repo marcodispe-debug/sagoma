@@ -76,7 +76,17 @@ class FinestreNuoveFotoTest {
                 o(4, OpeningKind.Window2, 1, 90.0, OpeningPreset.None).copy(shading = Shading.InteriorShutters, color = com.sagoma.planimetria.model.Finish.Walnut),
             ),
         )
-        val scene = Scene3D.build(FloorPlan(listOf(room, garage, living, studio)), null, null, ceilings = false)
+        // Ingresso a destra del garage: porte con la finitura in foto (noce dritto e girato, listoni, assi) e il garage in legno.
+        val hall = Room(5, "Ingresso", RoomType.Altro, RoomFactory.rectangle(700.0, 400.0).map { it + com.sagoma.planimetria.model.Vec2(1600.0, 0.0) }).copy(
+            openings = listOf(
+                o(1, OpeningKind.Door, 0, 100.0, OpeningPreset.None).copy(doorMaterial = "woodfloor064"),
+                o(2, OpeningKind.Door, 0, 230.0, OpeningPreset.None).copy(doorMaterial = "woodfloor064", doorMaterialLayout = com.sagoma.planimetria.model.MaterialLayout(rotation = 90.0)),
+                o(3, OpeningKind.Door, 0, 360.0, OpeningPreset.None).copy(doorModel = com.sagoma.planimetria.model.DoorModel.Panels, doorMaterial = "woodfloor046", doorMaterialLayout = com.sagoma.planimetria.model.MaterialLayout(rotation = 90.0, scale = 0.6)),
+                o(4, OpeningKind.Door, 0, 560.0, OpeningPreset.GarageUpAndOver).copy(doorMaterial = "ph_wood_planks", doorMaterialLayout = com.sagoma.planimetria.model.MaterialLayout(rotation = 90.0)),
+                o(5, OpeningKind.Door, 3, 200.0, OpeningPreset.Armored).copy(doorMaterial = "planks023a", doorMaterialLayout = com.sagoma.planimetria.model.MaterialLayout(rotation = 90.0)),
+            ),
+        )
+        val scene = Scene3D.build(FloorPlan(listOf(room, garage, living, studio, hall)), null, null, ceilings = false)
         val r = DesktopGlSceneRenderer(::read)
         r.setScene(scene)
         r.setDaylight(11f, "auto")
@@ -105,5 +115,8 @@ class FinestreNuoveFotoTest {
         shot("18-porta-tutto-vetro", Vec3(200.0, 150.0, 1110.0), Vec3(20.0, 110.0, 900.0), 70.0, walking = true)
         shot("19-persiane-angolo-fuori", Vec3(1150.0, 190.0, 1560.0), Vec3(1050.0, 140.0, 1000.0), 55.0, walking = false)
         shot("20-scuri-angolo-dentro", Vec3(1000.0, 160.0, 760.0), Vec3(1300.0, 150.0, 930.0), 75.0, walking = true)
+        shot("21-porte-legno-fuori", Vec3(1900.0, 160.0, -420.0), Vec3(1900.0, 120.0, 0.0), 60.0, walking = false)
+        shot("22-porte-legno-dentro", Vec3(1880.0, 160.0, 330.0), Vec3(1880.0, 120.0, 0.0), 80.0, walking = true)
+        shot("23-porta-legno-vicino", Vec3(1830.0, 150.0, -150.0), Vec3(1830.0, 110.0, 0.0), 60.0, walking = false)
     }
 }

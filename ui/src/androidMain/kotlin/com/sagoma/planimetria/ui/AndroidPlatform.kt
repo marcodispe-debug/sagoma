@@ -160,7 +160,9 @@ class AndroidPlatform(
         runCatching { photoLauncher.launch(uri) }.onFailure { pendingPhoto = null; toast(T.foto.impossibileAprireFotocamera); done(null) }
     }
 
-    override fun toast(message: String) = Toast.makeText(activity, message, Toast.LENGTH_SHORT).show()
+    // Quelli lunghi da leggere (cosa ha cambiato «Correggi») restano di più.
+    override fun toast(message: String) =
+        Toast.makeText(activity, message, if (toastMillis(message) > 2500L) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
 
     override fun saveFile(suggestedName: String, mimeType: String, bytes: ByteArray, onDone: (Boolean) -> Unit) {
         pendingSave = PendingSave({ it.write(bytes) }, background = false, onDone)

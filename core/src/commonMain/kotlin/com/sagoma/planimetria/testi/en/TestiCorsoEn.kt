@@ -15,6 +15,7 @@ object TestiCorsoEn : TestiCorso() {
     override fun lezione(l: Lesson): String = when (l) {
         Lesson.LShape -> "L shape"
         Lesson.Elements -> "Doors, windows and more"
+        Lesson.Check -> "Check the plan"
         Lesson.OverPlan -> "On top of your floor plan"
         else -> super.lezione(l)
     }
@@ -61,8 +62,13 @@ object TestiCorsoEn : TestiCorso() {
                 "can add doors and windows to free walls too. In the next lesson: doors, windows, a balcony, fixtures and stairs."
         CourseStep.ElementsDone ->
             "In the «$infoTab» panel you change sizes, type and everything else of the selected element; it closes with «▼». For every element: " +
-                "you pick it from «${e.elementiArchitettonici}», you place it on the plan, and the rest from «$infoTab». Last lesson: building the " +
-                "rooms on top of your floor plan. It needs a new project: I'll prepare it."
+                "you pick it from «${e.elementiArchitettonici}», you place it on the plan, and the rest from «$infoTab». " +
+                "Next lesson: the plan check, which finds drawing mistakes by itself and fixes many of them."
+        CourseStep.CheckDone ->
+            "Now you know the plan check: the full list from the «⋮» menu, «✓ ${T.controllo.correggi}» and «✓ Fix all» that sort things out " +
+                "by themselves («${e.annulla}» goes back), the «!» on the plan to see what is at a spot and «${T.controllo.togliDallaPianta}» for the " +
+                "ones that are fine as they are (you put them back from the list). Before you export, Sagoma warns you if there are still drawing mistakes. " +
+                "Last lesson: building the rooms on top of your floor plan. It needs a new project: I'll prepare it."
         CourseStep.Finished ->
             "Here are the bedroom, the bathroom and the living room on top of the plan, with the right measurements. Do the same with the " +
                 "other rooms: a shape to start, attached to the rooms next to it, then walls and corners in place and the exact measurements " +
@@ -216,6 +222,7 @@ object TestiCorsoEn : TestiCorso() {
     override val luciElementi: String get() = "Lights instead go inside the room. «${e.elementiArchitettonici}»…"
     override val luci: String get() = "…«${e.luci}»…"
     override val lampadario: String get() = "…for example «${FixtureKind.Chandelier.label}»."
+    override val luceSemplice: String get() = "…and here «${T.arredi.puntoLuceSemplice}»: you place it by clicking in the room."
     override val cliccaStanzaLuce: String get() = "Click inside the room, where the light goes: for example here."
     override val cliccaStudio: String get() = "Last, the stairs. First click inside the room where they go, for example the study, here."
     override val scalaElementi: String get() = "Then «${e.elementiArchitettonici}»…"
@@ -224,6 +231,25 @@ object TestiCorsoEn : TestiCorso() {
     override val info: String get() =
         "The stairs are selected. For every other change click «$infoTab»: it works for every element, doors, windows, balconies, fixtures and stairs."
 
+    override val controlloMenu: String get() = "A helper to use often: the plan check, which looks for the drawing mistakes that usually slip through. Click the «⋮» menu up here."
+    override val controlloVoce: String get() = "…and «${T.controllo.voceMenu}»."
+    override val controlloRiapri: String get() = "Open the check again: the «⋮» menu up here…"
+    override val controlloCorreggiTutti: String get() =
+        "Here is the list: ⚠ what to fix, ? what to check, 📏 the housing rule minimums. Many problems sort themselves out: " +
+            "«✓ Fix all» fixes a whole group at once (for example it adds the missing doors) and a single «${e.annulla}» undoes it. Click it."
+    override val controlloCorreggi: String get() =
+        "Here is the list: ⚠ what to fix, ? what to check, 📏 the housing rule minimums. Many problems sort themselves out: " +
+            "click «✓ ${T.controllo.correggi}» («${e.annulla}» goes back)."
+    override val controlloChiudi: String get() =
+        "Done: the list updates by itself. «${T.controllo.mostra}» takes you to the right spot and selects it, «${T.controllo.condividi}» sends " +
+            "the list to whoever helps you. Now click «${T.controllo.chiudi}»."
+    override val controlloSegno: String get() =
+        "The check also works by itself while you draw: the badge at the top left of the plan tells you how many problems there are (tap it " +
+            "to open the list again) and a «!» marks the spot of each one: red for mistakes, yellow for things to check, blue for the rules. Click this «!»."
+    override val controlloTogli: String get() =
+        "The card tells you what is at this spot, with «✓ ${T.controllo.correggi}» (where possible) and «${T.controllo.mostra}». If it is fine " +
+            "for you as it is, «${T.controllo.togliDallaPianta}» removes the «!»: the problem stays in the list and you put it back from there. Click «${T.controllo.togliDallaPianta}»."
+    override val controlloSegnoDiNuovo: String get() = "Click a «!» on the plan: the card of that spot opens."
     override val ricalca: String get() =
         "Do you already have a floor plan, from the land registry, the project or just a photo? When choosing the first room of a project click «${cr.ricalcaPiantina}»."
     override val usaPiantinaGuida: String get() =
