@@ -14,9 +14,11 @@ object LightZones {
 
     /**
      * Stanza con i muri tutti dritti in orizzontale o in verticale: i suoi rettangoli (righe della griglia dei vertici, unite in
-     * verticale quando hanno la stessa larghezza). Altrimenti, o con più di [MAX] rettangoli, il suo riquadro.
+     * verticale quando hanno la stessa larghezza). Altrimenti, o con più di [MAX] rettangoli, il suo riquadro. Con meno di 3 punti nessuno.
      */
     fun of(points: List<Vec2>): List<Bounds> {
+        // Stanza senza forma (file rovinato): nessun rettangolo, la luce non ci arriva.
+        if (points.size < 3) return emptyList()
         val box = Polygon.bounds(points)
         val n = points.size
         if (n <= 4) return listOf(box)

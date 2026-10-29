@@ -7,6 +7,7 @@ import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.model.Vec2
+import com.sagoma.planimetria.model.WallCut
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -31,6 +32,16 @@ class TakeoffSharedDoorTest {
         assertEquals(0.8 * 2.1, withDoor.openingsArea, 1e-6)
         // La porta resta contata una volta sola, nella stanza dove è stata messa.
         assertEquals(0, withDoor.doors)
+    }
+
+    @Test
+    fun `in mansarda il vano nella stanza accanto non passa la parete`() {
+        // Il muro in comune, visto dalla cucina, scende da 270 a 100 verso nord: dove c'è la porta (a metà) è alto 185.
+        val attic = kitchen.copy(wallHeights = mapOf(2 to 100.0), wallCuts = mapOf(3 to WallCut(towardEnd = false, start = 300.0)))
+        assertEquals(185.0, Ceilings.wallTopAt(attic, 3, 150.0), 1e-9)
+        assertEquals(0.8 * 1.85, lines(living, attic).getValue("Cucina").openingsArea, 1e-6)
+        val res = Takeoff.of(Building.single(FloorPlan(listOf(living, attic))))
+        assertEquals(res.totalWalls, res.wallFinishes.sumOf { it.quantity }, 1e-6)
     }
 
     @Test

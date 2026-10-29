@@ -385,7 +385,7 @@ class ControlloTestiTest {
                     if (!step.action) {
                         when (step) {
                             CourseStep.Welcome -> click(center(button(T.editor.inizia)))
-                            CourseStep.ElementsDone -> click(center(button(T.corso.apriProgettoNuovo)))
+                            CourseStep.CheckDone -> click(center(button(T.corso.apriProgettoNuovo)))
                             CourseStep.Finished -> { click(center(button(T.comuni.fine))); done = true }
                             else -> click(center(button(T.corso.avanti)))
                         }

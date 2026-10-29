@@ -1176,6 +1176,11 @@ data class Building(
      * [MIN_LAMP_BRIGHTNESS] a [MAX_LAMP_BRIGHTNESS].
      */
     val lampBrightness: Double = 1.0,
+    /**
+     * Problemi di «Controlla la pianta» il cui «!» è stato tolto dalla pianta (restano nell'elenco e si possono rimettere): le
+     * chiavi di [com.sagoma.planimetria.editor.PlanCheck.hideKey].
+     */
+    val hiddenChecks: Set<String> = emptySet(),
 ) {
     init {
         require(floors.isNotEmpty()) { "Serve almeno un piano" }

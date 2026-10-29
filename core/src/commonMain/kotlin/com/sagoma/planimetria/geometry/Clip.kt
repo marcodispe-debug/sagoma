@@ -101,6 +101,18 @@ object Clip {
         fun overlaps(o: Box) = o.maxX > minX && maxX > o.minX && o.maxY > minY && maxY > o.minY
     }
 
+    /** Parte comune di due poligoni convessi, o null se non si toccano (o la parte è una scheggia). */
+    fun intersect(a: List<Vec2>, b: List<Vec2>): List<Vec2>? {
+        if (a.size < 3 || b.size < 3 || !overlaps(a, b)) return null
+        val sign = if (Polygon.signedArea(b) >= 0) 1.0 else -1.0
+        var rest = a
+        for (k in b.indices) {
+            rest = keep(rest, b[k], b[(k + 1) % b.size], sign)
+            if (rest.size < 3) return null
+        }
+        return rest.takeIf { Polygon.area(it) > MIN_PIECE }
+    }
+
     /** Buco convesso con il suo verso e il rettangolo che lo contiene, calcolati una volta sola. */
     private class Hole(val points: List<Vec2>, private val box: Box) {
         private val sign = if (Polygon.signedArea(points) >= 0) 1.0 else -1.0

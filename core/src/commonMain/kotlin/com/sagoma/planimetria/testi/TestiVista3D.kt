@@ -28,4 +28,11 @@ open class TestiVista3D {
     open val giugno21: String get() = "21 giugno"
     open val settembre21: String get() = "21 settembre"
     open val dicembre21: String get() = "21 dicembre"
+    // Foto della vista in 4K (sul computer).
+    open val foto4k: String get() = "📷 Foto 4K"
+    open val fotoInPreparazione: String get() = "📷 Preparo la foto in 4K: scarico i materiali più definiti, può volerci un minuto…"
+    open val fotoSalvata: String get() = "Foto in 4K salvata"
+    open val fotoSalvataMarchio: String get() = "Foto in 4K salvata, con il marchio Sagoma"
+    open val fotoMaterialiMenoDefiniti: String get() = "Foto salvata. Alcuni materiali non erano ancora disponibili in 4K: nella foto sono un po' meno definiti"
+    open val fotoNonRiuscita: String get() = "La foto non è riuscita: la scheda grafica potrebbe essere piena, chiudi altri programmi e riprova"
 }

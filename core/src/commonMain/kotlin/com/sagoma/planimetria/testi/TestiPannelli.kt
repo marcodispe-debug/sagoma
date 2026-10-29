@@ -55,6 +55,7 @@ open class TestiPannelli {
     open fun copertiPrimi(k: Any?, p2: Any?): String = "Coperti i primi $k $p2"
     open val copriFinoPianerottolo: String get() = "Copri fino al pianerottolo"
     open fun altezzaLiberaSopraUltimo(p1: Any?): String = "Altezza libera sopra l'ultimo gradino coperto: $p1 cm"
+    open fun altezzaLiberaSottoTetto(p1: Any?): String = "Altezza libera sotto il tetto, dove la scala esce dalle stanze di sopra: $p1 cm"
     open fun troppoBassaServonoAlmeno(p1: Any?): String = " — troppo bassa, servono almeno $p1 cm per passare senza chinarsi"
     open val ringhieraScalaPianoSopra: String get() = "Ringhiera della scala al piano di sopra"
     open val continuaSopraPavimento: String get() = "Continua sopra il solaio"

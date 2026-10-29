@@ -265,6 +265,11 @@ class Scene3D(
         const val WALL_LED_DEPTH = 1.5
         const val WALL_LED_LUMENS = 1000.0
         const val LED_LIGHT_SPACING = 80.0
+        /**
+         * Punti luce al massimo per una striscia LED o un neon (lunga più di 50 m si dividono il flusso in meno punti): con una
+         * lunghezza sbagliata (troppi zeri, file rovinato) erano centinaia di migliaia di luci e il 3D si fermava.
+         */
+        const val MAX_STRIP_LIGHTS = 64
 
         private fun rayTriangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3): Double? {
             val e1 = b - a
@@ -336,11 +341,24 @@ private class FloatList {
     fun toArray() = data.copyOf(size)
 }
 
-/** Montanti al massimo in una ringhiera di balcone (con 12 cm di passo: 240 m). */
+/** Montanti al massimo in una ringhiera di balcone o attorno a un vano scala (con 12 cm di passo: 240 m). */
 private const val MAX_RAILING_POSTS = 2000
 
-/** Pavimenti più grandi di così (cm², 100 × 100 m) senza fughe disegnate. */
+/**
+ * Punti al massimo su un lato del vuoto di una scala ([SceneBuilder.holeEdgeRuns]): uno per centimetro fino a 20 m, poi più radi.
+ * Con una scala larga chilometri (misura sbagliata) erano milioni di punti, ognuno provato su tutti i pezzi, e il 3D si fermava.
+ */
+private const val MAX_EDGE_SAMPLES = 2000
+
+/** Pavimenti più grandi di così (cm², 100 × 100 m) senza fughe disegnate; lo stesso per i rivestimenti delle pareti. */
 private const val MAX_PATTERN_AREA = 1e8
+
+/**
+ * Facce al massimo per i dettagli di una scena (fughe del pavimento, pezzi dei rivestimenti, montanti delle ringhiere), circa
+ * 70 MB: una casa vera ne usa al più qualche decina di migliaia (una facciata in mattoni di 15 × 7 m ne ha 6.500). Con tante
+ * misure sbagliate insieme (file rovinato) erano milioni e il 3D finiva la memoria; oltre questo numero non se ne disegnano altri.
+ */
+private const val MAX_DETAILS = 300_000
 
 private class SceneBuilder(
     val levels: List<Level>,
@@ -358,6 +376,14 @@ private class SceneBuilder(
     private val windows = mutableListOf<Scene3D.SceneWindow>()
     private val rooms = mutableListOf<Scene3D.SceneRoom>()
     private val roofs = FloatList()
+    private var details = 0
+
+    /** Si può disegnare un altro dettaglio di `faces` facce (vedi [MAX_DETAILS]). */
+    private fun detail(faces: Int = 1): Boolean {
+        if (details + faces > MAX_DETAILS) return false
+        details += faces
+        return true
+    }
 
     /** Triangolo con un materiale fotografico: `uv` sono le coordinate della foto nei tre vertici. */
     private fun texTri(material: String, a: Vec3, b: Vec3, c: Vec3, ua: Vec2, ub: Vec2, uc: Vec2, normal: Vec3) {
@@ -437,9 +463,14 @@ private class SceneBuilder(
         val n = side.dir()
         /** Punto della faccia a `t` lungo il muro e `-q.y` d'altezza (il riquadro della posa ha y verso il basso, come le foto). */
         fun at(q: Vec2) = (s + u * q.x + off).at(-q.y)
+        // Riquadro tra i due bordi (se a un capo il bordo alto scende sotto quello basso, lì non c'è niente da coprire).
+        var region = listOf(Vec2(t0, -max(y1, y1End)), Vec2(t1, -max(y1, y1End)), Vec2(t1, -min(y0, y0End)), Vec2(t0, -min(y0, y0End)))
+        region = clipAbove(region) { q -> -q.y - (y0 + (y0End - y0) * (q.x - t0) / (t1 - t0)) }
+        region = clipAbove(region) { q -> (y1 + (y1End - y1) * (q.x - t0) / (t1 - t0)) + q.y }
+        if (region.size < 3 || abs(Polygon.signedArea(region)) < 0.01) return
         val laying = layout.laying?.takeIf { MaterialPieces.canLay(material) }?.let { LayingPieces.normalized(it) }
         if (laying != null) {
-            val rect = listOf(Vec2(t0, -y1), Vec2(t1, -y1End), Vec2(t1, -y0End), Vec2(t0, -y0))
+            val rect = region
             // La fuga di ogni pezzo sta dal lato verso terra: spostando la partenza di una fuga la prima fila poggia a terra.
             val anchor = Vec2(if (laying.start == LayingStart.Centro) wallLength / 2 else 0.0, laying.joint)
             val pieces = LayingPieces.cover(laying, layout.rotation, anchor, rect)
@@ -454,12 +485,9 @@ private class SceneBuilder(
                 return
             }
         }
-        val a = s + u * t0 + off
-        val b = s + u * t1 + off
         // La foto si ripete ogni `size` cm, dritta (v cresce verso il basso come nelle immagini), girata e ingrandita come scelto.
-        fun uv(t: Double, y: Double) = layout.uv(t, -y, size)
-        texTri(material, a.at(y0), b.at(y0End), b.at(y1End), uv(t0, y0), uv(t1, y0End), uv(t1, y1End), n)
-        texTri(material, a.at(y0), b.at(y1End), a.at(y1), uv(t0, y0), uv(t1, y1End), uv(t0, y1), n)
+        fun uv(q: Vec2) = layout.uv(q.x, q.y, size)
+        for (k in 1 until region.size - 1) texTri(material, at(region[0]), at(region[k]), at(region[k + 1]), uv(region[0]), uv(region[k]), uv(region[k + 1]), n)
     }
 
     /** Solido invisibile (solo per il tocco) sul contorno `poly`, da `y0` a `y1`. */
@@ -547,20 +575,21 @@ private class SceneBuilder(
 
     fun build(): Scene3D {
         var previous: Level? = null
-        for (level in levels) {
+        for ((index, level) in levels.withIndex()) {
             plan = level.plan
             roomBounds = plan.rooms.map { if (it.points.isEmpty()) Bounds(0.0, 0.0, -1.0, -1.0) else Polygon.bounds(it.points) }
             openingSpans = plan.rooms.map { r -> r.openings.filter { it.wallIndex < r.wallCount }.map { it to Openings.span(r, it) } }
             expanded = level.expanded
             base = level.base
             current = level.current
-            holes = previous?.let { p -> p.plan.stairs.flatMap { Stairs.well(it, p.levelHeight) } }.orEmpty()
+            holes = previous?.let { p -> stairWells(p, plan) }.orEmpty()
             // Vuoto nel soffitto sopra le scale di questo piano che salgono (lo stesso del pavimento di sopra).
-            holesAbove = plan.stairs.flatMap { Stairs.well(it, level.levelHeight) }
+            holesAbove = stairWells(level, levels.getOrNull(index + 1)?.plan)
             levelHeight = level.levelHeight
             // Piano di sopra (camminando): si guarda solo dal basso, dal vano scala. Il suo pavimento non si
             // disegna (da sotto lo copre il soffitto, e con l'interpiano uguale all'altezza del soffitto starebbe
-            // alla stessa quota e sfarfallerebbe) e i suoi muri partono appena sopra il soffitto, non dentro il solaio.
+            // alla stessa quota e sfarfallerebbe) e i suoi muri scendono nel solaio solo fino a 1 cm sopra il soffitto di sotto
+            // ([bottomOver]): da fuori casa continuano i muri di sotto, senza fessura.
             // Tutto il piano di sopra 1 cm più in alto (invisibile): muri, colonne, scale e arredi non toccano il
             // piano del soffitto, altrimenti le loro facce di sotto sfarfallerebbero con lui.
             val aboveCurrent = level.base > 0
@@ -588,17 +617,21 @@ private class SceneBuilder(
                 if (ceilings && current) ceiling(room)
                 // Soffitti per la luce: del piano corrente e di quello di sopra (camminando), che è dentro casa.
                 if (current || base > 0) roof(room)
-                // Piani di sotto: chiusi in alto dal solaio (dove il piano di sopra non li copre si vede il tetto piano).
-                // Le stanze con una scala che sale restano aperte: dal vano nel pavimento di sopra si vede la scala.
-                if (!current && plan.stairs.none { Polygon.contains(room.points, it.center) }) { ceiling(room); coverSlab(room) }
-                for (i in 0 until room.wallCount) wall(room, i)
+                // Piani di sotto: chiusi in alto dal solaio (dove il piano di sopra non li copre si vede il tetto piano), anche
+                // le stanze con una scala che sale, tranne il suo vano: da lì (e dal vano nel pavimento di sopra) si vede la scala.
+                if (!current) { ceiling(room); coverSlab(room) }
+                for (i in 0 until room.wallCount) {
+                    if (aboveCurrent && previous != null) wallBottom = bottomOver(previous, room.wallStart(i), room.wallEnd(i))
+                    wall(room, i)
+                }
+                if (aboveCurrent) wallBottom = 0.0
                 for (o in room.openings) if (o.wallIndex < room.wallCount) openingModel(room, o)
                 for (f in room.fixtures) fixture(room, f)
             }
             // Vuoto della scala nel pavimento: si vede lo spessore del solaio (non nel piano di sopra visto da sotto, senza pavimento).
-            if (!aboveCurrent && previous != null && holes.isNotEmpty()) floorHoleSides()
+            if (!aboveCurrent && previous != null && holes.isNotEmpty()) floorHoleSides(previous)
             // Camminando si vede il vano scala nel soffitto: i suoi bordi nello spessore del solaio.
-            if (ceilings && current) wellSides()
+            if (ceilings && current) wellSides(levels.getOrNull(index + 1))
             for (s in plan.stairs) stair(s, level.levelHeight)
             // Colonne dal pavimento al soffitto e travi appese al soffitto.
             val plaster = Rgba(0.91f, 0.90f, 0.87f)
@@ -652,11 +685,11 @@ private class SceneBuilder(
                 pickBox(outline, f.elevation, f.elevation + f.height, pick)
                 if (f.elevation < 60 && f.elevation + f.height > 40) for (k in outline.indices) obstacles += Obstacle(outline[k], outline[(k + 1) % outline.size])
             }
-            // Ringhiere attorno ai vani delle scale che salgono dal piano di sotto.
+            // Ringhiere attorno ai vani delle scale che salgono dal piano di sotto: solo dentro le stanze di questo piano (fuori c'è il tetto).
             previous?.let { p ->
                 val walls = Structure.wallLines(plan)
                 for (s in p.plan.stairs) if (s.wellRailing != StairRailing.None) {
-                    for ((a, b) in Stairs.wellRailingRunsAlong(s, p.levelHeight, walls)) {
+                    for ((a, b) in insideRooms(Stairs.wellRailingRunsAlong(s, p.levelHeight, walls))) {
                         wellRail(a, b, s.wellRailing, Pick.StairWell(s.id))
                         if (current) obstacles += Obstacle(a, b)
                     }
@@ -728,11 +761,24 @@ private class SceneBuilder(
         return hole
     }
 
-    /** Faccia superiore del solaio sopra una stanza di un piano di sotto: il tetto piano visto dall'alto. */
+    /**
+     * Faccia superiore del solaio sopra una stanza di un piano di sotto: il tetto piano visto dall'alto, senza il vano delle
+     * scale che salgono da questo piano ([holesAbove]), da cui si vede la scala.
+     */
     private fun coverSlab(room: Room) {
-        for ((pa, pb, pc) in Ceilings.triangles(room)) {
-            val lift = Vec3(0.0, base + 2.0, 0.0)
-            tri(pa + lift, pb + lift, pc + lift, Vec3.Up, slabTop, null)
+        val lift = Vec3(0.0, base + 2.0, 0.0)
+        for ((qa, qb, qc) in Ceilings.triangles(room)) {
+            val pa = qa + lift; val pb = qb + lift; val pc = qc + lift
+            if (holesAbove.isEmpty()) { tri(pa, pb, pc, Vec3.Up, slabTop, null); continue }
+            val n = ((pb - pa) cross (pc - pa)).normalized()
+            if (n.length < 0.5) continue // triangolo degenere
+            // Come per il soffitto: ogni pezzo che resta torna sul piano del triangolo (in mansarda, in pendenza).
+            val flat = listOf(Vec2(pa.x, pa.z), Vec2(pb.x, pb.z), Vec2(pc.x, pc.z))
+            fun yAt(p: Vec2) = if (abs(n.y) < 1e-9) pa.y else pa.y - (n.x * (p.x - pa.x) + n.z * (p.y - pa.z)) / n.y
+            for (poly in Clip.subtractAll(flat, holesAbove)) for (k in 1 until poly.size - 1) {
+                val a = poly[0]; val b = poly[k]; val c = poly[k + 1]
+                tri(Vec3(a.x, yAt(a), a.y), Vec3(b.x, yAt(b), b.y), Vec3(c.x, yAt(c), c.y), Vec3.Up, slabTop, null)
+            }
         }
     }
 
@@ -886,8 +932,13 @@ private class SceneBuilder(
         }
         // Tagliata dal solaio (a scelta): niente sopra la faccia inferiore del solaio, cioè sotto lo spessore di [Floor.SLAB]
         // che sta tra il soffitto e il pavimento del piano di sopra (non a filo del pavimento, che è la faccia superiore).
-        val cap = if (s.railingAboveFloor) Double.MAX_VALUE else rise - Floor.SLAB
+        val fullCap = if (s.railingAboveFloor) Double.MAX_VALUE else rise - Floor.SLAB
         for ((a, b, st) in runs) {
+            // Fuori dal vano (la scala esce dalle stanze del piano di sopra, lì c'è il soffitto): niente sopra il soffitto.
+            val mid = (a + b) / 2.0
+            val inside = st.polygon.reduce { p, q -> p + q } / st.polygon.size.toDouble()
+            val probe = mid + (inside - mid).normalized() * 2.0
+            val cap = if (holesAbove.any { Polygon.contains(it, probe) }) fullCap else min(fullCap, Structure.ceilingAt(plan, probe, rise) - 3.0)
             if (st.top >= cap) continue
             val ha = railAt(a)
             val hb = railAt(b)
@@ -928,11 +979,14 @@ private class SceneBuilder(
         val len = a.distanceTo(b)
         if (len < 1e-6) return
         val u = (b - a) / len
+        // Come sui balconi: su un tratto lunghissimo (scala larga chilometri, misura sbagliata) i montanti sono più radi e contano
+        // come dettagli, altrimenti erano milioni e finivano la memoria.
+        fun step(spacing: Double) = max(spacing, len / MAX_RAILING_POSTS)
         when (type) {
             StairRailing.None -> return
             StairRailing.Metal -> {
                 var t = 0.0
-                while (t <= len + 1e-6) { val c = a + u * t; box(c - u * 0.8, c + u * 0.8, 0.8, 0.0, h, railColor, pick); t += 12.0 }
+                while (t <= len + 1e-6 && detail(6)) { val c = a + u * t; box(c - u * 0.8, c + u * 0.8, 0.8, 0.0, h, railColor, pick); t += step(12.0) }
                 box(a, b, 1.2, 4.0, 7.0, railColor, pick)
                 box(a, b, 2.0, h - 4, h, railColor, pick)
             }
@@ -944,7 +998,7 @@ private class SceneBuilder(
             StairRailing.Wood -> {
                 val wood = Rgba(0.54f, 0.37f, 0.23f)
                 var t = 0.0
-                while (t <= len + 1e-6) { val c = a + u * t; box(c - u * 2.0, c + u * 2.0, 2.0, 0.0, h - 5, wood, pick); t += 15.0 }
+                while (t <= len + 1e-6 && detail(6)) { val c = a + u * t; box(c - u * 2.0, c + u * 2.0, 2.0, 0.0, h - 5, wood, pick); t += step(15.0) }
                 box(a, b, 3.0, h - 6, h, wood, pick)
             }
         }
@@ -1221,7 +1275,7 @@ private class SceneBuilder(
                 if (free && runStart == null) runStart = s
                 if ((!free || k == steps) && runStart != null) {
                     val end = if (free) s else s - (s1 - s0) / steps
-                    if (end - runStart > 1) box(at(horizontal, c, runStart), at(horizontal, c, end), 0.25, y - 0.1, y, line, null)
+                    if (end - runStart > 1 && detail(6)) box(at(horizontal, c, runStart), at(horizontal, c, end), 0.25, y - 0.1, y, line, null)
                     runStart = null
                 }
             }
@@ -1241,7 +1295,7 @@ private class SceneBuilder(
                     val limit = if (horizontal) b.maxX else b.maxY
                     while (s < limit) {
                         val mid = at(horizontal, c - 7.5, s)
-                        if (Polygon.contains(inner, mid) && holes.none { Polygon.contains(it, mid) }) {
+                        if (Polygon.contains(inner, mid) && holes.none { Polygon.contains(it, mid) } && detail(6)) {
                             box(at(horizontal, c - 15.0, s), at(horizontal, c, s), 0.25, y - 0.1, y, line, null)
                         }
                         s += 120.0
@@ -1305,7 +1359,7 @@ private class SceneBuilder(
                 val len = a.distanceTo(b)
                 if (len < 1.0) continue
                 val d = (b - a).normalized().perp()
-                val n = kotlin.math.ceil(len).toInt()
+                val n = min(kotlin.math.ceil(len), MAX_EDGE_SAMPLES.toDouble()).toInt()
                 var runStart = -1
                 var runIn = d
                 fun close(end: Int) {
@@ -1330,9 +1384,10 @@ private class SceneBuilder(
 
     /**
      * Bordi del vano scala nel soffitto: fasce verticali dal soffitto della stanza fino al pavimento di sopra
-     * (lo spessore del solaio), sul contorno del vuoto (non dove due pezzi del vuoto confinano).
+     * (lo spessore del solaio), sul contorno del vuoto (non dove due pezzi del vuoto confinano). Dove sopra non c'è una stanza
+     * del piano `next` la scala esce sul tetto: il bordo si vede anche da fuori casa.
      */
-    private fun wellSides() {
+    private fun wellSides(next: Level?) {
         val plaster = slabEdge
         for ((a, b, inward) in holeEdgeRuns(holesAbove)) {
             val mid = (a + b) / 2.0
@@ -1342,21 +1397,75 @@ private class SceneBuilder(
             if (levelHeight - y0 < 1.0) continue
             val n = Vec3(inward.x, 0.0, inward.y)
             quad(a.at(y0), b.at(y0), b.at(levelHeight), a.at(levelHeight), n, plaster, null)
+            if (next == null || next.plan.rooms.none { !it.outdoor && Polygon.contains(it.points, mid) }) {
+                val out = inward * -0.4
+                quad((a + out).at(y0), (b + out).at(y0), (b + out).at(levelHeight), (a + out).at(levelHeight), n * -1.0, plaster, null)
+            }
         }
     }
 
     /**
      * Bordi del vuoto della scala nel pavimento di questo piano: lo spessore del solaio ([Floor.SLAB], da sotto il pavimento
-     * a filo del pavimento) visto dall'alto. Solo sul contorno del vuoto (mai dove due pezzi confinano) e dentro una stanza del piano.
+     * a filo del pavimento) visto dall'alto. Solo sul contorno del vuoto (mai dove due pezzi confinano); fuori dalle stanze del
+     * piano, dal tetto piano del piano di sotto al pavimento.
      */
-    private fun floorHoleSides() {
+    private fun floorHoleSides(previous: Level) {
         for ((a, b, inward) in holeEdgeRuns(holes)) {
-            if (plan.rooms.none { !it.outdoor && Polygon.contains(it.points, (a + b) / 2.0) }) continue
+            val mid = (a + b) / 2.0
             val n = Vec3(inward.x, 0.0, inward.y)
             // Appena dentro il vuoto, così non si sovrappone alla faccia di un muro contro cui sta la scala.
             val lift = inward * 0.2
-            quad((a + lift).at(-Floor.SLAB), (b + lift).at(-Floor.SLAB), (b + lift).at(0.0), (a + lift).at(0.0), n, slabEdge, null)
+            if (plan.rooms.any { !it.outdoor && Polygon.contains(it.points, mid) }) {
+                quad((a + lift).at(-Floor.SLAB), (b + lift).at(-Floor.SLAB), (b + lift).at(0.0), (a + lift).at(0.0), n, slabEdge, null)
+                continue
+            }
+            // Fuori dalle stanze di questo piano la scala esce sul tetto piano del piano di sotto, più in basso del pavimento: il
+            // bordo del vano sale dal tetto al pavimento, da dentro e da fuori, e la ringhiera attorno al vano ci sta sopra.
+            val below = Structure.roomAt(previous.plan, mid - inward * 1.0) ?: continue
+            val roof = previous.base + Ceilings.heightAt(below, mid) + 2.0 - base
+            if (roof > -0.5) continue
+            quad((a + lift).at(roof), (b + lift).at(roof), (b + lift).at(0.0), (a + lift).at(0.0), n, slabEdge, null)
+            quad((a - lift).at(roof), (b - lift).at(roof), (b - lift).at(0.0), (a - lift).at(0.0), n * -1.0, slabEdge, null)
         }
+    }
+
+    /**
+     * Vuoto nel solaio sopra le scale del piano `lower` ([Stairs.openWell]): dove sopra c'è una stanza del piano `upper`; fuori il
+     * tetto piano, aperto solo sopra i gradini che lo attraverserebbero (il corrimano lì sotto si ferma sotto il soffitto, vedi
+     * [railing]). Senza il piano di sopra nella scena il vuoto resta tutto.
+     */
+    private fun stairWells(lower: Level, upper: FloorPlan?): List<List<Vec2>> {
+        val cover = upper?.let { Stairs.cover(it) }
+        return lower.plan.stairs.flatMap { Stairs.openWell(it, lower.levelHeight, lower.plan, cover) }
+    }
+
+    /** I tratti `runs` (ringhiere) solo dove stanno dentro una stanza del piano (pavimento sotto), a pezzi di 10 cm. */
+    private fun insideRooms(runs: List<Pair<Vec2, Vec2>>): List<Pair<Vec2, Vec2>> {
+        val out = mutableListOf<Pair<Vec2, Vec2>>()
+        for ((a, b) in runs) {
+            val n = (a.distanceTo(b) / 10.0).toInt().coerceIn(1, 2000)
+            var start: Vec2? = null
+            for (k in 0 until n) {
+                val p0 = a + (b - a) * (k.toDouble() / n)
+                val p1 = a + (b - a) * ((k + 1).toDouble() / n)
+                val inside = plan.rooms.any { it.points.size >= 3 && Polygon.contains(it.points, (p0 + p1) / 2.0) }
+                if (inside && start == null) start = p0
+                if (!inside && start != null) { out += start to p0; start = null }
+            }
+            if (start != null) out += start to b
+        }
+        return out
+    }
+
+    /**
+     * Piano di sopra (camminando): quota (relativa al piano) da cui parte il muro p0→p1. Scende nel solaio fino a 1 cm sopra il
+     * soffitto più alto del piano di sotto lungo il muro: da fuori continua il muro di sotto senza una fessura (da cui si
+     * vedrebbe dentro il piano di sopra, che lì non ha pavimento), e dentro casa resta nascosto sopra il soffitto.
+     */
+    private fun bottomOver(previous: Level, p0: Vec2, p1: Vec2): Double {
+        val steps = max(1, (p0.distanceTo(p1) / 50.0).toInt() + 1)
+        val top = (0..steps).maxOf { k -> Structure.ceilingAt(previous.plan, p0 + (p1 - p0) * (k.toDouble() / steps), previous.levelHeight) }
+        return min(0.0, previous.base + top + 1.0 - base)
     }
 
     // ---------- Muri con i varchi ----------
@@ -1374,6 +1483,12 @@ private class SceneBuilder(
         val arched: Boolean get() = arch.arched
         /** Bordi curvi: il muro attorno si fa a fettine. */
         val curved: Boolean get() = arched || round
+
+        /**
+         * Il varco sulla faccia verso la stanza, con lo sguincio: più largo di [splay] per lato (in cima resta alla stessa quota,
+         * come l'arco); l'oblò si allarga tutto attorno, con lo stesso centro.
+         */
+        fun widened() = Gap(t0 - splay, t1 + splay, if (round) bottom - splay else bottom, top, arch, pick, splay, splayRoom, splayRounded, niche, round)
 
         /** Bordo inferiore del varco nel punto t: dritto, o la metà bassa del cerchio. */
         fun bottomAt(t: Double): Double {
@@ -1394,6 +1509,76 @@ private class SceneBuilder(
         }
     }
 
+    /**
+     * Vano dello sguincio del varco `g` (sulla faccia verso la stanza della fascia `side`): una superficie che va dal bordo del
+     * varco sulla mezzeria del muro a quello del varco allargato ([Gap.widened]) sulla faccia, dritta o arrotondata. Il bordo si
+     * segue punto per punto: i lati, e anche l'arco o il cerchio dell'oblò, negli stessi punti in cui il muro attorno è fatto a
+     * fettine (così vano e muro si toccano senza fessure). Una metà non si disegna se la sua faccia cade fuori dal tratto `range`.
+     */
+    private fun splayReveal(g: Gap, s: Vec2, u: Vec2, side: Vec2, range: ClosedFloatingPointRange<Double>, color: Rgba) {
+        val w = g.widened()
+        val mid = (g.t0 + g.t1) / 2
+        // Asse del varco (punti verso cui guarda il vano): la verticale a metà, tra il fondo e l'imposta dell'arco; il centro per l'oblò.
+        val axisLow = if (g.round) g.bottom + (g.t1 - g.t0) / 2 else g.bottom
+        val axisHigh = when {
+            g.round -> axisLow
+            g.curved -> min(g.topAt(g.t0), w.topAt(w.t0))
+            else -> g.top
+        }
+        /** Punto della superficie: `t` lungo il muro, `y` in altezza, `depth` dalla mezzeria verso la faccia della stanza. */
+        fun at(t: Double, y: Double, depth: Double) = (s + u * t + side * depth).at(y)
+        val steps = if (g.splayRounded) Openings.SPLAY_STEPS else 1
+        for (toward in listOf(-1.0, 1.0)) {
+            val edge = if (toward < 0) w.t0 else w.t1
+            if (edge < range.start - 0.01 || edge > range.endInclusive + 0.01) continue
+            // Coppie di punti corrispondenti (sulla mezzeria, sulla faccia), come (t, altezza), dal basso verso la cima.
+            val rungs = ArrayList<Pair<Vec2, Vec2>>()
+            fun rung(k: Double, top: Boolean) {
+                val t = mid + k * (g.t1 - g.t0) / 2
+                val tw = mid + k * (w.t1 - w.t0) / 2
+                rungs += Vec2(t, if (top) g.topAt(t) else g.bottomAt(t)) to Vec2(tw, if (top) w.topAt(tw) else w.bottomAt(tw))
+            }
+            val n = ARCH_SLICES / 2
+            when {
+                // Oblò: dal punto più basso al lato, poi su fino in cima.
+                g.round -> {
+                    for (j in 0..n) rung(toward * j / n, top = false)
+                    for (j in n downTo 0) rung(toward * j / n, top = true)
+                }
+                // Arco: il lato fino all'imposta, poi lungo l'arco fino alla chiave.
+                g.curved -> {
+                    rung(toward, top = false)
+                    for (j in n downTo 0) rung(toward * j / n, top = true)
+                }
+                else -> { rung(toward, top = false); rung(toward, top = true) }
+            }
+            fun point(r: Pair<Vec2, Vec2>, k: Int): Vec3 {
+                val tau = k.toDouble() / steps
+                // Arrotondato: curva che parte perpendicolare alla mezzeria e arriva sulla faccia (come in pianta, [Openings.splayProfile]):
+                // il punto di controllo sta sulla faccia, davanti al bordo del varco. Dritto: il controllo a metà, cioè una linea.
+                val (a, b) = r
+                val control = if (g.splayRounded) a else (a + b) / 2.0
+                val p = a * ((1 - tau) * (1 - tau)) + control * (2 * tau * (1 - tau)) + b * (tau * tau)
+                val depth = (if (g.splayRounded) half else half / 2) * (2 * tau * (1 - tau)) + half * (tau * tau)
+                return at(p.x, p.y, depth)
+            }
+            for (i in 0 until rungs.size - 1) for (k in 0 until steps) {
+                val a = point(rungs[i], k)
+                val b = point(rungs[i + 1], k)
+                val c = point(rungs[i + 1], k + 1)
+                val d = point(rungs[i], k + 1)
+                val y = (a.y + b.y + c.y + d.y) / 4 - base
+                val axis = at(mid, y.coerceIn(axisLow, max(axisLow, axisHigh)), (k + 0.5) / steps * half)
+                for ((p, q, r) in listOf(Triple(a, b, c), Triple(a, c, d))) {
+                    var n = (q - p) cross (r - p)
+                    if (n.length < 1e-9) continue
+                    if ((n dot (axis - (p + q + r) * (1.0 / 3))) < 0) n = n * -1.0
+                    tri(p, q, r, n, color, g.pick)
+                }
+            }
+        }
+    }
+
     private fun gapOf(owner: Room, o: Opening, s: Vec2, u: Vec2, wallTop: (Double) -> Double): Gap {
         val (a, b) = Openings.span(owner, o)
         val ta = (a - s) dot u
@@ -1409,7 +1594,11 @@ private class SceneBuilder(
                 else -> PassageStyle.Square
             },
             Pick.Opening(owner.id, o.id),
-            splay = Openings.splayOf(owner, o), splayRoom = owner.id, splayRounded = o.splayRounded, niche = o.kind == OpeningKind.Niche,
+            // L'oblò si allarga tutto attorno: non sotto il pavimento, né sopra la cima del muro.
+            splay = Openings.splayOf(owner, o).let {
+                if (o.shape == WindowShape.Round) min(it, max(0.0, min(bottom, wallTop((ta + tb) / 2) - 1 - bottom - abs(tb - ta)))) else it
+            },
+            splayRoom = owner.id, splayRounded = o.splayRounded, niche = o.kind == OpeningKind.Niche,
             round = o.shape == WindowShape.Round,
         )
     }
@@ -1647,30 +1836,19 @@ private class SceneBuilder(
             quad((s + u * a + back).at(g.bottom), (s + u * b + back).at(g.bottom), (s + u * b + back).at(g.top), (s + u * a + back).at(g.top), n, color, g.pick)
             quad((s + u * b + back).at(g.bottom), (s + u * a + back).at(g.bottom), (s + u * a + back).at(g.top), (s + u * b + back).at(g.top), n, color, g.pick)
         }
-        // Sguinci: sulla faccia verso la stanza il varco si allarga, e i lati inclinati vanno dalla mezzeria alla faccia.
+        // Sguinci: sulla faccia verso la stanza il varco si allarga, e il vano va dalla mezzeria alla faccia.
         val splayed = if (interior) faceGaps.filter { it.splay > 0 && it.splayRoom == room.id } else emptyList()
         @Suppress("NAME_SHADOWING")
-        val gaps = if (splayed.isEmpty()) faceGaps else faceGaps.map { g ->
-            if (g in splayed) Gap(g.t0 - g.splay, g.t1 + g.splay, g.bottom, g.top, g.arch, g.pick, g.splay, g.splayRoom, g.splayRounded, g.niche, g.round) else g
-        }
-        for (g in splayed) {
-            val color = tint(paint, g.pick)
-            for ((t, toward) in listOf(g.t0 to -1.0, g.t1 to 1.0)) {
-                if (t + toward * g.splay < range.start - 0.01 || t + toward * g.splay > range.endInclusive + 0.01) continue
-                val profile = Openings.splayProfile(s + u * t, u, side, half, g.splay, toward, g.splayRounded)
-                for (k in 0 until profile.size - 1) {
-                    val p0 = profile[k]
-                    val p1 = profile[k + 1]
-                    if (p0.distanceTo(p1) < 1e-6) continue
-                    val n = (p1 - p0).perp().normalized().let { if ((it dot (u * -toward)) < 0) it * -1.0 else it }
-                    // Solo la faccia verso il vano: quella rivolta dentro il muro non si vede mai, e sul computer (che disegna
-                    // tutte e due le facce) le due facce sovrapposte facevano strisce bianche e nere sul lato del vano.
-                    quad(p0.at(g.bottom), p1.at(g.bottom), p1.at(g.top), p0.at(g.top), Vec3(n.x, 0.0, n.y), color, g.pick)
-                }
-            }
-        }
+        val gaps = if (splayed.isEmpty()) faceGaps else faceGaps.map { g -> if (g in splayed) g.widened() else g }
+        for (g in splayed) splayReveal(g, s, u, side, range, tint(paint, g.pick))
         val coverTop = finish.coverHeight ?: Double.MAX_VALUE
-        fun topFn(t: Double) = Ceilings.wallTopAt(room, i, t.coerceIn(0.0, len))
+        // Mansarda: il soffitto sale dalla mezzeria del muro basso, e sulla faccia verso la stanza sta già più in alto della cima
+        // del muro. Con il soffitto disegnato la parete arriva fin lì, altrimenti in cima resta una fessura scura.
+        val underSlope = interior && ceilings && current && Ceilings.hasSlope(room)
+        fun topFn(t: Double): Double {
+            val top = Ceilings.wallTopAt(room, i, t.coerceIn(0.0, len))
+            return if (underSlope) max(top, Ceilings.heightAt(room, s + u * t.coerceIn(0.0, len) + side * half)) else top
+        }
         val cuts = mutableSetOf(range.start, range.endInclusive)
         fun add(t: Double) { if (t > range.start && t < range.endInclusive) cuts += t }
         // Parete tagliata: il bordo superiore fa uno spigolo alle estremità e dove inizia a scendere.
@@ -1834,20 +2012,46 @@ private class SceneBuilder(
     private fun coveringPattern(
         f: WallFinish, s: Vec2, u: Vec2, side: Vec2, dist: Double, t0: Double, t1: Double, y0: Double, y1: Double, pick: Pick,
         wallLength: Double, seed: Int,
-        /** Bordo basso e alto a `t1` (riquadro inclinato): il materiale li segue, i disegni di prima restano nel riquadro dritto. */
+        /**
+         * Bordo basso e alto a `t1` (riquadro inclinato: fettina sopra un arco, sotto un oblò o sotto il soffitto in pendenza):
+         * i pezzi si tagliano sui bordi inclinati, senza scalini né pezzi che sporgono.
+         */
         y0End: Double = y0, y1End: Double = y1,
     ) {
         if (f.covering == Covering.Material) {
             f.material?.let { texturedWallFace(it, f.layout, s, u, side, dist, t0, t1, y0, y1, wallLength, seed, y0End, y1End) }
             return
         }
-        if (t1 - t0 < 0.05 || y1 - y0 < 0.05) return
+        val low = min(y0, y0End)
+        val high = max(y1, y1End)
+        if (t1 - t0 < 0.05 || high - low < 0.05) return
+        // Parete enorme (misura sbagliata): i pezzi non si vedrebbero e sarebbero milioni, come le fughe dei pavimenti.
+        if ((t1 - t0) * (high - low) > MAX_PATTERN_AREA) return
         val cover = Rgba.argb(f.coverArgb)
-        /** Riquadro tagliato sul riquadro da disegnare. */
-        fun cell(a0: Double, a1: Double, b0: Double, b1: Double, color: Rgba) =
-            wallFace(s, u, side, dist, max(a0, t0), min(a1, t1), max(b0, y0), min(b1, y1), tint(color, pick))
+        val sloped = abs(y0End - y0) > 1e-6 || abs(y1End - y1) > 1e-6
+        /** Bordi inclinati nel punto `t`: sopra quello basso, sotto quello alto (dove si incrociano non resta niente). */
+        fun bottomAt(t: Double) = y0 + (y0End - y0) * (t - t0) / (t1 - t0)
+        fun topAt(t: Double) = y1 + (y1End - y1) * (t - t0) / (t1 - t0)
+        /** Riquadro tagliato sul riquadro da disegnare (sul trapezio, se i bordi sono inclinati). */
+        fun cell(a0: Double, a1: Double, b0: Double, b1: Double, color: Rgba) {
+            val lo = max(a0, t0)
+            val hi = min(a1, t1)
+            if (!sloped) {
+                if (hi - lo < 0.05 || min(b1, y1) - max(b0, y0) < 0.05 || !detail()) return
+                return wallFace(s, u, side, dist, lo, hi, max(b0, y0), min(b1, y1), tint(color, pick))
+            }
+            if (hi - lo < 0.05 || min(b1, high) - max(b0, low) < 0.05) return
+            var q = listOf(Vec2(lo, b0), Vec2(hi, b0), Vec2(hi, b1), Vec2(lo, b1))
+            q = clipAbove(q) { p -> p.y - bottomAt(p.x) }
+            q = clipAbove(q) { p -> topAt(p.x) - p.y }
+            if (q.size < 3 || abs(Polygon.signedArea(q)) < 0.01 || !detail(q.size - 2)) return
+            val off = side * (dist + 0.15)
+            val c = tint(color, pick)
+            fun at(p: Vec2) = (s + u * p.x + off).at(p.y)
+            for (k in 1 until q.size - 1) tri(at(q[0]), at(q[k]), at(q[k + 1]), side.dir(), c, null)
+        }
         fun columnsIn(step: Double, shift: Double = 0.0) = (kotlin.math.floor((t0 - shift) / step).toInt() - 1)..(((t1 - shift) / step).toInt() + 1)
-        fun rowsIn(step: Double) = max(0, (y0 / step).toInt() - 1)..((y1 / step).toInt() + 1)
+        fun rowsIn(step: Double) = max(0, (low / step).toInt() - 1)..((high / step).toInt() + 1)
         fun shade(c: Rgba, k: Double) = if (k >= 0) c.mix(Rgba.White, k.toFloat()) else c.mix(Rgba(0f, 0f, 0f), (-k).toFloat())
         when (f.covering) {
             Covering.None -> Unit
@@ -1855,8 +2059,8 @@ private class SceneBuilder(
             Covering.Wallpaper -> {
                 // Righe verticali: una larga e una sottile ogni 16 cm.
                 for (k in columnsIn(16.0)) {
-                    cell(k * 16.0, k * 16.0 + 5.0, y0, y1, cover)
-                    cell(k * 16.0 + 9.0, k * 16.0 + 10.0, y0, y1, cover)
+                    cell(k * 16.0, k * 16.0 + 5.0, low, high, cover)
+                    cell(k * 16.0 + 9.0, k * 16.0 + 10.0, low, high, cover)
                 }
             }
             Covering.Tiles, Covering.Metro -> {
@@ -1876,8 +2080,8 @@ private class SceneBuilder(
             Covering.Boards -> {
                 val joint = cover.mix(Rgba(0f, 0f, 0f), 0.3f)
                 for (k in columnsIn(10.0)) {
-                    cell(k * 10.0 - 0.3, k * 10.0 + 0.3, y0, y1, joint)
-                    cell(k * 10.0 + 0.3, k * 10.0 + 1.5, y0, y1, shade(cover, 0.12))
+                    cell(k * 10.0 - 0.3, k * 10.0 + 0.3, low, high, joint)
+                    cell(k * 10.0 + 0.3, k * 10.0 + 1.5, low, high, shade(cover, 0.12))
                 }
             }
             Covering.Wainscot -> {
@@ -1909,9 +2113,9 @@ private class SceneBuilder(
                 // Conci di pietra di altezze e lunghezze diverse (sempre le stesse per lo stesso muro).
                 var yb = 0.0
                 var r = 0
-                while (yb < y1) {
+                while (yb < high) {
                     val rh = 14.0 + hash(r, 999) * 12.0
-                    if (yb + rh > y0) {
+                    if (yb + rh > low) {
                         var ta = -60.0 - hash(r, -1) * 30.0
                         var k = 0
                         while (ta < t1) {
@@ -1925,6 +2129,18 @@ private class SceneBuilder(
                     r++
                 }
             }
+        }
+    }
+
+    /** Parte del poligono convesso `poly` dove `f` (lineare) è ≥ 0. */
+    private fun clipAbove(poly: List<Vec2>, f: (Vec2) -> Double): List<Vec2> = buildList {
+        for (i in poly.indices) {
+            val p = poly[i]
+            val q = poly[(i + 1) % poly.size]
+            val fp = f(p)
+            val fq = f(q)
+            if (fp >= 0) add(p)
+            if ((fp >= 0) != (fq >= 0)) add(p + (q - p) * (fp / (fp - fq)))
         }
     }
 
@@ -1953,7 +2169,7 @@ private class SceneBuilder(
                 var t = step / 2
                 while (t < len) {
                     val c = p0 + u * t
-                    box(c - u * 0.8, c + u * 0.8, 0.8, 7.0, h - 5, metal, pick)
+                    if (detail(6)) box(c - u * 0.8, c + u * 0.8, 0.8, 7.0, h - 5, metal, pick)
                     t += step
                 }
             }
@@ -2597,7 +2813,8 @@ private class SceneBuilder(
 
     /**
      * Termosifone contro il muro nel punto `p` (normale `n` verso la stanza): a piastra con le scanalature,
-     * a elementi verticali, oppure scaldasalviette con due montanti e i tubi orizzontali.
+     * a elementi verticali, oppure scaldasalviette con due montanti e i tubi orizzontali. Scanalature, elementi e tubi contano
+     * come dettagli ([detail]): un termosifone alto o largo chilometri (troppi zeri nel campo) ne aveva milioni e finiva la memoria.
      */
     private fun radiator(f: Fixture, p: Vec2, n: Vec2, along: Vec2, pick: Pick) {
         val depth = Fixtures.RADIATOR_DEPTH
@@ -2613,12 +2830,12 @@ private class SceneBuilder(
                 val groove = c.mix(Rgba(0f, 0f, 0f), 0.1f)
                 seg(0.0, l, depth / 2 + 0.5, depth / 2, y0, y1, c)
                 var y = y0 + 6
-                while (y < y1 - 4) { seg(1.0, l - 1.0, depth / 2 + 0.5, depth / 2 + 0.3, y, y + 0.8, groove); y += 5.0 }
+                while (y < y1 - 4 && detail(6)) { seg(1.0, l - 1.0, depth / 2 + 0.5, depth / 2 + 0.3, y, y + 0.8, groove); y += 5.0 }
             }
             RadiatorModel.Fins -> {
                 val c = tint(Rgba(0.96f, 0.96f, 0.95f), pick)
                 var x = 0.0
-                while (x + 6.0 <= l + 0.01) { seg(x, x + 6.0, depth / 2 + 0.5, depth / 2, y0, y1, c); x += 8.0 }
+                while (x + 6.0 <= l + 0.01 && detail(6)) { seg(x, x + 6.0, depth / 2 + 0.5, depth / 2, y0, y1, c); x += 8.0 }
                 // Collettori sopra e sotto che uniscono gli elementi.
                 seg(0.0, l, depth / 2 + 0.5, depth / 4, y0 + 4, y0 + 8, c)
                 seg(0.0, l, depth / 2 + 0.5, depth / 4, y1 - 8, y1 - 4, c)
@@ -2629,7 +2846,7 @@ private class SceneBuilder(
                 seg(l - 3.0, l, 4.0, 1.5, y0, y1, chrome)
                 var y = y0 + 4
                 var k = 0
-                while (y < y1 - 2) {
+                while (y < y1 - 2 && detail(6)) {
                     seg(1.5, l - 1.5, 4.0, 1.0, y, y + 2.0, chrome)
                     // Ogni cinque tubi uno spazio più largo, per appendere l'asciugamano.
                     y += if (++k % 5 == 0) 14.0 else 7.0
@@ -2979,7 +3196,7 @@ private class SceneBuilder(
     private fun wallLedStrip(room: Room, f: Fixture, p: Vec2, n: Vec2, along: Vec2, pick: Pick) {
         wallGlow(f, p, n, along, f.length, Scene3D.WALL_LED_HEIGHT, Scene3D.WALL_LED_DEPTH, pick)
         if (!current) return
-        val count = maxOf(1, (f.length / Scene3D.LED_LIGHT_SPACING).toInt())
+        val count = (f.length / Scene3D.LED_LIGHT_SPACING).toInt().coerceIn(1, Scene3D.MAX_STRIP_LIGHTS)
         val front = p + n * (Scene3D.WALL_LED_DEPTH + 4.0)
         for (k in 0 until count) {
             val t = f.length * ((k + 0.5) / count) - f.length / 2
@@ -3033,7 +3250,7 @@ private class SceneBuilder(
             FixtureKind.Neon, FixtureKind.LedStrip -> {
                 // Luce lunga: qualche punto luce lungo la sua lunghezza.
                 val (a, b) = Fixtures.linearEnds(f)
-                val n = maxOf(1, (a.distanceTo(b) / 80).toInt())
+                val n = (a.distanceTo(b) / 80).toInt().coerceIn(1, Scene3D.MAX_STRIP_LIGHTS)
                 val total = if (f.kind == FixtureKind.Neon) 2500.0 else 1000.0
                 for (k in 0 until n) lights += Scene3D.SceneLight((a + (b - a) * ((k + 0.5) / n)).at(h - 10), null, total / n, warm = false, room = roomBox, profile = LightProfile.Strip)
             }

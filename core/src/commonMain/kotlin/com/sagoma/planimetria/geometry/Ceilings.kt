@@ -4,6 +4,7 @@ import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.model.WallCut
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
@@ -131,13 +132,16 @@ object Ceilings {
      * Soffitto in triangoli con le quote esatte: il pavimento si taglia ai bordi delle fasce in pendenza,
      * poi ogni pezzo si divide dove cambia il piano più basso (lo spigolo in cui la pendenza incontra il piano).
      */
-    fun triangles(room: Room): List<Triple<Vec3, Vec3, Vec3>> {
+    fun triangles(room: Room): List<Triple<Vec3, Vec3, Vec3>> = triangles(room, room.points)
+
+    /** Come [triangles], sopra il poligono `area` (per esempio il pavimento dentro i muri) invece che sopra la stanza. */
+    private fun triangles(room: Room, area: List<Vec2>): List<Triple<Vec3, Vec3, Vec3>> {
         if (room.outdoor) return emptyList() // all'aperto: niente soffitto
         val slopes = slopes(room)
         val lines = slopes.flatMap { it.second }.distinct()
         val out = mutableListOf<Triple<Vec3, Vec3, Vec3>>()
-        for ((ia, ib, ic) in Triangulation.triangulate(room.points)) {
-            var cells = listOf(listOf(room.points[ia], room.points[ib], room.points[ic]))
+        for ((ia, ib, ic) in Triangulation.triangulate(area)) {
+            var cells = listOf(listOf(area[ia], area[ib], area[ic]))
             for (line in lines) cells = cells.flatMap { c ->
                 listOf(clip(c, line, strict = false), clip(c, HeightPlane(-line.c0, -line.gx, -line.gy), strict = true)).filter { it.size >= 3 }
             }
@@ -160,14 +164,34 @@ object Ceilings {
         return out
     }
 
+    /**
+     * Superficie del soffitto in m² sul filo interno dei muri, quella da dipingere: in pendenza (mansarda) è più grande della
+     * pianta, del rapporto tra i triangoli veri e la loro proiezione.
+     */
+    fun areaM2(room: Room): Double {
+        if (room.outdoor) return 0.0
+        val tris = triangles(room)
+        val flat = tris.sumOf { (a, b, c) -> Polygon.area(listOf(a.flat, b.flat, c.flat)) }
+        val real = tris.sumOf { (a, b, c) -> ((b - a) cross (c - a)).length / 2 }
+        return room.interiorArea() * (if (flat > 0) real / flat else 1.0) / 10_000.0
+    }
+
     /** Volume in m³ sul filo interno dei muri: area calpestabile × altezza media del soffitto. */
     fun volumeM3(room: Room): Double {
         if (room.outdoor) return 0.0
-        val tris = triangles(room)
+        return room.interiorArea() * averageHeight(room) / 1_000_000.0
+    }
+
+    /**
+     * Altezza media del soffitto (cm) sul pavimento dentro i muri: in mansarda è la «media ponderale» delle leggi sui sottotetti
+     * (la striscia più bassa, sotto il muro, non conta); con il soffitto piano è la sua altezza.
+     */
+    fun averageHeight(room: Room): Double {
+        val inner = room.interior().takeIf { it.size >= 3 && abs(Polygon.signedArea(it)) > 1.0 } ?: room.points
+        val tris = triangles(room, inner)
         val area = tris.sumOf { (a, b, c) -> Polygon.area(listOf(a.flat, b.flat, c.flat)) }
-        val avg = if (area > 0) tris.sumOf { (a, b, c) -> Polygon.area(listOf(a.flat, b.flat, c.flat)) * (a.y + b.y + c.y) / 3 } / area
+        return if (area > 0) tris.sumOf { (a, b, c) -> Polygon.area(listOf(a.flat, b.flat, c.flat)) * (a.y + b.y + c.y) / 3 } / area
         else room.ceilingHeight
-        return room.interiorArea() * avg / 1_000_000.0
     }
 
     /**

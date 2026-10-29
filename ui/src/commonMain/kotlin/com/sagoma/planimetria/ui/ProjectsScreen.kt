@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
@@ -70,6 +71,7 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ScrittaSagoma(Modifier.height(32.dp))
         Text(T.progetti.progetti, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         // Su più righe se non ci stanno (telefono stretto, testi più lunghi in altre lingue).
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

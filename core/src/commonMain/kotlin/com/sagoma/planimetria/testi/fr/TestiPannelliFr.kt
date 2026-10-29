@@ -56,6 +56,7 @@ object TestiPannelliFr : TestiPannelli() {
     override fun copertiPrimi(k: Any?, p2: Any?): String = "Les $k premières $p2 couvertes"
     override val copriFinoPianerottolo: String get() = "Couvrir jusqu'au palier"
     override fun altezzaLiberaSopraUltimo(p1: Any?): String = "Échappée au-dessus de la dernière marche couverte : $p1 cm"
+    override fun altezzaLiberaSottoTetto(p1: Any?): String = "Échappée sous le toit, là où l'escalier sort des pièces du dessus : $p1 cm"
     override fun troppoBassaServonoAlmeno(p1: Any?): String = " — trop bas, il faut au moins $p1 cm pour passer sans se baisser"
     override val ringhieraScalaPianoSopra: String get() = "Garde-corps de l'escalier à l'étage supérieur"
     override val continuaSopraPavimento: String get() = "Continue au-dessus de la dalle"

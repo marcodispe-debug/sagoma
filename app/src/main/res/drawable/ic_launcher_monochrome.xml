@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Il simbolo in un solo colore, per le icone a tema di Android 13 e seguenti (il sistema lo ricolora). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="9.84"
+        android:pathData="M55.27,36.92H48.95A10.8,10.8 0 0 0 38.16,47.72V60.28A10.8,10.8 0 0 0 48.95,71.08H59.05A10.8,10.8 0 0 0 69.84,60.28V51.5" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.15"
+        android:strokeLineCap="round"
+        android:pathData="M55.27,36.92A14.58,14.58 0 0 1 69.84,51.5" />
+</vector>
