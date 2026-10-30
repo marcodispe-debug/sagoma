@@ -1,6 +1,7 @@
 package com.sagoma.planimetria.testi.fr
 
 import com.sagoma.planimetria.editor.FixSummary
+import com.sagoma.planimetria.geometry.HousingNorms
 import com.sagoma.planimetria.testi.TestiControllo
 
 object TestiControlloFr : TestiControllo() {
@@ -15,11 +16,29 @@ object TestiControlloFr : TestiControllo() {
             "« Corriger » le règle tout seul (annuler avec ↶) ; « Retirer du plan » enlève son « ! »."
     override val daCorreggere: String get() = "À corriger"
     override val daControllare: String get() = "À vérifier"
-    override val daNorme: String get() = "Règles pour le logement (Italie)"
-    override val spiegaNorme: String get() =
-        "Minimums du décret italien du 5 juillet 1975 pour les pièces à vivre (chambres, séjour, cuisine, bureau) et les salles de bain ; le règlement de la commune " +
-            "peut demander plus. Les fenêtres comptent si elles s'ouvrent et donnent dehors, mesurées sur la baie du mur. Si vous placez des prises, " +
-            "aussi les points de prise et lumineux d'une installation électrique de base (CEI 64-8, niveau 1)."
+    override fun daNorme(n: HousingNorms): String = if (n.official) "Règles pour le logement (${paese(n.country)})" else "Conseils pour le logement"
+    override fun paese(codice: String): String = when (codice) {
+        "IT" -> "Italie"
+        "DE" -> "Allemagne"
+        "FR" -> "France"
+        "ES" -> "Espagne"
+        "GB" -> "Angleterre"
+        "US" -> "États-Unis"
+        else -> codice
+    }
+    override fun spiegaNorme(n: HousingNorms): String = when {
+        n.country == "IT" ->
+            "Minimums du décret italien du 5 juillet 1975 pour les pièces à vivre (chambres, séjour, cuisine, bureau) et les salles de bain ; le règlement de la commune " +
+                "peut demander plus. Les fenêtres comptent si elles s'ouvrent et donnent dehors, mesurées sur la baie du mur. Si vous placez des prises, " +
+                "aussi les points de prise et lumineux d'une installation électrique de base (CEI 64-8, niveau 1). "
+        !n.official ->
+            "L'application n'a pas encore les règles du pays du logement : ce sont des conseils, les minimums les plus courants dans le monde. " +
+                "Les règles locales peuvent demander autre chose. "
+        else ->
+            "Minimums de ${n.source} pour les pièces à vivre (chambres, séjour, cuisine, bureau) et les salles de bain ; les règles locales peuvent " +
+                "demander plus. Les fenêtres comptent si elles ${if (n.openableOnly) "s'ouvrent et " else ""}donnent dehors, mesurées sur la baie du mur. "
+    } + dovePaese
+    override val dovePaese: String get() = "Le pays est celui de la ville du logement (🧭 Nord et ville) ; sans ville, celui de la langue de l'application."
     override fun nome(n: String): String = "« $n »"
     override val mostra: String get() = "Afficher"
     override val chiudi: String get() = "Fermer"
@@ -100,24 +119,28 @@ object TestiControlloFr : TestiControllo() {
         "$a : en s'ouvrant, le vantail heurte $cosa2 ($cosa). Déplacez $cosa2 ou changez le côté des paumelles ou le sens d'ouverture."
     override fun antaUrtaMuro(a: String, cosa: String): String =
         "$a : le vantail ne s'ouvre pas complètement, il heurte un mur ou un poteau ($cosa). Déplacez l'ouverture ou changez le côté des paumelles ou le sens d'ouverture."
-    override fun pocaLuce(a: String, fin: String, pav: String, frazione: String, serve: String): String =
-        "$a : fenêtres ouvrantes de $fin m² pour $pav m² de sol ($frazione). Une pièce à vivre demande au moins 1/8, soit $serve m²."
-    override fun senzaFinestre(a: String, serve: String): String =
-        "$a n'a pas de fenêtre ouvrante donnant dehors : une pièce à vivre a besoin de lumière et d'air directs, avec au moins $serve m² de fenêtres (1/8 du sol)."
+    override fun pocaLuce(a: String, fin: String, pav: String, frazione: String, serve: String, minimo: String, apribili: Boolean): String =
+        "$a : fenêtres ${if (apribili) "ouvrantes " else ""}de $fin m² pour $pav m² de sol ($frazione). Une pièce à vivre demande au moins $minimo, soit $serve m²."
+    override fun pocaAria(a: String, fin: String, pav: String, minimo: String, serve: String): String =
+        "$a : la partie ouvrante des fenêtres fait $fin m² pour $pav m² de sol. Pour l'air, il en faut au moins $minimo, soit $serve m²."
+    override fun senzaFinestre(a: String, apribili: Boolean, serve: String?, minimo: String?): String =
+        "$a n'a pas de fenêtre ${if (apribili) "ouvrante " else ""}donnant dehors : une pièce à vivre a besoin de lumière et d'air directs" +
+            if (serve != null) ", avec au moins $serve m² de fenêtres ($minimo du sol)." else "."
     override val nessunaFinestra: String get() = "Il n'y a aucune fenêtre à cet étage : ajoutez-les, puis la lumière et l'air des pièces se vérifient ici."
-    override fun soffittoBasso(a: String, h: String): String = "$a : plafond à $h m ; les pièces à vivre demandent au moins 2,70 m."
-    override fun soffittoBassoServizi(a: String, h: String): String = "$a : plafond à $h m ; salles de bains et couloirs demandent au moins 2,40 m."
+    override fun soffittoBasso(a: String, h: String, min: String): String = "$a : plafond à $h m ; les pièces à vivre demandent au moins $min m."
+    override fun soffittoBassoServizi(a: String, h: String, min: String): String = "$a : plafond à $h m ; salles de bains et couloirs demandent au moins $min m."
     override fun mansardaBassa(a: String, h: String): String =
         "$a : plafond en pente d'une hauteur moyenne de $h m. Pour habiter un comble, les règles régionales demandent en général une moyenne d'au moins 2,40 m (2,70 m hors combles)."
-    override fun cameraPiccola(a: String, m2: String): String = "$a : $m2 m² ; une chambre doit en avoir au moins 9 (14 pour deux personnes)."
-    override fun cameraPerDuePiccola(a: String, m2: String): String = "$a : $m2 m² avec des lits pour deux personnes ; une chambre pour deux doit en avoir au moins 14."
-    override fun soggiornoPiccolo(a: String, m2: String): String = "$a : $m2 m² ; le séjour doit en avoir au moins 14."
+    override fun cameraPiccola(a: String, m2: String, min: String, perDue: String?): String =
+        "$a : $m2 m² ; une chambre doit en avoir au moins $min${perDue?.let { " ($it pour deux personnes)" } ?: ""}."
+    override fun cameraPerDuePiccola(a: String, m2: String, min: String): String = "$a : $m2 m² avec des lits pour deux personnes ; une chambre pour deux doit en avoir au moins $min."
+    override fun soggiornoPiccolo(a: String, m2: String, min: String): String = "$a : $m2 m² ; le séjour doit en avoir au moins $min."
     override fun bagnoSenzaFinestra(a: String): String =
         "$a : aucune fenêtre ouvrante vers l'extérieur ; la salle de bain a besoin d'une extraction mécanique (et pas d'appareils à flamme nue)."
     override fun bagnoSuCucina(bagno: String, stanza: String): String =
         "$bagno donne directement sur $stanza : beaucoup de règlements d'hygiène communaux demandent un sas ou un dégagement entre la salle de bain et la cuisine ou le séjour."
-    override fun bagnoIncompleto(a: String, manca: String): String =
-        "$a : sans $manca. Au moins une salle de bain du logement doit avoir WC, bidet, baignoire ou douche et lavabo."
+    override fun bagnoIncompleto(a: String, manca: String, servono: String): String =
+        "$a : sans $manca. Au moins une salle de bain du logement doit avoir $servono."
     override val vaso: String get() = "WC"
     override val bide: String get() = "bidet"
     override val vascaODoccia: String get() = "baignoire ou douche"

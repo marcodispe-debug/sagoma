@@ -71,13 +71,21 @@ object Takeoff {
     )
 
     /**
-     * Luce e aria di un ambiente da abitare (una stanza, o il soggiorno con la cucina a vista): m² di pavimento e di finestre
-     * apribili che danno fuori ([HousingRules]).
+     * Luce e aria di un ambiente da abitare (una stanza, o il soggiorno con la cucina a vista): m² di pavimento e di finestre che
+     * danno fuori (apribili, o anche fisse dove le norme del paese le contano: [HousingRules], [HousingNorms]). `minRatio`: il
+     * minimo del paese (null: basta una finestra); `air`: la parte che si apre basta per l'aria, dove ha un minimo suo.
      */
-    data class LightLine(val floor: String, val rooms: String, val floorArea: Double, val windowArea: Double) {
+    data class LightLine(
+        val floor: String,
+        val rooms: String,
+        val floorArea: Double,
+        val windowArea: Double,
+        val minRatio: Double? = HousingRules.MIN_RATIO,
+        val air: Boolean = true,
+    ) {
         val ratio: Double get() = if (floorArea > 0) windowArea / floorArea else 0.0
-        /** Almeno 1/8, con le misure arrotondate al centesimo come si leggono. */
-        val enough: Boolean get() = (windowArea * 100).roundToInt() >= (floorArea * HousingRules.MIN_RATIO * 100).roundToInt()
+        /** Almeno il minimo (1/8 in Italia), con le misure arrotondate al centesimo come si leggono. */
+        val enough: Boolean get() = air && (minRatio?.let { (windowArea * 100).roundToInt() >= (floorArea * it * 100).roundToInt() } ?: (windowArea > 0))
     }
 
     data class Item(val name: String, val size: String, val count: Int, val where: String)
@@ -105,6 +113,8 @@ object Takeoff {
         val areas: List<AreaLine> = emptyList(),
         /** Opere (demolizioni e costruzioni) dei piani che ne hanno. */
         val works: List<WorksLine> = emptyList(),
+        /** Le norme del paese della casa con cui è fatta la tabella [light]. */
+        val norms: HousingNorms = HousingNorms.Italy,
     ) {
         /** Le opere di tutta la casa. */
         val totalWorks: Phases.Works get() = works.fold(Phases.Works()) { a, l -> a + l.works }
@@ -217,6 +227,7 @@ object Takeoff {
             sills[name to size] = (s.first + 1) to s.second.also { it += where }
         }
         var ceilings = 0.0
+        val norms = HousingNorms.of(building)
         val light = mutableListOf<LightLine>()
         val areas = mutableListOf<AreaLine>()
         val works = mutableListOf<WorksLine>()
@@ -225,7 +236,10 @@ object Takeoff {
             if (Phases.hasChanges(fl.plan)) Phases.works(fl.plan, fl.levelHeight).takeIf { !it.isEmpty }?.let { works += WorksLine(fl.name, it) }
             // Luce e aria: [HousingRules] guarda da solo la casa come sarà (muri e aperture da demolire non contano).
             for (s in HousingRules.livingSpaces(fl.plan)) {
-                light += LightLine(fl.name, s.joinToString(" + ") { it.name }, HousingRules.floorArea(s) / 10_000, HousingRules.windowArea(fl.plan, s) / 10_000)
+                light += LightLine(
+                    fl.name, s.joinToString(" + ") { it.name }, HousingRules.floorArea(s) / 10_000,
+                    HousingRules.windowArea(fl.plan, s, norms.openableOnly) / 10_000, norms.windowRatio, !HousingRules.airShort(fl.plan, s, norms),
+                )
             }
             // Lo stato di progetto: i muri da demolire sono lati aperti, le aperture da chiudere sono muro pieno.
             val plan = Phases.view(fl.plan, PhaseView.Project)
@@ -287,6 +301,7 @@ object Takeoff {
             light,
             areas,
             works,
+            norms,
         )
     }
 
@@ -412,7 +427,7 @@ object Takeoff {
         if (res.light.isNotEmpty()) {
             appendLine()
             head(T.computo.luceAria2)
-            head(T.computo.pianoStanzaLuce)
+            head(T.computo.pianoStanzaLuce(res.norms))
             for (l in res.light) row(t(l.floor), t(l.rooms), n(l.floorArea), n(l.windowArea), HousingRules.fraction(l.ratio), if (l.enough) T.computo.si else T.computo.no)
         }
     }

@@ -1,5 +1,7 @@
 package com.sagoma.planimetria.testi.es
 
+import com.sagoma.planimetria.geometry.HousingNorms
+import com.sagoma.planimetria.testi.T
 import com.sagoma.planimetria.testi.TestiComputo
 
 object TestiComputoEs : TestiComputo() {
@@ -44,12 +46,26 @@ object TestiComputoEs : TestiComputo() {
     override val luceAria: String get() = "Luz y aire (ventanas / suelo)"
     override val finM2: String get() = "Vent. m²"
     override val rapporto: String get() = "Relación"
-    override val almenoUnOttavo: String get() = "≥ 1/8"
+    override fun almeno(n: HousingNorms): String = n.windowRatio?.let { "≥ ${n.ratioLabel(it)}" } ?: "Basta"
     override val si: String get() = "sí"
     override val no: String get() = "no"
-    override val notaLuce: String get() =
-        "Estancias habitables. Ventanas practicables al exterior, medidas en el hueco de la pared. En Italia (decreto del 5 de julio de 1975) se necesita al menos 1/8 del suelo."
-    override val notaLucePdf: String get() = "Ventanas practicables al exterior, en el hueco; al menos 1/8 (DM italiano 5/7/1975)."
+    override fun notaLuce(n: HousingNorms): String {
+        val ratio = n.windowRatio
+        return "Estancias habitables. Ventanas ${if (n.openableOnly) "practicables " else ""}al exterior, medidas en el hueco de la pared. " + when {
+            ratio == null -> "${T.controllo.paese(n.country)} (${n.source}): basta una ventana practicable al exterior."
+            !n.official -> "Consejo (la app no tiene las normas del país de la vivienda): al menos ${n.ratioLabel(ratio)} del suelo."
+            else -> "${T.controllo.paese(n.country)} (${n.source}): se necesita al menos ${n.ratioLabel(ratio)} del suelo" +
+                (n.ventRatio?.let { ", y la parte practicable al menos ${n.ratioLabel(it)}" } ?: "") + "."
+        }
+    }
+    override fun notaLucePdf(n: HousingNorms): String {
+        val ratio = n.windowRatio
+        return "Ventanas ${if (n.openableOnly) "practicables " else ""}al exterior, en el hueco; " + when {
+            ratio == null -> "al menos una (${T.controllo.paese(n.country)})."
+            !n.official -> "consejo: al menos ${n.ratioLabel(ratio)}."
+            else -> "al menos ${n.ratioLabel(ratio)}${n.ventRatio?.let { ", practicables ${n.ratioLabel(it)}" } ?: ""} (${T.controllo.paese(n.country)})."
+        }
+    }
     override val opere: String get() = "Obras (demoliciones y construcciones)"
     override val muriDaDemolire: String get() = "Muros a demoler"
     override val muriNuovi: String get() = "Muros nuevos"
@@ -75,7 +91,8 @@ object TestiComputoEs : TestiComputo() {
     override val pianoSuperfici: String get() = "Planta;Útil m²;Construida m²;Balcones y terrazas m²"
     override val commercialeCsv: String get() = "Superficie comercial orientativa"
     override val luceAria2: String get() = "LUZ Y AIRE"
-    override val pianoStanzaLuce: String get() = "Planta;Habitación;Superficie útil m²;Ventanas practicables m²;Relación;Al menos 1/8"
+    override fun pianoStanzaLuce(n: HousingNorms): String =
+        "Planta;Habitación;Superficie útil m²;${if (n.openableOnly) "Ventanas practicables m²" else "Ventanas m²"};Relación;${n.windowRatio?.let { "Al menos ${n.ratioLabel(it)}" } ?: "Basta"}"
     override val impiantiQuantitaDove: String get() = "INSTALACIONES;Cantidad;Dónde"
     override val porteFinestre: String get() = "Puertas y ventanas"
     override val porteFinestreNota: String get() = "Medidas del hueco (ancho × alto), para que las compruebe quien haga el presupuesto. Los huecos que se cierran no aparecen."
