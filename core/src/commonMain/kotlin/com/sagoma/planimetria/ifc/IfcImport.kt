@@ -16,9 +16,12 @@ import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.model.DoorModel
 import com.sagoma.planimetria.model.Finish
 import com.sagoma.planimetria.model.FramePosition
+import com.sagoma.planimetria.model.GarageDoor
+import com.sagoma.planimetria.model.MaterialLayout
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.SashType
 import com.sagoma.planimetria.model.Shading
+import com.sagoma.planimetria.model.StairMaterial
 import com.sagoma.planimetria.model.WindowModel
 import com.sagoma.planimetria.model.WindowShape
 import kotlin.math.abs
@@ -314,6 +317,8 @@ internal class IfcReader(val f: StepFile) {
     }
 
     fun doorOperation(door: StepEntity): String? {
+        // USERDEFINED: vale il nome scritto (es. la basculante, UPANDOVER).
+        if (door.enum(11) == "USERDEFINED") door.str(12)?.let { return it.uppercase() }
         door.enum(11)?.takeIf { it != "NOTDEFINED" && it != "USERDEFINED" }?.let { return it }
         val t = typeOf[door.id] ?: return null
         return when (t.type) { "IFCDOORTYPE" -> t.enum(10); "IFCDOORSTYLE" -> t.enum(8); else -> null }
@@ -347,6 +352,18 @@ internal class IfcReader(val f: StepFile) {
             leafCount = propNum(h.id, IfcExport.PSET, "LeafCount")?.toInt() ?: 0,
             liftSlide = b("LiftSlide"),
             windowShape = e("WindowShape", WindowShape.entries) ?: base.windowShape,
+            grille = b("Grille"), topLight = b("TopLight"), bay = b("Bay"),
+            garage = e("Garage", GarageDoor.entries) ?: base.garage,
+            insectScreen = b("InsectScreen"), awning = b("Awning"),
+            awningColor = propNum(h.id, IfcExport.PSET, "AwningColor")?.toLong(),
+            sillMaterial = e("SillMaterial", StairMaterial.entries),
+            frosted = b("FrostedGlass"),
+            sillFloorMaterial = propStr(h.id, IfcExport.PSET, "SillFloorMaterial"),
+            doorMaterial = propStr(h.id, IfcExport.PSET, "DoorMaterial"),
+            doorMaterialLayout = MaterialLayout(
+                rotation = propNum(h.id, IfcExport.PSET, "DoorMaterialRotation") ?: 0.0,
+                scale = propNum(h.id, IfcExport.PSET, "DoorMaterialScale") ?: 1.0,
+            ),
         )
         if (h.kind != null) return o
         // File non uscito da sagoma: il modo di aprirsi dai nomi dell'IFC.
@@ -358,6 +375,9 @@ internal class IfcReader(val f: StepFile) {
                 op == "DOUBLE_DOOR_FOLDING" -> o = o.copy(folding = true)
                 op == "SINGLE_SWING_LEFT" -> o = o.copy(hingeLeft = true)
                 op == "SINGLE_SWING_RIGHT" -> o = o.copy(hingeLeft = false)
+                // Porte da garage: la sezionale si arrotola in alto; la basculante col nome scritto da sagoma.
+                op == "ROLLINGUP" && !o.kind.glazed -> o = o.copy(garage = GarageDoor.Sectional)
+                op == IfcExport.UP_AND_OVER && !o.kind.glazed -> o = o.copy(garage = GarageDoor.UpAndOver)
             }
         }
         val ops = h.panelOperations
