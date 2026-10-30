@@ -361,8 +361,15 @@ class Scene3D(
             FixtureKind.Radiator, FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint -> 0.0
         }
 
-        /** Lumen di una lampada del catalogo al 100%: appesa al soffitto o da terra e da tavolo. */
-        fun lampLumens(ceiling: Boolean): Double = if (ceiling) 2000.0 else 600.0
+        /**
+         * Lumen di una lampada del catalogo al 100%: la plafoniera come quella degli impianti, il lampadario appeso al soffitto,
+         * la lampada da terra e da tavolo.
+         */
+        fun lampLumens(item: FurnitureCatalog.Item): Double = when {
+            FurnitureCatalog.lightKind(item) == FixtureKind.CeilingLight -> lumensOf(FixtureKind.CeilingLight)
+            item.ceiling -> 2000.0
+            else -> 600.0
+        }
 
         private fun rayTriangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3): Double? {
             val e1 = b - a
@@ -832,13 +839,19 @@ private class SceneBuilder(
                 else if (generated != null) generatedFurniture(f, generated, pick)
                 else if (com.sagoma.planimetria.model.SuppliedObjects.isModel(f.model)) suppliedFurniture(f, plan.suppliedFor(f.model), pick)
                 else placed += Scene3D.PlacedFurniture(f.id, f.model, f.center.at(f.elevation), f.rotation, f.width, f.depth, f.height, current && pick == selected, f.mirrored)
-                // Le lampade del catalogo fanno luce: dal paralume (in alto) o, se appese, da sotto.
+                // Le lampade del catalogo fanno luce: dal paralume (in alto) o, se appese, da sotto. La plafoniera come quella degli
+                // impianti: appena sotto il diffusore e tutta verso il basso.
                 val item = FurnitureCatalog.item(f.model)
                 if (current && item?.symbolKind == com.sagoma.planimetria.model.FurnitureSymbol.Lamp) {
-                    val y = if (item.ceiling) f.elevation + f.height * 0.3 else f.elevation + f.height * 0.85
+                    val flush = FurnitureCatalog.lightKind(item) == FixtureKind.CeilingLight
+                    val y = when {
+                        flush -> f.elevation - 6
+                        item.ceiling -> f.elevation + f.height * 0.3
+                        else -> f.elevation + f.height * 0.85
+                    }
                     val lampRoom = plan.rooms.lastOrNull { Polygon.contains(it.points, f.center) }?.let { Polygon.bounds(it.points) }
-                    lights += Scene3D.SceneLight(f.center.at(y), null, if (item.ceiling) 2000.0 else 600.0, warm = true, room = lampRoom,
-                        profile = if (item.ceiling) LightProfile.Pendant else LightProfile.Shade)
+                    lights += Scene3D.SceneLight(f.center.at(y), null, Scene3D.lampLumens(item), warm = true, room = lampRoom,
+                        profile = if (flush) LightProfile.Downlight else if (item.ceiling) LightProfile.Pendant else LightProfile.Shade)
                 }
                 if (!current) continue
                 scaleLights(firstLight, f.brightness)

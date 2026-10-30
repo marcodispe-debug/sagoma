@@ -93,7 +93,29 @@ class LightLevelTest {
             val hanging = Furniture(2, "prova/lampadario", Vec2(300.0, 200.0), width = 60.0, depth = 60.0, height = 60.0, elevation = 190.0)
             val off = Furniture(3, "prova/lampada-terra", Vec2(400.0, 300.0), width = 40.0, depth = 40.0, height = 160.0, brightness = 0.0)
             val plan = FloorPlan(listOf(room()), furniture = listOf(floor, hanging, off))
-            assertEquals(listOf(Scene3D.lampLumens(false) * 1.5, Scene3D.lampLumens(true)), lights(plan).map { it.lumens }.sorted())
+            val lamps = FurnitureCatalog.items
+            assertEquals(listOf(Scene3D.lampLumens(lamps[0]) * 1.5, Scene3D.lampLumens(lamps[1])), lights(plan).map { it.lumens }.sorted())
+        } finally {
+            FurnitureCatalog.set(saved)
+        }
+    }
+
+    @Test
+    fun `la plafoniera del catalogo fa luce come quella degli impianti`() {
+        // Come la «Lampada da soffitto» Scopia: non segnata come appesa, a 245 cm da terra, alta 5.
+        val saved = FurnitureCatalog.items
+        try {
+            val item = FurnitureCatalog.Item("prova/plafoniera", "Lampada da soffitto", "Luci", "Lamp", 30.0, 30.0, 5.0, elevation = 245.0)
+            FurnitureCatalog.set(listOf(item))
+            assertEquals(Scene3D.lumensOf(FixtureKind.CeilingLight), Scene3D.lampLumens(item))
+            val lamp = Furniture(1, "prova/plafoniera", Vec2(200.0, 150.0), width = 30.0, depth = 30.0, height = 5.0, elevation = 245.0)
+            val light = lights(FloorPlan(listOf(room()), furniture = listOf(lamp))).single()
+            assertEquals(LightProfile.Downlight, light.profile)
+            assertEquals(Scene3D.lumensOf(FixtureKind.CeilingLight), light.lumens)
+            assertTrue(light.position.y < 245.0, "sotto il diffusore: ${light.position}")
+            // Messa nuova, sta subito sotto il soffitto (come i lampadari), qualunque sia l'altezza della stanza.
+            val placed = Furnishings.create(FloorPlan(listOf(room())), item, Vec2(200.0, 150.0), 0.0)
+            assertEquals(room().ceilingHeight - 5.0, placed.elevation, 0.01)
         } finally {
             FurnitureCatalog.set(saved)
         }

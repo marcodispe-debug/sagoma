@@ -1,5 +1,6 @@
 package com.sagoma.planimetria.geometry
 
+import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Furniture
 import com.sagoma.planimetria.model.FurnitureCatalog
@@ -35,9 +36,10 @@ object Furnishings {
     /** Maniglia di rotazione, davanti al mobile. */
     fun handle(f: Furniture): Vec2 = f.center + axes(f).second * (f.depth / 2 + HANDLE)
 
-    /** Nuovo mobile del catalogo al centro `center`; quelli appesi stanno subito sotto il soffitto. */
+    /** Nuovo mobile del catalogo al centro `center`; quelli appesi e le plafoniere stanno subito sotto il soffitto. */
     fun create(plan: FloorPlan, item: FurnitureCatalog.Item, center: Vec2, levelHeight: Double): Furniture {
-        val elevation = if (item.ceiling) Structure.ceilingAt(plan, center, levelHeight) - item.height else item.elevation
+        val onCeiling = item.ceiling || FurnitureCatalog.lightKind(item) == FixtureKind.CeilingLight
+        val elevation = if (onCeiling) Structure.ceilingAt(plan, center, levelHeight) - item.height else item.elevation
         return Furniture(plan.nextFurnitureId, item.model, center, 0.0, item.width, item.depth, item.height, elevation.coerceAtLeast(0.0))
     }
 

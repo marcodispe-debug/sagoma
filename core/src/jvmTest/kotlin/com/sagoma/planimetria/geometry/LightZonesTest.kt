@@ -107,6 +107,43 @@ class LightZonesTest {
     }
 
     @Test
+    fun `ingresso aperto sul soggiorno con un varco largo ha la stessa luce, di giorno e di sera`() {
+        // Come l'appartamento di Marco: cucina 450×400 e ingresso 300×400 sopra il soggiorno 750×550. Tra cucina e soggiorno
+        // niente muro, tra ingresso e soggiorno un passaggio senza porta largo 200, tra cucina e ingresso il muro chiuso.
+        // Finestra e lampada in soggiorno, una plafoniera in cucina e una nell'ingresso.
+        fun light(id: Long, at: Vec2) = com.sagoma.planimetria.model.Fixture(id, com.sagoma.planimetria.model.FixtureKind.CeilingLight, point = at)
+        val window = com.sagoma.planimetria.model.Opening.default(1, com.sagoma.planimetria.model.OpeningKind.Window2, 3, 375.0)
+        val livingPoints = listOf(Vec2(0.0, 400.0), Vec2(450.0, 400.0), Vec2(750.0, 400.0), Vec2(750.0, 950.0), Vec2(0.0, 950.0))
+        val living = com.sagoma.planimetria.model.Room(1, "Soggiorno", com.sagoma.planimetria.model.RoomType.Soggiorno, livingPoints,
+            openings = listOf(window), removedWalls = setOf(0), fixtures = listOf(light(1, Vec2(375.0, 675.0))))
+        val kitchen = rect(3, "Cucina", 450.0, 400.0, Vec2.Zero, removed = setOf(2)).copy(fixtures = listOf(light(3, Vec2(225.0, 200.0))))
+        fun hall(width: Double) = rect(2, "Ingresso", 300.0, 400.0, Vec2(450.0, 0.0),
+            openings = listOf(com.sagoma.planimetria.model.Opening.default(2, com.sagoma.planimetria.model.OpeningKind.Passage, 2, 150.0).copy(width = width)))
+            .copy(fixtures = listOf(light(2, Vec2(600.0, 200.0))))
+        val plan = com.sagoma.planimetria.model.FloorPlan(listOf(living, hall(200.0), kitchen))
+        assertEquals(listOf(setOf(1L, 2L, 3L)), LightZones.spaces(plan).map { s -> s.map { it.id }.toSet() })
+        val scene = Scene3D.build(plan, focusedRoomId = null, selected = null, ceilings = true)
+        val inHall = Vec2(600.0, 200.0)
+        val inLiving = Vec2(375.0, 675.0)
+        val inKitchen = Vec2(225.0, 200.0)
+        // Di giorno la luce della finestra arriva anche nell'ingresso, con la stessa esposizione.
+        assertTrue(scene.windows.single().zones.has(inHall), "luce del giorno nell'ingresso: ${scene.windows.single().zones}")
+        assertEquals(1, scene.rooms.size)
+        // Di sera ogni lampada illumina tutto l'ambiente (anche cucina e ingresso tra loro: con zone diverse per lampada la
+        // luce cambierebbe di colpo tra cucina e soggiorno), e tra le stanze niente luce di passaggio.
+        val lamps = scene.lights.filter { !it.spill }
+        assertEquals(3, lamps.size)
+        for (l in lamps) assertTrue(l.zones!!.has(inHall) && l.zones!!.has(inLiving) && l.zones!!.has(inKitchen), "in tutto l'ambiente: ${l.zones}")
+        assertTrue(scene.lights.none { it.spill && it.profile != LightProfile.Window }, "nessuna luce di passaggio tra le stanze aperte")
+        // Con un varco stretto (80 su 300) l'ingresso resta per conto suo: la luce passa dal varco come da una porta.
+        val narrow = com.sagoma.planimetria.model.FloorPlan(listOf(living, hall(80.0), kitchen))
+        assertEquals(2, LightZones.spaces(narrow).size)
+        val apart = Scene3D.build(narrow, focusedRoomId = null, selected = null, ceilings = true)
+        assertTrue(!apart.windows.single().zones.has(inHall))
+        assertEquals(2, apart.lights.count { it.spill && it.profile == LightProfile.Wall })
+    }
+
+    @Test
     fun `ambiente con troppi rettangoli`() {
         // Cinque stanze in fila a scalini, tutte aperte: i rettangoli si uniscono fino a quattro senza entrare nella stanza chiusa.
         val steps = (0 until 5).map { k -> rect(k + 1L, "S$k", 200.0, 200.0 + 40 * k, Vec2(200.0 * k, 0.0), removed = setOfNotNull(if (k > 0) 3 else null, if (k < 4) 1 else null)) }
