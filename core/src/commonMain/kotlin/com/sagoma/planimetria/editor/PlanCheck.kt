@@ -3,6 +3,7 @@ package com.sagoma.planimetria.editor
 import com.sagoma.planimetria.geometry.Bounds
 import com.sagoma.planimetria.geometry.Ceilings
 import com.sagoma.planimetria.geometry.Collisions
+import com.sagoma.planimetria.geometry.HousingNorms
 import com.sagoma.planimetria.geometry.HousingRules
 import com.sagoma.planimetria.geometry.Dimensions
 import com.sagoma.planimetria.geometry.Furnishings
@@ -51,14 +52,14 @@ import kotlin.math.roundToInt
  * staccate di pochi centimetri, muri che si incrociano, la stessa porta messa due volte), cose da controllare (stanze senza
  * porta, casa senza ingresso, scale che non arrivano, ripide, strette o con poca altezza sopra la testa, ante che aprendosi
  * urtano altre ante, mobili o muri) e minimi delle
- * norme italiane per le case ([HousingRules]: finestre, altezze, metri quadri; [ElectricRules]: punti presa e luce, se nella casa
- * si stanno mettendo le prese). Ogni problema dice quale piano e quale zona
+ * norme per le case del paese della casa ([HousingNorms], [HousingRules]: finestre, altezze, metri quadri; in Italia anche
+ * [ElectricRules]: punti presa e luce, se nella casa si stanno mettendo le prese). Ogni problema dice quale piano e quale zona
  * inquadrare e cosa selezionare.
  */
 object PlanCheck {
     /**
      * Tipi di problema. `error`: di sicuro sbagliato; altrimenti da controllare (può essere voluto). `rule`: sotto un minimo delle
-     * norme italiane per le case (DM 5 luglio 1975).
+     * norme per le case del paese ([HousingNorms]; dove l'app non le ha, dei consigli generali).
      */
     enum class Kind(val error: Boolean, val rule: Boolean = false) {
         CrossedWalls(true),
@@ -443,7 +444,7 @@ object PlanCheck {
                 Kind.BathNoWindow -> i.rooms.singleOrNull()?.let(plan::room)?.let { bathWindows(plan, it) }.orEmpty()
                 Kind.BathOnLiving -> bathDoorFixes(plan, i)
                 Kind.InnerWindow -> innerWindowFixes(plan, i)
-                else -> windowFixes(plan, i.rooms.mapNotNull(plan::room))
+                else -> windowFixes(plan, i.rooms.mapNotNull(plan::room), HousingNorms.of(b))
             }
             return fixes.mapNotNull { out ->
                 accepted(out)?.let { (result, after) ->
@@ -469,7 +470,7 @@ object PlanCheck {
         val candidates = when (i.kind) {
             Kind.NearWalls -> nearFixes(plan, i)
             Kind.NoDoors -> allDoors(plan, i.floor)?.let { doors -> entranceFixes(doors).take(2) + doors }.orEmpty()
-            Kind.NoFloorWindows -> listOfNotNull(allWindows(plan))
+            Kind.NoFloorWindows -> listOfNotNull(allWindows(plan, HousingNorms.of(b)))
             else -> listOfNotNull(single)
         }
         return candidates.firstNotNullOfOrNull { accepted(it)?.first }
@@ -907,9 +908,11 @@ object PlanCheck {
     private fun ceil10(cm: Double) = kotlin.math.ceil(cm / 10 - 1e-9) * 10
     private fun floor10(cm: Double) = kotlin.math.floor(cm / 10 + 1e-9) * 10
 
-    /** Quanto (cm²) mancano le finestre dell'ambiente a 1/8 del pavimento, con un centesimo di m² in più per l'arrotondamento. */
-    private fun missingLight(plan: FloorPlan, space: List<Room>): Double =
-        HousingRules.floorArea(space) * HousingRules.MIN_RATIO - HousingRules.windowArea(plan, space) + 100.0
+    /**
+     * Quanto (cm²) mancano le finestre apribili dell'ambiente al minimo del paese (1/8 del pavimento in Italia), con un centesimo di
+     * m² in più per l'arrotondamento (e per la finestra che manca, dove il minimo è solo averne una).
+     */
+    private fun missingLight(plan: FloorPlan, space: List<Room>, norms: HousingNorms): Double = HousingRules.missing(plan, space, norms) + 100.0
 
     /**
      * Finestre nuove nell'ambiente `space` per `need` cm² (vedi [windowFixes]), partendo dal tratto libero `first` (indice tra
@@ -945,15 +948,16 @@ object PlanCheck {
     }
 
     /**
-     * Ambiente da abitare con finestre apribili sotto 1/8 del pavimento (o senza): le correzioni, nell'ordine in cui provare.
+     * Ambiente da abitare con finestre apribili sotto il minimo del paese (1/8 del pavimento in Italia) o senza: le correzioni,
+     * nell'ordine in cui provare.
      * Prima una finestra che c'è allargata quanto serve (fino a 180 cm, o un quarto in più se è già più larga), nel suo tratto di
      * muro libero da porte, finestre e mobili alti; poi finestre nuove, alte 120 col davanzale a 90 come quella del menu, larghe
      * quanto serve (fino a 180 cm, se ne servono di più larghe uguali), nel mezzo dei tratti più lunghi dei muri che danno fuori
      * (al massimo quattro).
      */
-    private fun windowFixes(plan: FloorPlan, space: List<Room>): List<FloorPlan> {
+    private fun windowFixes(plan: FloorPlan, space: List<Room>, norms: HousingNorms): List<FloorPlan> {
         if (space.isEmpty() || space.any { it.outdoor }) return emptyList()
-        val need = missingLight(plan, space)
+        val need = missingLight(plan, space, norms)
         if (need <= 0) return emptyList()
         // Nel piano con stato di fatto e di progetto la finestra che c'è già non si allarga (sarebbe da chiudere e da riaprire):
         // se ne mette una nuova.
@@ -980,16 +984,16 @@ object PlanCheck {
     }
 
     /**
-     * Piano senza nessuna finestra (pianta appena ricalcata o letta): in ogni ambiente da abitare le finestre per arrivare a 1/8
-     * del pavimento ([windowFixes]) e in ogni bagno una ([bathWindows]), dove ci sono muri che danno fuori; null se non se ne
-     * mette nessuna.
+     * Piano senza nessuna finestra (pianta appena ricalcata o letta): in ogni ambiente da abitare le finestre per arrivare al minimo
+     * del paese ([windowFixes]) e in ogni bagno una ([bathWindows]), dove ci sono muri che danno fuori; null se non se ne mette
+     * nessuna.
      */
-    private fun allWindows(plan: FloorPlan): FloorPlan? {
+    private fun allWindows(plan: FloorPlan, norms: HousingNorms): FloorPlan? {
         var out = plan
         for (space in HousingRules.livingSpaces(plan)) {
             val now = space.mapNotNull { out.room(it.id) }
             if (now.isEmpty() || HousingRules.floorArea(now) < TINY_ROOM_CM2) continue
-            val need = missingLight(out, now)
+            val need = missingLight(out, now, norms)
             out = (0 until 3).firstNotNullOfOrNull { addedWindows(out, now, need, it) } ?: continue
         }
         for (r in plan.rooms) {
@@ -1362,11 +1366,12 @@ object PlanCheck {
         val wired = ElectricRules.wired(allRooms)
         val heated = allRooms.any { r -> r.fixtures.any { it.kind == FixtureKind.Radiator } }
         val plumbed = allRooms.any { r -> r.fixtures.any { it.kind == FixtureKind.WaterPoint } }
+        val norms = HousingNorms.of(b)
         for ((f, floor) in b.floors.withIndex()) {
             val plan = sane(floor.plan)
             val below = b.floors.getOrNull(f - 1)
             val above = b.floors.getOrNull(f + 1)
-            FloorCheck(plan, f, out, wired, heated, plumbed).run {
+            FloorCheck(plan, f, out, wired, heated, plumbed, norms).run {
                 walls()
                 pairs()
                 openings()
@@ -1391,29 +1396,31 @@ object PlanCheck {
             val plan = sane(b.floors[f].plan)
             plan.rooms.firstOrNull { !it.outdoor }?.let { r -> out += Issue(Kind.NoEntrance, f, listOf(r.id), boundsOf(plan.rooms.flatMap { it.points })) }
         }
-        if (out.size < MAX_ISSUES) home(b, out)
+        if (out.size < MAX_ISSUES) home(b, out, norms)
         // Prima gli errori, poi le cose da controllare e le norme; ognuno nell'ordine dei piani.
         return out.sortedWith(compareBy({ !it.kind.error }, { it.kind.rule }, { it.floor })).take(MAX_ISSUES)
     }
 
     /**
      * Norme per tutta la casa (se ha un bagno e un soggiorno o una cucina: è un'abitazione intera, non una stanza da arredare o un
-     * pezzo di casa): almeno un bagno con vaso, bidè, vasca o doccia e lavabo (se nei bagni ci sono già dei sanitari), metri quadri
-     * per le persone che ci dormono, monolocale.
+     * pezzo di casa): almeno un bagno con i sanitari del paese (in Italia vaso, bidè, vasca o doccia e lavabo; se nei bagni ci sono
+     * già dei sanitari); in Italia anche i metri quadri per le persone che ci dormono e il monolocale.
      */
-    private fun home(b: Building, out: MutableList<Issue>) {
+    private fun home(b: Building, out: MutableList<Issue>, norms: HousingNorms) {
         val floors = b.floors.mapIndexed { f, fl -> f to Phases.view(sane(fl.plan), PhaseView.Project) }
         val baths = floors.flatMap { (f, p) -> p.rooms.filter { it.type == RoomType.Bagno && !it.outdoor && !HousingRules.demolished(it) }.map { Triple(f, p, it) } }
         if (baths.isEmpty()) return
         val living = floors.any { (_, p) -> p.rooms.any { (it.type == RoomType.Soggiorno || it.type == RoomType.Cucina) && !it.outdoor && !HousingRules.demolished(it) } }
         if (!living) return
         val found = baths.map { (f, p, r) -> Triple(f, r, HousingRules.sanitaries(p, r)) }
-        if (found.any { it.third.isNotEmpty() } && found.none { it.third.size == HousingRules.Sanitary.entries.size }) {
+        val required = norms.bathroom.orEmpty()
+        if (required.isNotEmpty() && found.any { it.third.isNotEmpty() } && found.none { it.third.containsAll(required) }) {
             // Il bagno più completo, con quello che manca.
-            val (f, r, has) = found.maxBy { it.third.size }
+            val (f, r, has) = found.maxBy { (_, _, s) -> required.count { it in s } }
             val mask = has.fold(0) { m, s -> m or (1 shl s.ordinal) }
             out += Issue(Kind.BathIncomplete, f, listOf(r.id), Polygon.bounds(r.points).grow(60.0), count = mask)
         }
+        if (!norms.perPerson) return
         val indoor = floors.flatMap { (f, p) -> p.rooms.filter { !it.outdoor && !HousingRules.demolished(it) && it.points.size >= 3 }.map { f to it } }
         val area = indoor.sumOf { it.second.usableArea() }
         val persons = floors.sumOf { (_, p) -> p.furniture.sumOf { HousingRules.sleepers(it) } }
@@ -1430,11 +1437,14 @@ object PlanCheck {
         }
     }
 
-    /** I problemi nei tre gruppi dell'elenco, con il titolo: da correggere, da controllare, norme. Solo i gruppi non vuoti. */
-    fun groups(issues: List<Issue>): List<Pair<String, List<Issue>>> = listOf(
+    /**
+     * I problemi nei tre gruppi dell'elenco, con il titolo: da correggere, da controllare, norme (del paese di `norms`, o i
+     * consigli). Solo i gruppi non vuoti.
+     */
+    fun groups(issues: List<Issue>, norms: HousingNorms = HousingNorms.Italy): List<Pair<String, List<Issue>>> = listOf(
         T.controllo.daCorreggere to issues.filter { it.kind.error },
         T.controllo.daControllare to issues.filter { !it.kind.error && !it.kind.rule },
-        T.controllo.daNorme to issues.filter { it.kind.rule },
+        T.controllo.daNorme(norms) to issues.filter { it.kind.rule },
     ).filter { it.second.isNotEmpty() }
 
     /** Segno davanti al problema nell'elenco. */
@@ -1455,10 +1465,11 @@ object PlanCheck {
             return@buildString
         }
         val floors = b.floors.size > 1
-        for ((k, group) in groups(issues).withIndex()) {
+        val norms = HousingNorms.of(b)
+        for ((k, group) in groups(issues, norms).withIndex()) {
             if (k > 0) append('\n')
             append(group.first).append('\n')
-            if (group.second.first().kind.rule) append(t.spiegaNorme).append('\n')
+            if (group.second.first().kind.rule) append(t.spiegaNorme(norms)).append('\n')
             for (i in group.second) {
                 val where = if (floors) b.floors.getOrNull(i.floor)?.name?.let { "$it · " } ?: "" else ""
                 append(mark(i.kind)).append(' ').append(where).append(describe(i, b)).append('\n')
@@ -1475,6 +1486,8 @@ object PlanCheck {
         fun cm(v: Double): String = v.roundToInt().toString()
         fun m2(v: Double): String = formatDecimal(v, 2)
         fun cm1(v: Double): String = formatDecimal(v, 1).removeSuffix("${T.lingua.virgola}0")
+        fun m(cm: Double): String = formatDecimal(cm / 100, 2)
+        val norms = HousingNorms.of(b)
         // Ambiente fatto di più stanze (soggiorno con cucina a vista): tutti i nomi.
         val all = i.rooms.indices.joinToString(" + ") { name(it) }
         val cosa = i.opening?.let { T.lingua.minuscola(it.label) } ?: ""
@@ -1516,30 +1529,42 @@ object PlanCheck {
                 t.antaUrta(name(0), cosa, t.nome(thing))
             }
             Kind.SwingHitsWall -> t.antaUrtaMuro(name(0), cosa)
-            Kind.FewWindows -> t.pocaLuce(all, m2(i.a), m2(i.b), HousingRules.fraction(i.a / i.b), m2(i.b * HousingRules.MIN_RATIO))
-            Kind.NoWindows -> t.senzaFinestre(all, m2(i.b * HousingRules.MIN_RATIO))
+            Kind.FewWindows -> {
+                val air = norms.ventRatio
+                val light = norms.windowRatio
+                when {
+                    // Solo la parte che si apre è poca (dove l'aria ha un minimo suo).
+                    i.count == 1 && air != null -> t.pocaAria(all, m2(i.a), m2(i.b), norms.ratioLabel(air), m2(i.b * air))
+                    light != null -> t.pocaLuce(all, m2(i.a), m2(i.b), HousingRules.fraction(i.a / i.b), m2(i.b * light), norms.ratioLabel(light), norms.openableOnly)
+                    else -> t.senzaFinestre(all, norms.openableOnly, null, null)
+                }
+            }
+            Kind.NoWindows -> t.senzaFinestre(all, norms.openableOnly, norms.windowRatio?.let { m2(i.b * it) }, norms.windowRatio?.let(norms::ratioLabel))
             Kind.NoFloorWindows -> t.nessunaFinestra
-            Kind.LowCeiling -> if (i.b < HousingRules.MIN_HEIGHT_LIVING_CM) t.soffittoBassoServizi(name(0), formatDecimal(i.a / 100, 2))
-            else t.soffittoBasso(name(0), formatDecimal(i.a / 100, 2))
-            Kind.LowAttic -> t.mansardaBassa(name(0), formatDecimal(i.a / 100, 2))
-            Kind.SmallBedroom -> if (i.b * 10_000 >= HousingRules.MIN_DOUBLE_BEDROOM_CM2) t.cameraPerDuePiccola(name(0), m2(i.a)) else t.cameraPiccola(name(0), m2(i.a))
+            Kind.LowCeiling -> if (i.count == 1) t.soffittoBassoServizi(name(0), m(i.a), m(i.b)) else t.soffittoBasso(name(0), m(i.a), m(i.b))
+            Kind.LowAttic -> t.mansardaBassa(name(0), m(i.a))
+            Kind.SmallBedroom -> if (i.count == 2) t.cameraPerDuePiccola(name(0), m2(i.a), cm1(i.b))
+            else t.cameraPiccola(name(0), m2(i.a), cm1(i.b), norms.doubleBedroomCm2?.let { cm1(it / 10_000) })
             Kind.BathNoWindow -> t.bagnoSenzaFinestra(name(0))
             Kind.BathOnLiving -> t.bagnoSuCucina(name(0), name(1))
-            Kind.BathIncomplete -> t.bagnoIncompleto(
-                name(0),
-                HousingRules.Sanitary.entries.filter { (i.count shr it.ordinal) and 1 == 0 }.joinToString(", ") { s ->
-                    when (s) {
-                        HousingRules.Sanitary.Toilet -> t.vaso
-                        HousingRules.Sanitary.Bidet -> t.bide
-                        HousingRules.Sanitary.BathOrShower -> t.vascaODoccia
-                        HousingRules.Sanitary.Basin -> t.lavabo
-                    }
-                },
-            )
+            Kind.BathIncomplete -> {
+                fun label(s: HousingRules.Sanitary) = when (s) {
+                    HousingRules.Sanitary.Toilet -> t.vaso
+                    HousingRules.Sanitary.Bidet -> t.bide
+                    HousingRules.Sanitary.BathOrShower -> t.vascaODoccia
+                    HousingRules.Sanitary.Basin -> t.lavabo
+                }
+                val required = norms.bathroom ?: HousingRules.Sanitary.entries
+                t.bagnoIncompleto(
+                    name(0),
+                    required.filter { (i.count shr it.ordinal) and 1 == 0 }.joinToString(", ") { label(it) },
+                    t.elenco(required.map { label(it) }),
+                )
+            }
             Kind.SmallHome -> t.casaPiccola(m2(i.a), i.count, formatDecimal(i.b, 0))
             Kind.SmallStudio -> t.monolocalePiccolo(m2(i.a), formatDecimal(i.b, 0), i.count >= 2)
             Kind.FewPoints -> t.impiantoScarso(name(0), t.puntiPresa(i.a.roundToInt()), t.puntiLuce(i.b.roundToInt()), t.puntiPresa(i.count / 10), t.puntiLuce(i.count % 10))
-            Kind.SmallLiving -> t.soggiornoPiccolo(all, m2(i.a))
+            Kind.SmallLiving -> t.soggiornoPiccolo(all, m2(i.a), cm1(i.b))
         }
     }
 
@@ -1601,6 +1626,7 @@ object PlanCheck {
         val wired: Boolean = false,
         val heated: Boolean = false,
         val plumbed: Boolean = false,
+        val norms: HousingNorms = HousingNorms.Italy,
     ) {
         val expanded = plan.expandCurves().plan
         val rooms = plan.rooms
@@ -1914,6 +1940,8 @@ object PlanCheck {
          * camera da letto no: di solito si può aprire il secondo bagno, e il bagno principale non si riconosce dal disegno.
          */
         fun bathDoors() {
+            // Solo dove le regole lo chiedono (in Italia, i regolamenti d'igiene dei comuni).
+            if (!norms.bathLobby) return
             val p = Phases.view(plan, PhaseView.Project)
             fun door(k: OpeningKind) = k == OpeningKind.Door || k == OpeningKind.Door2 || k == OpeningKind.Passage
             val doors = p.rooms.flatMap { r ->
@@ -1999,10 +2027,11 @@ object PlanCheck {
         }
 
         /**
-         * Minimi delle norme italiane per le case, sulla casa come sarà (le stanze tutte da demolire non contano): finestre apribili
-         * di almeno 1/8 del pavimento nelle stanze da abitare (per ambiente: il soggiorno con la cucina a vista insieme), soffitti
-         * alti almeno 2,70 m (2,40 in bagni e corridoi), camere da letto da 9 m² e soggiorno da 14 m². Le misure si confrontano
-         * arrotondate come si leggono (m² al centesimo, cm interi), così non esce «9,00 m², meno di 9 m²».
+         * Minimi delle norme per le case del paese ([norms]), sulla casa come sarà (le stanze tutte da demolire non contano); in
+         * Italia finestre apribili di almeno 1/8 del pavimento nelle stanze da abitare (per ambiente: il soggiorno con la cucina a
+         * vista insieme), soffitti alti almeno 2,70 m (2,40 in bagni e corridoi), camere da letto da 9 m² e soggiorno da 14 m². Una
+         * regola che nel paese non c'è non si controlla. Le misure si confrontano arrotondate come si leggono (m² al centesimo, cm
+         * interi), così non esce «9,00 m², meno di 9 m²».
          */
         fun rules() {
             fun hundredths(cm2: Double) = (cm2 / 100).roundToInt()
@@ -2014,9 +2043,15 @@ object PlanCheck {
             val windowless = rooms.none { r -> r.openings.any { it.kind.glazed } }
             if (windowless && spaces.isNotEmpty()) add(Issue(Kind.NoFloorWindows, floor, emptyList(), boundsOf(spaces.flatten().flatMap { it.points }).grow(60.0)))
             if (!windowless) for (s in spaces) {
-                if (!HousingRules.belowMinimum(plan, s)) continue
-                val windows = HousingRules.windowArea(plan, s)
-                add(Issue(if (windows < 1.0) Kind.NoWindows else Kind.FewWindows, floor, s.map { it.id }, where(s), a = windows / 10_000, b = HousingRules.floorArea(s) / 10_000))
+                if (!HousingRules.belowMinimum(plan, s, norms)) continue
+                val total = HousingRules.floorArea(s) / 10_000
+                if (HousingRules.lightShort(plan, s, norms)) {
+                    val windows = HousingRules.windowArea(plan, s, norms.openableOnly)
+                    add(Issue(if (windows < 1.0) Kind.NoWindows else Kind.FewWindows, floor, s.map { it.id }, where(s), a = windows / 10_000, b = total))
+                } else {
+                    // Le finestre bastano per la luce ma la parte che si apre no (dove l'aria ha un minimo suo): `count` 1.
+                    add(Issue(Kind.FewWindows, floor, s.map { it.id }, where(s), a = HousingRules.windowArea(plan, s) / 10_000, b = total, count = 1))
+                }
             }
             for (r in rooms) {
                 if (full()) return
@@ -2025,33 +2060,43 @@ object PlanCheck {
                 if (area < TINY_ROOM_CM2) continue
                 val box = boxes.getValue(r.id).grow(60.0)
                 if (HousingRules.flatCeiling(r)) {
+                    // `count` 1: bagni e corridoi.
+                    val service = HousingRules.service(r.type)
                     val min = when {
-                        HousingRules.habitable(r.type) -> HousingRules.MIN_HEIGHT_LIVING_CM
-                        HousingRules.service(r.type) -> HousingRules.MIN_HEIGHT_SERVICE_CM
+                        HousingRules.habitable(r.type) -> norms.livingHeightCm
+                        service -> norms.serviceHeightCm
                         else -> null
                     }
-                    if (min != null && r.ceilingHeight.roundToInt() < min) add(Issue(Kind.LowCeiling, floor, listOf(r.id), box, a = r.ceilingHeight, b = min))
+                    if (min != null && r.ceilingHeight.roundToInt() < min) {
+                        add(Issue(Kind.LowCeiling, floor, listOf(r.id), box, a = r.ceilingHeight, b = min, count = if (service) 1 else 0))
+                    }
                 } else if (HousingRules.habitable(r.type)) {
                     // Mansarda: conta l'altezza media (le regole cambiano da regione a regione: si avvisa solo sotto quella più comune).
                     val average = Ceilings.averageHeight(r)
-                    if (average.roundToInt() < HousingRules.MIN_ATTIC_AVERAGE_CM) add(Issue(Kind.LowAttic, floor, listOf(r.id), box, a = average))
+                    val min = norms.atticAverageCm
+                    if (min != null && average.roundToInt() < min) add(Issue(Kind.LowAttic, floor, listOf(r.id), box, a = average))
                 }
                 if (r.type == RoomType.Camera || r.type == RoomType.Cameretta) {
-                    // Per due persone (letto matrimoniale, a castello o due letti) ne servono 14.
-                    val min = HousingRules.minBedroom(plan, r)
-                    if (hundredths(area) < hundredths(min)) add(Issue(Kind.SmallBedroom, floor, listOf(r.id), box, a = area / 10_000, b = min / 10_000))
+                    // Per due persone (letto matrimoniale, a castello o due letti) in Italia ne servono 14: `count` 2.
+                    val min = HousingRules.minBedroom(plan, r, norms)
+                    if (min != null && hundredths(area) < hundredths(min)) {
+                        val two = HousingRules.forTwo(plan, r, norms)
+                        add(Issue(Kind.SmallBedroom, floor, listOf(r.id), box, a = area / 10_000, b = min / 10_000, count = if (two) 2 else 1))
+                    }
                 }
                 // Bagno senza finestra apribile verso fuori: serve l'aspirazione meccanica (non se il piano non ha ancora finestre).
                 if (r.type == RoomType.Bagno && !windowless && HousingRules.lightOpenings(plan, r).isEmpty()) add(Issue(Kind.BathNoWindow, floor, listOf(r.id), box))
             }
             // Soggiorno: con la cucina a vista conta tutto l'ambiente.
-            for (s in spaces) {
+            val living = norms.livingCm2
+            if (living != null) for (s in spaces) {
                 if (s.first().type != RoomType.Soggiorno) continue
                 val total = HousingRules.floorArea(s)
-                if (hundredths(total) < hundredths(HousingRules.MIN_LIVING_CM2)) add(Issue(Kind.SmallLiving, floor, s.map { it.id }, where(s), a = total / 10_000))
+                if (hundredths(total) < hundredths(living)) add(Issue(Kind.SmallLiving, floor, s.map { it.id }, where(s), a = total / 10_000, b = living / 10_000))
             }
-            // Impianto elettrico di base, solo se nella casa si stanno mettendo le prese: punti presa e punti luce di ogni stanza.
-            if (wired) for (r in rooms) {
+            // Impianto elettrico di base (in Italia), solo se nella casa si stanno mettendo le prese: punti presa e punti luce di
+            // ogni stanza.
+            if (wired && norms.electric) for (r in rooms) {
                 if (full()) return
                 if (r.id in crossed || HousingRules.demolished(r)) continue
                 val min = ElectricRules.minimum(plan, r) ?: continue

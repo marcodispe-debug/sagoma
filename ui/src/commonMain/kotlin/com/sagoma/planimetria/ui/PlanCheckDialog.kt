@@ -35,6 +35,7 @@ import com.sagoma.planimetria.editor.FixSummary
 import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.editor.LiveCheck
 import com.sagoma.planimetria.editor.PlanCheck
+import com.sagoma.planimetria.geometry.HousingNorms
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.testi.T
 import kotlinx.coroutines.Dispatchers
@@ -90,7 +91,8 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                     else -> {
                         Text(T.controllo.spiega, style = MaterialTheme.typography.bodySmall)
                         val floors = building.floors.size > 1
-                        val groups = PlanCheck.groups(list)
+                        val norms = HousingNorms.of(building)
+                        val groups = PlanCheck.groups(list, norms)
                         // Gruppi aperti e chiusi a mano restano così anche dopo «Correggi» (l'elenco cambia).
                         val open = remember { mutableStateMapOf<String, Boolean>() }
                         val atStart = openAtStart(groups)
@@ -114,7 +116,7 @@ fun PlanCheckDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> 
                                 }
                             }
                             if (!expanded) continue
-                            if (group.first().kind.rule) Text(T.controllo.spiegaNorme, style = MaterialTheme.typography.bodySmall)
+                            if (group.first().kind.rule) Text(T.controllo.spiegaNorme(norms), style = MaterialTheme.typography.bodySmall)
                             // Tutti quelli del gruppo che si correggono da soli (non quelli tolti dalla pianta), con un solo ↶.
                             val fixable = group.filter { !PlanCheck.hidden(building, it) && fixable(it, turnable) }
                             if (fixable.size > 1) {

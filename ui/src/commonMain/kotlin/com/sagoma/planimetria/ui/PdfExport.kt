@@ -341,11 +341,11 @@ object PdfExport {
         }
         if (res.light.isNotEmpty()) {
             title(T.computo.luceAria)
-            row(listOf(T.pdf.stanza, T.pdf.pavM2, T.computo.finM2, T.computo.rapporto, T.computo.almenoUnOttavo), w, bold = true, right = nums)
+            row(listOf(T.pdf.stanza, T.pdf.pavM2, T.computo.finM2, T.computo.rapporto, T.computo.almeno(res.norms)), w, bold = true, right = nums)
             for (l in res.light) {
                 row(listOf(if (multi) "${l.rooms} (${l.floor})" else l.rooms, fmt2(l.floorArea), fmt2(l.windowArea), HousingRules.fraction(l.ratio), if (l.enough) T.computo.si else T.computo.no), w, right = nums)
             }
-            row(listOf(T.computo.notaLucePdf), listOf(colW))
+            row(listOf(T.computo.notaLucePdf(res.norms)), listOf(colW))
         }
         return sheets.filter { it.isNotEmpty() }
     }
