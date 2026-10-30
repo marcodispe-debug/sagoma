@@ -72,6 +72,9 @@ import com.sagoma.planimetria.model.ColumnShape
 import com.sagoma.planimetria.geometry.Structure
 import com.sagoma.planimetria.model.Finish
 import com.sagoma.planimetria.model.LampModel
+import com.sagoma.planimetria.model.LightLevel
+import com.sagoma.planimetria.geometry.Scene3D
+import androidx.compose.material3.Slider
 import com.sagoma.planimetria.model.RadiatorModel
 import com.sagoma.planimetria.model.FramePosition
 import com.sagoma.planimetria.model.SashType
@@ -324,6 +327,11 @@ private fun FurniturePanel(sel: Selection.Furniture, plan: FloorPlan, vm: Editor
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(end = 8.dp),
             )
+        })
+        // Lampade del catalogo: quanto fanno luce, ognuna per conto suo.
+        val lamp = com.sagoma.planimetria.model.FurnitureCatalog.item(f.model)?.takeIf { it.symbolKind == com.sagoma.planimetria.model.FurnitureSymbol.Lamp }
+        if (lamp != null) add(InfoTab("luce", T.pannelli.luce) {
+            LightLevelControl(f.brightness, Scene3D.lampLumens(lamp.ceiling), vm) { v -> update { it.copy(brightness = v) } }
         })
         if (kitchen != null || parametric != null) add(InfoTab("finiture", T.schedaStanza.finiture) {
             if (kitchen != null) KitchenFinishes(f.id, kitchen, plan, vm)
@@ -1159,6 +1167,33 @@ private fun FixturePanel(sel: Selection.Fixture, plan: FloorPlan, vm: EditorView
         }
         else -> Unit
     }
+    if (f.kind.isLight) LightLevelControl(f.brightness, Scene3D.lumensOf(f.kind), vm) { v -> update { it.copy(brightness = v) } }
+}
+
+/**
+ * Luminosità di una sola luce, da spenta (0%) al doppio (200%), con i lumen che fa davvero nel 3D e nelle foto (contando anche la
+ * luminosità di tutta la casa, il cursore del 3D). `lumens`: quelli della luce al 100%. Il cursore si applica quando lo si lascia:
+ * un passo solo da annullare.
+ */
+@Composable
+private fun LightLevelControl(brightness: Double, lumens: Double, vm: EditorViewModel, onChange: (Double) -> Unit) {
+    val house = vm.state.collectAsState().value.building.lampBrightness
+    var pct by remember(brightness) { mutableStateOf((LightLevel.of(brightness) * 100).roundToInt().toFloat()) }
+    val p = pct.roundToInt()
+    Text(
+        if (p == 0) T.pannelli.luceSpenta else T.pannelli.luminositaLuce(p, (lumens * p / 100 * house / 10).roundToInt() * 10),
+        style = MaterialTheme.typography.labelMedium,
+        modifier = Modifier.padding(top = 6.dp, end = 8.dp),
+    )
+    Slider(
+        value = pct,
+        onValueChange = { pct = (it / 5).roundToInt() * 5f },
+        onValueChangeFinished = { onChange(pct / 100.0) },
+        valueRange = 0f..(LightLevel.MAX * 100).toFloat(),
+        modifier = Modifier.padding(end = 8.dp),
+    )
+    Text(T.pannelli.luminositaLuceSpiegazione, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(end = 8.dp))
+    if (p != 100) TextButton(onClick = { pct = 100f; onChange(1.0) }) { Text(T.pannelli.luminositaNormale) }
 }
 
 /**

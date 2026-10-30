@@ -242,4 +242,9 @@ object TestiPannelliEs : TestiPannelli() {
     override fun filoMuro2(label: Any?): String = "$label, enrasada"
     override fun disuguali2(label: Any?): String = "$label, desiguales"
     override fun conAnta(label: Any?, sash: String): String = "$label, ${sash.lowercase()}"
+    override val luce: String get() = "Luz"
+    override val luceSpenta: String get() = "💡 Brillo: apagada"
+    override val luminositaLuceSpiegazione: String get() = "100% es la luz normal de esta lámpara. El control «💡 Brillo de las luces» de la vista 3D las sube o baja todas a la vez."
+    override val luminositaNormale: String get() = "Normal (100%)"
+    override fun luminositaLuce(pct: Int, lumen: Int): String = "💡 Brillo: $pct% · unos $lumen lúmenes"
 }
