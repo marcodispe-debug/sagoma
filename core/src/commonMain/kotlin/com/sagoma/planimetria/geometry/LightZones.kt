@@ -1,6 +1,7 @@
 package com.sagoma.planimetria.geometry
 
 import com.sagoma.planimetria.model.FloorPlan
+import com.sagoma.planimetria.model.OpeningKind
 import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
@@ -55,9 +56,13 @@ object LightZones {
     /** Tratto minimo (cm) di muro tolto in comune perché due stanze siano un ambiente solo (come i varchi di [LightSpill]). */
     private const val OPEN_MIN_CM = 20.0
 
+    /** Parte del muro in comune che i passaggi senza porta devono aprire perché le due stanze siano un ambiente solo. */
+    private const val PASSAGE_SHARE = 0.5
+
     /**
      * Gli ambienti aperti del piano: le stanze al chiuso unite dove tutte e due hanno tolto il muro in comune (soggiorno, cucina e
-     * ingresso senza muri in mezzo). Ogni stanza (con almeno tre angoli) sta in un gruppo solo; quelle chiuse da sole.
+     * ingresso senza muri in mezzo), o dove un passaggio senza porta apre almeno metà del muro in comune (ingresso che dà sul
+     * soggiorno con un varco largo). Ogni stanza (con almeno tre angoli) sta in un gruppo solo; quelle chiuse da sole.
      */
     fun spaces(plan: FloorPlan): List<List<Room>> {
         val indoor = plan.rooms.filter { !it.outdoor && it.points.size >= 3 }
@@ -67,9 +72,22 @@ object LightZones {
         return indoor.indices.groupBy { root(it) }.values.map { g -> g.map { indoor[it] } }
     }
 
-    private fun open(a: Room, b: Room): Boolean = a.removedWalls.any { i ->
+    private fun open(a: Room, b: Room): Boolean = passage(a, b) || passage(b, a) || a.removedWalls.any { i ->
         i < a.wallCount && b.removedWalls.any { j ->
             j < b.wallCount && Dimensions.overlap(a.wallStart(i), a.wallEnd(i), b.wallStart(j), b.wallEnd(j)) >= OPEN_MIN_CM
+        }
+    }
+
+    /**
+     * I passaggi senza porta di `a` aprono almeno [PASSAGE_SHARE] di un muro che ha in comune con `b`: di qua e di là è come un
+     * ambiente solo. Con un varco stretto in un muro lungo no: la luce passerebbe anche dal muro accanto (passa da [LightSpill]).
+     */
+    private fun passage(a: Room, b: Room): Boolean = (0 until a.wallCount).any { i ->
+        val gaps = a.openings.filter { it.kind == OpeningKind.Passage && it.wallIndex == i }
+        gaps.isNotEmpty() && (0 until b.wallCount).any { j ->
+            val common = Dimensions.overlap(a.wallStart(i), a.wallEnd(i), b.wallStart(j), b.wallEnd(j))
+            val open = gaps.sumOf { o -> Openings.span(a, o).let { (s, e) -> Dimensions.overlap(s, e, b.wallStart(j), b.wallEnd(j)) } }
+            common >= OPEN_MIN_CM && open >= OPEN_MIN_CM && open >= PASSAGE_SHARE * common
         }
     }
 
