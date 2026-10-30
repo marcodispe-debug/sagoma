@@ -19,7 +19,7 @@ Albero natale|Weihnachtsbaum
 Aloe in vaso|Aloe im Topf
 Anfora|Amphore
 Anfora in terracotta|Terrakotta-Amphore
-Appendiabiti|Garderobenständer
+Appendiabiti|Kleiderständer
 Apple iMac 2004|Apple iMac 2004
 Applique|Wandleuchte
 Applique a gabbia|Käfig-Wandleuchte
@@ -65,18 +65,18 @@ Candelabro in ferro|Kandelaber aus Eisen
 Candele decorative|Dekokerzen
 Candeliere|Kerzenständer
 Candeliere in ottone|Kerzenständer aus Messing
-Cappa|Dunstabzugshaube
+Cappa|Abzugshaube
 Carrello porta attrezzi|Werkzeugwagen
-Cassa acustica a colonna|Standlautsprecher
+Cassa acustica a colonna|Säulen-Lautsprecher
 Cassa acustica nera|Schwarzer Lautsprecher
 Cassa bluetooth|Bluetooth-Lautsprecher
 Cassa hi-fi|HiFi-Lautsprecher
 Cassa su treppiede|Lautsprecher auf Stativ
 Cassapanca intagliata|Geschnitzte Truhenbank
-Casse acustiche da terra|Bodenlautsprecher
-Casse compatte|Kompaktlautsprecher
-Casse da scaffale|Regallautsprecher
-Cassetta portaoggetti|Aufbewahrungsbox
+Casse acustiche da terra|Boden-Lautsprecher
+Casse compatte|Kompakt-Lautsprecher
+Casse da scaffale|Regal-Lautsprecher
+Cassetta portaoggetti|Ablagebox
 Cassettiera aperta|Offene Kommode
 Cassettiera bassa|Niedrige Kommode
 Cassettiera bianca|Weiße Kommode
@@ -140,7 +140,7 @@ Culla con giostrina|Wiege mit Mobile
 Culla in legno|Holzwiege
 Cuscini|Kissen
 Cuscini decorativi|Dekokissen
-Cuscino avorio|Elfenbeinfarbenes Kissen
+Cuscino avorio|Cremeweißes Kissen
 Cuscino bianco|Weißes Kissen
 Cuscino blu|Blaues Kissen
 Cuscino lungo|Langes Kissen
@@ -162,14 +162,14 @@ Divano Chesterfield|Chesterfield-Sofa
 Divano Chesterfield grigio|Graues Chesterfield-Sofa
 Divano Winchester|Winchester-Sofa
 Divano ad angolo|Ecksofa
-Divano angolare antracite|Anthrazitfarbenes Ecksofa
+Divano angolare antracite|Ecksofa anthrazit
 Divano angolare blu|Blaues Ecksofa
 Divano angolare fucsia|Pinkes Ecksofa
 Divano angolare grigio|Graues Ecksofa
 Divano angolare grigio chiaro|Hellgraues Ecksofa
 Divano angolare rosa|Rosa Ecksofa
-Divano antracite|Anthrazitfarbenes Sofa
-Divano antracite a tre posti|Anthrazitfarbenes Dreisitzer-Sofa
+Divano antracite|Sofa anthrazit
+Divano antracite a tre posti|Dreisitzer-Sofa anthrazit
 Divano azzurro|Hellblaues Sofa
 Divano azzurro polvere|Taubenblaues Sofa
 Divano bianco classico|Klassisches weißes Sofa
@@ -232,7 +232,7 @@ Gatto in cemento|Katze aus Beton
 Giradischi a valigetta|Koffer-Plattenspieler
 Grammofono|Grammophon
 Griglia da esterno|Gartengrill
-Guardaroba|Garderobenschrank
+Guardaroba|Dielenschrank
 Il bacio|Der Kuss
 Isola con lavello|Kochinsel mit Spüle
 Isola cucina moderna|Moderne Kochinsel
@@ -250,7 +250,7 @@ Lampada da banchiere|Bankerlampe
 Lampada da banchiere verde|Grüne Bankerlampe
 Lampada da esterno|Außenleuchte
 Lampada da lettura|Leselampe
-Lampada da scrivania|Schreibtischlampe
+Lampada da scrivania|Schreibtisch-Lampe
 Lampada da soffitto|Deckenlampe
 Lampada da tavolo|Tischlampe
 Lampada da tavolo industriale|Tischlampe im Industriestil
@@ -264,18 +264,18 @@ Lampada sospesa|Hängelampe
 Lampada verde a fungo|Grüne Pilzlampe
 Lampadario|Kronleuchter
 Lampadario a bracci|Armleuchter
-Lampadario a candele in ferro|Kerzenkronleuchter aus Eisen
-Lampadario a candele nero|Schwarzer Kerzenkronleuchter
+Lampadario a candele in ferro|Kerzen-Kronleuchter aus Eisen
+Lampadario a candele nero|Schwarzer Kerzen-Kronleuchter
 Lampadario a lanterna|Laternen-Hängeleuchte
 Lampadario classico|Klassischer Kronleuchter
 Lampadario con paralumi|Kronleuchter mit Schirmen
 Lampadario con paralumi grigi|Kronleuchter mit grauen Schirmen
-Lampadario di cristallo|Kristallkronleuchter
-Lampadario di cristallo azzurro|Hellblauer Kristallkronleuchter
+Lampadario di cristallo|Kronleuchter aus Kristall
+Lampadario di cristallo azzurro|Hellblauer Kristall-Kronleuchter
 Lampadario in ferro|Kronleuchter aus Eisen
 Lampadario in legno|Kronleuchter aus Holz
 Lampadario in ottone|Kronleuchter aus Messing
-Lampadario in ottone sottile|Schmaler Messingkronleuchter
+Lampadario in ottone sottile|Schmaler Kronleuchter aus Messing
 Lampadario orientale|Orientalischer Kronleuchter
 Lampadario rustico|Rustikaler Kronleuchter
 Lampadario viola|Violetter Kronleuchter
@@ -288,17 +288,17 @@ Lanterna di carta|Papierlaterne
 Lanterna giapponese|Japanische Laterne
 Lanterna in legno|Holzlaterne
 Lanterna in pietra|Steinlaterne
-Lavabo a colonna|Standwaschbecken
+Lavabo a colonna|Stand-Waschbecken
 Lavabo bianco|Weißes Waschbecken
-Lavabo da appoggio|Aufsatzwaschbecken
+Lavabo da appoggio|Aufsatz-Waschbecken
 Lavabo ergonomico|Barrierefreies Waschbecken
-Lavabo in pietra|Steinwaschbecken
+Lavabo in pietra|Waschbecken aus Stein
 Lavabo piccolo|Kleines Waschbecken
 Lavabo quadrato|Eckiges Waschbecken
-Lavabo quadrato in acciaio|Eckiges Stahlwaschbecken
-Lavabo sospeso|Wandwaschbecken
+Lavabo quadrato in acciaio|Eckiges Waschbecken aus Stahl
+Lavabo sospeso|Wand-Waschbecken
 Lavagna bianca|Whiteboard
-Lavamani|Handwaschbecken
+Lavamani|Hand-Waschbecken
 Lavanda|Lavendel
 Lavandino|Waschbecken
 Lavandino con doppio specchio|Waschbecken mit Doppelspiegel
@@ -381,22 +381,22 @@ Miscelatore per vasca e doccia|Wannen- und Duscharmatur
 Mobile TV|TV-Möbel
 Mobile TV anni '50|TV-Möbel im 50er-Stil
 Mobile TV vintage|Vintage-TV-Möbel
-Mobile a cassetti|Schubladenschrank
+Mobile a cassetti|Schrank mit Schubladen
 Mobile ad angolo inferiore|Eckunterschrank
 Mobile ad angolo superiore|Eckhängeschrank
 Mobile ad angolo superiore piccolo|Kleiner Eckhängeschrank
 Mobile alto|Hochschrank
 Mobile alto in legno|Hochschrank aus Holz
-Mobile bagno moderno|Moderner Waschtischunterschrank
+Mobile bagno moderno|Modernes Badmöbel
 Mobile con cassetti|Schrank mit Schubladen
 Mobile con mensole|Schrank mit Fächern
 Mobile con vetri|Schrank mit Glastüren
 Mobile inferiore|Unterschrank
 Mobile lavabo|Waschtisch mit Unterschrank
-Mobile lavandino|Waschbeckenunterschrank
+Mobile lavandino|Waschbecken-Unterschrank
 Mobile lavello|Spülenschrank
 Mobile orientale|Orientalischer Schrank
-Mobile soggiorno|Wohnzimmerschrank
+Mobile soggiorno|Wohnwand
 Mobile superiore|Hängeschrank
 Mobile vetrina chiaro|Helle Vitrine
 Mobile vetrina scuro|Dunkle Vitrine
@@ -439,7 +439,7 @@ Pendolo in mogano|Pendeluhr aus Mahagoni
 Pendolo moderno|Moderne Pendeluhr
 Piano cottura|Kochfeld
 Piano cottura a gas a due fuochi|Gaskochfeld mit zwei Flammen
-Piano cottura a induzione|Induktionskochfeld
+Piano cottura a induzione|Induktions-Kochfeld
 Pianoforte|Klavier
 Pianoforte a coda|Flügel
 Pianoforte verticale|Klavier (Pianino)
@@ -493,7 +493,7 @@ Porta doccia|Duschtür
 Portafoto|Bilderrahmen zum Aufstellen
 Portafoto grande|Großer Bilderrahmen zum Aufstellen
 Portafrutta|Obstschale
-Portarotolo|Toilettenpapierhalter
+Portarotolo|WC-Rollenhalter
 Portasciugamani|Handtuchständer
 Portasciugamani a barra|Handtuchstange
 Portasciugamani a muro|Wand-Handtuchhalter
@@ -540,11 +540,11 @@ Scrivania classica|Klassischer Schreibtisch
 Scrivania con computer|Schreibtisch mit Computer
 Scrivania con computer grigia|Grauer Schreibtisch mit Computer
 Scrivania in legno|Holzschreibtisch
-Scrivania in metallo|Metallschreibtisch
-Scrivania in mogano|Mahagonischreibtisch
-Scrivania in noce|Nussbaumschreibtisch
+Scrivania in metallo|Schreibtisch aus Metall
+Scrivania in mogano|Schreibtisch aus Mahagoni
+Scrivania in noce|Schreibtisch aus Nussbaum
 Scrivania nera|Schwarzer Schreibtisch
-Scrivania regolabile|Höhenverstellbarer Schreibtisch
+Scrivania regolabile|Sitz-Steh-Schreibtisch
 Scrivania semplice|Einfacher Schreibtisch
 Scrivania ufficio a L|Büro-Eckschreibtisch
 Scultura del pensatore|Skulptur Der Denker
@@ -722,7 +722,7 @@ Tavolo tecnico|Zeichentisch
 Tavolo tondo|Runder Esstisch
 Tavolo tulipano|Tulpentisch
 Tecnigrafo|Zeichenmaschine
-Televisore a schermo piatto|Flachbildfernseher
+Televisore a schermo piatto|Flachbild-Fernseher
 Televisore anni '60|Fernseher aus den 60ern
 Televisore anni '80|Fernseher aus den 80ern
 Televisore in legno|Fernseher mit Holzgehäuse
@@ -731,7 +731,7 @@ Televisore portatile vintage|Tragbarer Vintage-Fernseher
 Televisore retrò|Retro-Fernseher
 Televisore su gambe|Fernseher auf Beinen
 Televisore vintage|Vintage-Fernseher
-Telo per proiettore|Projektionsleinwand
+Telo per proiettore|Beamer-Leinwand
 Tenda a pannello|Flächenvorhang
 Tenda su bastone|Vorhang an der Stange
 Tende bianche|Weiße Vorhänge
@@ -760,7 +760,7 @@ Vasca con piedini|Badewanne mit Füßen
 Vasca con piedini bianca|Weiße Badewanne mit Füßen
 Vasca con rubinetto|Badewanne mit Armatur
 Vasca freestanding|Freistehende Badewanne
-Vasca in ottone|Messingbadewanne
+Vasca in ottone|Badewanne aus Messing
 Vasca ovale|Ovale Badewanne
 Vasca rettangolare|Rechteckige Badewanne
 Vasca vittoriana|Viktorianische Badewanne
@@ -802,14 +802,14 @@ Zerbino marrone|Braune Fußmatte
 """
 
     private const val MATERIALI = """
-Ardesia a lastre|Schieferplatten
+Ardesia a lastre|Schiefer in Platten
 Assi chiare|Helle Dielen
 Assi chiare nodose|Helle astige Dielen
 Assi color miele|Honigfarbene Dielen
 Assi da ponte|Gerüstbohlen
 Assi scure|Dunkle Dielen
 Assi vissute|Gebrauchte Dielen
-Autobloccanti|Verbundpflaster
+Autobloccanti|Verbund-Pflaster
 Blocchi grigi|Graue Blöcke
 Carta da parati jacquard|Jacquard-Tapete
 Carta da parati marmorizzata|Tapete in Marmoroptik
@@ -821,7 +821,7 @@ Cemento chiaro|Heller Beton
 Cemento grigio|Grauer Beton
 Cemento scuro|Dunkler Beton
 Cemento spatolato|Gespachtelter Beton
-Ciottolato|Kopfsteinpflaster
+Ciottolato|Kopfstein-Pflaster
 Cotto|Cotto-Fliesen
 Cotto chiaro|Helle Cotto-Fliesen
 Cotto scuro|Dunkle Cotto-Fliesen
@@ -829,8 +829,8 @@ Doghe bianche|Weiße Paneele
 Doghe in legno|Holzpaneele
 Doghe rosse|Rote Paneele
 Doghe strette scure|Schmale dunkle Paneele
-Esagonette bianche|Weiße Sechseckfliesen
-Esagonette nere|Schwarze Sechseckfliesen
+Esagonette bianche|Weiße Sechseck-Fliesen
+Esagonette nere|Schwarze Sechseck-Fliesen
 Esagoni in cemento|Sechsecke aus Beton
 Ghiaia|Kies
 Gres antracite a correre|Feinsteinzeug anthrazit, wilder Verband
@@ -862,18 +862,18 @@ Lastre di pietra chiara|Helle Steinplatten
 Lastre grigie|Graue Platten
 Lastre nere lucide|Glänzende schwarze Platten
 Lino verde|Leinen grün
-Listoni noce|Landhausdielen Nussbaum
-Listoni rovere|Landhausdielen Eiche
-Listoni rovere naturale|Landhausdielen Eiche natur
-Listoni teak|Landhausdielen Teak
-Maioliche blu|Blaue Majolikafliesen
+Listoni noce|Dielen Nussbaum
+Listoni rovere|Dielen Eiche
+Listoni rovere naturale|Dielen Eiche natur
+Listoni teak|Dielen Teak
+Maioliche blu|Majolika blau
 Marmo Emperador chiaro|Marmor Emperador hell
 Marmo bianco venato|Weißer geäderter Marmor
 Marmo blu notte|Nachtblauer Marmor
-Marmo crema|Cremefarbener Marmor
+Marmo crema|Marmor creme
 Marmo di Carrara|Carrara-Marmor
 Marmo grigio|Grauer Marmor
-Marmo grigio a lastre|Graue Marmorplatten
+Marmo grigio a lastre|Grauer Marmor in Platten
 Marmo grigio perla|Perlgrauer Marmor
 Marmo nero Marquinia|Marmor Nero Marquina
 Marmo nero lucido|Glänzender schwarzer Marmor
@@ -891,7 +891,7 @@ Mattoni bianchi|Weiße Ziegel
 Mattoni bruciati|Gebrannte dunkle Ziegel
 Mattoni crema|Cremefarbene Ziegel
 Mattoni da esterno|Ziegel für außen
-Mattoni faccia a vista|Sichtmauerwerk
+Mattoni faccia a vista|Sichtziegel
 Mattoni gialli|Gelbe Ziegel
 Mattoni misti|Gemischte Ziegel
 Mattoni rossi|Rote Ziegel
@@ -912,8 +912,8 @@ Moquette verde oliva|Teppichboden olivgrün
 Mosaico acquamarina|Mosaik aquamarin
 Mosaico azzurro|Mosaik hellblau
 Mosaico grigio|Mosaik grau
-Muro in pietra|Natursteinmauer
-Muro in pietra grezza|Bruchsteinmauer
+Muro in pietra|Steinmauer
+Muro in pietra grezza|Mauer aus Bruchstein
 Onice azzurro|Blauer Onyx
 Onice bianco|Weißer Onyx
 Onice miele|Honigfarbener Onyx
@@ -930,22 +930,22 @@ Parquet a riquadri|Tafelparkett
 Parquet a riquadri classico|Klassisches Tafelparkett
 Parquet acero|Ahornparkett
 Parquet anticato|Antik-Parkett
-Parquet ciliegio|Kirschbaumparkett
-Parquet in diagonale|Diagonalparkett
-Parquet noce|Nussbaumparkett
+Parquet ciliegio|Parkett Kirschbaum
+Parquet in diagonale|Parkett diagonal
+Parquet noce|Parkett Nussbaum
 Parquet rovere miele|Parkett Eiche honig
 Pelliccia geometrica|Kunstfell geometrisch
 Perlinato scuro|Dunkles Profilholz
-Piastrelle a scacchi|Fliesen im Schachbrettmuster
+Piastrelle a scacchi|Schachbrett-Fliesen
 Piastrelle beige|Beige Fliesen
 Piastrelle bianche 10×10|Weiße Fliesen 10×10
 Piastrelle bianche lucide|Glänzende weiße Fliesen
 Piastrelle blu|Blaue Fliesen
 Piastrelle blu antiche|Alte blaue Fliesen
 Piastrelle in diagonale|Diagonal verlegte Fliesen
-Piastrelle in graniglia|Terrazzofliesen
+Piastrelle in graniglia|Terrazzo-Fliesen
 Piastrelle marroni|Braune Fliesen
-Pietra a opus|Polygonalplatten
+Pietra a opus|Stein polygonal
 Pietra a secco|Trockenmauer
 Pietra a strati|Schichtstein
 Pietra beige|Beiger Stein
@@ -969,15 +969,15 @@ Spina di pesce classica|Fischgrät klassisch
 Spina di pesce naturale|Fischgrät natur
 Spina di pesce rovere|Fischgrät Eiche
 Tartan|Schottenkaro
-Tavolato bianco|Weiße Bretterverschalung
-Tavolato rustico|Rustikale Bretterverschalung
-Tavolato sbiancato|Gekalkte Bretterverschalung
+Tavolato bianco|Weiße Bretterwand
+Tavolato rustico|Rustikale Bretterwand
+Tavolato sbiancato|Gekalkte Bretterwand
 Terrazzo chiaro|Heller Terrazzo
 Terrazzo colorato|Bunter Terrazzo
 Terrazzo grigio|Grauer Terrazzo
 Terrazzo multicolore|Mehrfarbiger Terrazzo
 Terrazzo nero|Schwarzer Terrazzo
-Terrazzo veneziano|Venezianischer Terrazzo
+Terrazzo veneziano|Venezianer Terrazzo
 Tessuto a motivi|Stoff gemustert
 Tessuto a motivi etnici|Stoff mit Ethno-Muster
 Travertino|Travertin
@@ -988,7 +988,7 @@ Travertino noce|Travertin nussbraun
 Velluto azzurro|Samt hellblau
 Velluto blu|Samt blau
 Velluto salvia|Samt salbei
-Vimini intrecciato|Weidengeflecht
+Vimini intrecciato|Korbgeflecht
 Wengè|Wenge
 Moquette grigia a quadretti|Teppichboden grau mit kleinen Karos
 Moquette petrolio a riquadri|Teppichboden petrol mit Feldern
@@ -1015,7 +1015,7 @@ Granito rosso|Roter Granit
 Granito giallo|Gelber Granit
 Marmo bianco perla|Perlweißer Marmor
 Marmo nero assoluto|Marmor Nero Assoluto
-Marmo avorio|Elfenbeinfarbener Marmor
+Marmo avorio|Marmor elfenbein
 Marmo rosa|Rosa Marmor
 Marmo Emperador scuro|Marmor Emperador dunkel
 Granito blu Labrador|Blauer Labrador-Granit
@@ -1027,7 +1027,7 @@ Marmo bianco Thassos|Weißer Thassos-Marmor
 Pietra di Trani|Trani-Stein
 Onice grigio|Grauer Onyx
 Onice arancio|Oranger Onyx
-Onice avorio|Elfenbeinfarbener Onyx
+Onice avorio|Onyx elfenbein
 Onice multicolore|Mehrfarbiger Onyx
 Onice nero venato|Schwarzer geäderter Onyx
 Intonaco rosso|Roter Putz
@@ -1037,7 +1037,7 @@ Intonaco giallo|Gelber Putz
 Intonaco verde salvia|Salbeigrüner Putz
 Intonaco grigio chiaro|Hellgrauer Putz
 Stucco a spatola|Spachtelputz
-Stucco veneziano grigio|Grauer Venezianischer Stuck
+Stucco veneziano grigio|Stucco Veneziano grau
 Graniglia bianca e blu|Terrazzo weiß und blau
 Terrazzo antracite|Terrazzo anthrazit
 Terrazzo bianco e grigio|Terrazzo weiß und grau
@@ -1053,7 +1053,7 @@ Gres bianco opaco|Feinsteinzeug weiß matt
 Mosaico di vetro azzurro|Glasmosaik hellblau
 Mosaico a bottoni pastello|Knopfmosaik pastell
 Mattoncini rosa|Metrofliesen rosa
-Mattoncini in marmo avorio|Riemchen aus elfenbeinfarbenem Marmor
+Mattoncini in marmo avorio|Marmor-Riemchen elfenbein
 Scacchiera marmo beige|Schachbrett aus beigem Marmor
 Scacchiera marmo bianco e nero grande|Großes Schachbrett aus Marmor schwarz-weiß
 Scacchiera marmo grigio scuro|Schachbrett aus dunkelgrauem Marmor
@@ -1070,26 +1070,26 @@ Mattoncini gialli|Metrofliesen gelb
 Zellige verde|Zellige grün
 Piastrelle bianche 10×10 lucide|Fliesen weiß 10×10 glänzend
 Mattoncini rossi lucidi|Metrofliesen rot glänzend
-Lastre di cemento|Zementplatten
-Graniglia arancio|Terrazzofliesen orange
-Graniglia verde|Terrazzofliesen grün
-Graniglia bianca|Terrazzofliesen weiß
-Graniglia blu|Terrazzofliesen blau
+Lastre di cemento|Platten aus Zement
+Graniglia arancio|Terrazzo-Fliesen orange
+Graniglia verde|Terrazzo-Fliesen grün
+Graniglia bianca|Terrazzo-Fliesen weiß
+Graniglia blu|Terrazzo-Fliesen blau
 Marmo azzurro a correre|Hellblauer Marmor im wilden Verband
 Pietra beige a formati misti|Beiger Stein in gemischten Formaten
 Pietra grigia a formati misti|Grauer Stein in gemischten Formaten
-Mosaico di ardesia|Schiefermosaik
+Mosaico di ardesia|Schiefer-Mosaik
 Mosaico verde marmorizzato|Mosaik grün marmoriert
 Marmo bianco con tozzetti neri|Weißer Marmor mit schwarzen Einlegern
 Marmo nero e bianco sfalsato|Marmor schwarz-weiß versetzt
 Marmo nero con tozzetti bianchi|Schwarzer Marmor mit weißen Einlegern
 Losanghe verde, nero e grigio|Rauten grün, schwarz und grau
-Esagonette cotto e beige a righe|Sechseckfliesen Cotto und beige gestreift
-Esagonette cotto e beige|Sechseckfliesen Cotto und beige
-Esagonette in cotto|Sechseckfliesen aus Cotto
-Esagonette azzurre e bianche|Sechseckfliesen hellblau und weiß
-Esagonette celesti e petrolio|Sechseckfliesen himmelblau und petrol
-Esagonette in pietra nera|Sechseckfliesen aus schwarzem Stein
+Esagonette cotto e beige a righe|Sechseck-Fliesen Cotto und beige gestreift
+Esagonette cotto e beige|Sechseck-Fliesen Cotto und beige
+Esagonette in cotto|Sechseck-Fliesen aus Cotto
+Esagonette azzurre e bianche|Sechseck-Fliesen hellblau und weiß
+Esagonette celesti e petrolio|Sechseck-Fliesen himmelblau und petrol
+Esagonette in pietra nera|Sechseck-Fliesen aus schwarzem Stein
 Piastrelle prugna 10×10|Fliesen pflaume 10×10
 Marmo a onde verde e crema|Marmor mit Wellen grün und creme
 Marmo a rombi verde e crema|Marmor mit Rauten grün und creme
@@ -1128,46 +1128,46 @@ Travertino oro|Travertin gold
 Travertino silver|Travertin silber
 Travertino giallo|Travertin gelb
 Quarzite grigia|Grauer Quarzit
-Listoni grigio sbiancato|Landhausdielen grau gekalkt
-Listoni mogano|Landhausdielen Mahagoni
-Listoni rovere fumé|Landhausdielen Räuchereiche
-Listoni frassino|Landhausdielen Esche
-Listoni noce scuro|Landhausdielen Nussbaum dunkel
+Listoni grigio sbiancato|Dielen grau gekalkt
+Listoni mogano|Dielen Mahagoni
+Listoni rovere fumé|Dielen Räuchereiche
+Listoni frassino|Dielen Esche
+Listoni noce scuro|Dielen Nussbaum dunkel
 Listoncini a correre|Schmale Stäbe im wilden Verband
-Listoni rovere sbiancato|Landhausdielen Eiche gekalkt
-Listoni wengè|Landhausdielen Wenge
+Listoni rovere sbiancato|Dielen Eiche gekalkt
+Listoni wengè|Dielen Wenge
 Spina di pesce faggio|Fischgrät Buche
 Spina di pesce mogano|Fischgrät Mahagoni
 Spina di pesce noce|Fischgrät Nussbaum
 Spina di pesce sbiancata|Fischgrät gekalkt
 Spina di pesce scura|Fischgrät dunkel
-Parquet a cesto chiaro|Helles Flechtverband-Parkett
-Parquet a cesto bicolore|Zweifarbiges Flechtverband-Parkett
-Parquet a cesto ciliegio|Flechtverband-Parkett Kirschbaum
-Parquet a gradini bicolore|Zweifarbiges Treppenmuster-Parkett
-Parquet intarsiato chiaro|Helles Intarsienparkett
-Parquet intarsiato scuro|Dunkles Intarsienparkett
-Parquet a dama|Schachbrettparkett
-Parquet a cesto wengè|Flechtverband-Parkett Wenge
-Parquet a cesto acero|Flechtverband-Parkett Ahorn
-Industriale scuro|Industrieparkett dunkel
-Parquet a cesto sbiancato|Flechtverband-Parkett gekalkt
+Parquet a cesto chiaro|Flechtverband hell
+Parquet a cesto bicolore|Flechtverband zweifarbig
+Parquet a cesto ciliegio|Flechtverband Kirschbaum
+Parquet a gradini bicolore|Stufenmuster zweifarbig
+Parquet intarsiato chiaro|Helles Intarsien-Parkett
+Parquet intarsiato scuro|Dunkles Intarsien-Parkett
+Parquet a dama|Schachbrett-Parkett
+Parquet a cesto wengè|Flechtverband Wenge
+Parquet a cesto acero|Flechtverband Ahorn
+Industriale scuro|Industrie-Parkett dunkel
+Parquet a cesto sbiancato|Flechtverband gekalkt
 Spina di pesce vecchia grigia|Alter Fischgrät grau
 Spina di pesce larice|Fischgrät Lärche
-Industriale miele|Industrieparkett honig
-Industriale chiaro|Industrieparkett hell
-Industriale rovere|Industrieparkett Eiche
+Industriale miele|Industrie-Parkett honig
+Industriale chiaro|Industrie-Parkett hell
+Industriale rovere|Industrie-Parkett Eiche
 Parquet Versailles|Versailles-Parkett
-Listoni noce lunghi|Lange Landhausdielen Nussbaum
+Listoni noce lunghi|Lange Dielen Nussbaum
 Spina ungherese chiara|Heller Fischgrät im Chevron
-Parquet a intarsio con cornice|Intarsienparkett mit Fries
+Parquet a intarsio con cornice|Intarsien-Parkett mit Fries
 Listoncini rovere vissuto|Eichenstäbe gebraucht
 Spina di pesce in marmo fiammato|Fischgrät aus geflammtem Marmor
-Mattoni a spina di pesce|Ziegel im Fischgrätverband
+Mattoni a spina di pesce|Ziegel in Fischgrät
 Laminato miele|Laminat honig
 Laminato pino|Laminat Kiefer
 Linoleum nocciola|Linoleum haselnuss
-Listelli bianchi verticali|Weiße Stäbchenfliesen senkrecht
+Listelli bianchi verticali|Weiße Stäbchen-Fliesen senkrecht
 Cementine con scaglie di marmo|Zementfliesen mit Marmorsplitt
 Linoleum a ottagoni|Linoleum mit Achtecken
 Cemento verniciato|Lackierter Beton

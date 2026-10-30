@@ -91,7 +91,7 @@ object SuggerimentiDe : Suggerimenti() {
                 "rasten an den Innenecken der Wände ein. Zum Schluss wählst du den Namen; die m² des Raums sinken, der Boden bleibt vollständig."
         Tip.RoomInfo ->
             "Oben stehen Duplizieren, Löschen, Name, Typ und die wichtigsten Maße. Darunter die Reiter: Maße (Höhen, Stärken, Wände und nicht " +
-                "begehbare Flächen), Oberflächen (Boden und Wände), Türen, Technik (Türen, Fenster und Installationen), Planung (bestehende, abzubrechende oder neue Wände). " +
+                "begehbare Flächen), Material (Boden und Wände), Türen, Technik (Türen, Fenster und Installationen), Planung (bestehende, abzubrechende oder neue Wände). " +
                 "Mit der Leiste rechts scrollst du den Inhalt."
         Tip.Snap ->
             "Mit 🧲 Ja springen Ecken, Wände und Objekte auf Ecken, Fluchten, gerade Richtungen und nahe Wände. Mit 🧲 Nein landen sie " +

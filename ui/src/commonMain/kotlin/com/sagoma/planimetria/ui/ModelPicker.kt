@@ -25,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 /**
@@ -63,16 +62,9 @@ fun <T> ModelPicker(
                         Box(Modifier.size(width = 88.dp, height = 60.dp).background(PreviewBackground, RoundedCornerShape(8.dp))) {
                             Canvas(Modifier.size(width = 88.dp, height = 60.dp)) { preview(option) }
                         }
-                        Text(
-                            name(option),
-                            style = MaterialTheme.typography.labelSmall,
-                            textAlign = TextAlign.Center,
-                            // Sempre due righe (le schede restano alte uguali), misurate dal testo: con 30 dp fissi la
-                            // seconda riga veniva tagliata in fondo («Parquet rovere»).
-                            minLines = 2,
-                            maxLines = 2,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
+                        // Sempre due righe (le schede restano alte uguali), misurate dal testo: con 30 dp fissi la
+                        // seconda riga veniva tagliata in fondo («Parquet rovere»).
+                        CardName(name(option), minLines = 2, maxLines = 2, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
             }

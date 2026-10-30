@@ -130,10 +130,10 @@ object NomiDe : Nomi() {
 
     override fun floorFinish(v: FloorFinish): String = when (v) {
         FloorFinish.RoomColor -> "Raumfarbe"
-        FloorFinish.OakParquet -> "Eichenparkett"
-        FloorFinish.WalnutParquet -> "Nussbaumparkett"
-        FloorFinish.LightTiles -> "Feinsteinzeug hell"
-        FloorFinish.GreyTiles -> "Feinsteinzeug grau"
+        FloorFinish.OakParquet -> "Parkett Eiche"
+        FloorFinish.WalnutParquet -> "Parkett Nussbaum"
+        FloorFinish.LightTiles -> "Fliesen hell"
+        FloorFinish.GreyTiles -> "Fliesen grau"
         FloorFinish.Marble -> "Marmor"
         FloorFinish.Terracotta -> "Terrakotta"
     }
@@ -344,7 +344,7 @@ object NomiDe : Nomi() {
         KitchenModules.Kind.WALL_DOORS -> "Hängeschrank"
         KitchenModules.Kind.WALL_HOOD -> "Hängeschrank mit Dunstabzug"
         KitchenModules.Kind.TALL_PANTRY -> "Vorratsschrank"
-        KitchenModules.Kind.TALL_OVEN -> "Hochschrank für Backofen und Mikrowelle"
+        KitchenModules.Kind.TALL_OVEN -> "Backofen und Mikrowelle"
         KitchenModules.Kind.TALL_FRIDGE -> "Kühlschrank-Hochschrank"
     }
 

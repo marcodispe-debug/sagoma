@@ -196,10 +196,7 @@ private fun CatalogCard(item: FurnitureCatalog.Item, onClick: () -> Unit) {
                 }
             }
             // Due righe misurate dal testo (30 dp fissi tagliavano la seconda) e i puntini se il nome è ancora più lungo.
-            Text(
-                item.nome, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center,
-                minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp),
-            )
+            CardName(item.nome, minLines = 2, maxLines = 2, modifier = Modifier.padding(top = 4.dp))
             Text(
                 T.arredi.testoTesto(formatCm(item.width), formatCm(item.depth), formatCm(item.height)),
                 style = MaterialTheme.typography.labelSmall,

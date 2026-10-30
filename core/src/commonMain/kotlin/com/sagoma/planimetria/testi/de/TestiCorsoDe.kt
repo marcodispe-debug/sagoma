@@ -240,10 +240,10 @@ object TestiCorsoDe : TestiCorso() {
     override val controlloVoce: String get() = "…und auf „${T.controllo.voceMenu}“."
     override val controlloRiapri: String get() = "Öffne die Prüfung erneut: das Menü „⋮“ hier oben…"
     override val controlloCorreggiTutti: String get() =
-        "Hier ist die Liste: ⚠ was zu beheben ist, ? was zu prüfen ist, 📏 die Mindestmaße der Bauvorschriften. Viele Probleme lösen sich von selbst: " +
+        "Hier ist die Liste: ⚠ was zu beheben ist, ? was zu prüfen ist, 📏 die Mindestwerte der Normen fürs Wohnen. Viele Probleme lösen sich von selbst: " +
             "„✓ Alle beheben“ korrigiert eine ganze Gruppe auf einmal (setzt zum Beispiel fehlende Türen) und ein einziges „${e.annulla}“ macht es rückgängig. Klicke darauf."
     override val controlloCorreggi: String get() =
-        "Hier ist die Liste: ⚠ was zu beheben ist, ? was zu prüfen ist, 📏 die Mindestmaße der Bauvorschriften. Viele Probleme lösen sich von selbst: " +
+        "Hier ist die Liste: ⚠ was zu beheben ist, ? was zu prüfen ist, 📏 die Mindestwerte der Normen fürs Wohnen. Viele Probleme lösen sich von selbst: " +
             "klicke auf „✓ ${T.controllo.correggi}“ (mit „${e.annulla}“ geht es zurück)."
     override val controlloChiudi: String get() =
         "Erledigt: die Liste aktualisiert sich von selbst. „${T.controllo.mostra}“ führt zur richtigen Stelle und wählt sie aus, „${T.controllo.condividi}“ schickt " +

@@ -12,10 +12,10 @@ object TestiControlloDe : TestiControllo() {
             "Räume ohne Tür, Flügel, die beim Öffnen anstoßen, die Haustür, die Treppen, die Installationen und die gesetzlichen Mindestwerte der Räume (Fenster, Höhen, Quadratmeter)."
     override val spiega: String get() =
         "Sie können Quadratmeter, Mengen und 3D verfälschen. Auf dem Grundriss markiert ein „!“, wo jedes Problem liegt. „Zeigen“ führt dorthin und wählt es aus; " +
-            "„Beheben“ korrigiert es von selbst (rückgängig mit ↶); „Vom Grundriss entfernen“ entfernt sein „!“."
+            "„Beheben“ korrigiert es von selbst (rückgängig mit ↶); „Ausblenden“ nimmt sein „!“ vom Grundriss."
     override val daCorreggere: String get() = "Zu beheben"
     override val daControllare: String get() = "Zu prüfen"
-    override val daNorme: String get() = "Bauvorschriften (Italien)"
+    override val daNorme: String get() = "Normen fürs Wohnen (Italien)"
     override val spiegaNorme: String get() =
         "Mindestwerte des italienischen DM vom 5. Juli 1975 für Wohnräume (Schlafzimmer, Wohnzimmer, Küche, Arbeitszimmer) und Bäder; die Bauordnung der Gemeinde " +
             "kann mehr verlangen. Fenster zählen, wenn sie sich öffnen lassen und nach außen gehen, gemessen an der Wandöffnung. Wenn du Steckdosen setzt, auch die Steckdosen " +
@@ -58,11 +58,11 @@ object TestiControlloDe : TestiControllo() {
     override fun fatto(aggiunto: String?, tolto: String?, spostato: String?, cambiato: String?): String =
         listOfNotNull(aggiunto?.let { "hinzugefügt: $it" }, tolto?.let { "entfernt: $it" }, spostato?.let { "verschoben: $it" }, cambiato?.let { "geändert: $it" })
             .joinToString("; ")
-    override val togliDallaPianta: String get() = "Vom Grundriss entfernen"
-    override val rimettiSullaPianta: String get() = "Wieder auf den Grundriss"
-    override val togliTutti: String get() = "Alle vom Grundriss entfernen"
+    override val togliDallaPianta: String get() = "Ausblenden"
+    override val rimettiSullaPianta: String get() = "Wieder anzeigen"
+    override val togliTutti: String get() = "Alle ausblenden"
     override val rimettiTutti: String get() = "Alle wieder anzeigen"
-    override val toltoDallaPianta: String get() = "vom Grundriss entfernt"
+    override val toltoDallaPianta: String get() = "ausgeblendet"
     override fun problemiQui(n: Int): String = if (n == 1) "Ein Problem hier" else "$n Probleme hier"
     override val condividi: String get() = "Teilen"
     override fun oggetto(progetto: String?): String = "Grundrissprüfung" + (progetto?.let { " · $it" } ?: "")
@@ -94,7 +94,7 @@ object TestiControlloDe : TestiControllo() {
     override fun scalaTestaBassaTetto(h: String): String =
         "Über der Treppe bleiben $h cm bis zur Decke: darüber liegt kein Raum des Geschosses darüber, sondern das Dach, und man stößt sich den Kopf (mindestens 200 nötig). Vergrößere den Raum darüber bis über die Treppe oder verschiebe die Treppe."
     override fun scalaTestaBassa(h: String): String =
-        "Über der Treppe bleiben $h cm bis zur Decke des Geschosses darüber: man stößt sich den Kopf (mindestens 200 nötig). Lass mehr Stufen offen (Info der Treppe → Geschoss darüber)."
+        "Über der Treppe bleiben $h cm bis zur Decke des Geschosses darüber: man stößt sich den Kopf (mindestens 200 nötig). Lass mehr Stufen offen (Info der Treppe → Darüber)."
     override fun anteSiUrtano(stanze: String, cosa: String, cosa2: String): String =
         "$stanze: zwei Flügel stoßen beim Öffnen aneinander ($cosa und $cosa2). Ändere die Anschlagseite oder die Öffnungsrichtung."
     override fun mobileNelMuro(cosa: String, cm: String): String = "$cosa ragt $cm cm in eine Wand: verschiebe es oder mach es kleiner."
