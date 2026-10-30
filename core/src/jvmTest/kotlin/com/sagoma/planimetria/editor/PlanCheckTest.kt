@@ -372,9 +372,10 @@ class PlanCheckTest {
         // Stanza tutta da demolire: non c'è più, niente da dire.
         val gone = rect(5, "Camera", RoomType.Camera, 250.0, 250.0, Vec2(0.0, 400.0)).let { r -> r.copy(wallPhases = (0 until r.wallCount).associateWith { com.sagoma.planimetria.model.Phase.Demolish }) }
         assertTrue(rules(gone).isEmpty())
-        // In francese i nomi tra « » con gli spazi.
+        // In francese i nomi tra « » con gli spazi. La casa è a Roma: le norme restano italiane anche con l'app in francese.
         T.lingua = com.sagoma.planimetria.testi.fr.Francese
-        assertTrue(PlanCheck.describe(dim, Building.single(FloorPlan(listOf(livingOpen, kitchenOpen)))).startsWith("« Soggiorno » + « Cucina » : fenêtres ouvrantes de 1,44 m²"))
+        val rome = com.sagoma.planimetria.model.HouseSite(place = com.sagoma.planimetria.model.Places.italy.first { it.place.name == "Roma" }.place)
+        assertTrue(PlanCheck.describe(dim, Building.single(FloorPlan(listOf(livingOpen, kitchenOpen))).copy(site = rome)).startsWith("« Soggiorno » + « Cucina » : fenêtres ouvrantes de 1,44 m²"))
     }
 
     @Test
@@ -1103,7 +1104,7 @@ class PlanCheckTest {
         // Prima gli errori, poi le norme, ognuno con il piano davanti; la spiegazione delle norme sotto il titolo.
         assertEquals("Da correggere", lines[0])
         assertTrue(lines[1].startsWith("⚠ Piano terra · «Camera»"), text)
-        assertTrue(text.contains("\nNorme per la casa (Italia)\n" + T.controllo.spiegaNorme + "\n📏 Piano terra · «Camera»: "), text)
+        assertTrue(text.contains("\nNorme per la casa (Italia)\n" + T.controllo.spiegaNorme(com.sagoma.planimetria.geometry.HousingNorms.Italy) + "\n📏 Piano terra · «Camera»: "), text)
         assertTrue(text.contains("\n📏 Primo piano · «Camera»: "), text)
         assertEquals(issues.size, lines.count { it.startsWith("⚠ ") || it.startsWith("? ") || it.startsWith("📏 ") })
         // Un piano solo: niente nome del piano. Senza problemi: una riga.

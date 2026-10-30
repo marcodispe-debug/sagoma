@@ -55,6 +55,7 @@ import com.sagoma.planimetria.editor.GuideField
 import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.Ceilings
+import com.sagoma.planimetria.geometry.HousingNorms
 import com.sagoma.planimetria.geometry.HousingRules
 import com.sagoma.planimetria.geometry.ElectricRules
 import com.sagoma.planimetria.geometry.formatDecimal
@@ -490,10 +491,12 @@ private fun OpeningsTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
         openingLabel(o),
         T.schedaStanza.muroCm(o.wallIndex + 1, formatCm(o.width), formatCm(o.height)) + (if (o.kind.hasSill) T.schedaStanza.terra(formatCm(o.sillHeight)) else ""),
     ) { vm.selectOpening(room.id, o.id) }
-    LightAndAirLine(room, plan)
+    // Le norme del paese della casa (dalla sua città, o dalla lingua).
+    val norms = HousingNorms.of(vm.state.collectAsState().value.building)
+    LightAndAirLine(room, plan, norms)
 
     SectionTitle(T.schedaStanza.impianti(room.fixtures.size))
-    ElectricLine(room, plan)
+    if (norms.electric) ElectricLine(room, plan)
     if (room.fixtures.isEmpty()) {
         Text(T.schedaStanza.nessunoUsaElementiArchitettonici, style = MaterialTheme.typography.bodySmall)
     }
@@ -501,27 +504,31 @@ private fun OpeningsTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
 }
 
 /**
- * Luce e aria naturali (rapporto aeroilluminante): finestre apribili che danno fuori rispetto al pavimento, per l'ambiente intero
- * (il soggiorno con la cucina a vista insieme); nelle stanze da abitare, il minimo italiano di 1/8 se non c'è.
+ * Luce e aria naturali (rapporto aeroilluminante): finestre che danno fuori (apribili, o anche fisse dove le norme del paese le
+ * contano) rispetto al pavimento, per l'ambiente intero (il soggiorno con la cucina a vista insieme); nelle stanze da abitare, il
+ * minimo del paese se non c'è (1/8 in Italia).
  */
 @Composable
-private fun LightAndAirLine(room: Room, plan: FloorPlan) {
+private fun LightAndAirLine(room: Room, plan: FloorPlan, norms: HousingNorms) {
     if (room.outdoor) return
     val space = HousingRules.space(plan, room)
-    val ratio = HousingRules.ratio(plan, space) ?: return
+    val ratio = HousingRules.ratio(plan, space, norms) ?: return
     val habitable = space.any { HousingRules.habitable(it.type) }
     if (!habitable && ratio <= 0) return
     val with = if (space.size > 1) T.schedaStanza.luceAriaInsieme(space.drop(1).joinToString(", ") { T.controllo.nome(it.name.ifBlank { it.type.label }) }) else ""
-    val line = if (ratio > 0) T.schedaStanza.luceAria(formatDecimal(HousingRules.windowArea(plan, space) / 10_000, 2), HousingRules.fraction(ratio))
-    else T.schedaStanza.luceAriaNessuna
+    val line = if (ratio > 0) {
+        T.schedaStanza.luceAria(formatDecimal(HousingRules.windowArea(plan, space, norms.openableOnly) / 10_000, 2), HousingRules.fraction(ratio), norms.openableOnly)
+    } else T.schedaStanza.luceAriaNessuna(norms.openableOnly)
     Text(line + with, style = MaterialTheme.typography.bodySmall)
-    if (habitable && HousingRules.belowMinimum(plan, space)) {
-        Text(
-            T.schedaStanza.luceAriaMinimo(formatDecimal(HousingRules.floorArea(space) * HousingRules.MIN_RATIO / 10_000, 2)),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-        )
+    if (!habitable) return
+    val floor = HousingRules.floorArea(space)
+    val vent = norms.ventRatio
+    val short = when {
+        HousingRules.lightShort(plan, space, norms) -> T.schedaStanza.luceAriaMinimo(norms, norms.windowRatio?.let { formatDecimal(floor * it / 10_000, 2) })
+        vent != null && HousingRules.airShort(plan, space, norms) -> T.schedaStanza.luceAriaApribile(norms, norms.ratioLabel(vent), formatDecimal(floor * vent / 10_000, 2))
+        else -> return
     }
+    Text(short, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
 }
 
 /**

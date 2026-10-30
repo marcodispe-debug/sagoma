@@ -1,5 +1,7 @@
 package com.sagoma.planimetria.testi
 
+import com.sagoma.planimetria.geometry.HousingNorms
+
 /** Scheda Info della stanza (misure, finiture, porte e impianti, progetto). */
 open class TestiSchedaStanza {
     open val info: String get() = "Info"
@@ -25,10 +27,22 @@ open class TestiSchedaStanza {
     open val muroSotto: String get() = "↓ Sotto"
     open val alCentroDelMuro: String get() = "⟷ Al centro del muro"
     open fun perimetroCm(p1: Any?, p2: Any?): String = "$p1 · perimetro $p2 cm"
-    open fun luceAria(fin: String, frazione: String): String = "Luce e aria: finestre apribili $fin m², $frazione del pavimento"
+    /** `apribili`: contano solo le finestre che si aprono (nel paese della casa). */
+    open fun luceAria(fin: String, frazione: String, apribili: Boolean): String =
+        "Luce e aria: finestre ${if (apribili) "apribili " else ""}$fin m², $frazione del pavimento"
     open fun luceAriaInsieme(nomi: String): String = " (con $nomi)"
-    open val luceAriaNessuna: String get() = "Luce e aria: nessuna finestra apribile che dà fuori"
-    open fun luceAriaMinimo(serve: String): String = "In Italia le stanze da abitare ne vogliono almeno 1/8 ($serve m²)."
+    open fun luceAriaNessuna(apribili: Boolean): String = "Luce e aria: nessuna finestra ${if (apribili) "apribile " else ""}che dà fuori"
+    /** Chi chiede il minimo: le norme del paese della casa, o il consiglio dove l'app non le ha. */
+    open fun chiChiede(n: HousingNorms): String = if (n.official) "Norme (${T.controllo.paese(n.country)})" else "Consiglio"
+    /** `serve`: m² di finestre che servono; null dove nel paese basta una finestra. */
+    open fun luceAriaMinimo(n: HousingNorms, serve: String?): String {
+        val ratio = n.windowRatio
+        return if (ratio == null || serve == null) "${chiChiede(n)}: nelle stanze da abitare almeno una finestra apribile che dà fuori."
+        else "${chiChiede(n)}: nelle stanze da abitare almeno ${n.ratioLabel(ratio)} del pavimento ($serve m²)."
+    }
+    /** La parte delle finestre che si apre è sotto il minimo dell'aria (`minimo`, «4 %»). */
+    open fun luceAriaApribile(n: HousingNorms, minimo: String, serve: String): String =
+        "${chiChiede(n)}: la parte che si apre almeno $minimo del pavimento ($serve m²)."
     open val allAperto: String get() = " · all'aperto"
     open val parapetto: String get() = "Parapetto"
     open val altezzaParapetto: String get() = "Altezza del parapetto"

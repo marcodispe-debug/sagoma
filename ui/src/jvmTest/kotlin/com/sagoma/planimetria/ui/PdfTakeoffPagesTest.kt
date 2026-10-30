@@ -115,7 +115,9 @@ class PdfTakeoffPagesTest {
             for (l in Lingue.tutte) {
                 T.lingua = l
                 // Le voci delle opere stanno nella loro colonna (poco più di metà).
-                val cells = listOf(T.computo.notaLucePdf, T.computo.notaSuperficiPdf, T.computo.notaOperePdf).map { it to colW } +
+                // La nota della luce con le norme di ogni paese e con i consigli.
+                val norms = com.sagoma.planimetria.geometry.HousingNorms.countries.values + com.sagoma.planimetria.geometry.HousingNorms.General
+                val cells = (norms.map { T.computo.notaLucePdf(it) } + listOf(T.computo.notaSuperficiPdf, T.computo.notaOperePdf)).map { it to colW } +
                     listOf(T.computo.muriDaDemolire, T.computo.vaniDaAprire, T.computo.apertureDaChiudere, T.computo.muriNuovi).map { it to colW * 0.55f }
                 for ((s, cw) in cells) {
                     val w = measurer.measure(s, TextStyle(fontSize = (7.5f / PdfExport.drawDensity.density).sp), maxLines = 1).size.width

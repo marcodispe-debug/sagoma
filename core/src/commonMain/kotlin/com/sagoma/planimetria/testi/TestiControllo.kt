@@ -1,6 +1,7 @@
 package com.sagoma.planimetria.testi
 
 import com.sagoma.planimetria.editor.FixSummary
+import com.sagoma.planimetria.geometry.HousingNorms
 
 /** «Controlla la pianta»: errori di disegno, cose da controllare e norme per la casa. I nomi delle stanze arrivano già passati da [nome]. */
 open class TestiControllo {
@@ -15,11 +16,32 @@ open class TestiControllo {
             "«Correggi» lo sistema da solo (si annulla con ↶); «Togli dalla pianta» toglie il suo «!»."
     open val daCorreggere: String get() = "Da correggere"
     open val daControllare: String get() = "Da controllare"
-    open val daNorme: String get() = "Norme per la casa (Italia)"
-    open val spiegaNorme: String get() =
-        "Minimi del DM 5 luglio 1975 per le stanze da abitare (camere, soggiorno, cucina, studio) e i bagni; il regolamento edilizio del comune " +
-            "può chiedere di più. Le finestre contano se si aprono e danno fuori, misurate sul vano del muro. Se metti le prese, anche i punti presa " +
-            "e luce dell'impianto elettrico di base (CEI 64-8, livello 1)."
+    /** Titolo del gruppo delle norme: quelle del paese della casa, o i consigli dove l'app non le ha. */
+    open fun daNorme(n: HousingNorms): String = if (n.official) "Norme per la casa (${paese(n.country)})" else "Consigli per la casa"
+    /** Nome del paese delle norme ([HousingNorms.country]). */
+    open fun paese(codice: String): String = when (codice) {
+        "IT" -> "Italia"
+        "DE" -> "Germania"
+        "FR" -> "Francia"
+        "ES" -> "Spagna"
+        "GB" -> "Inghilterra"
+        "US" -> "Stati Uniti"
+        else -> codice
+    }
+    open fun spiegaNorme(n: HousingNorms): String = when {
+        n.country == "IT" ->
+            "Minimi del DM 5 luglio 1975 per le stanze da abitare (camere, soggiorno, cucina, studio) e i bagni; il regolamento edilizio del comune " +
+                "può chiedere di più. Le finestre contano se si aprono e danno fuori, misurate sul vano del muro. Se metti le prese, anche i punti presa " +
+                "e luce dell'impianto elettrico di base (CEI 64-8, livello 1). "
+        !n.official ->
+            "L'app non ha ancora le norme del paese della casa: questi sono consigli, i minimi più comuni nel mondo. Le regole del posto possono " +
+                "chiedere altro. "
+        else ->
+            "Minimi di ${n.source} per le stanze da abitare (camere, soggiorno, cucina, studio) e i bagni; le regole del posto possono chiedere " +
+                "di più. Le finestre contano se ${if (n.openableOnly) "si aprono e " else ""}danno fuori, misurate sul vano del muro. "
+    } + dovePaese
+    /** Da dove viene il paese delle norme. */
+    open val dovePaese: String get() = "Il paese è quello della città della casa (🧭 Nord e città); senza città, quello della lingua dell'app."
     /** Nome di una stanza dentro un testo. */
     open fun nome(n: String): String = "«$n»"
     open val mostra: String get() = "Mostra"
@@ -110,24 +132,33 @@ open class TestiControllo {
         "$a: aprendosi, l'anta urta $cosa2 ($cosa). Sposta $cosa2 o cambia il lato del cardine o il verso di apertura."
     open fun antaUrtaMuro(a: String, cosa: String): String =
         "$a: l'anta non si apre del tutto, urta un muro o un pilastro ($cosa). Sposta l'apertura o cambia il lato del cardine o il verso di apertura."
-    open fun pocaLuce(a: String, fin: String, pav: String, frazione: String, serve: String): String =
-        "$a: finestre apribili di $fin m² per $pav m² di pavimento ($frazione). Per una stanza da abitare serve almeno 1/8, cioè $serve m²."
-    open fun senzaFinestre(a: String, serve: String): String =
-        "$a non ha finestre apribili che danno fuori: una stanza da abitare ha bisogno di luce e aria dirette, con almeno $serve m² di finestre (1/8 del pavimento)."
+    /** `minimo`: «1/8»; `apribili`: contano solo le finestre che si aprono. */
+    open fun pocaLuce(a: String, fin: String, pav: String, frazione: String, serve: String, minimo: String, apribili: Boolean): String =
+        "$a: finestre ${if (apribili) "apribili " else ""}di $fin m² per $pav m² di pavimento ($frazione). Per una stanza da abitare serve almeno $minimo, cioè $serve m²."
+    /** Le finestre bastano per la luce, ma la parte che si apre è poca per l'aria. */
+    open fun pocaAria(a: String, fin: String, pav: String, minimo: String, serve: String): String =
+        "$a: la parte delle finestre che si apre è di $fin m² per $pav m² di pavimento. Per l'aria ne serve almeno $minimo, cioè $serve m²."
+    /** `serve` e `minimo` null: nel paese basta una finestra, senza un minimo. */
+    open fun senzaFinestre(a: String, apribili: Boolean, serve: String?, minimo: String?): String =
+        "$a non ha finestre ${if (apribili) "apribili " else ""}che danno fuori: una stanza da abitare ha bisogno di luce e aria dirette" +
+            if (serve != null) ", con almeno $serve m² di finestre ($minimo del pavimento)." else "."
     open val nessunaFinestra: String get() = "Sul piano non c'è nessuna finestra: aggiungile, poi qui si controllano luce e aria delle stanze."
-    open fun soffittoBasso(a: String, h: String): String = "$a: soffitto a $h m; nelle stanze da abitare deve essere almeno a 2,70 m."
-    open fun soffittoBassoServizi(a: String, h: String): String = "$a: soffitto a $h m; in bagni e corridoi deve essere almeno a 2,40 m."
+    open fun soffittoBasso(a: String, h: String, min: String): String = "$a: soffitto a $h m; nelle stanze da abitare deve essere almeno a $min m."
+    open fun soffittoBassoServizi(a: String, h: String, min: String): String = "$a: soffitto a $h m; in bagni e corridoi deve essere almeno a $min m."
     open fun mansardaBassa(a: String, h: String): String =
         "$a: soffitto in pendenza alto in media $h m. Per abitarci le leggi regionali sui sottotetti di solito chiedono una media di almeno 2,40 m (fuori dai sottotetti 2,70 m)."
-    open fun cameraPiccola(a: String, m2: String): String = "$a: $m2 m²; una camera da letto deve averne almeno 9 (14 se è per due persone)."
-    open fun cameraPerDuePiccola(a: String, m2: String): String = "$a: $m2 m² con i letti per due persone; una camera per due deve averne almeno 14."
-    open fun soggiornoPiccolo(a: String, m2: String): String = "$a: $m2 m²; il soggiorno deve averne almeno 14."
+    /** `perDue`: il minimo della camera per due persone, se nel paese ne ha uno suo. */
+    open fun cameraPiccola(a: String, m2: String, min: String, perDue: String?): String =
+        "$a: $m2 m²; una camera da letto deve averne almeno $min${perDue?.let { " ($it se è per due persone)" } ?: ""}."
+    open fun cameraPerDuePiccola(a: String, m2: String, min: String): String = "$a: $m2 m² con i letti per due persone; una camera per due deve averne almeno $min."
+    open fun soggiornoPiccolo(a: String, m2: String, min: String): String = "$a: $m2 m²; il soggiorno deve averne almeno $min."
     open fun bagnoSenzaFinestra(a: String): String =
         "$a: nessuna finestra apribile verso fuori; il bagno ha bisogno dell'aspirazione meccanica (e niente apparecchi a fiamma libera)."
     open fun bagnoSuCucina(bagno: String, stanza: String): String =
         "$bagno si apre direttamente su $stanza: molti regolamenti d'igiene dei comuni vogliono un antibagno o un disimpegno tra il bagno e la cucina o il soggiorno."
-    open fun bagnoIncompleto(a: String, manca: String): String =
-        "$a: senza $manca. Almeno un bagno della casa deve avere vaso, bidè, vasca o doccia e lavabo."
+    /** `servono`: i sanitari che il paese chiede, già in elenco ([elenco]). */
+    open fun bagnoIncompleto(a: String, manca: String, servono: String): String =
+        "$a: senza $manca. Almeno un bagno della casa deve avere $servono."
     open val vaso: String get() = "vaso"
     open val bide: String get() = "bidè"
     open val vascaODoccia: String get() = "vasca o doccia"

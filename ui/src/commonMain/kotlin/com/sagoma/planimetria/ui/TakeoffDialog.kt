@@ -137,13 +137,13 @@ fun TakeoffDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> Uni
                 if (res.light.isNotEmpty()) {
                     Section(T.computo.luceAria)
                     Column(Modifier.horizontalScroll(rememberScrollState())) {
-                        TableRow(listOf(T.computo.stanza, T.computo.pavM2, T.computo.finM2, T.computo.rapporto, T.computo.almenoUnOttavo), header = true)
+                        TableRow(listOf(T.computo.stanza, T.computo.pavM2, T.computo.finM2, T.computo.rapporto, T.computo.almeno(res.norms)), header = true)
                         val multi = state.fullBuilding.floors.size > 1
                         for (l in res.light) TableRow(
                             listOf(if (multi) "${l.rooms} (${l.floor})" else l.rooms, fmt2(l.floorArea), fmt2(l.windowArea), HousingRules.fraction(l.ratio), if (l.enough) T.computo.si else T.computo.no),
                         )
                     }
-                    Text(T.computo.notaLuce, style = MaterialTheme.typography.bodySmall)
+                    Text(T.computo.notaLuce(res.norms), style = MaterialTheme.typography.bodySmall)
                 }
             }
         },

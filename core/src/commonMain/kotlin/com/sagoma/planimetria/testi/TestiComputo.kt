@@ -1,5 +1,7 @@
 package com.sagoma.planimetria.testi
 
+import com.sagoma.planimetria.geometry.HousingNorms
+
 /** Computo e lista arredi. */
 open class TestiComputo {
     open val progetto: String get() = "Progetto"
@@ -51,12 +53,27 @@ open class TestiComputo {
     open val luceAria: String get() = "Luce e aria (finestre / pavimento)"
     open val finM2: String get() = "Fin. m²"
     open val rapporto: String get() = "Rapporto"
-    open val almenoUnOttavo: String get() = "≥ 1/8"
+    /** Colonna «basta?» della tabella luce e aria: «≥ 1/8», o «Basta» dove nel paese basta una finestra. */
+    open fun almeno(n: HousingNorms): String = n.windowRatio?.let { "≥ ${n.ratioLabel(it)}" } ?: "Basta"
     open val si: String get() = "sì"
     open val no: String get() = "no"
-    open val notaLuce: String get() =
-        "Stanze da abitare. Finestre apribili che danno fuori, misurate sul vano del muro. In Italia (DM 5 luglio 1975) ne serve almeno 1/8 del pavimento."
-    open val notaLucePdf: String get() = "Finestre apribili verso fuori, sul vano del muro; almeno 1/8 (DM 5/7/1975)."
+    open fun notaLuce(n: HousingNorms): String {
+        val ratio = n.windowRatio
+        return "Stanze da abitare. Finestre ${if (n.openableOnly) "apribili " else ""}che danno fuori, misurate sul vano del muro. " + when {
+            ratio == null -> "${T.controllo.paese(n.country)} (${n.source}): basta una finestra apribile che dà fuori."
+            !n.official -> "Consiglio (l'app non ha le norme del paese della casa): almeno ${n.ratioLabel(ratio)} del pavimento."
+            else -> "${T.controllo.paese(n.country)} (${n.source}): ne serve almeno ${n.ratioLabel(ratio)} del pavimento" +
+                (n.ventRatio?.let { ", e la parte che si apre almeno ${n.ratioLabel(it)}" } ?: "") + "."
+        }
+    }
+    open fun notaLucePdf(n: HousingNorms): String {
+        val ratio = n.windowRatio
+        return "Finestre ${if (n.openableOnly) "apribili " else ""}verso fuori, sul vano del muro; " + when {
+            ratio == null -> "almeno una (${T.controllo.paese(n.country)})."
+            !n.official -> "consiglio: almeno ${n.ratioLabel(ratio)}."
+            else -> "almeno ${n.ratioLabel(ratio)}${n.ventRatio?.let { ", apribili ${n.ratioLabel(it)}" } ?: ""} (${T.controllo.paese(n.country)})."
+        }
+    }
     open val opere: String get() = "Opere (demolizioni e costruzioni)"
     open val muriDaDemolire: String get() = "Muri da demolire"
     open val muriNuovi: String get() = "Muri nuovi"
@@ -82,5 +99,6 @@ open class TestiComputo {
     open val pianoSuperfici: String get() = "Piano;Utile m²;Lorda m²;Balconi e terrazze m²"
     open val commercialeCsv: String get() = "Superficie commerciale indicativa"
     open val luceAria2: String get() = "LUCE E ARIA"
-    open val pianoStanzaLuce: String get() = "Piano;Stanza;Pavimento m²;Finestre apribili m²;Rapporto;Almeno 1/8"
+    open fun pianoStanzaLuce(n: HousingNorms): String =
+        "Piano;Stanza;Pavimento m²;${if (n.openableOnly) "Finestre apribili m²" else "Finestre m²"};Rapporto;${n.windowRatio?.let { "Almeno ${n.ratioLabel(it)}" } ?: "Basta"}"
 }

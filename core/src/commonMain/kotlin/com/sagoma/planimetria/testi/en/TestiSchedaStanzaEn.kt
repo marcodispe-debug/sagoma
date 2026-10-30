@@ -1,5 +1,7 @@
 package com.sagoma.planimetria.testi.en
 
+import com.sagoma.planimetria.geometry.HousingNorms
+import com.sagoma.planimetria.testi.T
 import com.sagoma.planimetria.testi.TestiSchedaStanza
 
 object TestiSchedaStanzaEn : TestiSchedaStanza() {
@@ -25,10 +27,18 @@ object TestiSchedaStanzaEn : TestiSchedaStanza() {
     override val muroSotto: String get() = "↓ Below"
     override val alCentroDelMuro: String get() = "⟷ Centre on the wall"
     override fun perimetroCm(p1: Any?, p2: Any?): String = "$p1 · perimeter $p2 cm"
-    override fun luceAria(fin: String, frazione: String): String = "Light and air: opening windows $fin m², $frazione of the floor"
+    override fun luceAria(fin: String, frazione: String, apribili: Boolean): String =
+        "Light and air: ${if (apribili) "opening windows" else "windows"} $fin m², $frazione of the floor"
     override fun luceAriaInsieme(nomi: String): String = " (with $nomi)"
-    override val luceAriaNessuna: String get() = "Light and air: no opening window facing outside"
-    override fun luceAriaMinimo(serve: String): String = "In Italy living spaces need at least 1/8 ($serve m²)."
+    override fun luceAriaNessuna(apribili: Boolean): String = "Light and air: no ${if (apribili) "opening " else ""}window facing outside"
+    override fun chiChiede(n: HousingNorms): String = if (n.official) "Rules (${T.controllo.paese(n.country)})" else "Advice"
+    override fun luceAriaMinimo(n: HousingNorms, serve: String?): String {
+        val ratio = n.windowRatio
+        return if (ratio == null || serve == null) "${chiChiede(n)}: living spaces need at least one opening window facing outside."
+        else "${chiChiede(n)}: living spaces need at least ${n.ratioLabel(ratio)} of the floor ($serve m²)."
+    }
+    override fun luceAriaApribile(n: HousingNorms, minimo: String, serve: String): String =
+        "${chiChiede(n)}: the opening part needs at least $minimo of the floor ($serve m²)."
     override val allAperto: String get() = " · outdoors"
     override val parapetto: String get() = "Parapet"
     override val altezzaParapetto: String get() = "Parapet height"
