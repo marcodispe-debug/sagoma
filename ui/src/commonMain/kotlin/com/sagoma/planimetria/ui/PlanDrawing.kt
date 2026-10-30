@@ -232,7 +232,12 @@ internal fun DrawScope.drawPlan(state: EditorUiState, measurer: TextMeasurer, ba
         if (selWall != null && selWall.roomId == r.id) for (j in 0 until r.wallCount) {
             if (expanded.originOf(r.id, j) != selWall.index) continue
             val (a, b) = shiftedWallLine(r, j)
-            drawLine(SelectedColor, cam.o(a), cam.o(b), strokeWidth = (r.thicknessOf(j) * cam.scale).toFloat().coerceAtLeast(2f) + 4.dp.toPx(), cap = StrokeCap.Round)
+            val px = (r.thicknessOf(j) * cam.scale).toFloat().coerceAtLeast(2f)
+            // Il lato scelto (verso la stanza o da fuori) pieno, l'altra metà più chiara.
+            drawLine(Color.White, cam.o(a), cam.o(b), strokeWidth = px + 4.dp.toPx(), cap = StrokeCap.Round)
+            drawLine(SelectedColor.copy(alpha = 0.3f), cam.o(a), cam.o(b), strokeWidth = px + 4.dp.toPx(), cap = StrokeCap.Round)
+            val side = r.outwardOf(j) * (r.thicknessOf(j) / 4 * if (state.wallExterior) 1.0 else -1.0)
+            drawLine(SelectedColor, cam.o(a + side), cam.o(b + side), strokeWidth = px / 2 + 2.dp.toPx(), cap = StrokeCap.Round)
         }
         for (o in r.openings) {
             if (o.wallIndex >= r.wallCount) continue

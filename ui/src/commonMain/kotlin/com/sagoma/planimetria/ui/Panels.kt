@@ -714,17 +714,32 @@ private fun WallPanel(sel: Selection.Wall, plan: FloorPlan, vm: EditorViewModel,
                 }
             }
         },
-        // Colore di questa sola parete (lato verso la stanza), diverso da quello delle altre.
+        // Un lato alla volta: quello da cui si è toccato il muro (verso la stanza o da fuori), e si può passare all'altro.
         InfoTab("finitura", T.schedaStanza.schedaFinitura) {
-            val own = room.hasOwnFinish(sel.index)
-            FinishPicker(
-                T.pannelli.finituraQuestaParete + if (!own) T.pannelli.stanza else "",
-                room.finishOf(sel.index),
-                { vm.setWallFinish(room.id, sel.index, it) },
-            )
-            if (own) TextButton(onClick = { vm.setWallFinish(room.id, sel.index, null) }) { Text(T.pannelli.altreParetiStanza) }
-            // Lato esterno: la facciata di tutta la casa (prima stava nella scheda della stanza).
-            if (!room.outdoor) FacadeFinishSection(plan, vm)
+            // Muro in comune: di là c'è la parete dell'altra stanza, e si passa a quella; altrimenti c'è la facciata.
+            val behind = remember(plan, sel) { vm.wallBehind(room.id, sel.index) }
+            val other = behind?.let { plan.room(it.roomId) }
+            val exterior = vm.state.collectAsState().value.wallExterior && !room.outdoor && other == null
+            if (!room.outdoor) Choice(
+                T.pannelli.latoMuro,
+                listOf(T.pannelli.versoStanza(room.name), if (other != null) T.pannelli.versoStanza(other.name) else T.pannelli.fuoriFacciata),
+                if (exterior) 1 else 0,
+            ) {
+                if (behind != null) { if (it == 1) vm.selectWall(behind.roomId, behind.index) } else vm.setWallSide(it == 1)
+            }
+            if (!exterior) {
+                // Colore di questa sola parete (lato verso la stanza), diverso da quello delle altre.
+                val own = room.hasOwnFinish(sel.index)
+                FinishPicker(
+                    T.pannelli.finituraQuestaParete + if (!own) T.pannelli.stanza else "",
+                    room.finishOf(sel.index),
+                    { vm.setWallFinish(room.id, sel.index, it) },
+                )
+                if (own) TextButton(onClick = { vm.setWallFinish(room.id, sel.index, null) }) { Text(T.pannelli.altreParetiStanza) }
+            } else {
+                // Lato esterno: la facciata di tutta la casa (prima stava nella scheda della stanza).
+                FacadeFinishSection(plan, vm)
+            }
         },
         // Forma: angoli, curva (anche trascinando il pallino a metà muro) e taglio del sottotetto.
         InfoTab("forma", T.schedaStanza.schedaForma) {

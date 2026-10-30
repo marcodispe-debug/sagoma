@@ -119,6 +119,16 @@ fun Room.distanceToOpeningBody(o: com.sagoma.planimetria.model.Opening, p: Vec2)
 }
 
 /** Punto a metà del muro sulla sua mezzeria (in cima alla curva, per un muro curvo): dove sta la maniglia della curva. */
+/** `p` sta dal lato di fuori del muro `i` (dalla parte opposta alla stanza)? Per un muro curvo conta da che parte dell'arco. */
+fun Room.isOutsideWall(i: Int, p: Vec2): Boolean {
+    val arc = arcOf(i)
+    if (arc != null) {
+        val center = (arc.a + arc.b) / 2.0 + arc.outward * (arc.bulge - arc.radius)
+        return (p.distanceTo(center) - abs(arc.radius)) * kotlin.math.sign(arc.bulge) > 0
+    }
+    return ((p - (wallStart(i) + outwardOf(i) * wallShift(i))) dot outwardOf(i)) > 0
+}
+
 fun Room.wallMiddle(i: Int): Vec2 = arcOf(i)?.at(0.0) ?: ((wallStart(i) + wallEnd(i)) / 2.0)
 
 /** Freccia sotto cui un muro si considera dritto (cm). */
