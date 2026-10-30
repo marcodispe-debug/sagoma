@@ -84,8 +84,14 @@ import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Mount
 import com.sagoma.planimetria.model.Vec2
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /**
  * Stato della vista 3D che deve sopravvivere alle ricomposizioni: telecamera, renderer e superficie
@@ -104,6 +110,25 @@ private const val ASSET_RELOAD_DELAY_MS = 300L
 private const val ORBIT_SPEED = 0.4
 /** Secondi per arrivare alla velocità piena muovendosi dall'alto. */
 private const val EASE_S = 0.3
+/** Chi cammina sta almeno a 20 cm da muri e mobili (cm). */
+private const val WALK_RADIUS = 20.0
+/** Dislivello massimo di un passo (cm): un gradino sì, il fianco di una scala no. */
+private const val MAX_CLIMB = 40.0
+/** Pezzo più lungo di un passo (cm): un passo lungo (rotella, pulsanti) non salta gradini, muri sottili o mobili. */
+private const val WALK_PART = 10.0
+
+/**
+ * Quota dei piedi (cm dal pavimento) oltre la quale, salendo una scala alta `rise`, si passa al piano di sopra: quando gli occhi
+ * arrivano al pavimento di sopra (non oltre: la scena di un piano non disegna il pavimento di quello sopra, coperto dal soffitto; e
+ * non molto prima: nella scena del piano di sopra quello di sotto ha meno luce).
+ */
+private fun switchUp(rise: Double) = max(rise - Scene3D.EYE_HEIGHT - 5, rise * 0.3)
+
+/**
+ * Scendendo dal piano di sopra (piedi sotto il suo pavimento, misurati da lì) si torna al piano di sotto un gradino abbondante più in
+ * basso di [switchUp]: fermi a metà, niente avanti e indietro tra i due piani.
+ */
+private fun switchDown(rise: Double) = switchUp(rise) - rise - 20
 
 class View3DState {
     val camera = Camera3D()
@@ -196,8 +221,24 @@ class View3DState {
         r.renderPhoto(longSide, onDone)
     }
 
-    fun setScene(s: Scene3D) {
+    /** Scena nuova; `elevation` è la quota del pavimento del suo piano (cm, dal piano più basso). */
+    fun setScene(s: Scene3D, elevation: Double = sceneElevation ?: 0.0) {
+        val shift = (sceneElevation ?: elevation) - elevation
+        sceneElevation = elevation
         scene = s
+        if (walking && shift != 0.0) {
+            if (floorStep != 0) {
+                // Arrivati al piano nuovo salendo o scendendo le scale: si resta nello stesso punto, ora misurato dal suo pavimento.
+                camera.eye = camera.eye + Vec3(0.0, shift, 0.0)
+                feet = s.groundAt(camera.eye.flat, feet + shift).takeUnless { it.isNaN() } ?: (feet + shift)
+            } else {
+                // Piano scelto a mano: si cammina sul suo pavimento.
+                feet = 0.0
+                settling = false
+                camera.eye = Vec3(camera.eye.x, Scene3D.EYE_HEIGHT, camera.eye.z)
+            }
+        }
+        if (shift != 0.0) floorStep = 0
         renderer?.setScene(s)
         refresh()
     }
@@ -235,8 +276,7 @@ class View3DState {
     /** Pulsanti − / +: in orbita avvicinano o allontanano, camminando fanno un passo avanti o indietro. */
     fun zoom(factor: Float) {
         if (walking) {
-            val step = camera.walkForward * (if (factor > 1) 60.0 else -60.0)
-            camera.eye = camera.eye + step
+            walkMove(camera.walkForward * (if (factor > 1) 60.0 else -60.0))
         } else {
             camera.distance = (camera.distance / factor).coerceIn(80.0, 60_000.0)
         }
@@ -246,11 +286,69 @@ class View3DState {
     /** Punto occupato da muri o mobili (chi cammina non ci passa); lo imposta la vista con la scena attuale. */
     var isBlocked: (Vec2) -> Boolean = { false }
 
-    /** Passo di chi cammina: contro un muro si scivola lungo di esso invece di fermarsi del tutto. */
+    /**
+     * Passo permesso da un punto all'altro (vedi [Scene3D.canWalk]: da un mobile o da un muro troppo vicino si può sempre uscire); lo
+     * imposta la vista con la scena attuale.
+     */
+    var canWalk: (Vec2, Vec2) -> Boolean = { _, to -> !isBlocked(to) }
+
+    /** Interpiano del piano corrente (cm): quanto sale la sua scala. Lo imposta la vista. */
+    var floorHeight = com.sagoma.planimetria.model.Floor.DEFAULT_LEVEL_HEIGHT
+    /** C'è un piano sopra a cui portano le scale. Lo imposta la vista. */
+    var floorAbove = false
+    /** Interpiano del piano di sotto (cm), null se non c'è. Lo imposta la vista. */
+    var floorBelowHeight: Double? = null
+    /** Passa al piano di sopra (+1) o di sotto (−1). Lo imposta la vista. */
+    var changeFloor: (Int) -> Unit = {}
+
+    /** Quota (cm dal pavimento del piano) su cui poggia chi cammina: sale e scende con i gradini. */
+    private var feet = 0.0
+    /** Piano chiesto salendo (+1) o scendendo (−1) le scale, finché non arriva la sua scena. */
+    private var floorStep = 0
+    /** Quota del pavimento del piano della scena attuale (cm, dal pavimento del piano più basso). */
+    private var sceneElevation: Double? = null
+    /** Gli occhi stanno ancora raggiungendo l'altezza del gradino (si sale e si scende morbidi, non a scatti). */
+    private var settling by mutableStateOf(false)
+
+    private fun ground(p: Vec2, near: Double) = scene?.groundAt(p, near) ?: 0.0
+
+    /**
+     * Passo di chi cammina: contro un muro si scivola lungo di esso invece di fermarsi del tutto. Sui gradini si sale e si scende
+     * (solo dal davanti: il fianco di una scala è troppo alto) e, a metà scala, si passa al piano di sopra o di sotto.
+     */
     fun walkMove(move: Vec3) {
-        val eye = camera.eye
-        camera.eye = listOf(eye + move, eye + Vec3(move.x, 0.0, 0.0), eye + Vec3(0.0, 0.0, move.z))
-            .firstOrNull { !isBlocked(it.flat) } ?: eye
+        val parts = ceil(move.length / WALK_PART).toInt().coerceIn(1, 1000)
+        val part = move * (1.0 / parts)
+        // Senza un piano sopra la scala non porta da nessuna parte: ci si ferma prima di avere la testa nel soffitto.
+        val top = if (floorAbove) Double.MAX_VALUE else switchUp(floorHeight)
+        for (i in 0 until parts) {
+            val eye = camera.eye
+            val next = listOf(eye + part, eye + Vec3(part.x, 0.0, 0.0), eye + Vec3(0.0, 0.0, part.z)).firstOrNull {
+                val h = ground(it.flat, feet)
+                canWalk(eye.flat, it.flat) && abs(h - feet) <= MAX_CLIMB && (h <= top || h <= feet)
+            } ?: break
+            feet = ground(next.flat, feet)
+            camera.eye = next
+        }
+        if (floorStep == 0) {
+            val below = floorBelowHeight
+            if (floorAbove && feet > switchUp(floorHeight)) {
+                floorStep = 1
+                changeFloor(1)
+            } else if (below != null && feet < switchDown(below)) {
+                floorStep = -1
+                changeFloor(-1)
+            }
+        }
+        settling = abs(camera.eye.y - (feet + Scene3D.EYE_HEIGHT)) > 0.5
+    }
+
+    /** Gli occhi vanno verso l'altezza giusta sopra il gradino, in circa un decimo di secondo. */
+    private fun settle(dt: Double) {
+        val target = feet + Scene3D.EYE_HEIGHT
+        val y = camera.eye.y + (target - camera.eye.y) * (1 - exp(-dt * 14))
+        settling = abs(target - y) > 0.5
+        camera.eye = Vec3(camera.eye.x, if (settling) y else target, camera.eye.z)
     }
 
     /** Destra dello schermo sul pavimento. */
@@ -288,8 +386,8 @@ class View3DState {
         return true
     }
 
-    /** C'è qualcosa che muove la telecamera a ogni fotogramma (tasti tenuti o joystick). */
-    val moving: Boolean get() = keys.any { it in MOVE_KEYS } || joystick != Offset.Zero
+    /** C'è qualcosa che muove la telecamera a ogni fotogramma (tasti tenuti, joystick, occhi che raggiungono il gradino). */
+    val moving: Boolean get() = keys.any { it in MOVE_KEYS } || joystick != Offset.Zero || settling
 
     /** Il renderer non ha ancora cominciato l'immagine chiesta per ultima: il passo dopo aspetta (vedi [SceneRenderer.queued]). */
     val queued: Boolean get() = renderer?.queued == true
@@ -316,6 +414,7 @@ class View3DState {
             if (held(Key.PageUp)) camera.walkPitch = (camera.walkPitch + 60.0 * dt).coerceIn(-70.0, 70.0)
             if (held(Key.PageDown)) camera.walkPitch = (camera.walkPitch - 60.0 * dt).coerceIn(-70.0, 70.0)
             if (ahead != 0.0 || side != 0.0) walkMove(camera.walkForward * (ahead * speed) + flatRight * (side * speed))
+            if (settling) settle(dt)
         } else {
             // Stessi comandi della camminata: avanti/indietro e di lato si sposta la vista sul pavimento
             // (più veloce quanto più si è lontani), ← → girano, PagSu/PagGiù alzano o abbassano lo sguardo.
@@ -356,7 +455,7 @@ class View3DState {
     fun wheel(notches: Float) {
         if (notches == 0f) return
         if (walking) {
-            camera.eye = camera.eye + camera.walkForward * (-notches * 40.0)
+            walkMove(camera.walkForward * (-notches * 40.0))
         } else {
             camera.distance = (camera.distance * 1.12.pow(notches.toDouble())).coerceIn(80.0, 60_000.0)
         }
@@ -372,13 +471,35 @@ class View3DState {
         val center = Polygon.labelPoint(room.points)
         val b = Polygon.bounds(room.points)
         val back = Vec2(center.x, b.maxY - 45)
-        val start = if (Polygon.contains(room.points, back)) back else center
+        val start = freeSpot(room.points, if (Polygon.contains(room.points, back)) back else center)
         camera.eye = start.at(Scene3D.EYE_HEIGHT)
+        feet = 0.0
+        floorStep = 0
+        settling = false
         camera.walkYaw = 0.0
         camera.walkPitch = -10.0
         camera.mode = Camera3D.Mode.Walk
         walking = true
         refresh()
+    }
+
+    /**
+     * Il punto più vicino a `p`, dentro la stanza, dove non ci sono muri o mobili addosso (es. non sopra uno sgabello) né scale: a
+     * cerchi di 10 cm in 10 cm fino a 4 m. Se non c'è, `p` (da lì ci si può comunque allontanare).
+     */
+    private fun freeSpot(room: List<Vec2>, p: Vec2): Vec2 {
+        fun free(q: Vec2) = !isBlocked(q) && ground(q, 0.0) == 0.0
+        if (free(p)) return p
+        for (ring in 1..40) {
+            val r = ring * 10.0
+            val n = 8 + ring * 2
+            for (k in 0 until n) {
+                val a = 2 * PI * k / n
+                val q = Vec2(p.x + cos(a) * r, p.y + sin(a) * r)
+                if (Polygon.contains(room, q) && free(q)) return q
+            }
+        }
+        return p
     }
 
     /** Solo per le prove: modalità camminata senza scegliere una stanza. */
@@ -389,6 +510,9 @@ class View3DState {
     fun stopWalking() {
         camera.mode = Camera3D.Mode.Orbit
         walking = false
+        feet = 0.0
+        floorStep = 0
+        settling = false
         joystick = Offset.Zero
         refresh()
     }
@@ -462,7 +586,7 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
             groundLevel = groundLevel,
         )
     }
-    LaunchedEffect(scene) { view.setScene(scene) }
+    LaunchedEffect(scene) { view.setScene(scene, building.elevation(building.current)) }
     // Catalogo scaricato a richiesta: i file che servono alla scena e non sono ancora qui si chiedono; quando arrivano la scena
     // si ridisegna. Arrivi ravvicinati fanno una sola ricarica (l'attesa si ricomincia a ogni versione nuova).
     val scenePlatform = LocalPlatform.current
@@ -491,7 +615,13 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     val touchSlop = LocalViewConfiguration.current.touchSlop
 
     // Chi cammina non attraversa muri e mobili della scena attuale.
-    view.isBlocked = { p -> currentScene.blocked(p, 20.0) }
+    view.isBlocked = { p -> currentScene.blocked(p, WALK_RADIUS) }
+    view.canWalk = { from, to -> currentScene.canWalk(from, to, WALK_RADIUS) }
+    // Camminando sulle scale si passa al piano di sopra o di sotto.
+    view.floorHeight = state.levelHeight
+    view.floorAbove = building.current + 1 < building.floors.size
+    view.floorBelowHeight = building.floors.getOrNull(building.current - 1)?.levelHeight
+    view.changeFloor = { d -> vm.selectFloor(currentState.building.current + d) }
     // Joystick e tasti tenuti premuti muovono la telecamera a velocità costante, fotogramma per fotogramma;
     // quando non si muove nulla il ciclo si ferma (niente ridisegni inutili).
     LaunchedEffect(view) {
