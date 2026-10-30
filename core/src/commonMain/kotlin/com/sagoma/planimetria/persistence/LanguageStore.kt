@@ -1,11 +1,12 @@
 package com.sagoma.planimetria.persistence
 
-/** Lingua scelta dall'utente: italiano, inglese, francese, spagnolo o quella del sistema (telefono, computer, browser). */
+/** Lingua scelta dall'utente: italiano, inglese, francese, spagnolo, tedesco o quella del sistema (telefono, computer, browser). */
 enum class LanguageChoice {
     Italian,
     English,
     French,
     Spanish,
+    German,
     System,
     ;
 

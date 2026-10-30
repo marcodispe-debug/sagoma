@@ -7,6 +7,7 @@ import com.sagoma.planimetria.model.Dimension
 import com.sagoma.planimetria.model.ProPalette
 import com.sagoma.planimetria.model.RoomType
 import com.sagoma.planimetria.persistence.LanguageChoice
+import com.sagoma.planimetria.testi.de.Tedesco
 import com.sagoma.planimetria.testi.en.Inglese
 import com.sagoma.planimetria.testi.es.Spagnolo
 import com.sagoma.planimetria.testi.fr.Francese
@@ -96,8 +97,22 @@ class TraduzioniTest {
     }
 
     @Test
+    fun testiInTedesco() {
+        T.lingua = Tedesco
+        assertEquals("DEU", Tedesco.sigla)
+        assertEquals("Schlafzimmer", RoomType.Camera.label)
+        assertEquals("Raum", RoomType.Altro.defaultName)
+        assertTrue(Tip.entries.all { it.title.isNotBlank() && it.text.isNotBlank() })
+        assertTrue(TutorialStep.entries.all { it.title.isNotBlank() && it.text.isNotBlank() })
+        assertEquals("20,50", formatDecimal(20.5, 2))
+        assertEquals(Italiano.nomi.tavolozza.keys, Tedesco.nomi.tavolozza.keys, "la tavolozza ha gli stessi colori")
+        // In tedesco i nomi restano con la maiuscola anche dentro una frase.
+        assertEquals("Schiebetür", Tedesco.minuscola("Schiebetür"))
+    }
+
+    @Test
     fun ogniLinguaHaLaSuaSigla() {
-        assertEquals(listOf("ITA", "ENG", "FRA", "ESP"), Lingue.tutte.map { it.sigla })
+        assertEquals(listOf("ITA", "ENG", "FRA", "ESP", "DEU"), Lingue.tutte.map { it.sigla })
     }
 
     @Test
@@ -113,6 +128,10 @@ class TraduzioniTest {
         assertSame(Francese, Lingue.scegli(LanguageChoice.System, "fr-CA"))
         assertSame(Spagnolo, Lingue.scegli(LanguageChoice.System, "es"))
         assertSame(Spagnolo, Lingue.scegli(LanguageChoice.System, "es-MX"))
-        assertSame(Inglese, Lingue.scegli(LanguageChoice.System, "de"))
+        assertSame(Tedesco, Lingue.scegli(LanguageChoice.German, "it-IT"))
+        assertSame(Tedesco, Lingue.scegli(LanguageChoice.System, "de"))
+        assertSame(Tedesco, Lingue.scegli(LanguageChoice.System, "de-AT"))
+        assertSame(Tedesco, Lingue.scegli(LanguageChoice.System, "de-CH"))
+        assertSame(Inglese, Lingue.scegli(LanguageChoice.System, "pt-BR"))
     }
 }

@@ -67,7 +67,7 @@ class ControlloTestiTest {
     )
     private val lingue = listOf(
         "it" to LanguageChoice.Italian, "en" to LanguageChoice.English,
-        "fr" to LanguageChoice.French, "es" to LanguageChoice.Spanish,
+        "fr" to LanguageChoice.French, "es" to LanguageChoice.Spanish, "de" to LanguageChoice.German,
     )
 
     private lateinit var scene: ImageComposeScene

@@ -97,15 +97,18 @@ class SunPathTest {
         assertEquals("Londres", Places.displayName(londra, "fr"))
         assertEquals("Londra", Places.displayName(londra, "it"))
         assertEquals("Múnich", Places.displayName(Places.search("monaco di baviera").first(), "es"))
+        assertEquals("München", Places.displayName(Places.search("monaco di baviera").first(), "de"))
+        assertEquals("Bozen", Places.displayName(Places.search("bolzano").first(), "de"))
+        assertEquals("Venezia", Places.search("venedig", "de").first().name)
         // Si cerca anche col nome in un'altra lingua, e l'elenco è in ordine alfabetico nella lingua scelta.
         assertEquals("Venezia", Places.search("venise", "en").first().name)
         val names = Places.search("", "en").map { Places.displayName(it, "en") }
         assertTrue(names.indexOf("London") < names.indexOf("Lucca") && names.indexOf("Munich") < names.indexOf("Naples"))
-        // Ogni traduzione ha le tre lingue e si riferisce a una città dell'elenco.
+        // Ogni traduzione ha le quattro lingue e si riferisce a una città dell'elenco.
         val all = Places.search("").map { it.name }.toSet()
         for ((it, tr) in Places.translated) {
             assertTrue(it in all, it)
-            assertEquals(3, tr.split('|').count { n -> n.isNotBlank() }, it)
+            assertEquals(4, tr.split('|').count { n -> n.isNotBlank() }, it)
         }
     }
 
