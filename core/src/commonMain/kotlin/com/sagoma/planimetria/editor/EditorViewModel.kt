@@ -347,6 +347,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
      * serve più. Finita, non ricompaiono nemmeno le mini guide delle funzioni che ha fatto usare.
      */
     fun finishCourse(completed: Boolean = true) {
+        // La lezione sola sul progetto dell'utente non è la guida intera: si chiude e basta.
+        if (course.single) {
+            course.stop()
+            _state.update { it.copy(tip = tips.current) }
+            return publishCourse()
+        }
         course.stop()
         tips.courseDone = true
         tips.tutorialDone = true
@@ -358,6 +364,20 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         publishCourse()
     }
 
+    /**
+     * Primo tocco sulla bussola: parte la lezione del sole, sul progetto aperto, una volta sola. True se è partita (allora la
+     * finestra «Nord e città» non si apre: la apre la lezione al passo dopo).
+     */
+    fun compassTapped(): Boolean {
+        if (tips.sunGuideDone || course.active || tutorial.active || _state.value.view3d) return false
+        course.start(Lesson.Sun, single = true)
+        // Durante la lezione parla solo lei: un suggerimento aperto aspetta la fine.
+        _state.update { it.copy(tip = null) }
+        prepareCourseStep()
+        publishCourse()
+        return true
+    }
+
     /** La guida continua in un altro progetto di prova: qui si ferma senza segnarla finita. */
     fun leaveCourse() {
         course.stop()
@@ -367,6 +387,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     /** La pianta pronta per il passo: inquadratura sul punto in cui si lavora, stanza selezionata per Info, taratura aperta. */
     private fun prepareCourseStep() {
         val step = course.step ?: return
+        if (step.lesson == Lesson.Sun && !tips.sunGuideDone) tips.sunGuideDone = true
         val s = _state.value
         when (step) {
             CourseStep.Info -> if (s.selection == null && s.focusedRoomId == null) {
@@ -390,6 +411,8 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
             }
             // Trasparenza e ultima scheda (anche quella del tramezzo): la tendina Info si chiude, così si vede la casa.
             CourseStep.FreeWallDone, CourseStep.PlanFade, CourseStep.Finished -> if (s.infoExpanded) _state.update { it.copy(infoExpanded = false) }
+            // La lezione del sole guarda la casa intera: niente selezionato, tendina Info chiusa.
+            CourseStep.North -> _state.update { it.copy(infoExpanded = false, selection = null, focusedRoomId = null) }
             else -> Unit
         }
         courseFocus = Course.focus(step, _state.value)?.also { b ->
@@ -578,9 +601,12 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun setUnits(units: LengthUnit) = _state.update { s -> s.copy(building = s.building.copy(units = units)) }
 
     /** Dove punta il nord sulla pianta (gradi in senso orario dall'alto, tra 0 e 360): gira solo il sole, mai il disegno. Non si annulla. */
-    fun setNorth(deg: Double) = _state.update { s ->
-        val d = ((deg % 360.0) + 360.0) % 360.0
-        s.copy(building = s.building.copy(site = s.building.site.copy(northDeg = d)))
+    fun setNorth(deg: Double) {
+        _state.update { s ->
+            val d = ((deg % 360.0) + 360.0) % 360.0
+            s.copy(building = s.building.copy(site = s.building.site.copy(northDeg = d)))
+        }
+        tutorialEvent(TutorialEvent.NorthTurned)
     }
 
     /**
@@ -591,6 +617,13 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
         val v = k.coerceIn(Building.MIN_LAMP_BRIGHTNESS, Building.MAX_LAMP_BRIGHTNESS)
         if (v == s.building.lampBrightness) s else s.copy(building = s.building.copy(lampBrightness = v))
     }
+
+    /** Chiusa la finestra «Nord e città» (conta solo per la guida interattiva). */
+    fun siteDialogClosed() = tutorialEvent(TutorialEvent.SiteClosed)
+
+    /** Ora e giorno del sole cambiati nel 3D: sono un modo di guardare, non stanno nel progetto; contano solo per la guida. */
+    fun sunHourChanged(hour: Float) = tutorialEvent(TutorialEvent.SunHour(hour))
+    fun sunDayChanged(month: Int, day: Int) = tutorialEvent(TutorialEvent.SunDay(month, day))
 
     /** Città della casa per il giro del sole (null = nessuna, vale Roma). Non si annulla. */
     fun setPlace(place: com.sagoma.planimetria.model.Place?) = _state.update { s ->
@@ -1881,6 +1914,7 @@ class EditorViewModel(private val store: PlanStore, tipStore: TipStore = NoTipSt
     fun setView3d(on: Boolean) {
         _state.update { it.copy(view3d = on) }
         if (on) showTip(Tip.View3D)
+        if (on) tutorialEvent(TutorialEvent.View3dOpened)
     }
 
     // ---------- Tendina informazioni ----------

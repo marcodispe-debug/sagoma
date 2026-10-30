@@ -98,6 +98,16 @@ sealed interface TutorialEvent {
     data object CheckMarkOpened : TutorialEvent
     /** Un problema tolto dalla pianta («Togli dalla pianta»). */
     data object CheckHidden : TutorialEvent
+    /** Nord girato con la bussola (o scritto in gradi). */
+    data object NorthTurned : TutorialEvent
+    /** Chiusa la finestra «Nord e città». */
+    data object SiteClosed : TutorialEvent
+    /** Aperta la vista 3D. */
+    data object View3dOpened : TutorialEvent
+    /** Ora del sole cambiata nel 3D (in ore, 0–24). */
+    data class SunHour(val hour: Float) : TutorialEvent
+    /** Giorno del sole scelto nel 3D (null, oggi: mese e giorno di oggi). */
+    data class SunDay(val month: Int, val day: Int) : TutorialEvent
 }
 
 /** Cosa mostra la scheda del tutorial. `detail`: avanzamento dentro il passo (es. lati cambiati). */
