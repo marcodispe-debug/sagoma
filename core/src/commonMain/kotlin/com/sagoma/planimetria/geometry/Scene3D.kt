@@ -820,6 +820,8 @@ private class SceneBuilder(
                     val z = l.room?.let { zones[it] } ?: continue
                     if (l.zones == null && z.size > 1) lights[k] = l.copy(zones = z)
                 }
+                // Di sera la luce delle lampade esce anche dalle finestre: fuori, davanti a ognuna, fino alle altre stanze della casa.
+                lights += LightOutside.through(windows.toList(), lights.toList(), indoor.flatMap { LightZones.of(it.points) })
             }
             previous = level
         }

@@ -354,7 +354,9 @@ object PbrShaders {
                 float dist2 = max(dot(d, d), 2500.0);
                 // Luce rimbalzata su pareti, pavimento e soffitto: quasi uguale in tutta la stanza, così la luce è diffusa e
                 // arriva anche dove la lampada non illumina diretta (in una stanza vera è una buona parte di quella che si vede).
-                color += albedo * (1.0 - metal) * uLampColor[i] * uLamp[i].w * 0.065 / (1.0 + dist2 / 900000.0) * ao;
+                // (Non per la luce che esce dalle finestre: fuori non c'è niente che la rimandi.)
+                if (uLampAxis[i].w < ${com.sagoma.planimetria.geometry.LightProfile.Window.ordinal - 0.5})
+                    color += albedo * (1.0 - metal) * uLampColor[i] * uLamp[i].w * 0.065 / (1.0 + dist2 / 900000.0) * ao;
                 // Intensità che cala col quadrato della distanza, con un raggio di influenza di ~6 m: oltre, niente luce diretta
                 // (e niente conti).
                 float fall = clamp(1.0 - dist2 / 360000.0, 0.0, 1.0);

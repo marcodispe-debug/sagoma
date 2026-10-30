@@ -58,15 +58,17 @@ class Daylight(val hour: Float, lamps: String, val walking: Boolean, sunAt: SunA
  * cielo, luci della casa e luce dalle finestre, su una scena con i colori dei vertici.
  */
 object LitShaders {
-    const val MAX_LAMPS = 24
+    const val MAX_LAMPS = 48
     const val MAX_WINDOWS = 16
 
     /**
      * Le luci di `lights`, al massimo `max`, sempre le stesse dovunque si guardi (prima si prendevano le più vicine a chi guarda, e
-     * camminando le altre si spegnevano e si riaccendevano). Se sono di più si uniscono a due a due le più vicine tra loro della
-     * stessa stanza (i pezzi di una striscia LED, i faretti in fila, la luce che entra da una porta e la lampada accanto): una luce
-     * sola nel punto di mezzo pesato sul flusso, con il flusso di tutte e due e la forma della più forte. Solo se le stanze con
-     * delle luci sono più di `max`, restano fuori quelle con meno luce.
+     * camminando le altre si spegnevano e si riaccendevano). Se sono di più si uniscono a due a due quelle della stessa stanza,
+     * prima quelle che si notano meno: le luci deboli che passano da porte e finestre tra loro (le più vicine, nel punto di mezzo
+     * pesato sul flusso), poi queste nella lampada vera della stanza più vicina (che resta dov'è e prende il loro flusso), e solo alla
+     * fine le lampade vere più vicine tra loro (i pezzi di una striscia LED, i faretti in fila: una luce sola nel punto di mezzo, con
+     * la forma della più forte; così però un faretto resta senza la sua macchia di luce). Solo se le stanze con delle luci sono più
+     * di `max`, restano fuori prima le luci di passaggio, poi quelle con meno luce.
      */
     fun fit(lights: List<Scene3D.SceneLight>, max: Int = MAX_LAMPS): List<Scene3D.SceneLight> {
         if (lights.size <= max) return lights
@@ -79,7 +81,9 @@ object LitShaders {
             var best = Double.MAX_VALUE
             for (i in out.indices) for (j in i + 1 until out.size) {
                 if (room[i] != room[j]) continue
-                val d = (out[i].position - out[j].position).length
+                // Distanza, più un salto per ogni lampada vera della coppia: prima tutte le unioni senza lampade, poi con una sola.
+                val lamps = (if (out[i].spill) 0 else 1) + (if (out[j].spill) 0 else 1)
+                val d = (out[i].position - out[j].position).length + lamps * LAMP_STEP
                 if (d < best) { best = d; a = i; b = j }
             }
             if (a < 0) break
@@ -87,11 +91,16 @@ object LitShaders {
             out.removeAt(b)
             room.removeAt(b)
         }
-        return if (out.size <= max) out else out.sortedByDescending { it.lumens }.take(max)
+        return if (out.size <= max) out else out.sortedWith(compareBy({ it.spill }, { -it.lumens })).take(max)
     }
+
+    /** Più di ogni distanza in una casa (cm): ordina le unioni per numero di lampade vere. */
+    private const val LAMP_STEP = 1e7
 
     private fun merge(a: Scene3D.SceneLight, b: Scene3D.SceneLight): Scene3D.SceneLight {
         val sum = a.lumens + b.lumens
+        // Luce di passaggio in una lampada vera: la lampada resta com'è, con un po' di luce in più.
+        if (a.spill != b.spill) return (if (a.spill) b else a).copy(lumens = sum)
         // Due luci spente: resta una delle due, senza dividere per zero.
         if (sum <= 0.0) return a
         val warm = (if (a.warm) a.lumens else 0.0) + (if (b.warm) b.lumens else 0.0)
@@ -336,7 +345,7 @@ object LitShaders {
                     val zones = l.zones ?: listOfNotNull(l.room)
                     lampSame[i] = if (i > 0 && zones == previous) 1f else 0f
                     previous = zones
-                    meterLamp(zones, s, viewer)
+                    if (l.profile != com.sagoma.planimetria.geometry.LightProfile.Window) meterLamp(zones, s, viewer)
                     val m = 3.0
                     for (z in 0 until LightZones.MAX) {
                         val o = (i * LightZones.MAX + z) * 4

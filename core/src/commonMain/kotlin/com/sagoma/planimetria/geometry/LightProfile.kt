@@ -29,7 +29,12 @@ enum class LightProfile(val glsl: String) {
     /** Applique e plafoniera a parete: verso la stanza, niente dietro. */
     Wall("(max(c, 0.0) * 0.9 + 0.1)"),
     /** Striscia LED e neon con diffusore: larga, più forte davanti. */
-    Strip("(0.35 + 0.65 * max(c, 0.0))");
+    Strip("(0.35 + 0.65 * max(c, 0.0))"),
+    /**
+     * Luce della stanza che esce da una finestra ([LightOutside]): in avanti, verso dove va passando dal vetro, e presto meno di
+     * lato (la finestra la stringe). Fuori non c'è niente che la rimandi: lo shader le toglie la luce rimbalzata uguale in tutta la zona.
+     */
+    Window("(max(c, 0.0) * max(c, 0.0) * max(c, 0.0))");
 
     fun shape(c: Double): Double = when (this) {
         Uniform -> 1.0
@@ -39,6 +44,7 @@ enum class LightProfile(val glsl: String) {
         Shade -> 0.22 + 0.78 * abs(c).pow(1.5)
         Wall -> maxOf(c, 0.0) * 0.9 + 0.1
         Strip -> 0.35 + 0.65 * maxOf(c, 0.0)
+        Window -> maxOf(c, 0.0).pow(3)
     }
 
     /**

@@ -98,8 +98,10 @@ class LightZonesTest {
         }
         assertEquals(null, lamps.single { it.position.z > 400 }.zones)
         // Tra le stanze dell'ambiente niente luce di passaggio (le lampade ci arrivano già): solo dalla porta della camera, nei due versi.
-        val spill = scene.lights.filter { it.spill }
+        val (outside, spill) = scene.lights.filter { it.spill }.partition { it.profile == LightProfile.Window }
         assertEquals(2, spill.size)
+        // Fuori, davanti alla finestra del soggiorno, esce la luce di tutto l'ambiente.
+        assertTrue(outside.single().zones!!.single().maxY < 0.0, "fuori davanti alla finestra: ${outside.single().zones}")
         assertEquals(Polygon.bounds(bedroom.points), spill.single { it.position.z > 400 }.room)
         assertEquals(open, spill.single { it.position.z < 400 }.zones, "dalla camera la luce entra in tutto l'ambiente")
     }

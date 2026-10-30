@@ -10,6 +10,7 @@ import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.RoomType
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Sul computer lo shader tiene al massimo [LitShaders.MAX_LAMPS] luci. Le luci che passano dalle porte (deboli) non devono
@@ -37,13 +38,13 @@ class LampLimitTest {
 
     @Test
     fun `con piu luci del massimo, camminando restano accese tutte e la luce non cambia`() {
-        // Striscia LED di 20 pezzi e 15 faretti in soggiorno, 6 luci dalle porte in camera: 41 luci, più del massimo.
+        // Striscia LED di 30 pezzi e 25 faretti in soggiorno, 6 luci dalle porte in camera: 61 luci, più del massimo.
         val living = com.sagoma.planimetria.geometry.Bounds(0.0, 0.0, 1000.0, 1000.0)
         val bedroom = com.sagoma.planimetria.geometry.Bounds(1000.0, 0.0, 2000.0, 1000.0)
         fun at(x: Double, z: Double, lumens: Double, room: com.sagoma.planimetria.geometry.Bounds, spill: Boolean = false, profile: LightProfile = LightProfile.Downlight) =
             Scene3D.SceneLight(Vec3(x, 260.0, z), null, lumens, warm = !spill, room = room, profile = profile, spill = spill)
-        val strip = (0 until 20).map { at(50.0 + it * 45.0, 100.0, 50.0, living, profile = LightProfile.Strip) }
-        val spots = (0 until 15).map { at(200.0 + (it % 5) * 150.0, 400.0 + (it / 5) * 150.0, 400.0, living, profile = LightProfile.Spot) }
+        val strip = (0 until 30).map { at(30.0 + it * 31.0, 100.0, 50.0, living, profile = LightProfile.Strip) }
+        val spots = (0 until 25).map { at(200.0 + (it % 5) * 150.0, 300.0 + (it / 5) * 150.0, 400.0, living, profile = LightProfile.Spot) }
         val doors = (0 until 6).map { at(1015.0, 100.0 + it * 150.0, 40.0, bedroom, spill = true) }
         val all = strip + spots + doors
         val lit = scene.withLights(all)
@@ -60,5 +61,45 @@ class LampLimitTest {
         val fitted = LitShaders.fit(all)
         assertEquals(doors.sumOf { it.lumens }, fitted.filter { it.room == bedroom }.sumOf { it.lumens }, 1e-6)
         assertEquals(LitShaders.MAX_LAMPS, fitted.size)
+    }
+
+    @Test
+    fun `i faretti restano dove sono finche bastano i posti delle lampade vere`() {
+        // Come nell'appartamento di Marco: in disimpegno due faretti e tre luci dalle porte, in tutta la casa più luci del massimo,
+        // ma le lampade vere ci stanno. Prima si univano i due faretti in uno solo in mezzo al corridoio (uno restava spento).
+        val hall = com.sagoma.planimetria.geometry.Bounds(750.0, 280.0, 1150.0, 420.0)
+        val spotA = Scene3D.SceneLight(Vec3(998.0, 220.0, 407.0), Vec3(0.26, -0.96, -0.05), 400.0, warm = true, room = hall, profile = LightProfile.Spot)
+        val spotB = Scene3D.SceneLight(Vec3(912.0, 220.0, 293.0), Vec3(-0.04, -0.95, 0.31), 400.0, warm = true, room = hall, profile = LightProfile.Spot)
+        val doors = listOf(1087.0 to 295.0, 1135.0 to 350.0, 810.0 to 405.0).map { (x, z) ->
+            Scene3D.SceneLight(Vec3(x, 105.0, z), null, 25.0, warm = true, room = hall, profile = LightProfile.Wall, spill = true)
+        }
+        // Le altre stanze: lampade e luce di passaggio, ognuna nella sua stanza.
+        val others = (0 until LitShaders.MAX_LAMPS - 2).flatMap { k ->
+            val box = com.sagoma.planimetria.geometry.Bounds(2000.0 + k * 400.0, 0.0, 2400.0 + k * 400.0, 400.0)
+            val c = box.center
+            listOf(
+                Scene3D.SceneLight(Vec3(c.x, 250.0, c.y), null, 1500.0, warm = true, room = box, profile = LightProfile.Downlight, spill = k % 2 == 1),
+            )
+        }
+        val all = listOf(spotA, spotB) + doors + others
+        val fitted = LitShaders.fit(all)
+        assertEquals(LitShaders.MAX_LAMPS, fitted.size)
+        val real = all.filter { !it.spill }
+        for (l in real) assertEquals(1, fitted.count { it.position == l.position && it.direction == l.direction }, "lampada al suo posto: $l")
+        // La luce delle porte del disimpegno resta nel disimpegno, dentro i faretti.
+        assertEquals(800.0 + 75.0, fitted.filter { it.room == hall }.sumOf { it.lumens }, 1e-6)
+    }
+
+    @Test
+    fun `con piu stanze che posti restano fuori prima le luci di passaggio`() {
+        // Una lampada debole (abbassata al 5%) e tante luci che escono dalle finestre, ognuna nel suo rettangolo fuori.
+        val dim = Scene3D.SceneLight(Vec3(200.0, 250.0, 200.0), null, 20.0, warm = true, room = box, profile = LightProfile.Downlight)
+        val outside = (0 until LitShaders.MAX_LAMPS).map { k ->
+            val zone = com.sagoma.planimetria.geometry.Bounds(k * 300.0, -500.0, k * 300.0 + 200.0, -4.0)
+            Scene3D.SceneLight(Vec3(k * 300.0 + 100.0, 150.0, -25.0), null, 60.0, warm = true, room = zone, zones = listOf(zone), profile = LightProfile.Window, spill = true)
+        }
+        val fitted = LitShaders.fit(outside + dim)
+        assertEquals(LitShaders.MAX_LAMPS, fitted.size)
+        assertTrue(dim in fitted, "la lampada vera resta")
     }
 }
