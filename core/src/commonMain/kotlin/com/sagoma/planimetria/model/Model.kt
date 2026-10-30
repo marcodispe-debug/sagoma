@@ -469,6 +469,11 @@ data class Fixture(
      */
     val aimYaw: Double = 0.0,
     val aimTilt: Double = DEFAULT_AIM_TILT,
+    /**
+     * Luminosità di questa luce (solo le luci, [FixtureKind.isLight]): 1 = come la fa sagoma, 0 = spenta, fino a [LightLevel.MAX].
+     * Vale insieme alla luminosità di tutta la casa ([Building.lampBrightness]), che le alza o abbassa tutte.
+     */
+    val brightness: Double = 1.0,
 ) {
     companion object {
         /** Inclinazione (gradi verso il basso) del fascio di un faretto a parete appena messo. */
@@ -1030,7 +1035,17 @@ data class Furniture(
     val elevation: Double = 0.0,
     /** Ribaltato sinistra ↔ destra guardandolo dal davanti (divani angolari, cucine ad angolo…). */
     val mirrored: Boolean = false,
+    /** Luminosità della lampada (solo le lampade del catalogo), come [Fixture.brightness]. */
+    val brightness: Double = 1.0,
 )
+
+/** Luminosità di una sola luce ([Fixture.brightness], [Furniture.brightness]): da spenta (0) al doppio del normale. */
+object LightLevel {
+    const val MAX = 2.0
+
+    /** Valore da usare: fuori misura (file rovinato o scritto a mano) torna nei limiti; non valido torna normale. */
+    fun of(v: Double): Double = if (v.isNaN()) 1.0 else v.coerceIn(0.0, MAX)
+}
 
 /**
  * Immagine di sfondo di un piano: `file` è il nome del file nella cartella del progetto, `origin` la

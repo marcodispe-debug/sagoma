@@ -70,18 +70,25 @@ object LightSpill {
     /**
      * Le luci che le lampade di `lights` mandano nelle stanze vicine attraverso i varchi di `plan` (piano a quota 0): una per
      * varco illuminato, nella stanza di là, con il flusso che passa (diretto dalle lampade più quello rimandato dalle pareti).
+     * `spaces`: ambienti aperti in cui le lampade illuminano tutte le stanze ([LightZones.spaces]): tra le loro stanze non passa
+     * niente in più, e dai loro varchi verso le altre stanze esce la luce di tutte le lampade dell'ambiente.
      */
-    fun through(plan: FloorPlan, lights: List<Scene3D.SceneLight>): List<Scene3D.SceneLight> {
+    fun through(plan: FloorPlan, lights: List<Scene3D.SceneLight>, spaces: List<List<Room>> = emptyList()): List<Scene3D.SceneLight> {
         val portals = portals(plan)
         if (portals.isEmpty() || lights.isEmpty()) return emptyList()
         val boxes = plan.rooms.associate { it.id to Polygon.bounds(it.points) }
+        val spaceOf = HashMap<Long, List<Room>>()
+        for (s in spaces) for (r in s) spaceOf[r.id] = s
         val out = mutableListOf<Scene3D.SceneLight>()
         for (p in portals) {
-            val fromBox = boxes[p.from.id] ?: continue
-            val own = lights.filter { it.room == fromBox }
+            val space = spaceOf[p.from.id]
+            if (space != null && space === spaceOf[p.to.id]) continue
+            val sources = space ?: listOf(p.from)
+            val fromBoxes = sources.mapNotNull { boxes[it.id] }.toSet()
+            val own = lights.filter { it.room in fromBoxes }
             if (own.isEmpty()) continue
             val area = p.a.distanceTo(p.b) * p.top
-            val surface = 2 * Polygon.area(p.from.points) + perimeter(p.from) * p.from.ceilingHeight
+            val surface = LightZones.surface(sources)
             val n = Vec3(p.into.x, 0.0, p.into.y)
             var flux = 0.0
             var warmFlux = 0.0
@@ -121,6 +128,4 @@ object LightSpill {
 
     private const val COLUMNS = 4
     private const val ROWS = 4
-
-    private fun perimeter(room: Room) = (0 until room.wallCount).sumOf { room.wallLength(it) }
 }

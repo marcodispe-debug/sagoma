@@ -245,4 +245,10 @@ open class TestiPannelli {
     open fun disuguali2(label: Any?): String = "$label disuguali"
     /** Nome con il tipo di anta: "Finestra 1 anta, vasistas". */
     open fun conAnta(label: Any?, sash: String): String = "$label, ${sash.lowercase()}"
+    /** Luminosità di una sola luce (impianto o lampada del catalogo), nella sua scheda Info. */
+    open val luce: String get() = "Luce"
+    open val luceSpenta: String get() = "💡 Luminosità: spenta"
+    open val luminositaLuceSpiegazione: String get() = "100% è la luce normale di questa lampada. Il cursore «💡 Luminosità delle luci» della vista 3D le alza o abbassa tutte insieme."
+    open val luminositaNormale: String get() = "Normale (100%)"
+    open fun luminositaLuce(pct: Int, lumen: Int): String = "💡 Luminosità: $pct% · circa $lumen lumen"
 }
