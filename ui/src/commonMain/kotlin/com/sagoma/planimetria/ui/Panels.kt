@@ -331,7 +331,7 @@ private fun FurniturePanel(sel: Selection.Furniture, plan: FloorPlan, vm: Editor
         // Lampade del catalogo: quanto fanno luce, ognuna per conto suo.
         val lamp = com.sagoma.planimetria.model.FurnitureCatalog.item(f.model)?.takeIf { it.symbolKind == com.sagoma.planimetria.model.FurnitureSymbol.Lamp }
         if (lamp != null) add(InfoTab("luce", T.pannelli.luce) {
-            LightLevelControl(f.brightness, Scene3D.lampLumens(lamp.ceiling), vm) { v -> update { it.copy(brightness = v) } }
+            LightLevelControl(f.brightness, Scene3D.lampLumens(lamp), vm) { v -> update { it.copy(brightness = v) } }
         })
         if (kitchen != null || parametric != null) add(InfoTab("finiture", T.schedaStanza.finiture) {
             if (kitchen != null) KitchenFinishes(f.id, kitchen, plan, vm)
