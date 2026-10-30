@@ -75,6 +75,38 @@ class LightZonesTest {
     }
 
     @Test
+    fun `di sera le lampade dell'ambiente aperto illuminano tutto l'ambiente`() {
+        // Come sopra, con il lampadario in soggiorno, la plafoniera in cucina e in camera, e una porta tra soggiorno e camera.
+        fun light(id: Long, kind: com.sagoma.planimetria.model.FixtureKind, at: Vec2) = com.sagoma.planimetria.model.Fixture(id, kind, point = at)
+        val door = com.sagoma.planimetria.model.Opening.default(2, com.sagoma.planimetria.model.OpeningKind.Door, 2, 250.0)
+        val window = com.sagoma.planimetria.model.Opening.default(1, com.sagoma.planimetria.model.OpeningKind.Window2, 0, 250.0)
+        val living = rect(1, "Soggiorno", 500.0, 400.0, Vec2.Zero, removed = setOf(1), openings = listOf(window, door))
+            .copy(fixtures = listOf(light(1, com.sagoma.planimetria.model.FixtureKind.Chandelier, Vec2(250.0, 200.0))))
+        val kitchen = rect(2, "Cucina", 300.0, 400.0, Vec2(500.0, 0.0), removed = setOf(2, 3))
+            .copy(fixtures = listOf(light(2, com.sagoma.planimetria.model.FixtureKind.CeilingLight, Vec2(650.0, 200.0))))
+        val hall = rect(3, "Ingresso", 300.0, 200.0, Vec2(500.0, 400.0), removed = setOf(0))
+        val bedroom = rect(4, "Camera", 500.0, 200.0, Vec2(0.0, 400.0))
+            .copy(fixtures = listOf(light(3, com.sagoma.planimetria.model.FixtureKind.CeilingLight, Vec2(250.0, 500.0))))
+        val scene = Scene3D.build(com.sagoma.planimetria.model.FloorPlan(listOf(living, kitchen, hall, bedroom)), focusedRoomId = null, selected = null, ceilings = true)
+        val open = scene.windows.single().zones
+        val lamps = scene.lights.filter { !it.spill }
+        assertEquals(3, lamps.size)
+        // Lampadario e plafoniera della cucina: in soggiorno, cucina e ingresso, non in camera.
+        for (l in lamps.filter { it.position.z < 400 }) {
+            assertEquals(open, l.zones)
+            assertTrue(l.room!!.minX <= 0.0 && l.room!!.maxX >= 800.0 && l.room!!.maxY >= 600.0, "riquadro di tutto l'ambiente: ${l.room}")
+        }
+        assertEquals(null, lamps.single { it.position.z > 400 }.zones)
+        // Tra le stanze dell'ambiente niente luce di passaggio (le lampade ci arrivano già): solo dalla porta della camera, nei due versi.
+        val (outside, spill) = scene.lights.filter { it.spill }.partition { it.profile == LightProfile.Window }
+        assertEquals(2, spill.size)
+        // Fuori, davanti alla finestra del soggiorno, esce la luce di tutto l'ambiente.
+        assertTrue(outside.single().zones!!.single().maxY < 0.0, "fuori davanti alla finestra: ${outside.single().zones}")
+        assertEquals(Polygon.bounds(bedroom.points), spill.single { it.position.z > 400 }.room)
+        assertEquals(open, spill.single { it.position.z < 400 }.zones, "dalla camera la luce entra in tutto l'ambiente")
+    }
+
+    @Test
     fun `ambiente con troppi rettangoli`() {
         // Cinque stanze in fila a scalini, tutte aperte: i rettangoli si uniscono fino a quattro senza entrare nella stanza chiusa.
         val steps = (0 until 5).map { k -> rect(k + 1L, "S$k", 200.0, 200.0 + 40 * k, Vec2(200.0 * k, 0.0), removed = setOfNotNull(if (k > 0) 3 else null, if (k < 4) 1 else null)) }

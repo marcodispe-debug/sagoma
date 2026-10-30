@@ -16,6 +16,7 @@ import com.sagoma.planimetria.model.Finish
 import com.sagoma.planimetria.model.GarageDoor
 import com.sagoma.planimetria.model.FloorPattern
 import com.sagoma.planimetria.model.LampModel
+import com.sagoma.planimetria.model.LightLevel
 import com.sagoma.planimetria.model.RadiatorModel
 import com.sagoma.planimetria.model.Shading
 import com.sagoma.planimetria.model.StairRailing
@@ -270,6 +271,24 @@ class Scene3D(
          * lunghezza sbagliata (troppi zeri, file rovinato) erano centinaia di migliaia di luci e il 3D si fermava.
          */
         const val MAX_STRIP_LIGHTS = 64
+
+        /**
+         * Flusso luminoso (lumen) di una luce al 100% ([com.sagoma.planimetria.model.Fixture.brightness]): per neon e strisce LED è
+         * quello di tutta la luce, diviso tra i suoi punti. 0 per gli impianti che non sono luci.
+         */
+        fun lumensOf(kind: FixtureKind): Double = when (kind) {
+            FixtureKind.Spotlight, FixtureKind.WallSpot -> 400.0
+            FixtureKind.CeilingLight -> 1500.0
+            FixtureKind.Chandelier -> 2000.0
+            FixtureKind.Neon -> 2500.0
+            FixtureKind.LedStrip -> 1000.0
+            FixtureKind.WallLight -> 800.0
+            FixtureKind.WallLedStrip -> WALL_LED_LUMENS
+            FixtureKind.Radiator, FixtureKind.Outlet, FixtureKind.Switch, FixtureKind.WaterPoint -> 0.0
+        }
+
+        /** Lumen di una lampada del catalogo al 100%: appesa al soffitto o da terra e da tavolo. */
+        fun lampLumens(ceiling: Boolean): Double = if (ceiling) 2000.0 else 600.0
 
         private fun rayTriangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3): Double? {
             val e1 = b - a
@@ -607,6 +626,10 @@ private class SceneBuilder(
     /** Spessore del solaio visto di lato (fascia sotto il pavimento di sopra, bordi dei vani scala): cemento, più scuro dell'intonaco. */
     private val slabEdge = Rgba(0.60f, 0.59f, 0.57f)
     private val lightColor = Rgba(1f, 0.93f, 0.62f)
+    /** Lampada spenta: vetro bianco latte, illuminato come il resto. */
+    private val lightOffColor = Rgba(0.9f, 0.89f, 0.86f)
+    /** Il punto luce che si sta disegnando è spento ([LightLevel] a 0): le sue parti luminose non brillano. */
+    private var lampOff = false
     private val skirting = Rgba(0.80f, 0.78f, 0.74f)
     private val SKIRTING = 8.0
     /** Fettine di muro sopra un varco ad arco (ognuna con il bordo inferiore inclinato: curva continua). */
@@ -671,7 +694,7 @@ private class SceneBuilder(
                 }
                 if (aboveCurrent) wallBottom = 0.0
                 for (o in room.openings) if (o.wallIndex < room.wallCount) openingModel(room, o)
-                for (f in room.fixtures) fixture(room, f)
+                for (f in room.fixtures) fixtureAtLevel(room, f)
             }
             // Vuoto della scala nel pavimento: si vede lo spessore del solaio (non nel piano di sopra visto da sotto, senza pavimento).
             if (!aboveCurrent && previous != null && holes.isNotEmpty()) floorHoleSides(previous)
@@ -711,6 +734,7 @@ private class SceneBuilder(
             // Arredi: il modello lo disegna il renderer; qui la scatola invisibile per toccarli e, se alti,
             // l'ingombro che blocca chi cammina.
             for (f in plan.furniture) {
+                val firstLight = lights.size
                 val pick = Pick.Furniture(f.id)
                 val rug = FurnitureCatalog.rugOf(f.model)
                 val generated = GeneratedGeometry.parts(f.model, f.width, f.depth, f.height)
@@ -727,6 +751,7 @@ private class SceneBuilder(
                         profile = if (item.ceiling) LightProfile.Pendant else LightProfile.Shade)
                 }
                 if (!current) continue
+                scaleLights(firstLight, f.brightness)
                 val outline = Furnishings.outline(f)
                 pickBox(outline, f.elevation, f.elevation + f.height, pick)
                 if (f.elevation < 60 && f.elevation + f.height > 40) for (k in outline.indices) obstacles += Obstacle(outline[k], outline[(k + 1) % outline.size])
@@ -744,28 +769,32 @@ private class SceneBuilder(
             // Luce delle lampade che passa dalle porte nelle stanze vicine (solo il piano corrente ha le luci).
             if (current) {
                 // Solo stanze vere: una stanza senza punti (file rovinato) non ha zone e farebbe fermare il 3D.
-                // Le stanze unite senza muro (soggiorno, cucina e ingresso aperti) sono un ambiente solo: la luce delle finestre si
-                // sparge in tutto l'ambiente e l'esposizione è la stessa, così pareti e pavimenti non cambiano luce dove c'era il
-                // muro. Se l'ambiente ha troppi rettangoli per il renderer, ogni stanza resta da sola come prima.
+                // Le stanze unite senza muro (soggiorno, cucina e ingresso aperti) sono un ambiente solo: la luce delle finestre e
+                // quella delle lampade si spargono in tutto l'ambiente e l'esposizione è la stessa, così pareti e pavimenti non
+                // cambiano luce dove c'era il muro, né di giorno né di sera. Se l'ambiente ha troppi rettangoli per il renderer, ogni
+                // stanza resta da sola come prima.
                 val light = LinkedHashMap<Long, Scene3D.SceneRoom>()
                 val surfaces = HashMap<Long, Double>()
                 val indoor = plan.rooms.filter { !it.outdoor && it.points.size >= 3 }
+                val open = mutableListOf<List<Room>>()
+                val openLamps = HashMap<Bounds, Pair<Bounds, List<Bounds>>>()
                 for (space in LightZones.spaces(plan)) {
                     val zones = if (space.size > 1) LightZones.merged(space, indoor - space.toSet()) else null
                     if (zones == null) {
                         for (room in space) {
-                            val perimeter = room.points.indices.sumOf { room.points[it].distanceTo(room.points[(it + 1) % room.points.size]) }
                             light[room.id] = Scene3D.SceneRoom(LightZones.of(room.points), base, base + room.ceilingHeight)
-                            surfaces[room.id] = 2 * Polygon.area(room.points) + perimeter * room.ceilingHeight
+                            surfaces[room.id] = LightZones.surface(listOf(room))
                         }
                         continue
                     }
-                    // Pavimento, soffitto e pareti di tutto l'ambiente: senza i muri tolti.
-                    val surface = space.sumOf { r ->
-                        2 * Polygon.area(r.points) + (0 until r.wallCount).filter { !r.isRemoved(it) }.sumOf { r.wallLength(it) } * r.ceilingHeight
-                    }
+                    val surface = LightZones.surface(space)
                     val shared = Scene3D.SceneRoom(zones, base, base + space.maxOf { it.ceilingHeight })
-                    for (room in space) { light[room.id] = shared; surfaces[room.id] = surface }
+                    val box = Polygon.bounds(space.flatMap { it.points })
+                    for (room in space) {
+                        light[room.id] = shared; surfaces[room.id] = surface
+                        openLamps[Polygon.bounds(room.points)] = box to zones
+                    }
+                    open += space
                 }
                 rooms += light.values.distinct()
                 // Finestre: la stanza (o l'ambiente aperto) in cui entra la loro luce (appena dentro, verso l'interno).
@@ -776,7 +805,13 @@ private class SceneBuilder(
                     val r = light[room.id] ?: continue
                     windows[k] = w.copy(zones = r.zones, surface = surfaces.getValue(room.id), floor = r.floor, ceiling = r.ceiling)
                 }
-                lights += LightSpill.through(plan, lights.toList())
+                lights += LightSpill.through(plan, lights.toList(), open)
+                // Lampade di un ambiente aperto, e luce che vi arriva dalle porte: in tutto l'ambiente.
+                for (k in lights.indices) {
+                    val l = lights[k]
+                    val (box, zones) = l.room?.let { openLamps[it] } ?: continue
+                    lights[k] = l.copy(room = box, zones = zones)
+                }
                 // Stanze a L o a U: la luce resta nei rettangoli della stanza, non in tutto il suo riquadro.
                 // Una stanza senza punti (file rovinato) non ha riquadro: si salta, altrimenti il 3D non si apre.
                 val zones = plan.rooms.filter { it.points.size >= 3 }.associate { Polygon.bounds(it.points) to LightZones.of(it.points) }
@@ -785,6 +820,8 @@ private class SceneBuilder(
                     val z = l.room?.let { zones[it] } ?: continue
                     if (l.zones == null && z.size > 1) lights[k] = l.copy(zones = z)
                 }
+                // Di sera la luce delle lampade esce anche dalle finestre: fuori, davanti a ognuna, fino alle altre stanze della casa.
+                lights += LightOutside.through(windows.toList(), lights.toList(), indoor.flatMap { LightZones.of(it.points) })
             }
             previous = level
         }
@@ -1120,11 +1157,13 @@ private class SceneBuilder(
         val face = (b - a) cross (c - a)
         val (p, q) = if ((face dot normal) >= 0) b to c else c to b
         val out = if (glassy) transparent else opaque
-        val n = if (emissive) Vec3.Zero else normal.normalized()
+        val off = emissive && lampOff
+        val n = if (emissive && !off) Vec3.Zero else normal.normalized()
+        val col = if (off) pick?.let { tint(lightOffColor, it) } ?: lightOffColor else color
         for (v in listOf(a, p, q)) {
             out.add(v.x.toFloat()); out.add(v.y.toFloat()); out.add(v.z.toFloat())
             out.add(n.x.toFloat()); out.add(n.y.toFloat()); out.add(n.z.toFloat())
-            out.add(color.r); out.add(color.g); out.add(color.b); out.add(color.a)
+            out.add(col.r); out.add(col.g); out.add(col.b); out.add(col.a)
         }
         if (pick != null && current) picks += Scene3D.PickTri(a, p, q, pick)
     }
@@ -3317,6 +3356,25 @@ private class SceneBuilder(
         val direction = if (f.kind == FixtureKind.WallSpot) SpotAim.direction(n, f.aimYaw, f.aimTilt) else null
         if (current) lights += Scene3D.SceneLight((p + n * (depth + 1.0)).at(f.elevation), direction, lumens, warm = true, room = Polygon.bounds(room.points), fixtureId = f.id,
             profile = if (direction != null) LightProfile.Spot else LightProfile.Wall, axis = Vec3(n.x, 0.0, n.y))
+    }
+
+    /** Impianto con la luminosità scelta per lui ([Fixture.brightness]): spento non fa luce e le sue parti luminose non brillano. */
+    private fun fixtureAtLevel(room: Room, f: Fixture) {
+        val first = lights.size
+        lampOff = LightLevel.of(f.brightness) <= 0
+        fixture(room, f)
+        lampOff = false
+        scaleLights(first, f.brightness)
+    }
+
+    /** Luci aggiunte da `first` in poi, con la luminosità scelta per il loro punto luce ([LightLevel]); a 0 si tolgono. */
+    private fun scaleLights(first: Int, brightness: Double) {
+        val level = LightLevel.of(brightness)
+        if (level == 1.0 || first >= lights.size) return
+        val added = lights.subList(first, lights.size)
+        val scaled = if (level > 0) added.map { it.copy(lumens = it.lumens * level) } else emptyList()
+        added.clear()
+        lights += scaled
     }
 
     private fun fixture(room: Room, f: Fixture) {

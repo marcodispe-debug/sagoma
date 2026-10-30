@@ -242,4 +242,9 @@ object TestiPannelliFr : TestiPannelli() {
     override fun filoMuro2(label: Any?): String = "$label, affleurante"
     override fun disuguali2(label: Any?): String = "$label, inégaux"
     override fun conAnta(label: Any?, sash: String): String = "$label, ${sash.lowercase()}"
+    override val luce: String get() = "Lumière"
+    override val luceSpenta: String get() = "💡 Luminosité : éteinte"
+    override val luminositaLuceSpiegazione: String get() = "100 % est la lumière normale de cette lampe. Le curseur « 💡 Luminosité des lumières » de la vue 3D les augmente ou les baisse toutes ensemble."
+    override val luminositaNormale: String get() = "Normale (100 %)"
+    override fun luminositaLuce(pct: Int, lumen: Int): String = "💡 Luminosité : $pct % · environ $lumen lumens"
 }
