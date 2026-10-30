@@ -744,28 +744,32 @@ private class SceneBuilder(
             // Luce delle lampade che passa dalle porte nelle stanze vicine (solo il piano corrente ha le luci).
             if (current) {
                 // Solo stanze vere: una stanza senza punti (file rovinato) non ha zone e farebbe fermare il 3D.
-                // Le stanze unite senza muro (soggiorno, cucina e ingresso aperti) sono un ambiente solo: la luce delle finestre si
-                // sparge in tutto l'ambiente e l'esposizione è la stessa, così pareti e pavimenti non cambiano luce dove c'era il
-                // muro. Se l'ambiente ha troppi rettangoli per il renderer, ogni stanza resta da sola come prima.
+                // Le stanze unite senza muro (soggiorno, cucina e ingresso aperti) sono un ambiente solo: la luce delle finestre e
+                // quella delle lampade si spargono in tutto l'ambiente e l'esposizione è la stessa, così pareti e pavimenti non
+                // cambiano luce dove c'era il muro, né di giorno né di sera. Se l'ambiente ha troppi rettangoli per il renderer, ogni
+                // stanza resta da sola come prima.
                 val light = LinkedHashMap<Long, Scene3D.SceneRoom>()
                 val surfaces = HashMap<Long, Double>()
                 val indoor = plan.rooms.filter { !it.outdoor && it.points.size >= 3 }
+                val open = mutableListOf<List<Room>>()
+                val openLamps = HashMap<Bounds, Pair<Bounds, List<Bounds>>>()
                 for (space in LightZones.spaces(plan)) {
                     val zones = if (space.size > 1) LightZones.merged(space, indoor - space.toSet()) else null
                     if (zones == null) {
                         for (room in space) {
-                            val perimeter = room.points.indices.sumOf { room.points[it].distanceTo(room.points[(it + 1) % room.points.size]) }
                             light[room.id] = Scene3D.SceneRoom(LightZones.of(room.points), base, base + room.ceilingHeight)
-                            surfaces[room.id] = 2 * Polygon.area(room.points) + perimeter * room.ceilingHeight
+                            surfaces[room.id] = LightZones.surface(listOf(room))
                         }
                         continue
                     }
-                    // Pavimento, soffitto e pareti di tutto l'ambiente: senza i muri tolti.
-                    val surface = space.sumOf { r ->
-                        2 * Polygon.area(r.points) + (0 until r.wallCount).filter { !r.isRemoved(it) }.sumOf { r.wallLength(it) } * r.ceilingHeight
-                    }
+                    val surface = LightZones.surface(space)
                     val shared = Scene3D.SceneRoom(zones, base, base + space.maxOf { it.ceilingHeight })
-                    for (room in space) { light[room.id] = shared; surfaces[room.id] = surface }
+                    val box = Polygon.bounds(space.flatMap { it.points })
+                    for (room in space) {
+                        light[room.id] = shared; surfaces[room.id] = surface
+                        openLamps[Polygon.bounds(room.points)] = box to zones
+                    }
+                    open += space
                 }
                 rooms += light.values.distinct()
                 // Finestre: la stanza (o l'ambiente aperto) in cui entra la loro luce (appena dentro, verso l'interno).
@@ -776,7 +780,13 @@ private class SceneBuilder(
                     val r = light[room.id] ?: continue
                     windows[k] = w.copy(zones = r.zones, surface = surfaces.getValue(room.id), floor = r.floor, ceiling = r.ceiling)
                 }
-                lights += LightSpill.through(plan, lights.toList())
+                lights += LightSpill.through(plan, lights.toList(), open)
+                // Lampade di un ambiente aperto, e luce che vi arriva dalle porte: in tutto l'ambiente.
+                for (k in lights.indices) {
+                    val l = lights[k]
+                    val (box, zones) = l.room?.let { openLamps[it] } ?: continue
+                    lights[k] = l.copy(room = box, zones = zones)
+                }
                 // Stanze a L o a U: la luce resta nei rettangoli della stanza, non in tutto il suo riquadro.
                 // Una stanza senza punti (file rovinato) non ha riquadro: si salta, altrimenti il 3D non si apre.
                 val zones = plan.rooms.filter { it.points.size >= 3 }.associate { Polygon.bounds(it.points) to LightZones.of(it.points) }
