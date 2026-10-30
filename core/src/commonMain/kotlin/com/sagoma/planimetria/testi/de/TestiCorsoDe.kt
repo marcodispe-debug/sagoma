@@ -16,6 +16,7 @@ object TestiCorsoDe : TestiCorso() {
         Lesson.LShape -> "L-Form"
         Lesson.Elements -> "Türen, Fenster und mehr"
         Lesson.Check -> "Grundriss prüfen"
+        Lesson.Sun -> "Die Sonne und der Kompass"
         Lesson.OverPlan -> "Auf deinem Grundriss"
         else -> super.lezione(l)
     }
@@ -29,12 +30,13 @@ object TestiCorsoDe : TestiCorso() {
         CourseStep.Finished -> "Du hast die Anleitung geschafft!"
         CourseStep.Snap -> "Räume verschieben und der Magnet 🧲"
         CourseStep.InnerFace -> "Die Innenseite der Wände"
+        CourseStep.SunDone -> "Die Sonne deines Hauses"
         else -> "Geschafft!"
     }
 
     override fun testoScheda(s: CourseStep): String = when (s) {
         CourseStep.Welcome ->
-            "Ich führe dich Schritt für Schritt durch das Zeichnen des Hauses auf diesem erfundenen Grundriss, in ${Lesson.entries.size} kurzen Lektionen: ein Raum nach dem " +
+            "Ich führe dich Schritt für Schritt durch das Zeichnen des Hauses auf diesem erfundenen Grundriss, in ${Lesson.entries.count { it.inCourse }} kurzen Lektionen: ein Raum nach dem " +
                 "anderen, jeder an seinem Platz wie auf der Zeichnung. Die Aktionen machst du selbst: bei jedem Schritt zeige ich dir mit einem orangefarbenen Rahmen, was " +
                 "du anklicken sollst. Es ist ein Projekt nur zum Üben: deine Projekte bleiben unberührt."
         CourseStep.SquareDone ->
@@ -73,6 +75,9 @@ object TestiCorsoDe : TestiCorso() {
             "Hier sind Schlafzimmer, Bad und Wohnzimmer auf dem Grundriss, mit den richtigen Maßen. Mit den anderen Räumen machst du es genauso: eine Form " +
                 "zum Start, an die Nachbarräume gehängt, dann Wände und Ecken an ihren Platz und die genauen Maße unter „$infoTab“. " +
                 "Jetzt kannst du dein Zuhause zeichnen! Die Anleitung kannst du jederzeit unter „${e.guide}“ wiederholen."
+        CourseStep.SunDone ->
+            "Fertig. Norden und Stadt bleiben im Projekt, und du änderst sie jederzeit über den Kompass oder das Menü ⋮; Tag und Uhrzeit " +
+                "sind nur zum Anschauen. Nichts davon ist Pflicht: was du nicht angibst, bleibt wie es war (Norden oben, Rom, heute)."
         CourseStep.InnerFace ->
             "Bevor du das Schlafzimmer verschiebst, etwas Wichtiges. Sagoma misst die Räume an der Innenseite der Wände, wie die Maße " +
                 "auf dem Grundriss: die Wandstärke geht nach außen. Wenn du einen Raum auf den Grundriss legst, bring die Innenseite der " +
@@ -88,7 +93,7 @@ object TestiCorsoDe : TestiCorso() {
     override val nienteDaIndicare: String get() = "Führe die Aktion dieses Schritts aus oder klicke auf „${e.saltaPasso}“."
     override val tornaIndietro: String get() = "Das ist nicht die Form dieses Schritts: klicke auf „${T.comuni.indietro}“ und wähle die richtige."
     override val vaiAllaLezione: String get() = "Oder geh direkt zur Lektion:"
-    override val voceMenu: String get() = "Interaktive Anleitung (${Lesson.entries.size} Lektionen)"
+    override val voceMenu: String get() = "Interaktive Anleitung (${Lesson.entries.count { it.inCourse }} Lektionen)"
     override val progettoProva: String get() = "Übung der Anleitung"
     override val progettoProvaPlanimetria: String get() = "Übung der Anleitung · Grundriss"
     override val usaPiantina: String get() = "🧭 Grundriss der Anleitung verwenden"
@@ -309,6 +314,29 @@ object TestiCorsoDe : TestiCorso() {
     override val trasparenzaPiantina: String get() =
         "Hier stellst du den Grundriss ein: mit dem Schieberegler wird er heller oder dunkler, mit dem Schalter blendest du ihn aus. Darunter gibt es " +
             "dasselbe für die Zeichnung. Wenn du fertig bist, schließe das Fenster mit „${T.comuni.chiudi}“. Probier es: ziehe den Schieberegler des Grundrisses."
+
+    override fun intestazioneSola(nome: String): String = "Anleitung · $nome"
+    override val giraBussola: String get() =
+        "Der Kompass 🧭 zeigt, wo Norden im Verhältnis zu deinem Grundriss liegt: er dient nur dazu, dass die Sonne im 3D von der richtigen Seite " +
+            "hereinscheint. Du musst nicht alle diese Angaben machen: jeden Schritt kannst du mit „${e.saltaPasso}“ überspringen, oder aufhören. Wenn du " +
+            "weißt, wo Norden ist, drück auf den Kompass und dreh ihn, bis das N dorthin zeigt. Der Grundriss dreht sich nie."
+    override fun nordOra(gradi: Int): String = "Norden: $gradi°"
+    override val toccaBussola: String get() =
+        "Wenn du willst, wähl auch die Stadt des Hauses: sie bestimmt, wie hoch die Sonne steigt und wann sie auf- und untergeht. Tippe auf den " +
+            "Kompass, ohne ihn zu ziehen. Auch das ist freiwillig: ohne Stadt gilt Rom."
+    override val sceltaCitta: String get() =
+        "Hier kannst du auch die Grad für Norden eingeben. Die Stadt schreibst du in „${T.vista3D.cercaCitta}“ und klickst sie in der Liste an. " +
+            "Dann klicke auf „${T.comuni.chiudi}“. Wenn es dich nicht interessiert, schließ einfach."
+    override val apriVista3d: String get() = "Um die Sonne zu sehen, klicke auf „${e.vista3d}“, hier unten rechts. Wenn du es nicht brauchst, hör ruhig auf."
+    override val tornaAllaPianta: String get() = "Der Kompass ist auf dem Grundriss: klicke auf „${e.pianta2d}“, um zurückzugehen."
+    override val tornaAl3d: String get() = "Die Sonne siehst du im 3D: klicke auf „${e.vista3d}“."
+    override val apriOra: String get() = "Die Sonne folgt der Tageszeit: klicke auf die Uhrzeit mit der Sonne ☀, hier unten rechts. Der Regler für die Uhrzeit öffnet sich."
+    override val riapriOra: String get() = "Öffne den Regler für die Uhrzeit wieder: klicke auf die Uhrzeit mit der Sonne ☀, hier unten rechts."
+    override val trascinaOra: String get() =
+        "Zieh den Regler: die Sonne bewegt sich mit der Uhrzeit, und das Licht fällt durch die Fenster. Die Uhrzeit bleibt nicht im Projekt: sie ist nur zum Anschauen."
+    override val apriGiorno: String get() = "Die Sonne ändert sich auch mit den Jahreszeiten. Klicke neben dem Regler auf „📅“: meistens ist es heute."
+    override val scegliGiorno: String get() =
+        "Wähl einen Tag: im Winter steht die Sonne tief und scheint weiter in die Räume, im Sommer steht sie hoch. Auch der Tag ist nur zum Anschauen."
 
     override fun nomeMuroSoggiorno(muro: Int): String = when (muro) {
         0 -> "die Wand oben"
