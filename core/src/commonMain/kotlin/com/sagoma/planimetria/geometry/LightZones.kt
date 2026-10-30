@@ -108,6 +108,14 @@ object LightZones {
         return rects
     }
 
+    /**
+     * cm² di pavimento, soffitto e pareti delle stanze `rooms`, su cui si sparge la luce che rimbalza: una stanza con tutti i suoi
+     * muri, un ambiente aperto ([spaces]) senza i muri tolti in mezzo.
+     */
+    fun surface(rooms: List<Room>): Double = rooms.sumOf { r ->
+        2 * Polygon.area(r.points) + (0 until r.wallCount).filter { rooms.size == 1 || !r.isRemoved(it) }.sumOf { r.wallLength(it) } * r.ceilingHeight
+    }
+
     /** Due rettangoli si uniscono esatti se i lati in comune combaciano entro questo (cm). */
     private const val JOIN_CM = 2.0
 
