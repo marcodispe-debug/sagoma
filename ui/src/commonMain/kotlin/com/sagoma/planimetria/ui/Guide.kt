@@ -366,7 +366,7 @@ private fun CourseBubble(course: CourseUi, hint: GuideHint?, vm: EditorViewModel
     ) {
         Column(Modifier.padding(start = 14.dp, end = 8.dp, top = 12.dp)) {
             Text(
-                c.intestazione(course.lesson, course.lessons, c.lezione(step.lesson)),
+                if (course.single) c.intestazioneSola(c.lezione(step.lesson)) else c.intestazione(course.lesson, course.lessons, c.lezione(step.lesson)),
                 style = MaterialTheme.typography.labelMedium,
                 color = Color(0xFFB85F00),
             )
@@ -396,7 +396,7 @@ private fun CourseBubble(course: CourseUi, hint: GuideHint?, vm: EditorViewModel
                 )
                 Text(c.vaiAllaLezione, style = MaterialTheme.typography.labelMedium, color = onColor.copy(alpha = 0.7f), modifier = Modifier.padding(top = 8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    for (l in Lesson.entries.drop(1)) OutlinedButton(
+                    for (l in Lesson.entries.drop(1).filter { it.inCourse }) OutlinedButton(
                         onClick = { if (l == Lesson.OverPlan) { vm.leaveCourse(); onLesson(l) } else vm.startCourse(l) },
                         contentPadding = PaddingValues(0.dp),
                         modifier = Modifier.size(36.dp),
@@ -418,6 +418,8 @@ private fun CourseBubble(course: CourseUi, hint: GuideHint?, vm: EditorViewModel
                         TextButton(onClick = { vm.finishCourse() }) { Text(c.bastaCosi, color = quiet) }
                         TextButton(onClick = { vm.leaveCourse(); onLesson(Lesson.OverPlan) }) { Text(c.apriProgettoNuovo) }
                     }
+                    // La lezione sola (il sole, dalla bussola) finisce lì.
+                    CourseStep.SunDone -> TextButton(onClick = { vm.finishCourse() }) { Text(T.comuni.fine) }
                     CourseStep.Finished -> {
                         TextButton(onClick = { vm.finishCourse() }) { Text(T.comuni.fine, color = quiet) }
                         TextButton(onClick = { vm.finishCourse(); onOpenProjects() }) { Text(c.vaiAiProgetti) }

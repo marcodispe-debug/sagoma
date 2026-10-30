@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.geometry.CalendarDay
 import com.sagoma.planimetria.model.HouseSite
 import com.sagoma.planimetria.model.Place
@@ -216,7 +217,7 @@ fun HouseSiteDialog(site: HouseSite, onNorth: (Double) -> Unit, onPlace: (Place?
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(T.comuni.chiudi) } },
+        confirmButton = { TextButton(onClick = onDismiss, modifier = Modifier.guide(GuideTarget.CloseSite)) { Text(T.comuni.chiudi) } },
     )
 }
 
@@ -253,11 +254,12 @@ fun SunDayButton(view: View3DState, compact: Boolean = false) {
         OutlinedButton(
             onClick = { open = true },
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = if (compact) 4.dp else 12.dp),
+            modifier = Modifier.guide(GuideTarget.SunDay, done = open),
         ) { Text(if (compact) "📅" else "📅 $label", maxLines = 1) }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             for ((name, d) in days) DropdownMenuItem(
                 text = { Text(if (d == view.day) "✓ $name" else name) },
-                onClick = { open = false; view.day = d; view.refresh() },
+                onClick = { open = false; view.day = d; view.refresh(); view.onSunDay(d) },
             )
         }
     }
