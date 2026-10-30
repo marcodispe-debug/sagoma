@@ -84,8 +84,11 @@ import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Mount
 import com.sagoma.planimetria.model.Vec2
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /**
  * Stato della vista 3D che deve sopravvivere alle ricomposizioni: telecamera, renderer e superficie
@@ -104,6 +107,8 @@ private const val ASSET_RELOAD_DELAY_MS = 300L
 private const val ORBIT_SPEED = 0.4
 /** Secondi per arrivare alla velocità piena muovendosi dall'alto. */
 private const val EASE_S = 0.3
+/** Chi cammina sta almeno a 20 cm da muri e mobili (cm). */
+private const val WALK_RADIUS = 20.0
 
 class View3DState {
     val camera = Camera3D()
@@ -235,8 +240,7 @@ class View3DState {
     /** Pulsanti − / +: in orbita avvicinano o allontanano, camminando fanno un passo avanti o indietro. */
     fun zoom(factor: Float) {
         if (walking) {
-            val step = camera.walkForward * (if (factor > 1) 60.0 else -60.0)
-            camera.eye = camera.eye + step
+            walkMove(camera.walkForward * (if (factor > 1) 60.0 else -60.0))
         } else {
             camera.distance = (camera.distance / factor).coerceIn(80.0, 60_000.0)
         }
@@ -246,11 +250,17 @@ class View3DState {
     /** Punto occupato da muri o mobili (chi cammina non ci passa); lo imposta la vista con la scena attuale. */
     var isBlocked: (Vec2) -> Boolean = { false }
 
+    /**
+     * Passo permesso da un punto all'altro (vedi [Scene3D.canWalk]: da un mobile o da un muro troppo vicino si può sempre uscire); lo
+     * imposta la vista con la scena attuale.
+     */
+    var canWalk: (Vec2, Vec2) -> Boolean = { _, to -> !isBlocked(to) }
+
     /** Passo di chi cammina: contro un muro si scivola lungo di esso invece di fermarsi del tutto. */
     fun walkMove(move: Vec3) {
         val eye = camera.eye
         camera.eye = listOf(eye + move, eye + Vec3(move.x, 0.0, 0.0), eye + Vec3(0.0, 0.0, move.z))
-            .firstOrNull { !isBlocked(it.flat) } ?: eye
+            .firstOrNull { canWalk(eye.flat, it.flat) } ?: eye
     }
 
     /** Destra dello schermo sul pavimento. */
@@ -356,7 +366,7 @@ class View3DState {
     fun wheel(notches: Float) {
         if (notches == 0f) return
         if (walking) {
-            camera.eye = camera.eye + camera.walkForward * (-notches * 40.0)
+            walkMove(camera.walkForward * (-notches * 40.0))
         } else {
             camera.distance = (camera.distance * 1.12.pow(notches.toDouble())).coerceIn(80.0, 60_000.0)
         }
@@ -372,13 +382,31 @@ class View3DState {
         val center = Polygon.labelPoint(room.points)
         val b = Polygon.bounds(room.points)
         val back = Vec2(center.x, b.maxY - 45)
-        val start = if (Polygon.contains(room.points, back)) back else center
+        val start = freeSpot(room.points, if (Polygon.contains(room.points, back)) back else center)
         camera.eye = start.at(Scene3D.EYE_HEIGHT)
         camera.walkYaw = 0.0
         camera.walkPitch = -10.0
         camera.mode = Camera3D.Mode.Walk
         walking = true
         refresh()
+    }
+
+    /**
+     * Il punto più vicino a `p`, dentro la stanza, dove non ci sono muri o mobili addosso (es. non sopra uno sgabello): a cerchi di 10 cm
+     * in 10 cm fino a 4 m. Se non c'è, `p` (da lì ci si può comunque allontanare).
+     */
+    private fun freeSpot(room: List<Vec2>, p: Vec2): Vec2 {
+        if (!isBlocked(p)) return p
+        for (ring in 1..40) {
+            val r = ring * 10.0
+            val n = 8 + ring * 2
+            for (k in 0 until n) {
+                val a = 2 * PI * k / n
+                val q = Vec2(p.x + cos(a) * r, p.y + sin(a) * r)
+                if (Polygon.contains(room, q) && !isBlocked(q)) return q
+            }
+        }
+        return p
     }
 
     /** Solo per le prove: modalità camminata senza scegliere una stanza. */
@@ -491,7 +519,8 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     val touchSlop = LocalViewConfiguration.current.touchSlop
 
     // Chi cammina non attraversa muri e mobili della scena attuale.
-    view.isBlocked = { p -> currentScene.blocked(p, 20.0) }
+    view.isBlocked = { p -> currentScene.blocked(p, WALK_RADIUS) }
+    view.canWalk = { from, to -> currentScene.canWalk(from, to, WALK_RADIUS) }
     // Joystick e tasti tenuti premuti muovono la telecamera a velocità costante, fotogramma per fotogramma;
     // quando non si muove nulla il ciclo si ferma (niente ridisegni inutili).
     LaunchedEffect(view) {

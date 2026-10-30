@@ -97,8 +97,11 @@ sealed interface Pick {
 /** Punto toccato: cosa, dove (cm) e normale della superficie. */
 data class Hit(val pick: Pick, val point: Vec3, val normal: Vec3)
 
-/** Tratto di muro che blocca il passaggio quando si cammina (sulla pianta). */
-data class Obstacle(val a: Vec2, val b: Vec2)
+/**
+ * Tratto che blocca il passaggio quando si cammina (sulla pianta): un muro, una ringhiera, oppure un lato del contorno di un mobile
+ * (`item` = numero del mobile nella scena, -1 se non è un mobile).
+ */
+data class Obstacle(val a: Vec2, val b: Vec2, val item: Int = -1)
 
 /** Colore RGBA (0..1). */
 data class Rgba(val r: Float, val g: Float, val b: Float, val a: Float = 1f) {
@@ -246,9 +249,57 @@ class Scene3D(
         return best
     }
 
-    /** Una persona (cerchio di raggio `radius`) in `p` urterebbe un muro? */
-    fun blocked(p: Vec2, radius: Double): Boolean =
-        obstacles.any { Polygon.distanceToSegment(p, it.a, it.b) < radius + Room.WALL_THICKNESS / 2 }
+    /** Contorni dei mobili che bloccano il passaggio, dai loro lati in [obstacles]. */
+    private val furnitureAreas: List<List<Vec2>> by lazy {
+        obstacles.filter { it.item >= 0 }.groupBy { it.item }.values.map { edges -> edges.map { it.a } }
+    }
+
+    /** Una persona (cerchio di raggio `radius`) in `p` urterebbe un muro o un mobile (o ci sarebbe dentro)? */
+    fun blocked(p: Vec2, radius: Double): Boolean {
+        val reach = radius + Room.WALL_THICKNESS / 2
+        return obstacles.any { it.item < 0 && Polygon.distanceToSegment(p, it.a, it.b) < reach } ||
+            furnitureAreas.any { signedDistance(it, p) < reach }
+    }
+
+    /**
+     * Chi cammina può fare il passo da `from` a `to`? Non si attraversano muri e mobili e non ci si avvicina più di `radius`. Però non si
+     * resta mai bloccati: da dentro un mobile (si è partiti lì, ci si è arrivati con la rotella, o il mobile è stato spostato addosso) si
+     * esce da qualunque parte, e se si è già troppo vicini a un muro o a un mobile ci si può allontanare o scivolarci lungo; solo
+     * avvicinarsi ancora è vietato.
+     */
+    fun canWalk(from: Vec2, to: Vec2, radius: Double): Boolean {
+        val reach = radius + Room.WALL_THICKNESS / 2
+        for (o in obstacles) {
+            if (o.item >= 0) continue
+            if (crosses(from, to, o.a, o.b)) return false
+            val d = Polygon.distanceToSegment(to, o.a, o.b)
+            if (d < reach && d < Polygon.distanceToSegment(from, o.a, o.b) - 1e-6) return false
+        }
+        for (area in furnitureAreas) {
+            // Dentro un mobile (es. un letto) si va dove si vuole, finché non se ne esce.
+            if (Polygon.contains(area, from)) continue
+            val d = signedDistance(area, to)
+            if (d < reach && d < signedDistance(area, from) - 1e-6) return false
+            if (area.indices.any { crosses(from, to, area[it], area[(it + 1) % area.size]) }) return false
+        }
+        return true
+    }
+
+    /** Distanza di `p` dal contorno `area`, negativa se `p` è dentro (più si è dentro, più è negativa). */
+    private fun signedDistance(area: List<Vec2>, p: Vec2): Double {
+        val d = area.indices.minOf { Polygon.distanceToSegment(p, area[it], area[(it + 1) % area.size]) }
+        return if (Polygon.contains(area, p)) -d else d
+    }
+
+    /** Il tratto p→q attraversa il tratto a→b (un passo lungo che salterebbe un muro sottile)? */
+    private fun crosses(p: Vec2, q: Vec2, a: Vec2, b: Vec2): Boolean {
+        fun side(o: Vec2, u: Vec2, v: Vec2) = (u.x - o.x) * (v.y - o.y) - (u.y - o.y) * (v.x - o.x)
+        val d1 = side(a, b, p)
+        val d2 = side(a, b, q)
+        val d3 = side(p, q, a)
+        val d4 = side(p, q, b)
+        return d1 * d2 < 0 && d3 * d4 < 0
+    }
 
     companion object {
         const val FLOATS_PER_VERTEX = 10
@@ -566,6 +617,8 @@ private class SceneBuilder(
         }
     }
     private val obstacles = mutableListOf<Obstacle>()
+    /** Mobili che bloccano il passaggio finora (numera i loro lati in [obstacles]). */
+    private var blockingFurniture = 0
     /** Mezzo spessore del muro che si sta costruendo (ogni muro ha il suo spessore). */
     private var half = Room.WALL_THICKNESS / 2
 
@@ -754,7 +807,10 @@ private class SceneBuilder(
                 scaleLights(firstLight, f.brightness)
                 val outline = Furnishings.outline(f)
                 pickBox(outline, f.elevation, f.elevation + f.height, pick)
-                if (f.elevation < 60 && f.elevation + f.height > 40) for (k in outline.indices) obstacles += Obstacle(outline[k], outline[(k + 1) % outline.size])
+                if (f.elevation < 60 && f.elevation + f.height > 40) {
+                    for (k in outline.indices) obstacles += Obstacle(outline[k], outline[(k + 1) % outline.size], item = blockingFurniture)
+                    blockingFurniture++
+                }
             }
             // Ringhiere attorno ai vani delle scale che salgono dal piano di sotto: solo dentro le stanze di questo piano (fuori c'è il tetto).
             previous?.let { p ->
