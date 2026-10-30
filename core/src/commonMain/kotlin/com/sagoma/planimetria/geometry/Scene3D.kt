@@ -157,6 +157,10 @@ class Scene3D(
     val excavation: Bounds? = null,
     /** Stanze del piano corrente (non quelle all'aperto): per la luce del giorno e l'esposizione di chi ci cammina dentro. */
     val rooms: List<SceneRoom> = emptyList(),
+    /** Gradini su cui chi cammina sale o scende: le scale del piano corrente e quelle che salgono da sotto (sotto zero). */
+    val treads: List<Tread> = emptyList(),
+    /** Dove chi cammina non ha il pavimento sotto i piedi: l'ingombro delle scale del piano corrente e i vani scala nel pavimento. */
+    val noFloor: List<List<Vec2>> = emptyList(),
 ) {
     /** Prato attorno alla casa, `margin` cm oltre la pianta: un rettangolo, o quattro attorno allo [excavation]. */
     fun lawn(margin: Double): List<Bounds> {
@@ -200,7 +204,26 @@ class Scene3D(
     }
 
     /** Stessa scena con altre luci: serve ad aggiornare solo le luci, senza ricostruire la geometria. */
-    fun withLights(newLights: List<SceneLight>) = Scene3D(opaque, transparent, picks, obstacles, bounds, furniture, textured, newLights, windows, roofs, groundLevel, excavation, rooms)
+    fun withLights(newLights: List<SceneLight>) =
+        Scene3D(opaque, transparent, picks, obstacles, bounds, furniture, textured, newLights, windows, roofs, groundLevel, excavation, rooms, treads, noFloor)
+
+    /** Gradino (o pianerottolo) in pianta e la quota a cui sta, in cm dal pavimento del piano corrente (sotto zero: scala che scende). */
+    class Tread(val polygon: List<Vec2>, val top: Double)
+
+    /**
+     * Quota (cm dal pavimento) su cui poggia chi cammina in `p`: il pavimento (0) o il gradino sotto i piedi. Dove ce n'è più d'uno
+     * (gradini di una chiocciola, pavimento sopra i gradini coperti di una scala che sale da sotto) vale quello più vicino a `near`, la
+     * quota a cui si è adesso. NaN dove non c'è niente (nel vano scala, fuori dai gradini).
+     */
+    fun groundAt(p: Vec2, near: Double = 0.0): Double {
+        var best = Double.NaN
+        fun consider(h: Double) {
+            if (best.isNaN() || abs(h - near) < abs(best - near)) best = h
+        }
+        if (noFloor.none { Polygon.contains(it, p) }) consider(0.0)
+        for (t in treads) if (Polygon.contains(t.polygon, p)) consider(t.top)
+        return best
+    }
 
     /**
      * Apertura vetrata: centro in cm, normale verso l'interno della stanza, misure in cm. `zones`: rettangoli della stanza in
@@ -617,6 +640,8 @@ private class SceneBuilder(
         }
     }
     private val obstacles = mutableListOf<Obstacle>()
+    private val treads = mutableListOf<Scene3D.Tread>()
+    private val noFloor = mutableListOf<List<Vec2>>()
     /** Mobili che bloccano il passaggio finora (numera i loro lati in [obstacles]). */
     private var blockingFurniture = 0
     /** Mezzo spessore del muro che si sta costruendo (ogni muro ha il suo spessore). */
@@ -754,6 +779,18 @@ private class SceneBuilder(
             // Camminando si vede il vano scala nel soffitto: i suoi bordi nello spessore del solaio.
             if (ceilings && current) wellSides(levels.getOrNull(index + 1))
             for (s in plan.stairs) stair(s, level.levelHeight)
+            // Chi cammina sale sulle scale di questo piano e scende, dal vano nel pavimento, su quelle che salgono da sotto.
+            if (current) {
+                for (s in plan.stairs) {
+                    val l = Stairs.layout(s, level.levelHeight)
+                    for (st in l.steps) treads += Scene3D.Tread(st.polygon, st.top)
+                    noFloor += l.pieces
+                }
+                if (previous != null) for (s in previous.plan.stairs) {
+                    for (st in Stairs.layout(s, previous.levelHeight).steps) treads += Scene3D.Tread(st.polygon, st.top - previous.levelHeight)
+                }
+                noFloor += holes
+            }
             // Colonne dal pavimento al soffitto e travi appese al soffitto.
             val plaster = Rgba(0.91f, 0.90f, 0.87f)
             for (c in plan.columns) {
@@ -888,7 +925,7 @@ private class SceneBuilder(
         return Scene3D(
             opaque.toArray(), transparent.toArray(), picks, obstacles, Openings.planBounds(top.plan, top.levelHeight), placed,
             textured.mapValues { it.value.toArray() },
-            lights, windows, roofs.toArray(), groundLevel, excavation, rooms,
+            lights, windows, roofs.toArray(), groundLevel, excavation, rooms, treads, noFloor,
         )
     }
 
