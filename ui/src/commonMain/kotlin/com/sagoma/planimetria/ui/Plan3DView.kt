@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.sagoma.planimetria.assets.AssetPlanner
@@ -70,6 +71,7 @@ import com.sagoma.planimetria.assets.isAvailable
 import com.sagoma.planimetria.editor.DragTarget
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.editor.Selection
 import com.sagoma.planimetria.geometry.Camera3D
 import com.sagoma.planimetria.geometry.Pick
@@ -78,12 +80,19 @@ import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.SpotAim
 import com.sagoma.planimetria.geometry.Vec3
 import com.sagoma.planimetria.geometry.at
+import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.Mount
 import com.sagoma.planimetria.model.Vec2
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /**
  * Stato della vista 3D che deve sopravvivere alle ricomposizioni: telecamera, renderer e superficie
@@ -97,6 +106,30 @@ private val MOVE_KEYS = setOf(
 
 /** Attesa prima di controllare i file della scena: più arrivi vicini diventano una sola ricarica. */
 private const val ASSET_RELOAD_DELAY_MS = 300L
+
+/** Dall'alto, con WASD e frecce: frazione della distanza della telecamera percorsa in un secondo. */
+private const val ORBIT_SPEED = 0.4
+/** Secondi per arrivare alla velocità piena muovendosi dall'alto. */
+private const val EASE_S = 0.3
+/** Chi cammina sta almeno a 20 cm da muri e mobili (cm). */
+private const val WALK_RADIUS = 20.0
+/** Dislivello massimo di un passo (cm): un gradino sì, il fianco di una scala no. */
+private const val MAX_CLIMB = 40.0
+/** Pezzo più lungo di un passo (cm): un passo lungo (rotella, pulsanti) non salta gradini, muri sottili o mobili. */
+private const val WALK_PART = 10.0
+
+/**
+ * Quota dei piedi (cm dal pavimento) oltre la quale, salendo una scala alta `rise`, si passa al piano di sopra: quando gli occhi
+ * arrivano al pavimento di sopra (non oltre: la scena di un piano non disegna il pavimento di quello sopra, coperto dal soffitto; e
+ * non molto prima: nella scena del piano di sopra quello di sotto ha meno luce).
+ */
+private fun switchUp(rise: Double) = max(rise - Scene3D.EYE_HEIGHT - 5, rise * 0.3)
+
+/**
+ * Scendendo dal piano di sopra (piedi sotto il suo pavimento, misurati da lì) si torna al piano di sotto un gradino abbondante più in
+ * basso di [switchUp]: fermi a metà, niente avanti e indietro tra i due piani.
+ */
+private fun switchDown(rise: Double) = switchUp(rise) - rise - 20
 
 class View3DState {
     val camera = Camera3D()
@@ -117,12 +150,17 @@ class View3DState {
     /** Ora del giorno (6:30 = 6.5) e luci della casa ("auto", "on", "off"). */
     var hour by mutableStateOf(11f)
     var lamps by mutableStateOf("auto")
+    /** Luminosità delle lampade della casa (cursore «Luminosità luci»): 1 = normale. Viene dal progetto ([Building.lampBrightness]). */
+    var lampBrightness by mutableStateOf(1f)
     /** Cursore dell'ora aperto. */
     var timePanel by mutableStateOf(false)
     /** Giorno scelto per il sole (null = oggi). */
     var day by mutableStateOf<com.sagoma.planimetria.geometry.CalendarDay?>(null)
     /** Nord e città della casa (dal progetto). */
     var site by mutableStateOf(com.sagoma.planimetria.model.HouseSite())
+    /** Chi vuole sapere quando l'utente cambia ora o giorno del sole (la guida interattiva). */
+    var onSunHour: (Float) -> Unit = {}
+    var onSunDay: (com.sagoma.planimetria.geometry.CalendarDay?) -> Unit = {}
 
     /** Sole all'ora, nel giorno e nella casa scelti. */
     val sun: com.sagoma.planimetria.geometry.SunAngles
@@ -136,6 +174,7 @@ class View3DState {
     fun refresh() {
         tick = ++tickCounter
         renderer?.setDaylight(hour, lamps, sun)
+        renderer?.setLampBrightness(lampBrightness)
         renderer?.setCamera(camera.position, camera.position + camera.forward, camera.up, camera.fovY, camera.near, walking)
     }
 
@@ -166,6 +205,7 @@ class View3DState {
             platform.createSceneRenderer().also { if (it.reusable) kept = it to platform }
         }
         renderer = r
+        canTakePhoto = r.canRenderPhoto
         scene?.let(r::setScene)
         refresh()
         return r
@@ -175,6 +215,7 @@ class View3DState {
     fun detach() {
         val r = renderer ?: return
         renderer = null
+        canTakePhoto = false
         if (r === kept?.first) r.detachSurface() else r.release()
     }
 
@@ -195,8 +236,40 @@ class View3DState {
         kept = null
     }
 
-    fun setScene(s: Scene3D) {
+    /** Il renderer sa fare la foto in 4K della vista (sul computer). */
+    var canTakePhoto by mutableStateOf(false)
+        private set
+    /** Foto in preparazione: il pulsante aspetta che finisca. */
+    var photoBusy by mutableStateOf(false)
+
+    /** La scena che si sta guardando (null prima della prima). */
+    val currentScene: Scene3D? get() = scene
+
+    /** Foto della vista com'è adesso, con il lato lungo di `longSide` pixel; `onDone` arriva da un altro thread. */
+    fun renderPhoto(longSide: Int, onDone: (androidx.compose.ui.graphics.ImageBitmap?) -> Unit) {
+        val r = renderer ?: return onDone(null)
+        refresh()
+        r.renderPhoto(longSide, onDone)
+    }
+
+    /** Scena nuova; `elevation` è la quota del pavimento del suo piano (cm, dal piano più basso). */
+    fun setScene(s: Scene3D, elevation: Double = sceneElevation ?: 0.0) {
+        val shift = (sceneElevation ?: elevation) - elevation
+        sceneElevation = elevation
         scene = s
+        if (walking && shift != 0.0) {
+            if (floorStep != 0) {
+                // Arrivati al piano nuovo salendo o scendendo le scale: si resta nello stesso punto, ora misurato dal suo pavimento.
+                camera.eye = camera.eye + Vec3(0.0, shift, 0.0)
+                feet = s.groundAt(camera.eye.flat, feet + shift).takeUnless { it.isNaN() } ?: (feet + shift)
+            } else {
+                // Piano scelto a mano: si cammina sul suo pavimento.
+                feet = 0.0
+                settling = false
+                camera.eye = Vec3(camera.eye.x, Scene3D.EYE_HEIGHT, camera.eye.z)
+            }
+        }
+        if (shift != 0.0) floorStep = 0
         renderer?.setScene(s)
         refresh()
     }
@@ -234,8 +307,7 @@ class View3DState {
     /** Pulsanti − / +: in orbita avvicinano o allontanano, camminando fanno un passo avanti o indietro. */
     fun zoom(factor: Float) {
         if (walking) {
-            val step = camera.walkForward * (if (factor > 1) 60.0 else -60.0)
-            camera.eye = camera.eye + step
+            walkMove(camera.walkForward * (if (factor > 1) 60.0 else -60.0))
         } else {
             camera.distance = (camera.distance / factor).coerceIn(80.0, 60_000.0)
         }
@@ -245,11 +317,69 @@ class View3DState {
     /** Punto occupato da muri o mobili (chi cammina non ci passa); lo imposta la vista con la scena attuale. */
     var isBlocked: (Vec2) -> Boolean = { false }
 
-    /** Passo di chi cammina: contro un muro si scivola lungo di esso invece di fermarsi del tutto. */
+    /**
+     * Passo permesso da un punto all'altro (vedi [Scene3D.canWalk]: da un mobile o da un muro troppo vicino si può sempre uscire); lo
+     * imposta la vista con la scena attuale.
+     */
+    var canWalk: (Vec2, Vec2) -> Boolean = { _, to -> !isBlocked(to) }
+
+    /** Interpiano del piano corrente (cm): quanto sale la sua scala. Lo imposta la vista. */
+    var floorHeight = com.sagoma.planimetria.model.Floor.DEFAULT_LEVEL_HEIGHT
+    /** C'è un piano sopra a cui portano le scale. Lo imposta la vista. */
+    var floorAbove = false
+    /** Interpiano del piano di sotto (cm), null se non c'è. Lo imposta la vista. */
+    var floorBelowHeight: Double? = null
+    /** Passa al piano di sopra (+1) o di sotto (−1). Lo imposta la vista. */
+    var changeFloor: (Int) -> Unit = {}
+
+    /** Quota (cm dal pavimento del piano) su cui poggia chi cammina: sale e scende con i gradini. */
+    private var feet = 0.0
+    /** Piano chiesto salendo (+1) o scendendo (−1) le scale, finché non arriva la sua scena. */
+    private var floorStep = 0
+    /** Quota del pavimento del piano della scena attuale (cm, dal pavimento del piano più basso). */
+    private var sceneElevation: Double? = null
+    /** Gli occhi stanno ancora raggiungendo l'altezza del gradino (si sale e si scende morbidi, non a scatti). */
+    private var settling by mutableStateOf(false)
+
+    private fun ground(p: Vec2, near: Double) = scene?.groundAt(p, near) ?: 0.0
+
+    /**
+     * Passo di chi cammina: contro un muro si scivola lungo di esso invece di fermarsi del tutto. Sui gradini si sale e si scende
+     * (solo dal davanti: il fianco di una scala è troppo alto) e, a metà scala, si passa al piano di sopra o di sotto.
+     */
     fun walkMove(move: Vec3) {
-        val eye = camera.eye
-        camera.eye = listOf(eye + move, eye + Vec3(move.x, 0.0, 0.0), eye + Vec3(0.0, 0.0, move.z))
-            .firstOrNull { !isBlocked(it.flat) } ?: eye
+        val parts = ceil(move.length / WALK_PART).toInt().coerceIn(1, 1000)
+        val part = move * (1.0 / parts)
+        // Senza un piano sopra la scala non porta da nessuna parte: ci si ferma prima di avere la testa nel soffitto.
+        val top = if (floorAbove) Double.MAX_VALUE else switchUp(floorHeight)
+        for (i in 0 until parts) {
+            val eye = camera.eye
+            val next = listOf(eye + part, eye + Vec3(part.x, 0.0, 0.0), eye + Vec3(0.0, 0.0, part.z)).firstOrNull {
+                val h = ground(it.flat, feet)
+                canWalk(eye.flat, it.flat) && abs(h - feet) <= MAX_CLIMB && (h <= top || h <= feet)
+            } ?: break
+            feet = ground(next.flat, feet)
+            camera.eye = next
+        }
+        if (floorStep == 0) {
+            val below = floorBelowHeight
+            if (floorAbove && feet > switchUp(floorHeight)) {
+                floorStep = 1
+                changeFloor(1)
+            } else if (below != null && feet < switchDown(below)) {
+                floorStep = -1
+                changeFloor(-1)
+            }
+        }
+        settling = abs(camera.eye.y - (feet + Scene3D.EYE_HEIGHT)) > 0.5
+    }
+
+    /** Gli occhi vanno verso l'altezza giusta sopra il gradino, in circa un decimo di secondo. */
+    private fun settle(dt: Double) {
+        val target = feet + Scene3D.EYE_HEIGHT
+        val y = camera.eye.y + (target - camera.eye.y) * (1 - exp(-dt * 14))
+        settling = abs(target - y) > 0.5
+        camera.eye = Vec3(camera.eye.x, if (settling) y else target, camera.eye.z)
     }
 
     /** Destra dello schermo sul pavimento. */
@@ -273,8 +403,28 @@ class View3DState {
     /** Tasti premuti in questo momento (frecce, WASD, PagSu/PagGiù, + e −, Maiusc). */
     val keys = mutableStateSetOf<Key>()
 
-    /** C'è qualcosa che muove la telecamera a ogni fotogramma (tasti tenuti o joystick). */
-    val moving: Boolean get() = keys.any { it in MOVE_KEYS } || joystick != Offset.Zero
+    /**
+     * Tasto premuto o lasciato: se muove la telecamera (o è Maiusc) lo segna e dice true. Lo usano la vista 3D e, quando la
+     * tastiera è rimasta altrove (es. sul pulsante appena premuto), la schermata dell'editor: così WASD e frecce vanno subito.
+     */
+    fun onKey(e: androidx.compose.ui.input.key.KeyEvent): Boolean {
+        val k = e.key
+        if (k !in MOVE_KEYS && k != Key.ShiftLeft && k != Key.ShiftRight) return false
+        when (e.type) {
+            KeyEventType.KeyDown -> keys += k
+            KeyEventType.KeyUp -> keys -= k
+        }
+        return true
+    }
+
+    /** C'è qualcosa che muove la telecamera a ogni fotogramma (tasti tenuti, joystick, occhi che raggiungono il gradino). */
+    val moving: Boolean get() = keys.any { it in MOVE_KEYS } || joystick != Offset.Zero || settling
+
+    /** Il renderer non ha ancora cominciato l'immagine chiesta per ultima: il passo dopo aspetta (vedi [SceneRenderer.queued]). */
+    val queued: Boolean get() = renderer?.queued == true
+
+    /** Da quanto (s) ci si sposta dall'alto senza fermarsi: si parte piano e si arriva alla velocità piena in [EASE_S]. */
+    private var orbitMoving = 0.0
 
     /** Un fotogramma di movimento, `dt` secondi dopo il precedente. */
     fun step(dt: Double) {
@@ -295,10 +445,13 @@ class View3DState {
             if (held(Key.PageUp)) camera.walkPitch = (camera.walkPitch + 60.0 * dt).coerceIn(-70.0, 70.0)
             if (held(Key.PageDown)) camera.walkPitch = (camera.walkPitch - 60.0 * dt).coerceIn(-70.0, 70.0)
             if (ahead != 0.0 || side != 0.0) walkMove(camera.walkForward * (ahead * speed) + flatRight * (side * speed))
+            if (settling) settle(dt)
         } else {
             // Stessi comandi della camminata: avanti/indietro e di lato si sposta la vista sul pavimento
             // (più veloce quanto più si è lontani), ← → girano, PagSu/PagGiù alzano o abbassano lo sguardo.
-            val speed = camera.distance * 0.6 * dt * fast
+            // Si parte piano e si accelera: un salto subito alla velocità piena si vede come uno scatto (a metà del passo).
+            val ease = (0.3 + 0.7 * ((orbitMoving + dt / 2) / EASE_S)).coerceAtMost(1.0)
+            val speed = camera.distance * ORBIT_SPEED * dt * fast * ease
             var ahead = joystick.y.toDouble()
             var side = joystick.x.toDouble()
             if (held(Key.DirectionUp, Key.W)) ahead += 1.0
@@ -312,7 +465,8 @@ class View3DState {
             if (ahead != 0.0 || side != 0.0) {
                 val flatAhead = Vec3(camera.forward.x, 0.0, camera.forward.z).normalized()
                 camera.target = camera.target + flatAhead * (ahead * speed) + flatRight * (side * speed)
-            }
+                orbitMoving += dt
+            } else orbitMoving = 0.0
         }
         if (held(Key.Plus, Key.Equals, Key.NumPadAdd)) zoomContinuous(dt)
         if (held(Key.Minus, Key.NumPadSubtract)) zoomContinuous(-dt)
@@ -332,7 +486,7 @@ class View3DState {
     fun wheel(notches: Float) {
         if (notches == 0f) return
         if (walking) {
-            camera.eye = camera.eye + camera.walkForward * (-notches * 40.0)
+            walkMove(camera.walkForward * (-notches * 40.0))
         } else {
             camera.distance = (camera.distance * 1.12.pow(notches.toDouble())).coerceIn(80.0, 60_000.0)
         }
@@ -348,13 +502,35 @@ class View3DState {
         val center = Polygon.labelPoint(room.points)
         val b = Polygon.bounds(room.points)
         val back = Vec2(center.x, b.maxY - 45)
-        val start = if (Polygon.contains(room.points, back)) back else center
+        val start = freeSpot(room.points, if (Polygon.contains(room.points, back)) back else center)
         camera.eye = start.at(Scene3D.EYE_HEIGHT)
+        feet = 0.0
+        floorStep = 0
+        settling = false
         camera.walkYaw = 0.0
         camera.walkPitch = -10.0
         camera.mode = Camera3D.Mode.Walk
         walking = true
         refresh()
+    }
+
+    /**
+     * Il punto più vicino a `p`, dentro la stanza, dove non ci sono muri o mobili addosso (es. non sopra uno sgabello) né scale: a
+     * cerchi di 10 cm in 10 cm fino a 4 m. Se non c'è, `p` (da lì ci si può comunque allontanare).
+     */
+    private fun freeSpot(room: List<Vec2>, p: Vec2): Vec2 {
+        fun free(q: Vec2) = !isBlocked(q) && ground(q, 0.0) == 0.0
+        if (free(p)) return p
+        for (ring in 1..40) {
+            val r = ring * 10.0
+            val n = 8 + ring * 2
+            for (k in 0 until n) {
+                val a = 2 * PI * k / n
+                val q = Vec2(p.x + cos(a) * r, p.y + sin(a) * r)
+                if (Polygon.contains(room, q) && free(q)) return q
+            }
+        }
+        return p
     }
 
     /** Solo per le prove: modalità camminata senza scegliere una stanza. */
@@ -365,6 +541,9 @@ class View3DState {
     fun stopWalking() {
         camera.mode = Camera3D.Mode.Orbit
         walking = false
+        feet = 0.0
+        floorStep = 0
+        settling = false
         joystick = Offset.Zero
         refresh()
     }
@@ -425,15 +604,20 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     // Mentre si orienta un faretto la scena resta quella di prima (niente ricostruzione della geometria a ogni movimento del dito):
     // cambiano solo le luci (vedi sotto). Alla fine del trascinamento la scena si ricostruisce con il nuovo orientamento.
     val scenePlan = state.aimDrag?.basePlan ?: state.plan
-    val scene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, view.walking, noFurniture, phase) {
+    // Interrati sotto il piano terra: guardando dal piano terra in su il prato sta alla quota del piano terra e li copre;
+    // guardando un interrato il prato resta lassù e la casa si vede in fondo allo scavo.
+    val building = state.building
+    val groundLevel = if (building.groundIndex > 0) building.elevation(building.groundIndex) - building.elevation(building.current) else null
+    val scene = remember(scenePlan, below, above, state.levelHeight, state.focusedRoomId, selectedPick, view.walking, noFurniture, phase, groundLevel) {
         fun shown(p: com.sagoma.planimetria.model.FloorPlan) = com.sagoma.planimetria.geometry.Phases.view(p, phase)
         val plan = shown(if (noFurniture) scenePlan.copy(furniture = emptyList()) else scenePlan)
         Scene3D.build(
             plan, state.focusedRoomId, selectedPick, ceilings = view.walking, levelHeight = state.levelHeight,
             below = below.map { it.copy(plan = shown(it.plan)) }, above = above?.let { it.copy(plan = shown(it.plan)) },
+            groundLevel = groundLevel,
         )
     }
-    LaunchedEffect(scene) { view.setScene(scene) }
+    LaunchedEffect(scene) { view.setScene(scene, building.elevation(building.current)) }
     // Catalogo scaricato a richiesta: i file che servono alla scena e non sono ancora qui si chiedono; quando arrivano la scena
     // si ridisegna. Arrivi ravvicinati fanno una sola ricarica (l'attesa si ricomincia a ogni versione nuova).
     val scenePlatform = LocalPlatform.current
@@ -441,7 +625,7 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     LaunchedEffect(scene, assetsVersion) {
         delay(ASSET_RELOAD_DELAY_MS)
         val store = scenePlatform.assetStore
-        val missing = AssetPlanner.forScene(scene).filter { !store.isAvailable(it.path) }
+        val missing = AssetPlanner.forScene(scene, resolution = scenePlatform.materialResolution).filter { !store.isAvailable(it.path) }
         for (r in missing) scenePlatform.assetRequests.request(r.path, r.priority)
         view.assetsChecked(missing.mapTo(HashSet()) { it.path }) { store.isAvailable(it) }
     }
@@ -462,24 +646,43 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
     val touchSlop = LocalViewConfiguration.current.touchSlop
 
     // Chi cammina non attraversa muri e mobili della scena attuale.
-    view.isBlocked = { p -> currentScene.blocked(p, 20.0) }
+    view.isBlocked = { p -> currentScene.blocked(p, WALK_RADIUS) }
+    view.canWalk = { from, to -> currentScene.canWalk(from, to, WALK_RADIUS) }
+    // Camminando sulle scale si passa al piano di sopra o di sotto.
+    view.floorHeight = state.levelHeight
+    view.floorAbove = building.current + 1 < building.floors.size
+    view.floorBelowHeight = building.floors.getOrNull(building.current - 1)?.levelHeight
+    view.changeFloor = { d -> vm.selectFloor(currentState.building.current + d) }
     // Joystick e tasti tenuti premuti muovono la telecamera a velocità costante, fotogramma per fotogramma;
     // quando non si muove nulla il ciclo si ferma (niente ridisegni inutili).
     LaunchedEffect(view) {
         snapshotFlow { view.moving }.collectLatest { moving ->
             if (!moving) return@collectLatest
             var last = 0L
+            // Tempo passato dall'ultimo passo: finché il renderer non ha cominciato l'immagine chiesta si aspetta, poi un passo solo
+            // per tutto il tempo trascorso. Ogni immagine si sposta quanto il tempo vero tra un'immagine e l'altra (niente scatti), e
+            // il passo dopo si prepara mentre il renderer finisce quella di prima: appena finita parte la nuova, senza attese.
+            var pending = 0.0
             while (true) {
                 withFrameNanos { now ->
-                    val dt = if (last == 0L) 0.0 else ((now - last) / 1e9).coerceAtMost(0.1)
+                    if (last != 0L) pending = (pending + (now - last) / 1e9).coerceAtMost(0.1)
                     last = now
-                    if (dt > 0) view.step(dt)
+                    if (pending > 0 && !view.queued) {
+                        view.step(pending)
+                        pending = 0.0
+                    }
                 }
             }
         }
     }
     val keyFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { keyFocus.requestFocusSafely() }
+    // La tastiera alla vista 3D all'apertura e passando da orbita a camminata, dopo un fotogramma: il clic sul pulsante che
+    // l'ha aperta non deve riprenderla.
+    LaunchedEffect(view.walking) {
+        keyFocus.requestFocusSafely()
+        withFrameNanos { }
+        keyFocus.requestFocusSafely()
+    }
 
     Box(
         modifier.onSizeChanged {
@@ -511,15 +714,7 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
                 // Tastiera (computer): frecce, WASD, PagSu/PagGiù, + e −, Maiusc per correre o spostare.
                 .focusRequester(keyFocus)
                 .focusable()
-                .onKeyEvent { e ->
-                    val k = e.key
-                    val handled = k in MOVE_KEYS || k == Key.ShiftLeft || k == Key.ShiftRight
-                    when (e.type) {
-                        KeyEventType.KeyDown -> if (handled) view.keys += k
-                        KeyEventType.KeyUp -> view.keys -= k
-                    }
-                    handled
-                }
+                .onKeyEvent { e -> view.onKey(e) }
                 .onFocusChanged { if (!it.isFocused) view.keys.clear() }
                 // Rotellina del mouse: zoom (camminando, passi avanti e indietro).
                 .pointerInput(Unit) {
@@ -535,21 +730,25 @@ fun Plan3DView(state: EditorUiState, vm: EditorViewModel, view: View3DState, mod
                 }
                 .pointerInput(Unit) {
                 awaitEachGesture {
-                    val down = awaitFirstDown()
+                    val down = awaitAnyDown()
                     keyFocus.requestFocusSafely()
                     val w = size.width.toFloat()
                     val h = size.height.toFloat()
                     val cam = view.camera
-                    // Mouse: tasto destro o rotellina premuta spostano la vista invece di ruotarla.
+                    // Mouse: tasto destro o rotellina premuta spostano la vista invece di ruotarla; un clic col destro deseleziona tutto.
                     val buttons = currentEvent.buttons
                     if (buttons.isSecondaryPressed || buttons.isTertiaryPressed) {
+                        var moved = 0f
                         while (true) {
                             val event = awaitPointerEvent()
                             val ch = event.changes.firstOrNull { it.id == down.id } ?: break
                             if (!ch.pressed) break
-                            view.panBy(ch.position - ch.previousPosition, h)
+                            val delta = ch.position - ch.previousPosition
+                            moved += delta.getDistance()
+                            view.panBy(delta, h)
                             ch.consume()
                         }
+                        if (buttons.isSecondaryPressed && moved <= viewConfiguration.touchSlop) vm.deselectAll()
                         return@awaitEachGesture
                     }
                     // Maniglia del fascio di un faretto a parete selezionato: si controlla prima di qualunque oggetto della scena,
@@ -677,7 +876,7 @@ fun View3DControls(state: EditorUiState, view: View3DState, modifier: Modifier =
         val h = view.hour.toInt()
         val m = ((view.hour - h) * 60).roundToInt()
         val icon = if (view.hour < 6.5f || view.hour > 19.5f) "🌙" else if (view.hour < 8f || view.hour > 18f) "🌅" else "☀"
-        LegendButton("$icon $h:${m.toString().padStart(2, '0')}",modifier = modifier, onClick = { view.timePanel = !view.timePanel })
+        LegendButton("$icon $h:${m.toString().padStart(2, '0')}", modifier = modifier.guide(GuideTarget.SunTime, done = view.timePanel), onClick = { view.timePanel = !view.timePanel })
         val lampLabel = when (view.lamps) { "on" -> T.vista3D.luciAccese; "off" -> T.vista3D.luciSpente; else -> T.vista3D.luciAuto }
         LegendButton(lampLabel, modifier = modifier, onClick = { view.nextLamps() })
     }
@@ -688,6 +887,11 @@ fun View3DControls(state: EditorUiState, view: View3DState, modifier: Modifier =
         }
         if (view.walking) view.stopWalking() else view.startWalking(state.plan, state.focusedRoomId ?: furnitureRoom)
     })
+    // Foto in 4K della vista (sul computer): mentre si prepara il pulsante resta, ma non ne parte un'altra.
+    if (view.canTakePhoto) {
+        val photo = rememberPhoto4k(state, view)
+        LegendButton(if (view.photoBusy) "📷 …" else T.vista3D.foto4k, modifier = modifier, onClick = photo)
+    }
 }
 
 /**
@@ -695,7 +899,14 @@ fun View3DControls(state: EditorUiState, view: View3DState, modifier: Modifier =
  * larghi (computer, telefono girato) sta a sinistra, stretto e verticale (lungo `length`), per non coprire la vista.
  */
 @Composable
-fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: Boolean = false, length: androidx.compose.ui.unit.Dp = 240.dp) {
+fun TimeOfDayPanel(
+    view: View3DState,
+    modifier: Modifier = Modifier,
+    vertical: Boolean = false,
+    length: androidx.compose.ui.unit.Dp = 240.dp,
+    /** La luminosità delle lampade è cambiata: si salva nel progetto. */
+    onLampBrightness: (Float) -> Unit = {},
+) {
     if (!view.timePanel) return
     if (vertical) {
         Surface(modifier, shape = RoundedCornerShape(16.dp), tonalElevation = 3.dp, shadowElevation = 4.dp) {
@@ -707,9 +918,10 @@ fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: B
                 // Slider girato: in basso mezzanotte, in alto la sera.
                 androidx.compose.material3.Slider(
                     value = view.hour,
-                    onValueChange = { view.hour = (it * 4).roundToInt() / 4f; view.refresh() },
+                    onValueChange = { view.hour = (it * 4).roundToInt() / 4f; view.refresh(); view.onSunHour(view.hour) },
                     valueRange = 0f..24f,
                     modifier = Modifier
+                        .guide(GuideTarget.SunSlider, value = view.hour.toString())
                         .height(length)
                         .graphicsLayer { rotationZ = 270f; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f) }
                         .layout { measurable, constraints ->
@@ -724,6 +936,7 @@ fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: B
                 )
                 Text("0", style = MaterialTheme.typography.labelSmall)
                 SunDayButton(view, compact = true)
+                LampBrightness(view, onLampBrightness, compact = true)
                 TextButton(onClick = { view.timePanel = false }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(32.dp)) { Text("✕") }
             }
         }
@@ -739,15 +952,47 @@ fun TimeOfDayPanel(view: View3DState, modifier: Modifier = Modifier, vertical: B
             }
             androidx.compose.material3.Slider(
                 value = view.hour,
-                onValueChange = { view.hour = (it * 4).roundToInt() / 4f; view.refresh() },
+                onValueChange = { view.hour = (it * 4).roundToInt() / 4f; view.refresh(); view.onSunHour(view.hour) },
                 valueRange = 0f..24f,
+                modifier = Modifier.guide(GuideTarget.SunSlider, value = view.hour.toString()),
             )
             Text(
                 T.vista3D.soleSegueBussola,
                 style = MaterialTheme.typography.bodySmall,
             )
+            LampBrightness(view, onLampBrightness)
         }
     }
+}
+
+/**
+ * Luminosità delle lampade della casa, dal 25% al 200%: cursore nel pannello largo; in quello stretto e verticale il valore
+ * con − e + (un cursore lo allargherebbe). Il valore si salva nel progetto (`onChange`).
+ */
+@Composable
+private fun LampBrightness(view: View3DState, onChange: (Float) -> Unit, compact: Boolean = false) {
+    if (view.lamps == "off") return
+    fun set(v: Float) {
+        val k = ((v * 20).roundToInt() / 20f).coerceIn(Building.MIN_LAMP_BRIGHTNESS.toFloat(), Building.MAX_LAMP_BRIGHTNESS.toFloat())
+        view.lampBrightness = k
+        view.refresh()
+        onChange(k)
+    }
+    val pct = (view.lampBrightness * 100).roundToInt()
+    if (compact) {
+        Text("💡 $pct%", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+        Row {
+            TextButton(onClick = { set(view.lampBrightness - 0.1f) }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(32.dp).widthIn(min = 28.dp)) { Text("−") }
+            TextButton(onClick = { set(view.lampBrightness + 0.1f) }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(32.dp).widthIn(min = 28.dp)) { Text("+") }
+        }
+        return
+    }
+    Text(T.vista3D.luminositaLuci(pct), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 6.dp))
+    androidx.compose.material3.Slider(
+        value = view.lampBrightness,
+        onValueChange = { set(it) },
+        valueRange = Building.MIN_LAMP_BRIGHTNESS.toFloat()..Building.MAX_LAMP_BRIGHTNESS.toFloat(),
+    )
 }
 
 /** Joystick per camminare: si trascina il pomello, la spinta è proporzionale allo spostamento. */

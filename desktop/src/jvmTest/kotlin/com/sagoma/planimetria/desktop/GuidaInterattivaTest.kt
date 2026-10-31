@@ -166,7 +166,7 @@ class GuidaInterattivaTest {
                     if (!step.action) {
                         when (step) {
                             CourseStep.Welcome -> click(center(button(T.editor.inizia)))
-                            CourseStep.ElementsDone -> click(center(button(T.corso.apriProgettoNuovo)))
+                            CourseStep.CheckDone -> click(center(button(T.corso.apriProgettoNuovo)))
                             CourseStep.Finished -> { click(center(button(T.comuni.fine))); done = true }
                             else -> click(center(button(T.corso.avanti)))
                         }
@@ -214,7 +214,7 @@ class GuidaInterattivaTest {
                 assertTrue(done, "la guida non è arrivata alla fine; passi visti: $steps")
             }
             // Tutti i passi, nessuno saltato, e la casa di prova come la piantina della guida: ogni stanza al suo posto.
-            assertEquals(CourseStep.entries.toList(), steps.distinct())
+            assertEquals(CourseStep.entries.filter { it.lesson.inCourse }, steps.distinct())
             assertTrue(TipStore.COURSE_DONE in tips.seen(), "finita, la guida non riparte al prossimo avvio")
             assertEquals(2, repo.list().count { it.name.startsWith(T.corso.progettoProva) }, "due progetti di prova, nessun progetto dell'utente toccato")
             val first = repo.planStore(repo.list().first { it.name == T.corso.progettoProva }.id).load()!!.floor.plan

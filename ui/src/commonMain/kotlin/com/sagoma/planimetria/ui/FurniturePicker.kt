@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -39,15 +38,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.assets.AssetPaths
 import com.sagoma.planimetria.assets.remote.AssetPriority
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.GuideMenu
+import com.sagoma.planimetria.editor.GuideTarget
+import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.FurnitureCatalog
 import com.sagoma.planimetria.testi.T
 
@@ -62,14 +67,28 @@ fun FurnitureButton(vm: EditorViewModel, buttonModifier: Modifier = Modifier, co
     }
 }
 
-/** Catalogo: ricerca, categorie, schede con la miniatura del modello, nome e misure; crediti delle fonti. */
+/**
+ * Catalogo: ricerca, categorie, schede con la miniatura del modello, nome e misure; crediti delle fonti. Aperto da una luce di
+ * «Impianti» (`light`) parte con i modelli di quella luce già scelti, e la prima scheda è il punto luce semplice ([onLightPoint]).
+ */
 @Composable
-private fun FurnitureCatalogDialog(onDismiss: () -> Unit, onPick: (FurnitureCatalog.Item) -> Unit) {
+private fun FurnitureCatalogDialog(
+    onDismiss: () -> Unit,
+    light: FixtureKind? = null,
+    onLightPoint: (() -> Unit)? = null,
+    onPick: (FurnitureCatalog.Item) -> Unit,
+) {
     val categories = remember { FurnitureCatalog.categories }
     var category by remember { mutableStateOf(categories.firstOrNull().orEmpty()) }
+    var lightOnly by remember { mutableStateOf(light != null) }
     var query by remember { mutableStateOf("") }
     var credits by remember { mutableStateOf(false) }
-    val shown = if (query.isBlank()) FurnitureCatalog.visible.filter { it.category == category } else FurnitureCatalog.search(query)
+    val shown = when {
+        query.isNotBlank() -> FurnitureCatalog.search(query)
+        lightOnly && light != null -> FurnitureCatalog.lights(light)
+        else -> FurnitureCatalog.visible.filter { it.category == category }
+    }
+    val lightPoint = if (query.isBlank() && lightOnly) light?.let { k -> onLightPoint?.let { k to it } } else null
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(T.arredi.arredi2(FurnitureCatalog.visible.size)) },
@@ -83,17 +102,22 @@ private fun FurnitureCatalogDialog(onDismiss: () -> Unit, onPick: (FurnitureCata
                     modifier = Modifier.fillMaxWidth(),
                 )
                 if (query.isBlank()) ArrowLazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // La luce scelta dal menu, prima delle categorie: si torna a lei dopo aver guardato le altre.
+                    if (light != null) item(key = "luce") {
+                        FilterChip(selected = lightOnly, onClick = { lightOnly = true }, label = { Text(light.label) })
+                    }
                     items(categories) { c ->
-                        FilterChip(selected = c == category, onClick = { category = c }, label = { Text(T.nomi.categoria(c)) })
+                        FilterChip(selected = !lightOnly && c == category, onClick = { category = c; lightOnly = false }, label = { Text(T.nomi.categoria(c)) })
                     }
                 }
-                if (shown.isEmpty()) Text(T.arredi.nessunArredoQuestoNome, style = MaterialTheme.typography.bodyMedium)
+                if (shown.isEmpty() && lightPoint == null) Text(T.arredi.nessunArredoQuestoNome, style = MaterialTheme.typography.bodyMedium)
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(100.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.heightIn(max = 440.dp),
                 ) {
+                    if (lightPoint != null) item(key = "punto-luce") { LightPointCard(lightPoint.first, lightPoint.second) }
                     items(shown, key = { it.model }) { item -> CatalogCard(item) { onPick(item) } }
                 }
                 TextButton(onClick = { credits = true }) { Text(T.arredi.fontiLicenzeModelli) }
@@ -102,6 +126,42 @@ private fun FurnitureCatalogDialog(onDismiss: () -> Unit, onPick: (FurnitureCata
         confirmButton = { TextButton(onClick = onDismiss) { Text(T.comuni.chiudi) } },
     )
     if (credits) CreditsDialog { credits = false }
+}
+
+/**
+ * «Impianti» → «Luci» per una luce che il catalogo ha anche tra gli arredi (lampadari, plafoniere, applique, fari): si apre il
+ * catalogo degli arredi con i modelli di quella luce già scelti. Un modello entra come gli altri arredi; la prima scheda è il punto
+ * luce semplice di sempre, che si mette toccando la pianta.
+ */
+@Composable
+internal fun LightPickerDialog(kind: FixtureKind, vm: EditorViewModel, onDismiss: () -> Unit) =
+    FurnitureCatalogDialog(onDismiss, light = kind, onLightPoint = { onDismiss(); vm.startPlacingFixture(kind) }) { item ->
+        onDismiss()
+        vm.addFurniture(item)
+    }
+
+/** Il punto luce semplice (l'impianto, col suo simbolo in pianta) come prima scheda della luce scelta dal menu. */
+@Composable
+private fun LightPointCard(kind: FixtureKind, onClick: () -> Unit) {
+    val measurer = rememberTextMeasurer()
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.guide(if (kind == FixtureKind.Chandelier) GuideTarget.Menu(GuideMenu.LightPoint) else null),
+    ) {
+        Column(Modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            // Il campione a muro inquadra solo la parte alta della stanza di prova: il resto si taglia.
+            Canvas(Modifier.size(width = 88.dp, height = 70.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFF6F5F2))) {
+                drawFixtureSample(kind, measurer)
+            }
+            Text(
+                T.arredi.puntoLuceSemplice, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center,
+                minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(kind.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
 }
 
 @Composable
@@ -135,7 +195,11 @@ private fun CatalogCard(item: FurnitureCatalog.Item, onClick: () -> Unit) {
                     }
                 }
             }
-            Text(item.nome, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center, maxLines = 2, modifier = Modifier.padding(top = 4.dp).height(30.dp))
+            // Due righe misurate dal testo (30 dp fissi tagliavano la seconda) e i puntini se il nome è ancora più lungo.
+            Text(
+                item.nome, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center,
+                minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp),
+            )
             Text(
                 T.arredi.testoTesto(formatCm(item.width), formatCm(item.depth), formatCm(item.height)),
                 style = MaterialTheme.typography.labelSmall,

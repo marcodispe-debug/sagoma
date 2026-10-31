@@ -1,5 +1,7 @@
 package com.sagoma.planimetria.testi
 
+import com.sagoma.planimetria.geometry.HousingNorms
+
 /** Scheda Info della stanza (misure, finiture, porte e impianti, progetto). */
 open class TestiSchedaStanza {
     open val info: String get() = "Info"
@@ -8,8 +10,39 @@ open class TestiSchedaStanza {
     open val porteImpianti: String get() = "Porte e impianti"
     open val progetto: String get() = "Progetto"
     open val foto: String get() = "Foto"
+    // Schede delle tendine Info degli oggetti (muro, porte e finestre, scala, arredo…).
+    open val schedaAspetto: String get() = "Aspetto"
+    open val schedaForma: String get() = "Forma"
+    open val schedaApertura: String get() = "Apertura"
+    open val schedaGradini: String get() = "Gradini"
+    open val schedaPianoSopra: String get() = "Piano sopra"
+    open val schedaCurva: String get() = "Curva"
+    open val schedaFinitura: String get() = "Finitura"
     open val eliminaStanza: String get() = "Elimina stanza"
+    open val distanzeDaiMuri: String get() = "📏 Distanze dai muri"
+    open val nascondiDistanzeDaiMuri: String get() = "📏 Nascondi le distanze"
+    open val muroSinistra: String get() = "← A sinistra"
+    open val muroDestra: String get() = "A destra →"
+    open val muroSopra: String get() = "↑ Sopra"
+    open val muroSotto: String get() = "↓ Sotto"
+    open val alCentroDelMuro: String get() = "⟷ Al centro del muro"
     open fun perimetroCm(p1: Any?, p2: Any?): String = "$p1 · perimetro $p2 cm"
+    /** `apribili`: contano solo le finestre che si aprono (nel paese della casa). */
+    open fun luceAria(fin: String, frazione: String, apribili: Boolean): String =
+        "Luce e aria: finestre ${if (apribili) "apribili " else ""}$fin m², $frazione del pavimento"
+    open fun luceAriaInsieme(nomi: String): String = " (con $nomi)"
+    open fun luceAriaNessuna(apribili: Boolean): String = "Luce e aria: nessuna finestra ${if (apribili) "apribile " else ""}che dà fuori"
+    /** Chi chiede il minimo: le norme del paese della casa, o il consiglio dove l'app non le ha. */
+    open fun chiChiede(n: HousingNorms): String = if (n.official) "Norme (${T.controllo.paese(n.country)})" else "Consiglio"
+    /** `serve`: m² di finestre che servono; null dove nel paese basta una finestra. */
+    open fun luceAriaMinimo(n: HousingNorms, serve: String?): String {
+        val ratio = n.windowRatio
+        return if (ratio == null || serve == null) "${chiChiede(n)}: nelle stanze da abitare almeno una finestra apribile che dà fuori."
+        else "${chiChiede(n)}: nelle stanze da abitare almeno ${n.ratioLabel(ratio)} del pavimento ($serve m²)."
+    }
+    /** La parte delle finestre che si apre è sotto il minimo dell'aria (`minimo`, «4 %»). */
+    open fun luceAriaApribile(n: HousingNorms, minimo: String, serve: String): String =
+        "${chiChiede(n)}: la parte che si apre almeno $minimo del pavimento ($serve m²)."
     open val allAperto: String get() = " · all'aperto"
     open val parapetto: String get() = "Parapetto"
     open val altezzaParapetto: String get() = "Altezza del parapetto"
@@ -30,14 +63,18 @@ open class TestiSchedaStanza {
     open fun pavimentoInteroM2Computo(p1: Any?): String = "Pavimento intero $p1 m² (il computo usa questo)."
     open val aggiungiZonaNonCalpestabile: String get() = "▧ Aggiungi zona non calpestabile"
     open val pavimento: String get() = "Pavimento"
-    open val pavimentoFotografico: String get() = "Pavimento fotografico"
+    open fun pavimentoDiPrima(p1: Any?): String = "Pavimento di prima: $p1"
     open val paretiInterne: String get() = "Pareti interne"
-    open val paretiEsterneFacciataPiano: String get() = "Pareti esterne (facciata del piano)"
+    open val paretiEsterneTuttaCasa: String get() = "Pareti esterne (tutta la casa)"
+    open val paretiEsterneSoloPiano: String get() = "Pareti esterne (solo questo piano)"
+    open val soloQuestoPiano: String get() = "Solo questo piano"
     open fun aperture(size: Any?): String = "Aperture ($size)"
     open val nessunaUsaElementiArchitettonici: String get() = "Nessuna. Usa 🧱 Elementi architettonici in basso: Porte, Finestre o Porte-finestre."
     open fun muroCm(p1: Any?, p2: Any?, p3: Any?): String = "muro $p1 · $p2×$p3 cm"
     open fun terra(p1: Any?): String = " · da terra $p1"
     open fun impianti(size: Any?): String = "Impianti ($size)"
+    open fun impiantoBase(prese: Int, minPrese: Int, luci: Int, minLuci: Int): String =
+        "Impianto elettrico di base (CEI 64-8): punti presa $prese su $minPrese, punti luce $luci su $minLuci"
     open val nessunoUsaElementiArchitettonici: String get() = "Nessuno. Usa 🧱 Elementi architettonici → Impianti per caloriferi, prese, interruttori, punti acqua e luci."
     open val muriStanza: String get() = "Muri della stanza: "
     open val statiDiversiCambianoMuro: String get() = "stati diversi (si cambiano muro per muro)"

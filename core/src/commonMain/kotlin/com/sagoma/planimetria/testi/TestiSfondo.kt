@@ -43,4 +43,14 @@ open class TestiSfondo {
     open val letturaNonRaggiungibile: String get() = "Il servizio di lettura non risponde (serve internet): ricalca la piantina a mano."
     open val troppeLetture: String get() = "Oggi hai già letto molte piantine: riprova domani o ricalcala a mano."
     open val nonUnaPiantina: String get() = "L'immagine non sembra una piantina: ricalcala a mano o prova un'altra immagine."
+    open val dxf: String get() = "📐 DXF (CAD)"
+    open val dxfDwg: String get() = "I file DWG non si aprono: dal programma CAD salva la pianta come DXF."
+    open val dxfBinario: String get() = "Questo DXF è binario: dal programma CAD salvalo come DXF di testo (ASCII)."
+    open val dxfVuoto: String get() = "Nel file DXF non c'è niente da disegnare (o i livelli sono tutti spenti)."
+    open fun dxfInScala(larghezza: String, altezza: String): String = "Pianta DXF caricata già in scala ($larghezza × $altezza m): niente taratura."
+    open fun dxfUnita(cmPerUnita: Double): String =
+        "Il file non dice l'unità: l'ho letto in " + when (cmPerUnita) { 100.0 -> "metri"; 0.1 -> "millimetri"; else -> "centimetri" } +
+            ". Se le misure non tornano, usa «Tara»."
+    open val dxfSpiega: String get() = "DXF da AutoCAD o da un altro programma CAD (per esempio la pianta del professionista): già in scala, senza taratura."
+    open val dxfParziale: String get() = "Disegno molto grande: ho caricato solo una parte delle linee."
 }

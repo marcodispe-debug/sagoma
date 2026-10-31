@@ -2,6 +2,7 @@ package com.sagoma.planimetria.model
 
 import com.sagoma.planimetria.testi.T
 import kotlinx.serialization.Serializable
+import kotlin.math.max
 import kotlin.math.hypot
 
 /** Punto/vettore in coordinate mondo, espresse in centimetri. L'asse y cresce verso il basso (come lo schermo). */
@@ -100,21 +101,36 @@ enum class OpeningKind(val leaves: Int, val glazed: Boolean) {
 
     /** Non più offerta: resta solo per leggere i file vecchi, dove viene convertita in [Balcony1]. */
     FrenchDoor(leaves = 1, glazed = true),
-    Passage(leaves = 0, glazed = false);
+    Passage(leaves = 0, glazed = false),
+
+    /** Nicchia: incavo nella faccia del muro verso la stanza, profondo mezzo muro, che non passa dall'altra parte. */
+    Niche(leaves = 0, glazed = false);
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.openingKind(this)
 
-    /** Infissi vetrati: hanno l'altezza da terra (davanzale; 0 per i balconi). */
-    val hasSill get() = glazed
+    /** Infissi vetrati e nicchie: hanno l'altezza da terra (davanzale; 0 per i balconi). */
+    val hasSill get() = glazed || this == Niche
+    /** Infissi apribili verso fuori: finestre (non i balconi), per il vasistas. */
+    val isWindow get() = this == Window1 || this == Window2
     /** Porte e aperture senza porta collegano due stanze: creano un varco anche nella stanza confinante. */
     val createsSharedGap get() = this == Door || this == Door2 || this == Passage
     /** Porte, finestre e balconi hanno ante: possono essere a battente o scorrevoli. */
     val hasLeaves get() = leaves > 0
 }
 
+/** Forma della cima del varco senza porta. Si possono aggiungere forme, non rinominarle (finiscono nel file). */
 enum class PassageStyle {
-    Square, Arched;
+    /** Dritta. */
+    Square,
+    /** Arco tondo (a tutto sesto quando il varco è abbastanza alto). */
+    Arched,
+    /** Arco ribassato: un pezzo di cerchio, più schiacciato. */
+    Segmental,
+    /** Arco a sesto acuto: due archi che si incontrano a punta. */
+    Pointed;
+
+    val arched: Boolean get() = this != Square
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.passageStyle(this)
@@ -147,9 +163,13 @@ data class Opening(
     val doorModel: DoorModel = DoorModel.Flush,
     /** Colore di anta e telaio; null = quello solito (rovere per le porte, bianco per gli infissi). */
     val color: Finish? = null,
+    /** Colore qualsiasi di anta e telaio (ARGB, come la pittura dei muri); vince su [color]. */
+    val customColor: Long? = null,
     /** Modello di finestre e balconi, e oscurante all'esterno. */
     val windowModel: WindowModel = WindowModel.Classic,
     val shading: Shading = Shading.None,
+    /** Colore dell'oscurante (ARGB, qualsiasi come la pittura dei muri); null = quello solito ([shadingArgb]). */
+    val shadingColor: Long? = null,
     /** Finestre e balconi: infisso a metà muro, a filo esterno o a filo interno. */
     val frame: FramePosition = FramePosition.Center,
     /**
@@ -163,16 +183,217 @@ data class Opening(
     val entrance: Boolean = false,
     /** Stato di fatto / progetto: [Phase.New] = apertura da realizzare, [Phase.Demolish] = da chiudere (tamponare). */
     val phase: Phase = Phase.Existing,
+    /** Porte scorrevoli: anta che scorre sulla faccia del muro (binario a vista) invece che dentro il muro (a scomparsa). */
+    val slideOnWall: Boolean = false,
+    /** Porte: a libro (anta divisa in due pannelli che si piegano) invece che a battente. */
+    val folding: Boolean = false,
+    /** Porte a battente: filo muro, senza coprifilo né cornice. */
+    val frameless: Boolean = false,
+    /** Due ante disuguali (2/3 e 1/3): l'anta grande sta dal lato di [hingeLeft]. */
+    val unequalLeaves: Boolean = false,
+    /** Finestre e balconi non scorrevoli: a battente, anta-ribalta, vasistas o fissi. */
+    val sash: SashType = SashType.Casement,
+    /** Porta a bilico: l'anta gira su un perno a un quinto della larghezza, dal lato di [hingeLeft]. */
+    val pivot: Boolean = false,
+    /** Porte a un'anta: sopraluce, cioè vetro fisso alto tanti cm sopra l'anta (dentro l'altezza dell'apertura). */
+    val transom: Double = 0.0,
+    /** Porte a un'anta: vetro fisso largo tanti cm di fianco all'anta, dal lato opposto al cardine (dentro la larghezza). */
+    val sidelight: Double = 0.0,
+    /** Finestre e balconi a 2 ante: 3 o 4 ante invece di 2 (0 = quelle del tipo). */
+    val leafCount: Int = 0,
+    /** Balconi e finestre scorrevoli: alzante scorrevole (un'anta fissa e una che scorre, telaio più robusto). */
+    val liftSlide: Boolean = false,
+    /** Finestre e balconi: rettangolari, ad arco o (solo finestre) tonde. */
+    val windowShape: WindowShape = WindowShape.Rectangle,
+    /** Finestre e balconi: inferriata di sbarre sulla faccia esterna del muro. */
+    val grille: Boolean = false,
+    /** Finestre e balconi a battente: traverso in alto con un vetro fisso sopra le ante (sopraluce). */
+    val topLight: Boolean = false,
+    /** Finestre rettangolari: bovindo, cioè la finestra sporge dal muro verso fuori su tre lati ([Openings.bayOutline]). */
+    val bay: Boolean = false,
+    /** Porte: da garage, basculante o sezionale (il pannello va in alto dentro la stanza, [Openings.garageReach]). */
+    val garage: GarageDoor = GarageDoor.None,
+    /** Finestre e balconi: zanzariera avvolgibile nel vano, con il cassonetto in alto e le guide ai lati. */
+    val insectScreen: Boolean = false,
+    /** Finestre e balconi: tenda da sole fuori, sopra l'apertura ([Openings.awningReach]). */
+    val awning: Boolean = false,
+    /** Colore della tenda da sole (ARGB); null = a righe verdi e panna ([AWNING_GREEN]). */
+    val awningColor: Long? = null,
+    /**
+     * Davanzale (finestre) o soglia (balconi e porte), la lastra sotto l'infisso o l'anta che sporge dalle facce del muro; del
+     * materiale dei gradini (marmo, pietra, legno…). null = niente lastra, come nei progetti fatti prima.
+     */
+    val sillMaterial: StairMaterial? = null,
+    /**
+     * Davanzale o soglia con un materiale fotografico dei pavimenti ([MaterialCatalog]): vince su [sillMaterial] nel 3D e nei
+     * nomi, che resta per dire se la lastra c'è e per chi non ha le foto.
+     */
+    val sillFloorMaterial: String? = null,
+    /** Vetro satinato: fa passare la luce ma non la vista (es. la finestra del bagno, la porta a vetri del bagno). */
+    val frosted: Boolean = false,
+    /**
+     * Porte: finitura dell'anta (e del coprifilo) con un materiale in foto del catalogo ([MaterialCatalog.Item.id], es. un legno),
+     * al posto del colore. null = il colore, come nei progetti fatti prima.
+     */
+    val doorMaterial: String? = null,
+    /** Verso e misura della foto di [doorMaterial] sull'anta, come per il pavimento. */
+    val doorMaterialLayout: MaterialLayout = MaterialLayout(),
 ) {
     /** Colore effettivo di anta e telaio. */
-    val finish: Finish get() = color ?: if (kind.glazed) Finish.White else Finish.Oak
+    val finish: Finish get() = color ?: if (kind.glazed || isGarage) Finish.White else Finish.Oak
 
-    /** Ante a battente: hanno l'arco di apertura e un verso (interno/esterno). */
-    val swings: Boolean get() = kind.hasLeaves && !sliding
-    /** Cardine (battente) o verso di scorrimento (scorrevole): solo con un'anta. */
-    val hasSideChoice: Boolean get() = kind.leaves == 1
+    /** Colore di anta e telaio (ARGB): quello libero se c'è, altrimenti quello di [finish]. */
+    val frameArgb: Long get() = customColor ?: finish.argb
+
+    /** Inferriata: solo su finestre e balconi (non sul bovindo, che sporge, né sul vetromattone). */
+    val hasGrille: Boolean get() = grille && kind.glazed && !isBay && !isGlassBlock
+    /** Sopraluce della finestra: solo con le ante a battente (non scorrevoli, non fisse), infisso rettangolare e non nel bovindo. */
+    val hasTopLight: Boolean get() = topLight && kind.glazed && !sliding && !fixed && windowShape == WindowShape.Rectangle && !isBay
+    /** Zanzariera: finestre e balconi rettangolari, non nel bovindo né sul vetromattone (non si apre). */
+    val hasInsectScreen: Boolean get() = insectScreen && kind.glazed && !isBay && !isGlassBlock && windowShape == WindowShape.Rectangle
+    /**
+     * Davanzale o soglia che si vede: finestre, balconi e porte; non il bovindo (ha la sua seduta), l'oblò (il fondo è tondo) e
+     * la porta da garage.
+     */
+    val sill: StairMaterial? get() = if (kind.hasLeaves && !isBay && !isGarage && shape != WindowShape.Round) sillMaterial else null
+    /** Materiale fotografico del davanzale o della soglia che si vede ([sill]), se è stato scelto. */
+    val sillPhoto: MaterialCatalog.Item? get() = if (sill != null) MaterialCatalog.item(sillFloorMaterial) else null
+    /** Nome del materiale del davanzale o della soglia che si vede: quello della foto se c'è. */
+    val sillLabel: String? get() = sill?.let { sillPhoto?.nome ?: it.label }
+    /**
+     * C'è un vetro trasparente che si può satinare: finestre e balconi (non il vetromattone, già smerigliato) e porte con il vetro
+     * nell'anta, il sopraluce o il vetro di fianco (l'anta della porta tutto vetro è già satinata).
+     */
+    val hasClearGlass: Boolean get() = when {
+        kind.glazed -> !isGlassBlock
+        !kind.hasLeaves || isGarage -> false
+        else -> doorModel == DoorModel.Glazed || transomCm > 0 || sidelightCm > 0
+    }
+    /** Vetro satinato che si vede ([frosted] dove c'è un vetro trasparente). */
+    val hasFrostedGlass: Boolean get() = frosted && hasClearGlass
+    /** Porta che può avere la finitura in foto ([doorMaterial]): tutte, anche quelle da garage, tranne la porta tutto vetro. */
+    val canHaveDoorMaterial: Boolean get() = kind.hasLeaves && !kind.glazed && (isGarage || doorModel != DoorModel.AllGlass)
+    /** La finitura in foto che si vede: [doorMaterial] dove la porta la può avere. */
+    val doorFinish: String? get() = doorMaterial?.takeIf { canHaveDoorMaterial }
+    /** Tenda da sole: finestre e balconi, non sul bovindo (ha il suo tettuccio) né sul vetromattone. */
+    val hasAwning: Boolean get() = awning && kind.glazed && !isBay && !isGlassBlock
+    /** Porta da garage effettiva: solo porte non scorrevoli, a libro o a bilico. */
+    val garageDoor: GarageDoor get() = if (!kind.glazed && kind.hasLeaves && !sliding && !folding && !pivot) garage else GarageDoor.None
+    val isGarage: Boolean get() = garageDoor != GarageDoor.None
+    /** Oscurante che si vede: quello scelto, ma non sul bovindo (sporge dal muro, non c'è dove aprirlo) né sul vetromattone. */
+    val hasShading: Boolean get() = shading != Shading.None && !isBay && !isGlassBlock
+    /** Vetromattone: finestre e balconi di blocchi di vetro ([WindowModel.GlassBlock]), sempre fissi. */
+    val isGlassBlock: Boolean get() = kind.glazed && windowModel == WindowModel.GlassBlock
+    /** Bovindo: solo finestre rettangolari non scorrevoli (non di vetromattone). */
+    val isBay: Boolean get() = bay && kind.isWindow && !sliding && windowShape == WindowShape.Rectangle && !isGlassBlock
+
+    /**
+     * Stessa famiglia per «copia stile»: le finestre e i balconi (infissi) tra loro, le porte tra loro (quelle da garage a parte).
+     * Il vetromattone è un'altra cosa: non diventa una finestra e le finestre non diventano vetromattone. Varchi e nicchie non
+     * hanno stile da copiare.
+     */
+    fun sameStyleFamily(other: Opening): Boolean = when {
+        kind.glazed -> other.kind.glazed && other.isGlassBlock == isGlassBlock
+        kind.hasLeaves -> other.kind.hasLeaves && !other.kind.glazed && other.isGarage == isGarage
+        else -> false
+    }
+
+    /**
+     * Questa apertura con l'aspetto di `from` (stessa famiglia, [sameStyleFamily]): modello, colori, oscurante, inferriata,
+     * zanzariera, tenda da sole e davanzale per gli infissi; modello, colore, cornice e soglia per le porte. Misure, tipo di
+     * apertura e posizione restano come sono.
+     */
+    fun withStyleOf(from: Opening): Opening = if (!sameStyleFamily(from)) this else if (kind.glazed) copy(
+        color = from.color, customColor = from.customColor,
+        shading = from.shading, shadingColor = from.shadingColor, grille = from.grille,
+        insectScreen = from.insectScreen, awning = from.awning, awningColor = from.awningColor, sillMaterial = from.sillMaterial, sillFloorMaterial = from.sillFloorMaterial,
+        frosted = from.frosted,
+    ).withWindowModel(from.windowModel) else copy(
+        doorModel = from.doorModel, color = from.color, customColor = from.customColor, frameless = from.frameless, sillMaterial = from.sillMaterial, sillFloorMaterial = from.sillFloorMaterial,
+        frosted = from.frosted, doorMaterial = from.doorMaterial, doorMaterialLayout = from.doorMaterialLayout,
+    )
+
+    /**
+     * Questo infisso con il modello `m`. Il vetromattone è fisso e liscio: niente scorrevole, ante, sopraluce, bovindo, forma
+     * ad arco, oscuranti e accessori; tornando a un altro modello le ante ritornano a battente.
+     */
+    fun withWindowModel(m: WindowModel): Opening = when {
+        m == windowModel -> this
+        m == WindowModel.GlassBlock && kind.glazed -> copy(
+            windowModel = m, sliding = false, liftSlide = false, sash = SashType.Fixed, leafCount = 0, topLight = false, bay = false,
+            windowShape = WindowShape.Rectangle, shading = Shading.None, grille = false, insectScreen = false, awning = false,
+        )
+        windowModel == WindowModel.GlassBlock -> copy(windowModel = m, sash = SashType.Casement)
+        else -> copy(windowModel = m)
+    }
+
+    /** Nessun colore scelto: restano i colori soliti del modello (es. minimal antracite, loft nero). */
+    val defaultColor: Boolean get() = color == null && customColor == null
+
+    /**
+     * Colore dell'oscurante (ARGB): quello scelto, oppure il solito: persiane verdi con l'infisso bianco e del colore
+     * dell'infisso con gli altri (anche alla romana), scorrevoli antracite con l'infisso bianco, tapparella grigio chiaro,
+     * veneziana grigia, scuri interni del colore dell'infisso.
+     */
+    val shadingArgb: Long get() = shadingColor ?: when (shading) {
+        Shading.Shutters, Shading.RomanShutter -> if (frameArgb == Finish.White.argb) SHUTTER_GREEN else frameArgb
+        Shading.SlidingShutters -> if (frameArgb == Finish.White.argb) Finish.Anthracite.argb else frameArgb
+        Shading.RollerShutter -> ROLLER_GREY
+        Shading.Venetian -> VENETIAN_GREY
+        Shading.InteriorShutters, Shading.None -> frameArgb
+    }
+
+    /** Quota del fondo del varco: il davanzale per infissi e nicchie, terra per porte e varchi. */
+    val bottom: Double get() = if (kind.hasSill) sillHeight else 0.0
+    /** Infisso che non si apre (vetro fisso). */
+    val fixed: Boolean get() = kind.glazed && !sliding && (sash == SashType.Fixed || isGlassBlock)
+    /** Vasistas: l'anta si apre ribaltandosi in cima, senza arco in pianta. */
+    val hopper: Boolean get() = kind.glazed && !sliding && sash == SashType.Hopper
+    /** Porta a libro. */
+    val folds: Boolean get() = folding && !kind.glazed && kind.hasLeaves && !sliding
+    /** Forma effettiva: ad arco o tonda solo per finestre e balconi non scorrevoli (tonda solo le finestre). */
+    val shape: WindowShape get() = when {
+        !kind.glazed || sliding || isGlassBlock -> WindowShape.Rectangle
+        windowShape == WindowShape.Round && !kind.isWindow -> WindowShape.Rectangle
+        else -> windowShape
+    }
+    /** Numero di ante: quelle del tipo, o 3-4 per finestre e balconi a 2 ante. */
+    val leaves: Int get() = if (kind.glazed && kind.leaves == 2 && leafCount in 3..4) leafCount else kind.leaves
+    /** Finestra a bilico: l'anta gira su un perno orizzontale a metà altezza. */
+    val pivotSash: Boolean get() = kind.glazed && !sliding && sash == SashType.Pivot
+    /** Alzante scorrevole. */
+    val lifts: Boolean get() = liftSlide && sliding && kind.glazed
+    /** Sopraluce e vetro di fianco valgono per la porta a un'anta a battente o a bilico. */
+    val hasDoorGlazing: Boolean get() = kind == OpeningKind.Door && !sliding && !folding && !isGarage
+    /** Sopraluce effettivo (cm), lasciando all'anta almeno 150 cm. */
+    val transomCm: Double get() = if (hasDoorGlazing) transom.coerceIn(0.0, max(0.0, height - 150.0)) else 0.0
+    /** Vetro di fianco effettivo (cm), lasciando all'anta almeno 50 cm. */
+    val sidelightCm: Double get() = if (hasDoorGlazing) sidelight.coerceIn(0.0, max(0.0, width - 50.0)) else 0.0
+    /** Tratto del varco occupato dall'anta, da 0 (inizio `a`) a 1: senza vetro di fianco tutto il varco. */
+    val leafRange: ClosedFloatingPointRange<Double> get() {
+        val g = if (width > 0) sidelightCm / width else 0.0
+        return if (hingeLeft) 0.0..(1 - g) else g..1.0
+    }
+    /** Porta a bilico (un'anta, a battente). */
+    val pivots: Boolean get() = pivot && !kind.glazed && kind.leaves == 1 && !sliding && !folding
+    /** Ante a battente: hanno l'arco di apertura e un verso (interno/esterno). Anche la porta a libro e l'anta-ribalta. */
+    val swings: Boolean get() = kind.hasLeaves && !sliding && !fixed && !hopper && !pivotSash && !isGarage
+    /** Ante disuguali: solo con due ante a battente. */
+    val unequal: Boolean get() = unequalLeaves && leaves == 2 && swings && !folds
+    /** Cardine (battente) o verso di scorrimento (scorrevole) con un'anta; con due ante disuguali, il lato dell'anta grande. */
+    val hasSideChoice: Boolean get() = (kind.leaves == 1 && (swings || sliding)) || unequal
+    /** Dove si incontrano le due ante, da 0 (inizio `a` del varco) a 1: a metà, o a 2/3 dal lato dell'anta grande. */
+    val leafSplit: Double get() = if (!unequal) 0.5 else if (hingeLeft) 2.0 / 3 else 1.0 / 3
 
     companion object {
+        /** Colori soliti degli oscuranti: persiane verdi, tapparella grigio chiaro, veneziana grigia. */
+        const val SHUTTER_GREEN = 0xFF46704F
+        const val ROLLER_GREY = 0xFFC7C9CC
+        const val VENETIAN_GREY = 0xFF8C9199
+        /** Tenda da sole di serie: righe verdi alternate al panna ([AWNING_CREAM]). */
+        const val AWNING_GREEN = 0xFF2F6B4F
+        const val AWNING_CREAM = 0xFFF1EBDC
+
         fun default(id: Long, kind: OpeningKind, wallIndex: Int, position: Double) = when (kind) {
             OpeningKind.Door -> Opening(id, kind, wallIndex, position, width = 80.0, height = 210.0)
             OpeningKind.Door2 -> Opening(id, kind, wallIndex, position, width = 120.0, height = 210.0)
@@ -182,6 +403,7 @@ data class Opening(
             OpeningKind.Balcony2 -> Opening(id, kind, wallIndex, position, width = 120.0, height = 240.0)
             OpeningKind.FrenchDoor -> Opening(id, kind, wallIndex, position, width = 90.0, height = 220.0)
             OpeningKind.Passage -> Opening(id, kind, wallIndex, position, width = 80.0, height = 210.0)
+            OpeningKind.Niche -> Opening(id, kind, wallIndex, position, width = 60.0, height = 80.0, sillHeight = 100.0)
         }
     }
 }
@@ -247,6 +469,11 @@ data class Fixture(
      */
     val aimYaw: Double = 0.0,
     val aimTilt: Double = DEFAULT_AIM_TILT,
+    /**
+     * Luminosità di questa luce (solo le luci, [FixtureKind.isLight]): 1 = come la fa sagoma, 0 = spenta, fino a [LightLevel.MAX].
+     * Vale insieme alla luminosità di tutta la casa ([Building.lampBrightness]), che le alza o abbassa tutte.
+     */
+    val brightness: Double = 1.0,
 ) {
     companion object {
         /** Inclinazione (gradi verso il basso) del fascio di un faretto a parete appena messo. */
@@ -314,6 +541,8 @@ data class Room(
     val wallFinishes: Map<Int, WallFinish> = emptyMap(),
     /** Pavimento con un materiale fotografico ([MaterialCatalog]); vince su [floorFinish] nel 3D. */
     val floorMaterial: String? = null,
+    /** Verso e misura dei pezzi di [floorMaterial]. */
+    val floorLayout: MaterialLayout = MaterialLayout(),
     /** Spessore dei muri della stanza (cm) e di singoli muri che fanno eccezione (portanti, tramezzi). */
     val wallThickness: Double = WALL_THICKNESS,
     val wallThicknesses: Map<Int, Double> = emptyMap(),
@@ -397,7 +626,12 @@ data class Room(
         return copy(
             points = points.take(i + 1) + mid + points.drop(i + 1),
             wallHeights = shift(wallHeights, dup = true),
-            wallCuts = shift(wallCuts, dup = false),
+            // Il taglio del sottotetto va sulla metà che ha l'angolo basso: con l'angolo basso alla fine è la seconda.
+            // Restando sulla prima, il suo angolo basso diventava l'angolo nuovo (alto) e la parete tornava alta e dritta.
+            wallCuts = shift(wallCuts, dup = false).let { m ->
+                val cut = m[i]
+                if (cut?.towardEnd == true) m - i + (i + 1 to cut) else m
+            },
             wallPaints = shift(wallPaints, dup = true),
             wallFinishes = shift(wallFinishes, dup = true),
             wallThicknesses = shift(wallThicknesses, dup = true),
@@ -444,7 +678,10 @@ data class Room(
         return copy(
             points = newPoints,
             wallHeights = remap(wallHeights),
-            wallCuts = remap(wallCuts),
+            // Taglio del sottotetto sul muro unito: quello dei due pezzi il cui angolo basso resta un angolo della stanza
+            // (il primo pezzo verso l'inizio, il secondo verso la fine); quello verso l'angolo tolto non ha più senso.
+            wallCuts = remap(wallCuts).filterKeys { it != map(c) } +
+                listOfNotNull(wallCuts[prev]?.takeIf { !it.towardEnd }, wallCuts[c]?.takeIf { it.towardEnd }).take(1).map { map(c) to it },
             wallPaints = remap(wallPaints),
             wallFinishes = remap(wallFinishes),
             wallThicknesses = remap(wallThicknesses),
@@ -670,6 +907,8 @@ data class Stair(
     /** Struttura, materiale dei gradini e ringhiera. */
     val structure: StairStructure = StairStructure.Masonry,
     val material: StairMaterial = StairMaterial.Wood,
+    /** Gradini con un materiale fotografico dei pavimenti ([MaterialCatalog]): vince su [material], che resta per chi non ha le foto. */
+    val treadMaterial: String? = null,
     val railing: StairRailing = StairRailing.None,
     /** Ringhiera attorno al vano scala al piano di sopra (lasciando libero l'arrivo). */
     val wellRailing: StairRailing = StairRailing.None,
@@ -796,7 +1035,17 @@ data class Furniture(
     val elevation: Double = 0.0,
     /** Ribaltato sinistra ↔ destra guardandolo dal davanti (divani angolari, cucine ad angolo…). */
     val mirrored: Boolean = false,
+    /** Luminosità della lampada (solo le lampade del catalogo), come [Fixture.brightness]. */
+    val brightness: Double = 1.0,
 )
+
+/** Luminosità di una sola luce ([Fixture.brightness], [Furniture.brightness]): da spenta (0) al doppio del normale. */
+object LightLevel {
+    const val MAX = 2.0
+
+    /** Valore da usare: fuori misura (file rovinato o scritto a mano) torna nei limiti; non valido torna normale. */
+    fun of(v: Double): Double = if (v.isNaN()) 1.0 else v.coerceIn(0.0, MAX)
+}
 
 /**
  * Immagine di sfondo di un piano: `file` è il nome del file nella cartella del progetto, `origin` la
@@ -837,6 +1086,8 @@ data class FloorPlan(
     /** Quote manuali e testi del disegno. */
     val dimensions: List<Dimension> = emptyList(),
     val annotations: List<TextNote> = emptyList(),
+    /** Oggetti 3D forniti da un professionista (la cucina del negozio), messi in casa da arredi "fornito:<id>". */
+    val supplied: List<SuppliedObject> = emptyList(),
 ) {
     val facadeOrPaint: WallFinish get() = facadeFinish ?: WallFinish.of(facade)
 
@@ -851,6 +1102,10 @@ data class FloorPlan(
     fun furniture(id: Long?): Furniture? = furniture.firstOrNull { it.id == id }
     fun replace(f: Furniture): FloorPlan = copy(furniture = furniture.map { if (it.id == f.id) f else it })
     val nextFurnitureId: Long get() = (furniture.maxOfOrNull { it.id } ?: 0L) + 1
+
+    /** Oggetto fornito usato dall'arredo `model`, se è uno di quelli. */
+    fun suppliedFor(model: String): SuppliedObject? = SuppliedObjects.idOf(model)?.let { id -> supplied.firstOrNull { it.id == id } }
+    val nextSuppliedId: Long get() = (supplied.maxOfOrNull { it.id } ?: 0L) + 1
 
     fun freeWall(id: Long?): FreeWall? = freeWalls.firstOrNull { it.id == id }
     fun replace(wall: FreeWall): FloorPlan = copy(freeWalls = freeWalls.map { if (it.id == wall.id) wall else it })
@@ -954,6 +1209,21 @@ data class Building(
     val units: LengthUnit = LengthUnit.Centimeters,
     /** Dove punta il nord rispetto alla pianta e in che città è la casa: decidono il giro del sole nel 3D (facoltativi). */
     val site: HouseSite = HouseSite(),
+    /**
+     * Indice in [floors] del piano terra, a livello del terreno: quelli prima sono interrati (aggiunti con «piano sotto»).
+     * Nel 3D il prato sta alla sua quota e copre gli interrati.
+     */
+    val ground: Int = 0,
+    /**
+     * Luminosità delle lampade della casa nel 3D e nei render, scelta da chi usa l'app: 1 = come le fa sagoma, da
+     * [MIN_LAMP_BRIGHTNESS] a [MAX_LAMP_BRIGHTNESS].
+     */
+    val lampBrightness: Double = 1.0,
+    /**
+     * Problemi di «Controlla la pianta» il cui «!» è stato tolto dalla pianta (restano nell'elenco e si possono rimettere): le
+     * chiavi di [com.sagoma.planimetria.editor.PlanCheck.hideKey].
+     */
+    val hiddenChecks: Set<String> = emptySet(),
 ) {
     init {
         require(floors.isNotEmpty()) { "Serve almeno un piano" }
@@ -961,26 +1231,43 @@ data class Building(
 
     val floor: Floor get() = floors[current.coerceIn(floors.indices)]
     /** Piano di sotto (null al piano più basso). */
-    val below: Floor? get() = floors.getOrNull(current - 1)
+    val below: Floor? get() = floors.getOrNull(current.coerceIn(floors.indices) - 1)
 
-    /** Quota del pavimento del piano `index` rispetto al piano terra (cm). */
+    /** Quota del pavimento del piano `index` rispetto al piano più basso (cm). */
     fun elevation(index: Int): Double = floors.take(index).sumOf { it.levelHeight }
+
+    /** Indice del piano terra, sempre valido. */
+    val groundIndex: Int get() = ground.coerceIn(floors.indices)
+
+    /** Il piano `index` rispetto al piano terra: 0 il piano terra, 1 il primo piano, -1 il primo interrato. */
+    fun level(index: Int): Int = index - groundIndex
 
     /** Stessa casa con la pianta del piano corrente sostituita. */
     fun withPlan(plan: FloorPlan): Building {
         val updated = floor.copy(plan = plan).synced() // con l'interpiano automatico segue le stanze
-        return if (updated == floor) this else copy(floors = floors.mapIndexed { i, f -> if (i == current) updated else f })
+        // Stesso piano di [floor] anche con un indice fuori misura (file scritto a mano o da altri programmi):
+        // altrimenti la modifica non finirebbe in nessun piano e non verrebbe mai salvata.
+        val index = current.coerceIn(floors.indices)
+        return if (updated == floor) this else copy(floors = floors.mapIndexed { i, f -> if (i == index) updated else f })
     }
 
     val nextFloorId: Long get() = (floors.maxOfOrNull { it.id } ?: 0L) + 1
 
     companion object {
+        const val MIN_LAMP_BRIGHTNESS = 0.25
+        const val MAX_LAMP_BRIGHTNESS = 2.0
+
         /** Casa a un piano. `autoLevel`: l'interpiano segue le stanze (i progetti nuovi); i file vecchi sono manuali. */
         fun single(plan: FloorPlan, autoLevel: Boolean = false) =
             Building(listOf(Floor(1, floorName(0), plan, autoLevel = autoLevel).synced()))
 
-        /** Nome proposto per il piano `index` (0 = piano terra), nella lingua dell'app o in quella data. */
-        fun floorName(index: Int, lingua: com.sagoma.planimetria.testi.Lingua = T.lingua): String = when (index) {
+        /** Nome proposto per il piano `index` (0 = piano terra, -1 il primo interrato), nella lingua dell'app o in quella data. */
+        fun floorName(index: Int, lingua: com.sagoma.planimetria.testi.Lingua = T.lingua): String = when {
+            index < 0 -> lingua.piani.interrato(-index)
+            else -> floorNameAbove(index, lingua)
+        }
+
+        private fun floorNameAbove(index: Int, lingua: com.sagoma.planimetria.testi.Lingua): String = when (index) {
             0 -> lingua.piani.pianoTerra
             1 -> lingua.piani.primoPiano
             2 -> lingua.piani.secondoPiano

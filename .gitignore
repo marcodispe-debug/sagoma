@@ -25,3 +25,5 @@ build/
 *.keystore
 *.p12
 *.pem
+# Materiali 2K e 4K: solo sul server del catalogo (gradlew :catalogo:preparaMaterialiHd)
+/catalogo/hd/

@@ -52,6 +52,9 @@ interface TipStore {
 
         /** Guida interattiva (le lezioni sul progetto di prova) finita o chiusa con "Esci": al primo avvio non riparte. */
         const val COURSE_DONE = "guida-interattiva"
+
+        /** Lezione del sole già vista (al primo tocco sulla bussola, o dentro la guida interattiva): non riparte. */
+        const val SUN_GUIDE_DONE = "guida-bussola"
     }
 }
 
@@ -98,6 +101,11 @@ class TipQueue(private val store: TipStore) {
     var courseDone: Boolean
         get() = TipStore.COURSE_DONE in saved()
         set(value) = flag(TipStore.COURSE_DONE, value)
+
+    /** Lezione del sole già vista. */
+    var sunGuideDone: Boolean
+        get() = TipStore.SUN_GUIDE_DONE in saved()
+        set(value) = flag(TipStore.SUN_GUIDE_DONE, value)
 
     private val waiting = ArrayDeque<Tip>()
     var current: Tip? = null

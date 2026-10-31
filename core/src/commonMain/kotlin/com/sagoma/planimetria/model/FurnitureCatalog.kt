@@ -174,6 +174,28 @@ object FurnitureCatalog {
         return index[model]
     }
 
+    /**
+     * Che luce è la voce del catalogo, tra quelle di «Impianti» → «Luci» (null se non è una di queste): lampadari e lampade appese,
+     * plafoniere, applique e fari a parete. Lampade da tavolo e da terra restano arredi; faretti, neon e strisce LED il catalogo non
+     * li ha. Si guarda il nome italiano del catalogo, che non cambia con la lingua.
+     */
+    fun lightKind(i: Item): FixtureKind? {
+        if (i.symbolKind != FurnitureSymbol.Lamp) return null
+        val l = i.label.lowercase()
+        return when {
+            l.startsWith("ventilatore") -> null
+            l.startsWith("lampada da soffitto") || l.startsWith("plafoniera") -> FixtureKind.CeilingLight
+            l.startsWith("applique") || l.startsWith("lampada a muro") -> FixtureKind.WallLight
+            l.startsWith("faro") -> FixtureKind.WallSpot
+            // La lampada da esterno è una lanterna appesa a una catena.
+            i.ceiling || l.startsWith("lampadario") || "sospes" in l || "appes" in l || l == "lampada da esterno" -> FixtureKind.Chandelier
+            else -> null
+        }
+    }
+
+    /** I modelli del catalogo che sono la luce `kind`, da scegliere quando la si mette da «Impianti» → «Luci». */
+    fun lights(kind: FixtureKind): List<Item> = visible.filter { lightKind(it) == kind }
+
     /** Ricerca per nome o categoria, in italiano o nella lingua dei testi (senza distinguere maiuscole), tra le voci che si possono scegliere. */
     fun search(query: String): List<Item> {
         val q = query.trim().lowercase()

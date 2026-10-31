@@ -4,6 +4,7 @@ import com.sagoma.planimetria.testi.TestiPdf
 
 object TestiPdfEn : TestiPdf() {
     override fun pianta(p1: Any?): String = "Plan, $p1"
+    override val livelliDxf: List<String> get() = listOf("WALLS", "WALL_FILL", "DOORS_WINDOWS", "SWINGS", "ROOMS", "TEXT", "STAIRS", "COLUMNS", "RAILINGS", "WALL_LENGTHS", "DIMENSIONS", "NOTES")
     override val progetto: String get() = "PROJECT"
     override val progetto2: String get() = "Project"
     override val cliente: String get() = "CLIENT"
@@ -30,6 +31,8 @@ object TestiPdfEn : TestiPdf() {
     override val paretiNettoAperture: String get() = "Walls (net of openings)"
     override val arredi: String get() = "Furniture"
     override val impianti: String get() = "Fixtures"
+    override val porteFinestre: String get() = "Doors and windows"
+    override val davanzaliSoglie: String get() = "Sills and thresholds"
     override val tavolaPdfNonDisponibile: String get() = "PDF sheet not available on this platform"
     override val esportazioneNonRiuscita: String get() = "Export failed"
     override val tavolaPdfSalvataMarchio: String get() = "PDF sheet saved with the Sagoma watermark"

@@ -24,6 +24,8 @@ open class TestiCorso {
         Lesson.Walls -> cr.muroMuro
         Lesson.FreeWall -> cr.muroSingolo
         Lesson.Elements -> "Porte, finestre e altro"
+        Lesson.Check -> "Controlla la pianta"
+        Lesson.Sun -> "Il sole e la bussola"
         Lesson.OverPlan -> "Sopra la tua planimetria"
     }
 
@@ -37,12 +39,13 @@ open class TestiCorso {
         CourseStep.Finished -> "Hai finito la guida!"
         CourseStep.Snap -> "Spostare le stanze e il gancio 🧲"
         CourseStep.InnerFace -> "Il lato interno dei muri"
+        CourseStep.SunDone -> "Il sole della tua casa"
         else -> "Fatto!"
     }
 
     open fun testoScheda(s: CourseStep): String = when (s) {
         CourseStep.Welcome ->
-            "Ti guido passo passo a disegnare la casa di questa piantina inventata, in ${Lesson.entries.size} lezioni brevi: una stanza alla volta, " +
+            "Ti guido passo passo a disegnare la casa di questa piantina inventata, in ${Lesson.entries.count { it.inCourse }} lezioni brevi: una stanza alla volta, " +
                 "ognuna al suo posto come nel disegno. Le azioni le fai tu: a ogni passo ti indico con un riquadro arancione cosa " +
                 "cliccare. È un progetto solo per fare pratica: i tuoi progetti non si toccano."
         CourseStep.SquareDone ->
@@ -71,11 +74,19 @@ open class TestiCorso {
         CourseStep.ElementsDone ->
             "Nella scheda «${T.schedaStanza.info}» cambi misure, tipo e tutto il resto dell'elemento selezionato; si chiude con «▼». " +
                 "Per ogni elemento: lo scegli da «${e.elementiArchitettonici}», lo metti sulla pianta e il resto da «${T.schedaStanza.info}». " +
+                "Nella prossima lezione: il controllo della pianta, che trova da solo gli errori di disegno e molti li sistema."
+        CourseStep.CheckDone ->
+            "Ora sai usare il controllo della pianta: l'elenco completo dal menu «⋮», «✓ ${T.controllo.correggi}» e «✓ Correggi tutti» che " +
+                "sistemano da soli («${e.annulla}» torna indietro), i «!» sulla pianta per vedere cosa c'è in un punto e «${T.controllo.togliDallaPianta}» " +
+                "per quelli che vanno bene così (dall'elenco si rimettono). Prima di esportare, Sagoma ti avvisa se ci sono ancora errori di disegno. " +
                 "Ultima lezione: costruire le stanze sopra la tua planimetria. Serve un progetto nuovo: lo preparo io."
         CourseStep.Finished ->
             "Ecco camera, bagno e soggiorno sopra la piantina, con le misure giuste. Con le altre stanze fai lo stesso: una forma per " +
                 "partire, attaccata alle stanze accanto, poi muri e angoli al loro posto e le misure esatte in «${T.schedaStanza.info}». " +
                 "Ora puoi disegnare la tua casa! La guida si rifà quando vuoi da «${e.guide}»."
+        CourseStep.SunDone ->
+            "Fatto. Il nord e la città restano nel progetto e li cambi quando vuoi dalla bussola o dal menu ⋮; giorno e ora servono " +
+                "solo per guardare. Niente di tutto questo è obbligatorio: quello che non metti resta com'era (nord in alto, Roma, oggi)."
         CourseStep.InnerFace ->
             "Prima di spostare la camera, una cosa importante. Sagoma misura le stanze dal lato interno dei muri, come le misure " +
                 "scritte sulla piantina: lo spessore del muro va verso l'esterno. Quando metti una stanza sopra la piantina, fai " +
@@ -99,7 +110,7 @@ open class TestiCorso {
     open val vaiAllaLezione: String get() = "Oppure vai alla lezione:"
 
     /** Voce di «❔ Guide» che fa ripartire la guida. */
-    open val voceMenu: String get() = "Guida interattiva (${Lesson.entries.size} lezioni)"
+    open val voceMenu: String get() = "Guida interattiva (${Lesson.entries.count { it.inCourse }} lezioni)"
     open val progettoProva: String get() = "Prova della guida"
     open val progettoProvaPlanimetria: String get() = "Prova della guida · planimetria"
 
@@ -266,6 +277,7 @@ open class TestiCorso {
     open val luciElementi: String get() = "Le luci invece vanno dentro la stanza. «${e.elementiArchitettonici}»…"
     open val luci: String get() = "…«${e.luci}»…"
     open val lampadario: String get() = "…per esempio «${FixtureKind.Chandelier.label}»."
+    open val luceSemplice: String get() = "…e qui «${T.arredi.puntoLuceSemplice}»: si mette cliccando nella stanza."
     open val cliccaStanzaLuce: String get() = "Clicca dentro la stanza, dove va la luce: per esempio qui."
     open val cliccaStudio: String get() = "Ultima, la scala. Prima clicca dentro la stanza dove va, per esempio lo studio, qui."
     open val scalaElementi: String get() = "Poi «${e.elementiArchitettonici}»…"
@@ -273,6 +285,26 @@ open class TestiCorso {
     open val chiocciola: String get() = "…e scegli la forma, per esempio «${StairKind.Spiral.label}»."
     open val info: String get() =
         "La scala è selezionata. Per tutte le altre modifiche clicca «${T.schedaStanza.info}»: vale per ogni elemento, porte, finestre, balconi, impianti e scale."
+
+    open val controlloMenu: String get() = "Un aiuto da usare spesso: il controllo della pianta, che cerca gli errori di disegno che di solito sfuggono. Clicca il menu «⋮» qui in alto."
+    open val controlloVoce: String get() = "…e «${T.controllo.voceMenu}»."
+    open val controlloRiapri: String get() = "Riapri il controllo: il menu «⋮» qui in alto…"
+    open val controlloCorreggiTutti: String get() =
+        "Ecco l'elenco: ⚠ cosa sistemare, ? cosa controllare, 📏 i minimi delle norme per la casa. Molti problemi si sistemano da soli: " +
+            "«✓ Correggi tutti» corregge tutto un gruppo insieme (per esempio mette le porte che mancano) e un solo «${e.annulla}» lo disfa. Cliccalo."
+    open val controlloCorreggi: String get() =
+        "Ecco l'elenco: ⚠ cosa sistemare, ? cosa controllare, 📏 i minimi delle norme per la casa. Molti problemi si sistemano da soli: " +
+            "clicca «✓ ${T.controllo.correggi}» (con «${e.annulla}» si torna indietro)."
+    open val controlloChiudi: String get() =
+        "Fatto: l'elenco si aggiorna da solo. «${T.controllo.mostra}» porta al punto giusto e lo seleziona, «${T.controllo.condividi}» manda " +
+            "l'elenco a chi ti aiuta. Ora clicca «${T.controllo.chiudi}»."
+    open val controlloSegno: String get() =
+        "Il controllo lavora anche da solo, mentre disegni: il segnale in alto a sinistra sulla pianta dice quanti problemi ci sono (toccalo " +
+            "per riaprire l'elenco) e un «!» segna il punto di ognuno, rosso per gli errori, giallo per le cose da controllare, blu per le norme. Clicca questo «!»."
+    open val controlloTogli: String get() =
+        "La scheda dice cosa c'è in questo punto, con «✓ ${T.controllo.correggi}» (dove si può) e «${T.controllo.mostra}». Se per te va bene " +
+            "così, «${T.controllo.togliDallaPianta}» toglie il «!»: il problema resta nell'elenco e da lì si rimette. Clicca «${T.controllo.togliDallaPianta}»."
+    open val controlloSegnoDiNuovo: String get() = "Clicca un «!» sulla pianta: si apre la scheda di quel punto."
 
     // ---------- Sopra la tua planimetria ----------
 
@@ -333,6 +365,31 @@ open class TestiCorso {
     open val trasparenzaPiantina: String get() =
         "Qui regoli la piantina: trascinando il cursore diventa più chiara o più scura, con l'interruttore la nascondi. Sotto c'è " +
             "lo stesso per il disegno. Quando hai finito, chiudi il pannello con «${T.comuni.chiudi}». Prova: trascina il cursore della piantina."
+
+    // ---------- Il sole e la bussola (al primo tocco sulla bussola, sul progetto dell'utente) ----------
+
+    open fun intestazioneSola(nome: String): String = "Guida · $nome"
+    open val giraBussola: String get() =
+        "La bussola 🧭 dice dove è il nord rispetto alla tua pianta: serve solo a far entrare il sole dalla parte giusta nel 3D. " +
+            "Non sei obbligato a mettere tutte queste informazioni: puoi saltare ogni passo con «${e.saltaPasso}», o uscire. Se sai " +
+            "dov'è il nord, premi sulla bussola e trascinala in giro finché la N punta lì. La pianta non si gira mai."
+    open fun nordOra(gradi: Int): String = "Nord: $gradi°"
+    open val toccaBussola: String get() =
+        "Se vuoi, scegli anche la città della casa: decide quanto sale il sole e a che ora sorge e tramonta. Tocca la bussola, " +
+            "senza trascinarla. Anche questo è facoltativo: senza città vale Roma."
+    open val sceltaCitta: String get() =
+        "Qui puoi scrivere anche i gradi del nord. Per la città scrivila in «${T.vista3D.cercaCitta}» e cliccala nell'elenco. Poi " +
+            "clicca «${T.comuni.chiudi}». Se non ti interessa, chiudi e basta."
+    open val apriVista3d: String get() = "Per vedere il sole clicca «${e.vista3d}», qui in basso a destra. Se non ti serve, esci pure."
+    open val tornaAllaPianta: String get() = "La bussola è sulla pianta: clicca «${e.pianta2d}» per tornarci."
+    open val tornaAl3d: String get() = "Il sole si guarda nel 3D: clicca «${e.vista3d}»."
+    open val apriOra: String get() = "Il sole segue l'ora del giorno: clicca l'ora con il sole ☀, qui in basso a destra. Si apre il cursore dell'ora."
+    open val riapriOra: String get() = "Riapri il cursore dell'ora: clicca l'ora con il sole ☀, qui in basso a destra."
+    open val trascinaOra: String get() =
+        "Trascina il cursore: il sole si muove con l'ora e la luce entra dalle finestre. L'ora non resta nel progetto: serve solo per guardare."
+    open val apriGiorno: String get() = "Il sole cambia anche con le stagioni. Accanto al cursore clicca «📅»: di solito è oggi."
+    open val scegliGiorno: String get() =
+        "Scegli un giorno: d'inverno il sole è basso ed entra più in fondo nelle stanze, d'estate è alto. Anche il giorno serve solo per guardare."
 
     /** Muri del soggiorno disegnato: 0 in alto, poi in senso orario. */
     protected open fun nomeMuroSoggiorno(muro: Int): String = when (muro) {

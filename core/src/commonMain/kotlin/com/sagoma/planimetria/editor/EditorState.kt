@@ -5,7 +5,15 @@ import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.FloorPlan
 import com.sagoma.planimetria.model.LOrientation
 import com.sagoma.planimetria.model.FixtureKind
+import com.sagoma.planimetria.model.DoorModel
+import com.sagoma.planimetria.model.Finish
+import com.sagoma.planimetria.model.GarageDoor
+import com.sagoma.planimetria.model.Opening
 import com.sagoma.planimetria.model.OpeningKind
+import com.sagoma.planimetria.model.SashType
+import com.sagoma.planimetria.model.Shading
+import com.sagoma.planimetria.model.WindowModel
+import com.sagoma.planimetria.model.WindowShape
 import com.sagoma.planimetria.model.PassageStyle
 import com.sagoma.planimetria.model.RoomShape
 import com.sagoma.planimetria.model.RoomType
@@ -73,7 +81,56 @@ data class PendingOpening(
     val style: PassageStyle = PassageStyle.Square,
     /** Porte, finestre e balconi scorrevoli invece che a battente. */
     val sliding: Boolean = false,
+    /** Varianti scelte dal menu (porta a libro, vasistas, vetrata interna…): come cambiano l'apertura appena creata. */
+    val preset: OpeningPreset = OpeningPreset.None,
 )
+
+/** Varianti di porte e finestre offerte dal menu; dopo si cambiano tutte dalla scheda Info. */
+enum class OpeningPreset {
+    None, WallSlide, Folding, Frameless, UnequalLeaves, TiltTurn, Hopper, Fixed, InteriorGlazing, Armored, Pivot, Glazed, PivotSash, ThreeLeaves, FourLeaves, LiftSlide, ArchedWindow, RoundWindow,
+    Grille, TopLight, WoodWindow, RomanShutter, BayWindow, GarageUpAndOver, GarageSectional, GlassBlock, AllGlass;
+
+    fun apply(o: Opening): Opening = when (this) {
+        None -> o
+        WallSlide -> o.copy(sliding = true, slideOnWall = true)
+        Folding -> o.copy(folding = true)
+        Frameless -> o.copy(frameless = true, color = Finish.White)
+        UnequalLeaves -> o.copy(unequalLeaves = true, width = 120.0)
+        TiltTurn -> o.copy(sash = SashType.TiltTurn)
+        // Vasistas: piccola e alta, come nei bagni.
+        Hopper -> o.copy(sash = SashType.Hopper, width = 60.0, height = 60.0, sillHeight = 150.0)
+        Fixed -> o.copy(sash = SashType.Fixed)
+        // Vetrata interna tra due stanze: fissa, a riquadri neri, da sopra il piano di lavoro fino quasi al soffitto.
+        InteriorGlazing -> o.copy(sash = SashType.Fixed, windowModel = WindowModel.Loft, width = 180.0, height = 150.0, sillHeight = 90.0)
+        // Blindata: la porta d'ingresso, un po' più larga, antracite.
+        Armored -> o.copy(doorModel = DoorModel.Armored, entrance = true, width = 90.0, color = Finish.Anthracite)
+        // A bilico: grande, alta e filo muro, come di solito.
+        // Porta con sopraluce di 40 cm e vetro di fianco di 30: tutta l'apertura è più grande, l'anta resta 80 × 210.
+        Glazed -> o.copy(transom = 40.0, sidelight = 30.0, width = 110.0, height = 250.0)
+        ArchedWindow -> o.copy(windowShape = WindowShape.Arched, height = 160.0)
+        // Oblò: piccolo e fisso, il diametro è la larghezza.
+        RoundWindow -> o.copy(windowShape = WindowShape.Round, sash = SashType.Fixed, width = 60.0, height = 60.0, sillHeight = 130.0)
+        PivotSash -> o.copy(sash = SashType.Pivot, width = 100.0, height = 120.0)
+        ThreeLeaves -> o.copy(leafCount = 3, width = 180.0)
+        FourLeaves -> o.copy(leafCount = 4, width = 240.0)
+        // Alzante scorrevole: grande vetrata a profili sottili.
+        LiftSlide -> o.copy(sliding = true, liftSlide = true, width = 260.0, windowModel = WindowModel.Minimal)
+        Pivot -> o.copy(pivot = true, frameless = true, width = 100.0, height = 240.0, doorModel = DoorModel.Modern)
+        Grille -> o.copy(grille = true)
+        TopLight -> o.copy(topLight = true, height = 160.0)
+        WoodWindow -> o.copy(windowModel = WindowModel.Wood)
+        RomanShutter -> o.copy(shading = Shading.RomanShutter)
+        // Bovindo: largo, così il davanti resta una finestra vera; il davanzale basso fa da seduta.
+        BayWindow -> o.copy(bay = true, width = 180.0, height = 140.0, sillHeight = 50.0)
+        // Porte da garage: larghe e alte come di solito.
+        GarageUpAndOver -> o.copy(garage = GarageDoor.UpAndOver, width = 250.0, height = 210.0)
+        GarageSectional -> o.copy(garage = GarageDoor.Sectional, width = 250.0, height = 215.0)
+        // Vetromattone: 4 × 6 blocchi da 19 cm, alto da terra come nei bagni.
+        GlassBlock -> o.withWindowModel(WindowModel.GlassBlock).copy(width = 76.0, height = 114.0, sillHeight = 100.0)
+        // Porta tutto vetro: il telaio bianco, come di solito.
+        AllGlass -> o.copy(doorModel = DoorModel.AllGlass, color = Finish.White)
+    }
+}
 
 /** Passi del flusso di creazione stanza (§1). */
 /** Come l'utente crea la stanza (risposta a "Conosci le misure?"). */
@@ -213,7 +270,8 @@ sealed interface Clip {
 data class DimensionDraw(val first: Vec2? = null, val cursor: Vec2? = null)
 
 /** Richiesta di un nuovo piano (finestra "Aggiungi piano"), o di modifica di un piano esistente (`index`). */
-data class FloorDialog(val index: Int?)
+/** Finestra di un piano: `index` quello da modificare, null per uno nuovo (sopra, o sotto con `below`). */
+data class FloorDialog(val index: Int?, val below: Boolean = false)
 
 data class EditorUiState(
     /** Pianta del piano che si sta modificando. */
@@ -249,6 +307,8 @@ data class EditorUiState(
     val dismissedSketchBanners: Set<Long> = emptySet(),
     /** Trascinamento in corso sulla pianta: la vista non va ricentrata mentre il dito si muove. */
     val dragging: Boolean = false,
+    /** Pulsante «Distanze dai muri» nella scheda dell'oggetto: le distanze dell'oggetto selezionato dai muri, sulla pianta e scrivibili. */
+    val wallGaps: Boolean = false,
     /** Faretto a parete che si sta orientando con la maniglia 3D (null altrimenti). */
     val aimDrag: AimDrag? = null,
     val pendingOpening: PendingOpening? = null,

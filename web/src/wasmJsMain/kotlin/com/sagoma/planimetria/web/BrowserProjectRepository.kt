@@ -102,7 +102,7 @@ class BrowserProjectRepository(private val now: () -> Long) : ProjectRepository 
     override fun deleteFile(id: Long, name: String) = localStorage.removeItem(fileKey(id, name))
 
     /** Sul web per ora si esporta la sola casa (planimetria.json), che le altre versioni sanno importare. */
-    override fun export(id: Long): ByteArray? = localStorage.getItem(planKey(id))?.encodeToByteArray()
+    override fun export(id: Long): ByteArray? = localStorage.getItem(planKey(id))?.let(PlanJson::encodeForSharing)?.encodeToByteArray()
 
     /** Sul web per ora si importa un planimetria.json (i file .sagoma compressi arriveranno col cloud). */
     override fun import(bytes: ByteArray): ProjectInfo? {

@@ -10,9 +10,27 @@ import kotlin.math.roundToInt
 
 /** Pezzi di qualsiasi mobile generato (moduli della cucina o [ParametricFurniture]), oppure null se il modello è un file 3D. */
 object GeneratedGeometry {
-    fun parts(model: String, w: Double, d: Double, h: Double): List<Part>? =
-        com.sagoma.planimetria.model.KitchenModules.parse(model)?.let { KitchenGeometry.parts(it, w, d, h) }
-            ?: ParametricFurniture.parse(model)?.let { ParametricGeometry.parts(it, w, d, h) }
+    /**
+     * Misura (cm) oltre la quale un mobile generato non aggiunge più ante, ripiani e campate ma si allunga e basta: con una
+     * misura sbagliata (uno zero di troppo scritto nel pannello, un file rovinato) le ante diventavano centinaia di migliaia e
+     * il 3D finiva la memoria.
+     */
+    const val MAX_SIZE = 2000.0
+
+    fun parts(model: String, w: Double, d: Double, h: Double): List<Part>? {
+        val cw = if (w > MAX_SIZE) MAX_SIZE else w
+        val cd = if (d > MAX_SIZE) MAX_SIZE else d
+        val ch = if (h > MAX_SIZE) MAX_SIZE else h
+        val parts = com.sagoma.planimetria.model.KitchenModules.parse(model)?.let { KitchenGeometry.parts(it, cw, cd, ch) }
+            ?: ParametricFurniture.parse(model)?.let { ParametricGeometry.parts(it, cw, cd, ch) }
+            ?: return null
+        if (cw == w && cd == d && ch == h) return parts
+        // Pezzi attorno al centro (x e z) e dalla base (y): basta stirarli fino alla misura vera.
+        val sx = w / cw
+        val sy = h / ch
+        val sz = d / cd
+        return parts.map { it.copy(x0 = it.x0 * sx, x1 = it.x1 * sx, y0 = it.y0 * sy, y1 = it.y1 * sy, z0 = it.z0 * sz, z1 = it.z1 * sz) }
+    }
 }
 
 /**

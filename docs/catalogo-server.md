@@ -38,6 +38,28 @@ non si ricopiano. Lo strumento è `tools/remote/BuildRemoteCatalog.java` (anche 
 Prima, se il catalogo è stato rigenerato con `PackModels`, riapplicare le correzioni a mano:
 `java tools/furniture/ApplyCatalogFixes.java tools/furniture/catalog-fixes.tsv catalogo/src/main/assets/furniture/catalog.json`.
 
+## Materiali 2K e 4K (solo sul server)
+
+I materiali fotografici dell'app sono 1K (1024 px): bastano sul telefono e arrivano con l'app. Il 3D del computer usa
+quelli 2K, i render (quando ci saranno) quelli 4K: stanno solo sul server, l'app del telefono non li scarica mai.
+
+```
+gradlew :catalogo:preparaMaterialiHd                                (2K, ~1 GB in catalogo/hd/materials/2k)
+gradlew :catalogo:preparaMaterialiHd -Psagoma.materiali.lato=4096   (4K, per i render)
+```
+
+Lo strumento (`tools/furniture/PackMaterialsHd.java`) riscarica dalle fonti originali (ambientCG, Poly Haven: CC0) gli
+stessi materiali di `tools/furniture/materials.tsv` e li prepara come quelli 1K. Se si interrompe, rilanciato riprende.
+La cartella `catalogo/hd` non va nel repository (è in `.gitignore`).
+
+Poi `gradlew :catalogo:preparaCatalogoRemoto` mette nel catalogo anche `catalogo/hd` e riscrive `catalogo/materiali-hd.tsv`,
+l'elenco di quei file con impronta e dimensione: **questo va nel repository**, perché l'app (che i file HD non li ha) lo legge
+per portarsi dietro lo stesso manifest del server. Ogni volta che i file HD cambiano: nuova versione del catalogo e nuovo elenco.
+
+Sul computer il 3D chiede i 2K dei materiali della scena dopo tutto il resto e, finché non arrivano, usa gli 1K. Servono gli
+stessi indirizzi del catalogo dell'app (`sagoma.catalogo.manifest` e `sagoma.catalogo.blobs`): `gradlew :desktop:run` li
+passa al programma. Una scheda grafica troppo piena per un 2K fa tornare quel materiale all'1K.
+
 ## Pubblicare su Cloudflare R2
 
 Serve un account Cloudflare a nome di chi pubblica. Qualsiasi hosting di file statici con HTTPS va bene allo stesso modo.

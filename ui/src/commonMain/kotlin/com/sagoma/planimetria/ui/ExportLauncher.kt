@@ -27,6 +27,27 @@ fun rememberPngExporter(plan: FloorPlan, layers: com.sagoma.planimetria.model.La
     }
 }
 
+/**
+ * Restituisce l'azione "Esporta pianta DXF": il piano che si sta guardando (nello stato di fatto o di progetto, se è quella la
+ * vista), in centimetri, per AutoCAD e gli altri programmi CAD. Solo la planimetria: gli arredi non escono.
+ */
+@Composable
+fun rememberDxfExporter(state: com.sagoma.planimetria.editor.EditorUiState): () -> Unit {
+    val platform = LocalPlatform.current
+    return {
+        val view = state.phaseView
+        val plan = if (view == com.sagoma.planimetria.geometry.PhaseView.Compare) state.plan else com.sagoma.planimetria.geometry.Phases.view(state.plan, view)
+        if (plan.rooms.isEmpty() && plan.freeWalls.isEmpty()) platform.toast(T.vari.nonNienteEsportare)
+        else {
+            val dxf = com.sagoma.planimetria.dxf.PlanDxf.bytes(plan, state.levelHeight, state.building.layers.hidden)
+            val floor = if (state.building.floors.size > 1) "-" + fileNameOf(state.building.floor.name, "piano").replace(' ', '-') else ""
+            platform.saveFile("planimetria$floor-${isoDate(platform.now())}.dxf", "application/dxf", dxf) { ok ->
+                platform.toast(if (ok) T.vari.piantaEsportata else T.vari.esportazioneNonRiuscita)
+            }
+        }
+    }
+}
+
 /** Data AAAA-MM-GG (UTC) per i nomi dei file. */
 internal fun isoDate(epochMillis: Long): String {
     // Giorni dal 1/1/1970 → data del calendario gregoriano (algoritmo di H. Hinnant).

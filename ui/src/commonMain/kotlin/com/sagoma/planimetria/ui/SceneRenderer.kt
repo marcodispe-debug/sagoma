@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.geometry.Scene3D
 import com.sagoma.planimetria.geometry.SunAngles
@@ -38,6 +39,22 @@ interface SceneRenderer {
      * semplice di sempre). Solo i renderer avanzati le usano.
      */
     fun setDaylight(hour: Float, lamps: String, sun: SunAngles = SunPath.simple(hour)) {}
+    /** Luminosità di tutte le lampade della casa: 1 = quella normale (0,25…2). */
+    fun setLampBrightness(k: Float) {}
+    /**
+     * C'è un'immagine chiesta che il renderer non ha ancora cominciato (i renderer che disegnano a parte, fuori dal fotogramma
+     * dello schermo). Chi muove la telecamera aspetta che cominci: così ogni immagine fa un passo solo, pari al tempo passato
+     * (senza scatti), e intanto il renderer finisce quella di prima (nessun fotogramma perso ad aspettare).
+     */
+    val queued: Boolean get() = false
+    /** Sa fare la foto della vista in alta definizione ([renderPhoto])? Per ora solo il renderer del computer. */
+    val canRenderPhoto: Boolean get() = false
+    /**
+     * Foto della vista com'è adesso (stessa inquadratura, ora, luci e luminosità delle lampade, proporzioni della superficie)
+     * con il lato lungo di [longSide] pixel e la qualità dei render: materiali 4K dove sono già sul dispositivo, se no 2K, se
+     * no 1K. `onDone` arriva da un altro thread, con null se la foto non si può fare (o la scheda grafica non ce la fa).
+     */
+    fun renderPhoto(longSide: Int, onDone: (ImageBitmap?) -> Unit) = onDone(null)
     fun onPause() {}
     fun onResume() {}
     /** La superficie non serve più: libera la memoria della scheda grafica. */

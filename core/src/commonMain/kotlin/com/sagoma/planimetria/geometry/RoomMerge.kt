@@ -89,7 +89,12 @@ object RoomMerge {
         val slack = Openings.SHARED_WALL_TOLERANCE_CM * (a0.distanceTo(a1) + b0.distanceTo(b1)) + 1.0
         if (abs(Polygon.area(points) - expected) > slack) return null
 
-        val shell = Room(room.id, room.name, room.type, points, room.ceilingHeight)
+        // La stanza che resta tiene spessore dei muri, pavimento e pareti scelti.
+        val shell = Room(
+            room.id, room.name, room.type, points, room.ceilingHeight,
+            floorFinish = room.floorFinish, wallPaint = room.wallPaint, wallFinish = room.wallFinish,
+            floorMaterial = room.floorMaterial, floorLayout = room.floorLayout, wallThickness = room.wallThickness,
+        )
         val openings = (room.openings.mapNotNull { remap(room, it, shell) } + other.openings.mapNotNull { remap(other, it, shell) })
         val fixtures = listOf(room, other).flatMap { r ->
             r.fixtures.mapNotNull { f -> if (f.kind.mount == Mount.Ceiling) f else remap(r, f, shell) }
@@ -104,7 +109,19 @@ object RoomMerge {
         // Zone non calpestabili e foto di entrambe: le zone dell'altra stanza prendono numeri nuovi.
         val firstZoneId = (room.excludedZones.maxOfOrNull { it.id } ?: 0) + 1
         val zones = room.excludedZones + other.excludedZones.mapIndexed { k, z -> z.copy(id = firstZoneId + k) }
-        val merged = shell.copy(openings = openings, fixtures = fixtures, wallHeights = heights, excludedZones = zones, photos = room.photos + other.photos)
+        // Muri rimasti: spessore, spostamento verso fuori e finitura di quelli da cui vengono (filo interno fermo). Un muro nuovo
+        // fatto da muri di tutte e due le stanze li prende solo se sono uguali.
+        fun <T : Any> perWall(value: (Room, Int) -> T?, default: T?): Map<Int, T> = (0 until shell.wallCount).mapNotNull { k ->
+            val values = sourceWalls(listOf(room, other), shell.wallStart(k), shell.wallEnd(k)).map { (r, i) -> value(r, i) }.distinct()
+            values.singleOrNull()?.takeIf { it != default }?.let { k to it }
+        }.toMap()
+        val merged = shell.copy(
+            openings = openings, fixtures = fixtures, wallHeights = heights, excludedZones = zones, photos = room.photos + other.photos,
+            wallThicknesses = perWall({ r, i -> r.thicknessOf(i) }, shell.wallThickness),
+            wallOffsets = perWall({ r, i -> r.wallOffsets[i] ?: 0.0 }, 0.0),
+            wallPaints = perWall({ r, i -> r.wallPaints[i] ?: r.wallPaint.takeIf { r.id != room.id } }, null),
+            wallFinishes = perWall({ r, i -> r.wallFinishes[i] ?: r.wallFinish.takeIf { r.id != room.id } }, null),
+        )
         val newPlan = plan.copy(rooms = plan.rooms.filter { it.id != other.id }.map { if (it.id == room.id) merged else it })
         return MergeResult(
             newPlan,
@@ -226,6 +243,18 @@ object RoomMerge {
         val c = start + dir.normalized() * Openings.clampPosition(from.wallLength(f.wallIndex), f.length, f.position)
         val (k, pos) = locate(shell, c, dir) ?: return null
         return f.copy(wallIndex = k, position = pos)
+    }
+
+    /** Muri delle stanze `rooms` allineati con il muro nuovo a→b e a contatto con lui per un tratto. */
+    private fun sourceWalls(rooms: List<Room>, a: Vec2, b: Vec2): List<Pair<Room, Int>> = rooms.flatMap { r ->
+        (0 until r.wallCount).filter { i -> Dimensions.overlap(a, b, r.wallStart(i), r.wallEnd(i)) >= ON_WALL_CM && sameLine(a, b, r.wallStart(i), r.wallEnd(i)) }
+            .map { r to it }
+    }
+
+    /** I due muri stanno sulla stessa linea (non solo vicini e paralleli come due muri in comune). */
+    private fun sameLine(a: Vec2, b: Vec2, c: Vec2, d: Vec2): Boolean {
+        val v = (d - c).normalized()
+        return abs((a - c) dot v.perp()) < ON_WALL_CM && abs((b - c) dot v.perp()) < ON_WALL_CM
     }
 
     /** Altezza personalizzata del muro di `from` su cui cade il punto `mid` (del muro nuovo), se c'è. */

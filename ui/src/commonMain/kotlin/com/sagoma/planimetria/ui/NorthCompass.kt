@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.geometry.CalendarDay
 import com.sagoma.planimetria.model.HouseSite
 import com.sagoma.planimetria.model.Place
@@ -199,7 +200,7 @@ fun HouseSiteDialog(site: HouseSite, onNorth: (Double) -> Unit, onPlace: (Place?
                 }
                 TextButton(onClick = { onNorth(0.0); degrees = "0" }) { Text(T.vista3D.nordInAlto) }
                 Spacer(Modifier.height(4.dp))
-                Text(T.vista3D.cittaScelta(site.place?.name ?: T.vista3D.nessunaCitta), style = MaterialTheme.typography.titleSmall)
+                Text(T.vista3D.cittaScelta(site.place?.let { Places.displayName(it, T.lingua.codice) } ?: T.vista3D.nessunaCitta), style = MaterialTheme.typography.titleSmall)
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -207,16 +208,16 @@ fun HouseSiteDialog(site: HouseSite, onNorth: (Double) -> Unit, onPlace: (Place?
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                val found = remember(query) { Places.search(query) }
+                val found = remember(query, T.lingua.codice) { Places.search(query, T.lingua.codice) }
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
                     if (query.isBlank()) item {
                         PlaceRow(T.vista3D.nessunaCitta, site.place == null) { onPlace(null) }
                     }
-                    items(found) { p -> PlaceRow(p.name, site.place?.name == p.name) { onPlace(p) } }
+                    items(found) { p -> PlaceRow(Places.displayName(p, T.lingua.codice), site.place?.name == p.name) { onPlace(p) } }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(T.comuni.chiudi) } },
+        confirmButton = { TextButton(onClick = onDismiss, modifier = Modifier.guide(GuideTarget.CloseSite)) { Text(T.comuni.chiudi) } },
     )
 }
 
@@ -253,11 +254,12 @@ fun SunDayButton(view: View3DState, compact: Boolean = false) {
         OutlinedButton(
             onClick = { open = true },
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = if (compact) 4.dp else 12.dp),
+            modifier = Modifier.guide(GuideTarget.SunDay, done = open),
         ) { Text(if (compact) "📅" else "📅 $label", maxLines = 1) }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             for ((name, d) in days) DropdownMenuItem(
                 text = { Text(if (d == view.day) "✓ $name" else name) },
-                onClick = { open = false; view.day = d; view.refresh() },
+                onClick = { open = false; view.day = d; view.refresh(); view.onSunDay(d) },
             )
         }
     }

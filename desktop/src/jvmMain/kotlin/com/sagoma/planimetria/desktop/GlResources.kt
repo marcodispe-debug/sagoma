@@ -1,6 +1,7 @@
 package com.sagoma.planimetria.desktop
 
 import com.sagoma.planimetria.assets.AssetPaths
+import com.sagoma.planimetria.assets.MaterialResolution
 import com.sagoma.planimetria.ui.GltfModel
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
@@ -29,8 +30,42 @@ internal class GlResources(private val readAsset: (String) -> ByteArray?) {
         runCatching { upload(Image.makeFromEncoded(data), maxSide) }.getOrElse { 0 }
     }
 
-    /** Texture di un materiale fotografico (`kind`: color, normal, orm). */
-    fun material(id: String, kind: String): Int = texture("mat:$id:$kind", { readAsset(AssetPaths.materialMap(id, kind)) })
+    /**
+     * Texture di un materiale fotografico (`kind`: color, normal, orm) nella definizione `resolution` se c'è già (dal server
+     * arriva dopo), altrimenti la più definita sotto di lei che c'è (per i render 4K: il 2K), altrimenti quella 1K dell'app.
+     * Quando arriva una più definita, l'1K si toglie dalla scheda grafica.
+     */
+    fun material(id: String, kind: String, resolution: MaterialResolution = MaterialResolution.K1): Int {
+        val low = "mat:$id:$kind"
+        for (r in MaterialResolution.entries.reversed()) {
+            if (r == MaterialResolution.K1 || r.side > resolution.side) continue
+            val t = texture("$low:${r.side}", { readAsset(AssetPaths.materialMap(id, kind, r)) }, maxSide = r.side)
+            if (t != 0) {
+                textures.remove(low)?.let { if (it != 0) glDeleteTextures(it) }
+                return t
+            }
+        }
+        return texture(low, { readAsset(AssetPaths.materialMap(id, kind)) })
+    }
+
+    /**
+     * Toglie dalla scheda grafica le mappe del materiale `id` in definizione `resolution` (anche quelle che mancavano, così si
+     * riprovano). Le foto 4K le usano un materiale alla volta: tre mappe 4K pesano quasi 300 MB.
+     */
+    fun dropMaterial(id: String, resolution: MaterialResolution) {
+        val prefix = "mat:$id:"
+        val suffix = ":${resolution.side}"
+        textures.keys.filter { it.startsWith(prefix) && it.endsWith(suffix) }.forEach { k -> textures.remove(k)?.let { if (it != 0) glDeleteTextures(it) } }
+    }
+
+    /**
+     * Si riprova quello che mancava (file non ancora arrivati dal server): lo chiama il renderer a ogni scena nuova, che la vista
+     * 3D manda anche quando arrivano i file. Tra una scena e l'altra un file mancante non si rilegge a ogni fotogramma.
+     */
+    fun retryMissing() {
+        textures.values.removeAll { it == 0 }
+        models.values.removeAll { it == null }
+    }
 
     private fun upload(src: Image, maxSide: Int): Int {
         val k = minOf(1f, maxSide.toFloat() / max(src.width, src.height))
@@ -48,7 +83,13 @@ internal class GlResources(private val readAsset: (String) -> ByteArray?) {
         val buf = BufferUtils.createByteBuffer(px.size).put(px).flip()
         val t = glGenTextures()
         glBindTexture(GL_TEXTURE_2D, t)
+        for (i in 0 until 8) if (glGetError() == GL_NO_ERROR) break // errori vecchi, per leggere solo quello di questo caricamento
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, buf)
+        // Scheda grafica piena (materiali 2K su una scheda piccola): niente texture, chi la chiede usa quella meno definita.
+        if (glGetError() == GL_OUT_OF_MEMORY) {
+            glDeleteTextures(t)
+            return 0
+        }
         glGenerateMipmap(GL_TEXTURE_2D)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)

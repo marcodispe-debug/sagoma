@@ -8,11 +8,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -55,7 +58,7 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
     fun export(p: ProjectInfo) {
         val bytes = runCatching { store.export(p.id) }.getOrNull()
         if (bytes == null) { platform.toast(T.progetti.esportazioneNonRiuscita); return }
-        val name = p.name.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifEmpty { "progetto" }
+        val name = fileNameOf(p.name, "progetto")
         platform.saveFile("$name.sagoma", "application/octet-stream", bytes) { ok ->
             platform.toast(if (ok) T.progetti.progettoEsportato else T.progetti.esportazioneNonRiuscita)
         }
@@ -68,6 +71,7 @@ fun ProjectsScreen(onOpen: (Long) -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ScrittaSagoma(Modifier.height(32.dp))
         Text(T.progetti.progetti, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         // Su più righe se non ci stanno (telefono stretto, testi più lunghi in altre lingue).
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -157,7 +161,8 @@ fun ProjectInfoDialog(initial: ProjectInfo, title: String, onDismiss: () -> Unit
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Scorre: col telefono in orizzontale l'ultimo campo (Progettista) restava tagliato.
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SelectAllTextField(value = name, onValueChange = { name = it }, label = T.progetti.nomeProgetto, modifier = Modifier.fillMaxWidth())
                 SelectAllTextField(value = client, onValueChange = { client = it }, label = T.progetti.cliente, modifier = Modifier.fillMaxWidth())
                 SelectAllTextField(value = address, onValueChange = { address = it }, label = T.progetti.indirizzo, modifier = Modifier.fillMaxWidth())

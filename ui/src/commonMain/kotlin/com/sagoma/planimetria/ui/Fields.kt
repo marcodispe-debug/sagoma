@@ -62,7 +62,7 @@ fun SelectAllTextField(
             tfv = it
             if (it.text != value) onValueChange(it.text)
         },
-        label = { Text(label) },
+        label = { FitText(label) },
         singleLine = true,
         isError = isError,
         suffix = suffix?.let { { Text(it) } },
@@ -92,5 +92,11 @@ fun InteriorMeasuresNotice(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Converte il testo di un campo numerico (accetta la virgola e gli spazi prima e dopo) in un numero, o null. Solo numeri
+ * veri: «NaN», «Infinity» o «1e999» (che la conversione di Kotlin accetta) porterebbero misure infinite nel progetto.
+ */
+fun parseNumber(text: String): Double? = text.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }
+
 /** Converte il testo di un campo numerico (accetta la virgola) in un valore positivo, o null. */
-fun parsePositive(text: String): Double? = text.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
+fun parsePositive(text: String): Double? = parseNumber(text)?.takeIf { it > 0 }

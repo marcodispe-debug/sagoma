@@ -1,7 +1,9 @@
 package com.sagoma.planimetria.desktop
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
@@ -10,10 +12,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.LocalWindowExceptionHandlerFactory
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowDecoration
 import androidx.compose.ui.window.WindowExceptionHandler
 import androidx.compose.ui.window.WindowExceptionHandlerFactory
 import androidx.compose.ui.window.application
@@ -29,7 +33,9 @@ import com.sagoma.planimetria.persistence.FileTipStore
 import com.sagoma.planimetria.reading.HttpPlanReader
 import com.sagoma.planimetria.testi.T
 import com.sagoma.planimetria.ui.FurnitureAssets
+import com.sagoma.planimetria.ui.Marchio
 import com.sagoma.planimetria.ui.SagomaApp
+import com.sagoma.planimetria.ui.toastMillis
 import kotlinx.coroutines.delay
 import java.io.File
 import java.io.PrintWriter
@@ -72,8 +78,8 @@ private fun logError(where: String, e: Throwable) {
     }
 }
 
-/** Spazio massimo della cache dei blob remoti sul computer (valore di partenza, da tarare). */
-private const val REMOTE_CACHE_BYTES = 1024L * 1024 * 1024
+/** Spazio massimo della cache dei blob remoti sul computer: i materiali 2K pesano ~4 volte quelli 1K (valore da tarare). */
+private const val REMOTE_CACHE_BYTES = 3L * 1024 * 1024 * 1024
 
 /**
  * Il sistema remoto degli asset, uno per processo: si crea qui, una volta, e si passa a chi lo usa. Solo se si indicano gli indirizzi
@@ -132,13 +138,25 @@ private fun app(remote: RemoteAssets?) = application(exitProcessOnExit = false) 
         }
     }
     CompositionLocalProvider(LocalWindowExceptionHandlerFactory provides onWindowError) {
-        Window(onCloseRequest = ::exitApplication, title = "Sagoma", state = rememberWindowState(size = DpSize(1400.dp, 900.dp))) {
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "Sagoma",
+            icon = rememberVectorPainter(Marchio.icona),
+            state = rememberWindowState(size = DpSize(1400.dp, 900.dp)),
+            // Senza la barra di Windows: al suo posto [BarraFinestra], scura con la scritta del marchio. I bordi restano trascinabili.
+            decoration = WindowDecoration.Undecorated(),
+            // Tasti che nessun elemento ha usato (la tastiera era rimasta su niente): all'editor, così WASD non si blocca.
+            onKeyEvent = { platform.unhandledKeys?.invoke(it) == true },
+        ) {
             platform.frame = window
-            Box(Modifier.fillMaxSize()) {
-                SagomaApp(platform)
-                platform.message?.let { msg ->
-                    LaunchedEffect(msg) { delay(2500); platform.message = null }
-                    Snackbar(Modifier.align(Alignment.BottomCenter).padding(24.dp)) { Text(msg) }
+            Column(Modifier.fillMaxSize()) {
+                BarraFinestra(onClose = ::exitApplication)
+                Box(Modifier.fillMaxWidth().weight(1f)) {
+                    SagomaApp(platform)
+                    platform.message?.let { msg ->
+                        LaunchedEffect(msg) { delay(toastMillis(msg)); platform.message = null }
+                        Snackbar(Modifier.align(Alignment.BottomCenter).padding(24.dp)) { Text(msg) }
+                    }
                 }
             }
         }

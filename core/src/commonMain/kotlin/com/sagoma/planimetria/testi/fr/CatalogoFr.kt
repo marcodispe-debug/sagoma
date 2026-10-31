@@ -990,5 +990,197 @@ Velluto blu|Velours bleu
 Velluto salvia|Velours sauge
 Vimini intrecciato|Osier tressé
 Wengè|Wengé
+Moquette grigia a quadretti|Moquette grise à petits carrés
+Moquette petrolio a riquadri|Moquette bleu pétrole à carrés
+Moquette sabbia a riquadri|Moquette sable à carrés
+Cemento liscio|Béton lisse
+Cemento a vista con fori|Béton apparent avec trous
+Cemento a riquadri|Béton à carrés
+Microcemento grigio|Béton ciré gris
+Microcemento perla|Béton ciré perle
+Microcemento antracite|Béton ciré anthracite
+Resina grigia|Résine grise
+Cemento a casseri|Béton banché
+Resina verde muschio|Résine vert mousse
+Resina sabbia|Résine sable
+Pannelli in cemento a righe|Panneaux de béton rainurés
+Sughero fine|Liège fin
+Sughero a granuli|Liège aggloméré
+Granito rosa|Granit rose
+Granito bianco sardo|Granit blanc de Sardaigne
+Granito grigio rosato|Granit gris rosé
+Granito bruno|Granit brun
+Granito lilla|Granit lilas
+Granito rosso|Granit rouge
+Granito giallo|Granit jaune
+Marmo bianco perla|Marbre blanc perle
+Marmo nero assoluto|Marbre noir absolu
+Marmo avorio|Marbre ivoire
+Marmo rosa|Marbre rose
+Marmo Emperador scuro|Marbre Emperador foncé
+Granito blu Labrador|Granit bleu Labrador
+Marmo crema Marfil|Marbre Crema Marfil
+Marmo nero Portoro|Marbre noir Portor
+Marmo Botticino|Marbre Botticino
+Marmo rosso Alicante|Marbre rouge Alicante
+Marmo bianco Thassos|Marbre blanc Thassos
+Pietra di Trani|Pierre de Trani
+Onice grigio|Onyx gris
+Onice arancio|Onyx orange
+Onice avorio|Onyx ivoire
+Onice multicolore|Onyx multicolore
+Onice nero venato|Onyx noir veiné
+Intonaco rosso|Enduit rouge
+Intonaco blu|Enduit bleu
+Intonaco verde|Enduit vert
+Intonaco giallo|Enduit jaune
+Intonaco verde salvia|Enduit vert sauge
+Intonaco grigio chiaro|Enduit gris clair
+Stucco a spatola|Stuc à la spatule
+Stucco veneziano grigio|Stuc vénitien gris
+Graniglia bianca e blu|Granito blanc et bleu
+Terrazzo antracite|Terrazzo anthracite
+Terrazzo bianco e grigio|Terrazzo blanc et gris
+Terrazzo avorio|Terrazzo ivoire
+Terrazzo azzurro multicolore|Terrazzo bleu clair multicolore
+Terrazzo sabbia|Terrazzo sable
+Terrazzo grigio multicolore|Terrazzo gris multicolore
+Terrazzo verde|Terrazzo vert
+Graniglia fine bianca|Granito blanc fin
+Terrazzo beige|Granito beige
+Piastrelle tortora 30×30|Carrelage taupe 30×30
+Gres bianco opaco|Grès blanc mat
+Mosaico di vetro azzurro|Mosaïque de verre bleu clair
+Mosaico a bottoni pastello|Mosaïque ronde pastel
+Mattoncini rosa|Carreaux métro roses
+Mattoncini in marmo avorio|Briquettes en marbre ivoire
+Scacchiera marmo beige|Damier en marbre beige
+Scacchiera marmo bianco e nero grande|Grand damier en marbre noir et blanc
+Scacchiera marmo grigio scuro|Damier en marbre gris foncé
+Mosaico di vetro blu|Mosaïque de verre bleue
+Piastrelle a griglia verde scuro|Carrelage quadrillé vert foncé
+Mosaico verde petrolio|Mosaïque vert pétrole
+Mosaico verde salvia|Mosaïque vert sauge
+Cotto arancio 20×20|Terre cuite orange 20×20
+Gres pesca grande formato|Grès pêche grand format
+Mattoncini petrolio lucidi|Carreaux métro bleu pétrole brillants
+Mattoncini blu polvere|Carreaux métro bleu poudré
+Mattoncini verde smeraldo|Carreaux métro vert émeraude
+Mattoncini gialli|Carreaux métro jaunes
+Zellige verde|Zellige vert
+Piastrelle bianche 10×10 lucide|Carrelage blanc brillant 10×10
+Mattoncini rossi lucidi|Carreaux métro rouges brillants
+Lastre di cemento|Dalles de béton
+Graniglia arancio|Granito orange
+Graniglia verde|Granito vert
+Graniglia bianca|Granito blanc
+Graniglia blu|Granito bleu
+Marmo azzurro a correre|Marbre bleu clair à joints décalés
+Pietra beige a formati misti|Pierre beige formats mixtes
+Pietra grigia a formati misti|Pierre grise formats mixtes
+Mosaico di ardesia|Mosaïque d'ardoise
+Mosaico verde marmorizzato|Mosaïque verte marbrée
+Marmo bianco con tozzetti neri|Marbre blanc avec cabochons noirs
+Marmo nero e bianco sfalsato|Marbre noir et blanc décalé
+Marmo nero con tozzetti bianchi|Marbre noir avec cabochons blancs
+Losanghe verde, nero e grigio|Losanges vert, noir et gris
+Esagonette cotto e beige a righe|Tomettes terre cuite et beige à rayures
+Esagonette cotto e beige|Tomettes terre cuite et beige
+Esagonette in cotto|Tomettes en terre cuite
+Esagonette azzurre e bianche|Hexagones bleu clair et blancs
+Esagonette celesti e petrolio|Hexagones bleu ciel et pétrole
+Esagonette in pietra nera|Hexagones en pierre noire
+Piastrelle prugna 10×10|Carrelage prune 10×10
+Marmo a onde verde e crema|Marbre à vagues vert et crème
+Marmo a rombi verde e crema|Marbre à losanges vert et crème
+Marmo a zig-zag verde e crema|Marbre en zigzag vert et crème
+Lastricato in pietra vecchia|Dallage en vieille pierre
+Pietra lavica a opus|Pierre de lave en opus
+Cotto antico a quadri|Terre cuite ancienne carrée
+Cotto a correre|Terre cuite à joints décalés
+Azulejos blu fitti|Azulejos bleus serrés
+Maioliche blu intense|Majoliques bleu intense
+Maioliche a decori blu|Majoliques à décors bleus
+Maioliche a stelle blu|Majoliques à étoiles bleues
+Maioliche bianche con angoli blu|Majoliques blanches à coins bleus
+Piastrelle nere lucide|Carrelage noir brillant
+Pietra graniglia beige|Pierre granito beige
+Cotto in diagonale con fascia|Terre cuite en diagonale avec frise
+Bianco in diagonale con fascia blu|Blanc en diagonale avec frise bleue
+Giallo in diagonale con fascia|Jaune en diagonale avec frise
+Nero in diagonale con fascia bianca|Noir en diagonale avec frise blanche
+Lastre di pietra a spacco|Dalles de pierre clivée
+Mosaico a bottoni azzurro|Mosaïque ronde bleu clair
+Mosaico a bottoni bianco e verde|Mosaïque ronde blanche et verte
+Mosaico a bottoni tortora|Mosaïque ronde taupe
+Mosaico a bottoni bianco e blu|Mosaïque ronde blanche et bleue
+Mosaico a bottoni ocra|Mosaïque ronde ocre
+Mosaico a bottoni grigio|Mosaïque ronde grise
+Mosaico a bottoni rosa e bordeaux|Mosaïque ronde rose et bordeaux
+Mosaico a bottoni bianco|Mosaïque ronde blanche
+Mosaico a bottoni nero|Mosaïque ronde noire
+Piastrelle bianche 10×10 opache|Carrelage blanc mat 10×10
+Piastrelle blu notte|Carrelage bleu nuit
+Mattoncini arancio|Carreaux métro orange
+Travertino venato|Travertin veiné
+Travertino tortora|Travertin taupe
+Travertino oro|Travertin doré
+Travertino silver|Travertin silver
+Travertino giallo|Travertin jaune
+Quarzite grigia|Quartzite grise
+Listoni grigio sbiancato|Lames gris blanchi
+Listoni mogano|Lames acajou
+Listoni rovere fumé|Lames chêne fumé
+Listoni frassino|Lames frêne
+Listoni noce scuro|Lames noyer foncé
+Listoncini a correre|Lamelles à joints décalés
+Listoni rovere sbiancato|Lames chêne blanchi
+Listoni wengè|Lames wengé
+Spina di pesce faggio|Point de Hongrie hêtre
+Spina di pesce mogano|Point de Hongrie acajou
+Spina di pesce noce|Point de Hongrie noyer
+Spina di pesce sbiancata|Point de Hongrie blanchi
+Spina di pesce scura|Point de Hongrie foncé
+Parquet a cesto chiaro|Parquet en vannerie clair
+Parquet a cesto bicolore|Parquet en vannerie bicolore
+Parquet a cesto ciliegio|Parquet en vannerie merisier
+Parquet a gradini bicolore|Parquet en escalier bicolore
+Parquet intarsiato chiaro|Parquet marqueté clair
+Parquet intarsiato scuro|Parquet marqueté foncé
+Parquet a dama|Parquet en damier
+Parquet a cesto wengè|Parquet en vannerie wengé
+Parquet a cesto acero|Parquet en vannerie érable
+Industriale scuro|Parquet industriel foncé
+Parquet a cesto sbiancato|Parquet en vannerie blanchi
+Spina di pesce vecchia grigia|Point de Hongrie vieux gris
+Spina di pesce larice|Point de Hongrie mélèze
+Industriale miele|Parquet industriel miel
+Industriale chiaro|Parquet industriel clair
+Industriale rovere|Parquet industriel chêne
+Parquet Versailles|Parquet de Versailles
+Listoni noce lunghi|Longues lames noyer
+Spina ungherese chiara|Point de Hongrie à 45° clair
+Parquet a intarsio con cornice|Parquet marqueté avec cadre
+Listoncini rovere vissuto|Lamelles chêne vieilli
+Spina di pesce in marmo fiammato|Chevrons en marbre flammé
+Mattoni a spina di pesce|Briques en chevrons
+Laminato miele|Stratifié miel
+Laminato pino|Stratifié pin
+Linoleum nocciola|Linoléum noisette
+Listelli bianchi verticali|Baguettes blanches verticales
+Cementine con scaglie di marmo|Carreaux de ciment à éclats de marbre
+Linoleum a ottagoni|Linoléum à octogones
+Cemento verniciato|Béton peint
+Cotto con tozzetti neri|Terre cuite avec cabochons noirs
+Parquet a mosaico rustico|Parquet mosaïque rustique
+Assi di pino nodose|Planches de pin noueux
+Piastre in gomma nera|Dalles en caoutchouc noir
+Ardesia a opus|Ardoise en opus
+Mosaico di pietra a disegni|Mosaïque de pierre à motifs
+Cotto rosso|Terre cuite rouge
+Stucco bianco|Stuc blanc
+Tavolato rovere|Plancher chêne
+Tavolato di pino vissuto|Plancher pin vieilli
+Assi grezze|Planches brutes
 """
 }

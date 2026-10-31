@@ -18,7 +18,7 @@ object AutoNames {
     fun floor(name: String, lingua: Lingua = T.lingua): String {
         for (altra in Lingue.tutte) {
             if (altra === lingua) continue
-            for (i in 0..MAX_FLOORS) if (name == Building.floorName(i, altra)) return Building.floorName(i, lingua)
+            for (i in -MAX_FLOORS..MAX_FLOORS) if (name == Building.floorName(i, altra)) return Building.floorName(i, lingua)
         }
         val key = normalize(name)
         if (lingua.piani.pianiComuni.any { normalize(it) == key }) return name

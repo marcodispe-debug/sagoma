@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
@@ -41,8 +43,10 @@ import com.sagoma.planimetria.access.Rights
 import com.sagoma.planimetria.editor.Camera
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.geometry.Openings
+import com.sagoma.planimetria.geometry.PhaseView
+import com.sagoma.planimetria.geometry.HousingRules
 import com.sagoma.planimetria.geometry.Takeoff
-import com.sagoma.planimetria.geometry.exterior
+import com.sagoma.planimetria.geometry.expandCurves
 import com.sagoma.planimetria.model.Building
 import com.sagoma.planimetria.model.Floor
 import com.sagoma.planimetria.model.FloorPlan
@@ -67,18 +71,18 @@ object PdfExport {
     /** Punti di pagina per cm reale alla scala 1:[denominator]. */
     fun ptPerCm(denominator: Int) = 10.0 / denominator / 0.352778
 
-    private const val MARGIN = 28f        // cornice (≈ 1 cm)
+    internal const val MARGIN = 28f        // cornice (≈ 1 cm)
     private const val BLOCK_W = 250f      // cartiglio
-    private const val BLOCK_H = 96f
-    private const val DIM_SPACE = 44f     // spazio per le quote esterne attorno alla pianta
+    internal const val BLOCK_H = 96f
+    private const val DIM_SPACE = 56f     // spazio per le quote esterne attorno alla pianta (le due file di [ChainLayout], oltre il filo dei muri)
     /** Punti per dp nei disegni della pianta: testi e tratti un po' più fini che sullo schermo. */
     val drawDensity = Density(0.62f, 1f)
 
     /** [watermark]: marchio del piano gratuito su ogni foglio (lo decide chi esporta, con [com.sagoma.planimetria.access.Rights]). */
-    data class Options(val paper: Paper, val scale: Int?, val allFloors: Boolean, val takeoff: Boolean, val watermark: Boolean = false)
+    data class Options(val paper: Paper, val scale: Int?, val allFloors: Boolean, val takeoff: Boolean, val watermark: Boolean = false, val withoutZones: Boolean = true)
 
     /** Riquadro utile per la pianta nella pagina (sopra al cartiglio). */
-    private fun drawArea(p: Paper) = floatArrayOf(MARGIN + DIM_SPACE, MARGIN + DIM_SPACE, p.w - MARGIN - 12f, p.h - MARGIN - BLOCK_H - 16f)
+    private fun drawArea(p: Paper) = floatArrayOf(MARGIN + DIM_SPACE, MARGIN + DIM_SPACE, p.w - MARGIN - DIM_SPACE, p.h - MARGIN - BLOCK_H - DIM_SPACE)
 
     /** La scala più grande tra quelle normali in cui la pianta ci sta. */
     fun autoScale(plan: FloorPlan, paper: Paper): Int {
@@ -90,18 +94,18 @@ object PdfExport {
     /** Pagine della tavola: una per piano e, a scelta, il computo. */
     fun pages(building: Building, info: ProjectInfo?, o: Options, measurer: TextMeasurer, date: String): List<PdfPage> {
         val floors = if (o.allFloors) building.floors.filter { it.plan.rooms.isNotEmpty() || it.plan.furniture.isNotEmpty() } else listOf(building.floor)
-        val sheets = floors.size + if (o.takeoff) 1 else 0
+        val takeoff = if (o.takeoff) takeoffSheets(Takeoff.of(building, o.withoutZones), o.paper) else emptyList()
+        val sheets = floors.size + takeoff.size
         val result = floors.mapIndexed { i, fl ->
             PdfPage(o.paper.w, o.paper.h) {
                 drawPlanSheet(fl, info, o, measurer, i + 1, sheets, date, building.layers)
-                if (o.watermark) with(Watermark) { drawWatermark(measurer, Watermark.exportLetterPx(size.width, size.height)) }
+                if (o.watermark) with(Watermark) { drawWatermark(Watermark.exportLetterPx(size.width, size.height)) }
             }
         }.toMutableList()
-        if (o.takeoff) {
-            val res = Takeoff.of(building)
+        takeoff.forEachIndexed { k, lines ->
             result += PdfPage(o.paper.w, o.paper.h) {
-                drawTakeoffSheet(res, info, o.paper, sheets, measurer, date)
-                if (o.watermark) with(Watermark) { drawWatermark(measurer, Watermark.exportLetterPx(size.width, size.height)) }
+                drawTakeoffSheet(lines, info, o.paper, floors.size + k + 1, sheets, measurer, date)
+                if (o.watermark) with(Watermark) { drawWatermark(Watermark.exportLetterPx(size.width, size.height)) }
             }
         }
         return result
@@ -130,17 +134,20 @@ object PdfExport {
             drawPlan(state, measurer, background = Color.White)
             // Solo i livelli visibili (es. tavola senza arredi per il Comune).
             if (shown(com.sagoma.planimetria.model.Layer.Structure)) for (s in plan.stairs) drawStair(s, fl.levelHeight, cam, measurer, selected = false)
-            if (shown(com.sagoma.planimetria.model.Layer.Furniture)) drawFurniture(plan.furniture, cam, null)
+            if (shown(com.sagoma.planimetria.model.Layer.Furniture)) drawFurniture(plan.furniture, cam, null, plan.supplied)
             if (shown(com.sagoma.planimetria.model.Layer.Structure)) drawStructures(plan, cam, measurer)
             val pad = 8.dp.toPx()
             val labels = measureRoomLabels(plan, measurer) { true }
-            if (shown(com.sagoma.planimetria.model.Layer.WallLengths)) drawWallDimensions(plan, cam, measurer, avoid = labels.map { it.rect(cam, pad) })
+            val outside = com.sagoma.planimetria.geometry.ExteriorChains.of(plan)
+            if (shown(com.sagoma.planimetria.model.Layer.WallLengths)) {
+                drawWallDimensions(plan, cam, measurer, avoid = labels.map { it.rect(cam, pad) }, skip = { id, i -> (id to i) in outside.covered })
+            }
             drawWallCuts(state)
             drawRoomLabels(labels, cam, pad) { true }
             if (shown(com.sagoma.planimetria.model.Layer.Fixtures)) drawAllFixtures(state)
             if (shown(com.sagoma.planimetria.model.Layer.WallLengths)) {
-                drawOpeningSizes(plan, cam, measurer)
-                drawOverallDimensions(plan, cam, measurer)
+                drawOpeningSizes(plan.expandCurves().plan, outside, cam, measurer, Color.White)
+                drawExteriorChains(outside, cam, measurer)
             }
             // Quote manuali e testi del disegno.
             drawNotes(
@@ -155,83 +162,6 @@ object PdfExport {
 
     // ---------------------------------------------------------------------------------------------------
     // Quote
-
-    private val DimColor = Color(0xFF1D3557)
-
-    /** Larghezza × altezza (e davanzale) di ogni porta e finestra, vicino all'apertura, verso l'interno. */
-    private fun DrawScope.drawOpeningSizes(plan: FloorPlan, cam: Camera, measurer: TextMeasurer) {
-        val style = TextStyle(fontSize = 9.sp, color = Color(0xFF6C4A1E))
-        for (r in plan.rooms) for (o in r.openings) {
-            val (p0, p1) = Openings.span(r, o)
-            val n = Openings.inwardNormal(r, o.wallIndex)
-            val mid = (p0 + p1) / 2.0 + n * (r.thicknessOf(o.wallIndex) / 2 + 14 / cam.scale)
-            val txt = "${formatCmShort(o.width)}×${formatCmShort(o.height)}" + if (o.kind.hasSill && o.sillHeight > 0) " h${formatCmShort(o.sillHeight)}" else ""
-            val t = measurer.measure(txt, style)
-            val at = Offset(cam.toScreenX(mid.x), cam.toScreenY(mid.y))
-            drawRect(Color.White.copy(alpha = 0.85f), at - Offset(t.size.width / 2f + 1, t.size.height / 2f), Size(t.size.width + 2f, t.size.height.toFloat()))
-            drawText(t, topLeft = at - Offset(t.size.width / 2f, t.size.height / 2f))
-        }
-    }
-
-    /**
-     * Quote esterne: sopra e a sinistra della pianta, una catena progressiva tra gli spigoli esterni dei
-     * muri e, più fuori, la misura totale.
-     */
-    private fun DrawScope.drawOverallDimensions(plan: FloorPlan, cam: Camera, measurer: TextMeasurer) {
-        val pts = plan.rooms.flatMap { it.exterior() }
-        if (pts.isEmpty()) return
-        val minX = pts.minOf { it.x }; val maxX = pts.maxOf { it.x }
-        val minY = pts.minOf { it.y }; val maxY = pts.maxOf { it.y }
-        val xs = stops(pts.map { it.x })
-        val ys = stops(pts.map { it.y })
-        val gap1 = 16.dp.toPx()
-        val gap2 = 30.dp.toPx()
-        val top = cam.toScreenY(minY)
-        dimChain(xs.map { cam.toScreenX(it) }, xs, top - gap1, horizontal = true, measurer)
-        dimChain(listOf(cam.toScreenX(minX), cam.toScreenX(maxX)), listOf(minX, maxX), top - gap2, horizontal = true, measurer)
-        val left = cam.toScreenX(minX)
-        dimChain(ys.map { cam.toScreenY(it) }, ys, left - gap1, horizontal = false, measurer)
-        dimChain(listOf(cam.toScreenY(minY), cam.toScreenY(maxY)), listOf(minY, maxY), left - gap2, horizontal = false, measurer)
-    }
-
-    /** Coordinate distinte (tolleranza 2 cm) in ordine. */
-    private fun stops(v: List<Double>): List<Double> {
-        val out = mutableListOf<Double>()
-        for (x in v.sorted()) if (out.isEmpty() || x - out.last() > 2.0) out += x
-        return out
-    }
-
-    /** Linea di quota con trattini obliqui agli estremi e la misura di ogni tratto. */
-    private fun DrawScope.dimChain(screen: List<Float>, world: List<Double>, at: Float, horizontal: Boolean, measurer: TextMeasurer) {
-        if (screen.size < 2) return
-        val stroke = 0.6.dp.toPx()
-        val tick = 4.dp.toPx()
-        val style = TextStyle(fontSize = 11.sp, color = DimColor)
-        fun p(s: Float) = if (horizontal) Offset(s, at) else Offset(at, s)
-        drawLine(DimColor, p(screen.first()), p(screen.last()), strokeWidth = stroke)
-        for (s in screen) {
-            val c = p(s)
-            drawLine(DimColor, c + Offset(-tick / 2, tick / 2), c + Offset(tick / 2, -tick / 2), strokeWidth = stroke * 1.6f)
-            // Linea di richiamo verso la pianta
-            val ext = if (horizontal) Offset(0f, 6.dp.toPx()) else Offset(6.dp.toPx(), 0f)
-            drawLine(DimColor.copy(alpha = 0.5f), c - ext / 3f, c + ext, strokeWidth = stroke * 0.7f)
-        }
-        for (i in 0 until screen.size - 1) {
-            val len = world[i + 1] - world[i]
-            val t = measurer.measure(if (com.sagoma.planimetria.model.PlanUnits.unit == com.sagoma.planimetria.model.LengthUnit.Meters) com.sagoma.planimetria.model.PlanUnits.format(len) else formatCmShort(len), style)
-            val mid = (screen[i] + screen[i + 1]) / 2
-            if (abs(screen[i + 1] - screen[i]) < t.size.width * 0.8f) continue // troppo corto per scriverci
-            if (horizontal) {
-                drawText(t, topLeft = Offset(mid - t.size.width / 2f, at - t.size.height - 1f))
-            } else {
-                rotate(-90f, pivot = Offset(at, mid)) {
-                    drawText(t, topLeft = Offset(at - t.size.width / 2f, mid - t.size.height - 1f))
-                }
-            }
-        }
-    }
-
-    private fun formatCmShort(cm: Double): String = cm.roundToInt().toString()
 
     // ---------------------------------------------------------------------------------------------------
     // Cornice, cartiglio, scala grafica. Misure in punti della pagina.
@@ -317,43 +247,88 @@ object PdfExport {
     // ---------------------------------------------------------------------------------------------------
     // Foglio del computo
 
-    private fun DrawScope.drawTakeoffSheet(res: Takeoff.Result, info: ProjectInfo?, p: Paper, sheet: Int, m: TextMeasurer, date: String) {
-        drawRect(Color.White)
-        drawFrame(p)
-        drawTitleBlock(p, info, T.pdf.computoArredi, "—", sheet, sheet, m, date)
+    /** Una riga del computo nella tavola: un titolo o una riga di tabella, già messa al suo posto nel foglio. */
+    internal class TakeoffLine(val x: Float, val y: Float, val cells: List<String>, val widths: List<Float>, val bold: Boolean, val right: Set<Int>, val title: Boolean)
+
+    /**
+     * Righe del computo divise in fogli, due colonne per foglio. Con tante stanze, arredi e impianti la seconda colonna
+     * si riempiva e le righe scendevano sopra il cartiglio e fuori dal foglio: ora continuano in un foglio nuovo.
+     */
+    internal fun takeoffSheets(res: Takeoff.Result, p: Paper): List<List<TakeoffLine>> {
         val left = MARGIN + 14
         val maxY = p.h - MARGIN - BLOCK_H - 10
-        var y = MARGIN + 22
-        var colX = left
+        val top = MARGIN + 22
         val colW = (p.w - 2 * MARGIN - 28) / 2
+        val sheets = mutableListOf(mutableListOf<TakeoffLine>())
+        var y = top
+        var colX = left
         fun nl(h: Float = 11f) {
             y += h
-            if (y > maxY && colX == left) { colX = left + colW + 14; y = MARGIN + 22 }
+            if (y <= maxY) return
+            y = top
+            if (colX == left) colX = left + colW + 14
+            else { colX = left; sheets += mutableListOf<TakeoffLine>() }
         }
         fun row(cells: List<String>, widths: List<Float>, bold: Boolean = false, right: Set<Int> = emptySet()) {
-            var x = colX
-            cells.forEachIndexed { i, s ->
-                if (i in right) text(m, s, x + widths[i] - 6, y, 7.5f, bold = bold, maxWidth = widths[i] - 6, right = true)
-                else text(m, s, x, y, 7.5f, bold = bold, maxWidth = widths[i] - 6)
-                x += widths[i]
-            }
+            sheets.last() += TakeoffLine(colX, y, cells, widths, bold, right, title = false)
             nl()
         }
-        fun title(s: String) { nl(6f); text(m, s, colX, y, 10f, bold = true); nl(14f) }
+        fun title(s: String) {
+            nl(6f)
+            // Un titolo non resta da solo in fondo alla colonna: va in cima alla prossima con la sua tabella.
+            if (y + 14f + 11f > maxY) nl(maxY)
+            sheets.last() += TakeoffLine(colX, y, listOf(s), emptyList(), bold = true, right = emptySet(), title = true)
+            nl(14f)
+        }
         val w = listOf(colW * 0.30f, colW * 0.13f, colW * 0.15f, colW * 0.14f, colW * 0.28f)
         val multi = res.rooms.map { it.floor }.distinct().size > 1
         val nums = setOf(1, 2, 3)
-        title(T.pdf.stanze)
+        // Con demolizioni o parti nuove il computo è quello dello stato di progetto, anche in una tavola dello stato di fatto.
+        title(if (res.phased) "${T.pdf.stanze} · ${PhaseView.Project.title}" else T.pdf.stanze)
         row(listOf(T.pdf.stanza, T.pdf.pavM2, T.pdf.paretiM2, T.pdf.battiscM, T.pdf.pavimento), w, bold = true, right = nums)
         for (l in res.rooms) row(listOf(if (multi) "${l.room} (${l.floor})" else l.room, fmt2(l.floorArea), fmt2(l.wallArea), fmt2(l.skirting), l.floorFinish), w, right = nums)
         row(listOf(T.pdf.totale, fmt2(res.totalFloor), fmt2(res.totalWalls), fmt2(res.totalSkirting), ""), w, bold = true, right = nums)
         val w2 = listOf(colW * 0.55f, colW * 0.2f, colW * 0.25f)
         val nums2 = setOf(1, 2)
+        if (res.works.isNotEmpty()) {
+            title(T.computo.opere)
+            val w4 = listOf(colW * 0.55f, colW * 0.11f, colW * 0.17f, colW * 0.17f)
+            val nums3 = setOf(1, 2, 3)
+            row(listOf(T.computo.voce, T.computo.numero, "m²", "m³"), w4, bold = true, right = nums3)
+            val lines = if (res.works.size > 1) res.works + Takeoff.WorksLine(T.pdf.totale, res.totalWorks) else res.works
+            for (l in lines) {
+                if (lines.size > 1) row(listOf(l.floor), listOf(colW), bold = true)
+                for (i in Takeoff.worksItems(l.works)) row(listOf(i.label, i.count?.toString() ?: "", fmt2(i.m2), fmt2(i.m3)), w4, right = nums3)
+            }
+            row(listOf(T.computo.notaOperePdf), listOf(colW))
+        }
+        if (res.areas.isNotEmpty()) {
+            title(T.computo.superfici)
+            row(listOf(T.computo.piano, T.computo.utileM2, T.computo.lordaM2, T.computo.balconiM2, ""), w, bold = true, right = nums)
+            for (a in res.areas) row(listOf(a.floor, fmt2(a.usable), fmt2(a.gross), fmt2(a.outdoor), ""), w, right = nums)
+            row(listOf(T.computo.commerciale, fmt2(res.commercial), ""), w2, bold = true, right = nums2)
+            row(listOf(T.computo.notaSuperficiPdf), listOf(colW))
+        }
         title(T.pdf.pavimenti)
         row(listOf(T.pdf.materiale, "m²", T.pdf.n10Sfrido), w2, bold = true, right = nums2)
         for (t in res.floorMaterials) row(listOf(t.what, fmt2(t.quantity), fmt2(t.quantity * 1.1)), w2, right = nums2)
         title(T.pdf.paretiNettoAperture)
         for (t in res.wallFinishes) row(listOf(t.what, fmt2(t.quantity), ""), w2, right = nums2)
+        if (res.ceilings > 0) row(listOf(T.computo.soffitti, fmt2(res.ceilings), ""), w2, right = nums2)
+        if (res.openings.isNotEmpty()) {
+            title(T.pdf.porteFinestre)
+            val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.20f, colW * 0.32f)
+            // Sotto il nome, l'aspetto (modello, colore, oscuranti, accessori) su tutta la riga.
+            for (i in res.openings) {
+                row(listOf("${i.count}×", i.name, i.size, i.where), w3, right = setOf(2))
+                if (i.details.isNotEmpty()) row(listOf("", i.details), listOf(w3[0], colW - w3[0]))
+            }
+        }
+        if (res.sills.isNotEmpty()) {
+            title(T.pdf.davanzaliSoglie)
+            val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.24f, colW * 0.28f)
+            for (i in res.sills) row(listOf("${i.count}×", i.name, i.size, i.where), w3, right = setOf(2))
+        }
         if (res.furniture.isNotEmpty()) {
             title(T.pdf.arredi)
             val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.24f, colW * 0.28f)
@@ -363,6 +338,30 @@ object PdfExport {
             title(T.pdf.impianti)
             val w3 = listOf(colW * 0.08f, colW * 0.40f, colW * 0.52f)
             for (i in res.fixtures) row(listOf("${i.count}×", i.name, i.where), w3)
+        }
+        if (res.light.isNotEmpty()) {
+            title(T.computo.luceAria)
+            row(listOf(T.pdf.stanza, T.pdf.pavM2, T.computo.finM2, T.computo.rapporto, T.computo.almeno(res.norms)), w, bold = true, right = nums)
+            for (l in res.light) {
+                row(listOf(if (multi) "${l.rooms} (${l.floor})" else l.rooms, fmt2(l.floorArea), fmt2(l.windowArea), HousingRules.fraction(l.ratio), if (l.enough) T.computo.si else T.computo.no), w, right = nums)
+            }
+            row(listOf(T.computo.notaLucePdf(res.norms)), listOf(colW))
+        }
+        return sheets.filter { it.isNotEmpty() }
+    }
+
+    private fun DrawScope.drawTakeoffSheet(lines: List<TakeoffLine>, info: ProjectInfo?, p: Paper, sheet: Int, sheets: Int, m: TextMeasurer, date: String) {
+        drawRect(Color.White)
+        drawFrame(p)
+        drawTitleBlock(p, info, T.pdf.computoArredi, "—", sheet, sheets, m, date)
+        for (l in lines) {
+            if (l.title) { text(m, l.cells[0], l.x, l.y, 10f, bold = true); continue }
+            var x = l.x
+            l.cells.forEachIndexed { i, s ->
+                if (i in l.right) text(m, s, x + l.widths[i] - 6, l.y, 7.5f, bold = l.bold, maxWidth = l.widths[i] - 6, right = true)
+                else text(m, s, x, l.y, 7.5f, bold = l.bold, maxWidth = l.widths[i] - 6)
+                x += l.widths[i]
+            }
         }
     }
 }
@@ -383,14 +382,14 @@ fun PdfExportDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> U
     fun save() {
         val rooms = (if (allFloors) state.fullBuilding.floors.map { it.plan } else listOf(state.plan)).flatMap { p -> p.rooms.map { it.id } }
         val watermark = !Rights.cleanOutput(platform.account, OutputFormat.Plan, rooms)
-        val opts = PdfExport.Options(paper, scale, allFloors, takeoff, watermark)
+        val opts = PdfExport.Options(paper, scale, allFloors, takeoff, watermark, TakeoffChoice.withoutZones)
         val pages = PdfExport.pages(state.fullBuilding, info, opts, measurer, platform.formatDate(platform.now()))
         val pdf = runCatching { platform.createPdf(pages, PdfExport.drawDensity) }.onFailure { it.printStackTrace() }.getOrNull()
         if (pdf == null) {
             platform.toast(T.pdf.tavolaPdfNonDisponibile)
             return
         }
-        val name = (info?.name ?: "planimetria").replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifEmpty { "planimetria" }
+        val name = fileNameOf(info?.name ?: "", "planimetria")
         platform.saveFile("$name.pdf", "application/pdf", pdf) { ok ->
             platform.toast(if (!ok) T.pdf.esportazioneNonRiuscita else if (watermark) T.pdf.tavolaPdfSalvataMarchio else T.pdf.tavolaPdfSalvata)
             if (ok) onDismiss()
@@ -401,7 +400,7 @@ fun PdfExportDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> U
         onDismissRequest = onDismiss,
         title = { Text(T.pdf.tavolaPdfScala) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(T.pdf.foglioOrizzontale, style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (p in PdfExport.Paper.entries) FilterChip(selected = paper == p, onClick = { paper = p }, label = { Text(p.label) })
@@ -425,6 +424,7 @@ fun PdfExportDialog(state: EditorUiState, info: ProjectInfo?, onDismiss: () -> U
                     Checkbox(checked = takeoff, onCheckedChange = { takeoff = it })
                     Text(T.pdf.aggiungiFoglioComputo)
                 }
+                if (takeoff) ExcludedZonesChoice(state.fullBuilding)
                 Text(
                     T.pdf.cartiglioUsaNomeCliente,
                     style = MaterialTheme.typography.bodySmall,

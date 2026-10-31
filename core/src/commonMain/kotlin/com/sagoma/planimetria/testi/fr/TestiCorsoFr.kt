@@ -15,6 +15,8 @@ object TestiCorsoFr : TestiCorso() {
     override fun lezione(l: Lesson): String = when (l) {
         Lesson.LShape -> "Forme en L"
         Lesson.Elements -> "Portes, fenêtres et le reste"
+        Lesson.Check -> "Vérifier le plan"
+        Lesson.Sun -> "Le soleil et la boussole"
         Lesson.OverPlan -> "Sur votre plan"
         else -> super.lezione(l)
     }
@@ -28,12 +30,13 @@ object TestiCorsoFr : TestiCorso() {
         CourseStep.Finished -> "Vous avez fini le guide !"
         CourseStep.Snap -> "Déplacer les pièces et l'aimant 🧲"
         CourseStep.InnerFace -> "Le côté intérieur des murs"
+        CourseStep.SunDone -> "Le soleil de votre logement"
         else -> "C'est fait !"
     }
 
     override fun testoScheda(s: CourseStep): String = when (s) {
         CourseStep.Welcome ->
-            "Je vous guide pas à pas pour dessiner le logement de ce plan inventé, en ${Lesson.entries.size} courtes leçons : une pièce à la fois, chacune " +
+            "Je vous guide pas à pas pour dessiner le logement de ce plan inventé, en ${Lesson.entries.count { it.inCourse }} courtes leçons : une pièce à la fois, chacune " +
                 "à sa place comme sur le dessin. C'est vous qui faites les actions : à chaque étape un cadre orange vous montre où " +
                 "cliquer. C'est un projet juste pour s'entraîner : vos projets ne sont pas touchés."
         CourseStep.SquareDone ->
@@ -63,12 +66,21 @@ object TestiCorsoFr : TestiCorso() {
                 "balcon, équipements et escaliers."
         CourseStep.ElementsDone ->
             "Dans « $infoTab » vous changez les mesures, le type et tout le reste de l'élément sélectionné ; il se ferme avec « ▼ ». Pour chaque élément : " +
-                "vous le choisissez dans « ${e.elementiArchitettonici} », vous le placez sur le plan, et le reste depuis « $infoTab ». Dernière leçon : " +
-                "construire les pièces sur votre plan. Il faut un nouveau projet : je le prépare."
+                "vous le choisissez dans « ${e.elementiArchitettonici} », vous le placez sur le plan, et le reste depuis « $infoTab ». " +
+                "Prochaine leçon : la vérification du plan, qui trouve toute seule les erreurs de dessin et en corrige beaucoup."
+        CourseStep.CheckDone ->
+            "Vous savez maintenant utiliser la vérification du plan : la liste complète depuis le menu « ⋮ », « ✓ ${T.controllo.correggi} » et " +
+                "« ✓ Tout corriger » qui règlent tout seuls (« ${e.annulla} » revient en arrière), les « ! » sur le plan pour voir ce qu'il y a à un endroit " +
+                "et « ${T.controllo.togliDallaPianta} » pour ceux qui vous vont comme ça (ils se remettent depuis la liste). Avant d'exporter, Sagoma vous " +
+                "prévient s'il reste des erreurs de dessin. Dernière leçon : construire les pièces sur votre plan. Il faut un nouveau projet : je le prépare."
         CourseStep.Finished ->
             "Voici la chambre, la salle de bains et le séjour sur le plan, avec les bonnes mesures. Faites de même avec les autres pièces : une " +
                 "forme pour commencer, accolée aux pièces voisines, puis murs et angles à leur place et les mesures exactes dans « $infoTab ». " +
                 "Vous pouvez maintenant dessiner votre logement ! Le guide se refait quand vous voulez depuis « ${e.guide} »."
+        CourseStep.SunDone ->
+            "C'est fait. Le nord et la ville restent dans le projet et vous les changez quand vous voulez depuis la boussole ou le " +
+                "menu ⋮ ; le jour et l'heure servent seulement à regarder. Rien de tout cela n'est obligatoire : ce que vous ne " +
+                "mettez pas reste comme avant (nord en haut, Rome, aujourd'hui)."
         CourseStep.InnerFace ->
             "Avant de déplacer la chambre, une chose importante. Sagoma mesure les pièces depuis le côté intérieur des murs, comme les " +
                 "cotes écrites sur le plan : l'épaisseur du mur va vers l'extérieur. Quand vous placez une pièce sur le plan, faites " +
@@ -84,7 +96,7 @@ object TestiCorsoFr : TestiCorso() {
     override val nienteDaIndicare: String get() = "Faites l'action de cette étape, ou cliquez sur « ${e.saltaPasso} »."
     override val tornaIndietro: String get() = "Ce n'est pas la forme de cette étape : cliquez sur « ${T.comuni.indietro} » et choisissez la bonne."
     override val vaiAllaLezione: String get() = "Ou allez à la leçon :"
-    override val voceMenu: String get() = "Guide interactif (${Lesson.entries.size} leçons)"
+    override val voceMenu: String get() = "Guide interactif (${Lesson.entries.count { it.inCourse }} leçons)"
     override val progettoProva: String get() = "Essai du guide"
     override val progettoProvaPlanimetria: String get() = "Essai du guide · plan"
     override val usaPiantina: String get() = "🧭 Utiliser le plan du guide"
@@ -223,6 +235,7 @@ object TestiCorsoFr : TestiCorso() {
     override val luciElementi: String get() = "Les luminaires, eux, vont à l'intérieur de la pièce. « ${e.elementiArchitettonici} »…"
     override val luci: String get() = "…« ${e.luci} »…"
     override val lampadario: String get() = "…par exemple « ${FixtureKind.Chandelier.label} »."
+    override val luceSemplice: String get() = "…et ici « ${T.arredi.puntoLuceSemplice} » : il se place en cliquant dans la pièce."
     override val cliccaStanzaLuce: String get() = "Cliquez dans la pièce, là où va la lumière : par exemple ici."
     override val cliccaStudio: String get() = "Pour finir, l'escalier. Cliquez d'abord dans la pièce où il va, par exemple le bureau, ici."
     override val scalaElementi: String get() = "Puis « ${e.elementiArchitettonici} »…"
@@ -231,7 +244,25 @@ object TestiCorsoFr : TestiCorso() {
     override val info: String get() =
         "L'escalier est sélectionné. Pour toutes les autres modifications cliquez sur « $infoTab » : c'est pareil pour chaque élément, portes, fenêtres, balcons, équipements et escaliers."
 
-
+    override val controlloMenu: String get() = "Une aide à utiliser souvent : la vérification du plan, qui cherche les erreurs de dessin qui passent souvent inaperçues. Cliquez sur le menu « ⋮ » ici en haut."
+    override val controlloVoce: String get() = "…et « ${T.controllo.voceMenu} »."
+    override val controlloRiapri: String get() = "Rouvrez la vérification : le menu « ⋮ » ici en haut…"
+    override val controlloCorreggiTutti: String get() =
+        "Voici la liste : ⚠ ce qu'il faut corriger, ? ce qu'il faut vérifier, 📏 les minimums des normes du logement. Beaucoup de problèmes " +
+            "se règlent tout seuls : « ✓ Tout corriger » corrige tout un groupe d'un coup (par exemple il ajoute les portes qui manquent) et un seul « ${e.annulla} » l'annule. Cliquez dessus."
+    override val controlloCorreggi: String get() =
+        "Voici la liste : ⚠ ce qu'il faut corriger, ? ce qu'il faut vérifier, 📏 les minimums des normes du logement. Beaucoup de problèmes " +
+            "se règlent tout seuls : cliquez sur « ✓ ${T.controllo.correggi} » (« ${e.annulla} » revient en arrière)."
+    override val controlloChiudi: String get() =
+        "C'est fait : la liste se met à jour toute seule. « ${T.controllo.mostra} » amène au bon endroit et le sélectionne, « ${T.controllo.condividi} » " +
+            "envoie la liste à qui vous aide. Cliquez maintenant sur « ${T.controllo.chiudi} »."
+    override val controlloSegno: String get() =
+        "La vérification travaille aussi toute seule pendant que vous dessinez : le signal en haut à gauche du plan indique combien de problèmes " +
+            "il y a (touchez-le pour rouvrir la liste) et un « ! » marque l'endroit de chacun : rouge pour les erreurs, jaune pour ce qu'il faut vérifier, bleu pour les normes. Cliquez sur ce « ! »."
+    override val controlloTogli: String get() =
+        "La fiche dit ce qu'il y a à cet endroit, avec « ✓ ${T.controllo.correggi} » (quand c'est possible) et « ${T.controllo.mostra} ». Si cela vous " +
+            "va comme ça, « ${T.controllo.togliDallaPianta} » enlève le « ! » : le problème reste dans la liste et se remet depuis là. Cliquez sur « ${T.controllo.togliDallaPianta} »."
+    override val controlloSegnoDiNuovo: String get() = "Cliquez sur un « ! » du plan : la fiche de cet endroit s'ouvre."
     override val ricalca: String get() =
         "Vous avez déjà un plan, du cadastre, du projet ou même une simple photo ? Au choix de la première pièce d'un projet cliquez sur « ${cr.ricalcaPiantina} »."
     override val usaPiantinaGuida: String get() =
@@ -285,6 +316,30 @@ object TestiCorsoFr : TestiCorso() {
     override val trasparenzaPiantina: String get() =
         "Ici vous réglez le plan : en faisant glisser le curseur il devient plus clair ou plus foncé, l'interrupteur le cache. En " +
             "dessous, la même chose pour le dessin. Quand vous avez fini, fermez le panneau avec « ${T.comuni.chiudi} ». Essayez : faites glisser le curseur du plan."
+
+    override fun intestazioneSola(nome: String): String = "Guide · $nome"
+    override val giraBussola: String get() =
+        "La boussole 🧭 indique où est le nord par rapport à votre plan : elle sert seulement à faire entrer le soleil du bon côté " +
+            "en 3D. Vous n'êtes pas obligé de mettre toutes ces informations : vous pouvez passer chaque étape avec " +
+            "« ${e.saltaPasso} », ou quitter. Si vous savez où est le nord, appuyez sur la boussole et faites-la tourner jusqu'à " +
+            "ce que le N pointe dans cette direction. Le plan ne tourne jamais."
+    override fun nordOra(gradi: Int): String = "Nord : $gradi°"
+    override val toccaBussola: String get() =
+        "Si vous voulez, choisissez aussi la ville du logement : elle décide jusqu'où monte le soleil et à quelle heure il se lève " +
+            "et se couche. Touchez la boussole, sans la faire glisser. C'est facultatif aussi : sans ville c'est Rome."
+    override val sceltaCitta: String get() =
+        "Ici vous pouvez aussi écrire les degrés du nord. Pour la ville, écrivez-la dans « ${T.vista3D.cercaCitta} » et cliquez " +
+            "dessus dans la liste. Puis cliquez sur « ${T.comuni.chiudi} ». Si cela ne vous intéresse pas, fermez simplement."
+    override val apriVista3d: String get() = "Pour voir le soleil, cliquez sur « ${e.vista3d} », ici en bas à droite. Si vous n'en avez pas besoin, quittez."
+    override val tornaAllaPianta: String get() = "La boussole est sur le plan : cliquez sur « ${e.pianta2d} » pour y revenir."
+    override val tornaAl3d: String get() = "Le soleil se regarde en 3D : cliquez sur « ${e.vista3d} »."
+    override val apriOra: String get() = "Le soleil suit l'heure du jour : cliquez sur l'heure avec le soleil ☀, ici en bas à droite. Le curseur de l'heure s'ouvre."
+    override val riapriOra: String get() = "Rouvrez le curseur de l'heure : cliquez sur l'heure avec le soleil ☀, ici en bas à droite."
+    override val trascinaOra: String get() =
+        "Faites glisser le curseur : le soleil bouge avec l'heure et la lumière entre par les fenêtres. L'heure n'est pas enregistrée dans le projet : elle sert seulement à regarder."
+    override val apriGiorno: String get() = "Le soleil change aussi avec les saisons. À côté du curseur, cliquez sur « 📅 » : d'habitude c'est aujourd'hui."
+    override val scegliGiorno: String get() =
+        "Choisissez un jour : en hiver le soleil est bas et entre plus loin dans les pièces, en été il est haut. Le jour sert lui aussi seulement à regarder."
 
     override fun nomeMuroSoggiorno(muro: Int): String = when (muro) {
         0 -> "du haut"

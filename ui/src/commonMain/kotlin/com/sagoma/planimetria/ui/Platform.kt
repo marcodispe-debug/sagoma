@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.Density
 import com.sagoma.planimetria.access.Account
 import com.sagoma.planimetria.assets.AssetRequests
 import com.sagoma.planimetria.assets.AssetStore
+import com.sagoma.planimetria.assets.MaterialResolution
 import com.sagoma.planimetria.assets.NoAssetRequests
 import com.sagoma.planimetria.editor.TipStore
 import com.sagoma.planimetria.persistence.LanguageStore
@@ -60,6 +61,22 @@ interface Platform {
 
     /** Guida interattiva (le lezioni sul progetto di prova): pensata per mouse e schermo largo, c'è solo sul computer. */
     val interactiveGuide: Boolean get() = false
+
+    /**
+     * Tasti che nessun elemento dell'app ha usato: la finestra del computer li passa qui, l'editor li prende lo stesso. Serve
+     * quando la tastiera è rimasta su niente o fuori dall'editor (pulsante sparito, menu chiuso, Invio nel nome di una
+     * stanza): senza, WASD, frecce e scorciatoie non andavano più finché non si toccava la pianta. Dove la finestra non
+     * li passa (telefono, browser) resta senza effetto.
+     */
+    var unhandledKeys: ((androidx.compose.ui.input.key.KeyEvent) -> Boolean)?
+        get() = null
+        set(_) {}
+
+    /** Joystick sullo schermo per muoversi nel 3D: serve dove non ci sono tastiera e mouse; sul computer non c'è (WASD, frecce, mouse). */
+    val walkJoystick: Boolean get() = true
+
+    /** Definizione dei materiali nel 3D: 1K sul telefono (quelli dell'app), 2K sul computer (dal server, finché mancano l'1K). */
+    val materialResolution: MaterialResolution get() = MaterialResolution.K1
 
     /** Messaggio breve in basso. */
     fun toast(message: String)
@@ -175,6 +192,12 @@ data class SketchScanOutcome(
     val positionOverrides: Map<Long, Double>,
     val widthOverrides: Map<Long, Double> = emptyMap(),
 )
+
+/**
+ * Quanto resta un messaggio breve ([Platform.toast]) dove lo mostra l'app (computer, web), in ms: 2,5 secondi, di più per quelli
+ * lunghi da leggere (come «Corretti 3 problemi (aggiunto: …)»), al massimo 8.
+ */
+fun toastMillis(message: String): Long = (2500L + 50L * (message.length - 60).coerceAtLeast(0)).coerceAtMost(8000L)
 
 /** Tipo MIME che accetta qualsiasi file. */
 const val ANY_FILE = "*" + "/" + "*"

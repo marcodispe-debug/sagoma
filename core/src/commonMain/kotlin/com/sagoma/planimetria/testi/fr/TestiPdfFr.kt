@@ -4,6 +4,7 @@ import com.sagoma.planimetria.testi.TestiPdf
 
 object TestiPdfFr : TestiPdf() {
     override fun pianta(p1: Any?): String = "Plan, $p1"
+    override val livelliDxf: List<String> get() = listOf("MURS", "MURS_REMPLISSAGE", "PORTES_FENETRES", "BATTANTS", "PIECES", "TEXTES", "ESCALIERS", "POTEAUX", "GARDE_CORPS", "LONGUEURS_MURS", "COTES", "NOTES")
     override val progetto: String get() = "PROJET"
     override val progetto2: String get() = "Projet"
     override val cliente: String get() = "CLIENT"
@@ -30,6 +31,8 @@ object TestiPdfFr : TestiPdf() {
     override val paretiNettoAperture: String get() = "Murs (hors ouvertures)"
     override val arredi: String get() = "Mobilier"
     override val impianti: String get() = "Équipements"
+    override val porteFinestre: String get() = "Portes et fenêtres"
+    override val davanzaliSoglie: String get() = "Appuis et seuils"
     override val tavolaPdfNonDisponibile: String get() = "Planche PDF non disponible sur cette plateforme"
     override val esportazioneNonRiuscita: String get() = "Échec de l'export"
     override val tavolaPdfSalvataMarchio: String get() = "Planche PDF enregistrée avec le filigrane Sagoma"

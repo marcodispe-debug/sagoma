@@ -69,7 +69,7 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
             properties = props,
             title = { Text(if (sketchMode) com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.sketchShapeTitle else T.creazione.scegliFormaStanza) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (sketchMode) Text(com.sagoma.planimetria.ui.sketch.LocalSketchScanText.current.approximateMeasuresHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         ShapeOption(T.creazione.quadrato, RoomFactory.rectangle(10.0, 10.0), Modifier.weight(1f).guide(GuideTarget.Shape(ShapeChoice.Square))) {
@@ -167,7 +167,7 @@ fun CreationFlow(step: CreationStep, vm: EditorViewModel, onOpenProjects: (() ->
             properties = props,
             title = { Text(T.creazione.doveSporgeStanza) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     LOrientation.entries.chunked(2).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             row.forEach { o -> ShapeOption(o.label, lIcon(o), Modifier.weight(1f).guide(GuideTarget.LSide(o))) { vm.pickLOrientation(o) } }
@@ -303,13 +303,17 @@ private fun ShapeOption(label: String, points: List<Vec2>, modifier: Modifier = 
         Column(Modifier.padding(horizontal = 2.dp, vertical = 10.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             ShapeIcon(points, Modifier.size(48.dp))
             Spacer(Modifier.height(6.dp))
+            // Se non ci sta (spagnolo «Arriba a la izquierda», caratteri grandi) si rimpicciolisce un po' invece di uscire dalla scheda.
+            val style = MaterialTheme.typography.bodySmall
+            var scale by remember(label) { mutableStateOf(1f) }
             Text(
                 label,
-                style = MaterialTheme.typography.bodySmall,
+                style = style.copy(fontSize = style.fontSize * scale),
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 softWrap = false,
                 overflow = TextOverflow.Visible,
+                onTextLayout = { if (it.didOverflowWidth && scale > 0.75f) scale -= 0.05f },
             )
         }
     }

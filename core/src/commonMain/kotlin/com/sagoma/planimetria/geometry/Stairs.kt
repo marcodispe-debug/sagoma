@@ -216,38 +216,22 @@ object Stairs {
 
     /**
      * Spostamento di una scala trascinata: se un lato del suo ingombro arriva vicino alla faccia interna o
-     * esterna di un muro dritto (orizzontale o verticale), ci si accosta.
+     * esterna di un muro dritto (orizzontale o verticale), ci si accosta. Le facce sono quelle vere: con lo spessore
+     * del muro (prima sempre 15 cm: con un muro da 30 la scala finiva 7,5 cm dentro il muro), spostato di lato o
+     * singolo, come per colonne e travi ([Structure.wallSnap]).
      */
-    fun snapped(plan: FloorPlan, stair: Stair, rise: Double): Stair {
-        val b = layout(stair, rise).bounds
-        val half = Room.WALL_THICKNESS / 2
-        var bestDx: Double? = null
-        var bestDy: Double? = null
-        fun better(cur: Double?, v: Double) = if (abs(v) < SNAP && (cur == null || abs(v) < abs(cur))) v else cur
-        for (room in plan.rooms) for (i in 0 until room.wallCount) {
-            val a = room.wallStart(i)
-            val e = room.wallEnd(i)
-            if (abs(a.y - e.y) < 0.5 && minOf(a.x, e.x) < b.maxX && maxOf(a.x, e.x) > b.minX) {
-                for (f in listOf(a.y - half, a.y + half)) {
-                    bestDy = better(bestDy, f - b.minY)
-                    bestDy = better(bestDy, f - b.maxY)
-                }
-            }
-            if (abs(a.x - e.x) < 0.5 && minOf(a.y, e.y) < b.maxY && maxOf(a.y, e.y) > b.minY) {
-                for (f in listOf(a.x - half, a.x + half)) {
-                    bestDx = better(bestDx, f - b.minX)
-                    bestDx = better(bestDx, f - b.maxX)
-                }
-            }
-        }
-        return stair.copy(center = stair.center + Vec2(bestDx ?: 0.0, bestDy ?: 0.0))
-    }
+    fun snapped(plan: FloorPlan, stair: Stair, rise: Double): Stair =
+        stair.copy(center = stair.center + Structure.wallSnap(plan, layout(stair, rise).bounds, SNAP))
 
     /**
      * Tratti della ringhiera attorno al vano scala al piano di sopra: il contorno del vuoto, tranne
      * dove tocca un muro (`walls`, i muri del piano di sopra) e tranne l'arrivo, da cui si esce dalla scala.
      */
-    fun wellRailingRuns(s: Stair, rise: Double, walls: List<Pair<Vec2, Vec2>>): List<Pair<Vec2, Vec2>> {
+    fun wellRailingRuns(s: Stair, rise: Double, walls: List<Pair<Vec2, Vec2>>): List<Pair<Vec2, Vec2>> =
+        wellRailingRunsAlong(s, rise, walls.map { (a, b) -> Structure.WallLine(a, b, Room.WALL_THICKNESS / 2) })
+
+    /** Come [wellRailingRuns], con i muri veri ([Structure.wallLines]): contro un muro spesso la ringhiera non serve fino alla sua faccia. */
+    fun wellRailingRunsAlong(s: Stair, rise: Double, walls: List<Structure.WallLine>): List<Pair<Vec2, Vec2>> {
         val l = layout(s, rise)
         // Il contorno è quello del vuoto vero (se il pavimento copre i primi gradini, il vuoto è più corto).
         val pieces = well(s, rise, l)
@@ -259,11 +243,10 @@ object Stairs {
         // l'ultimo spicchio (si esce di lato, verso l'esterno).
         val spiral = s.kind == StairKind.Spiral
         val arrival = if (spiral) edgesOf(last.polygon) else listOfNotNull(edgesOf(last.polygon).maxByOrNull { (a, b) -> ((a + b) / 2.0) dot endDir })
-        val half = Room.WALL_THICKNESS / 2
         val runs = mutableListOf<Pair<Vec2, Vec2>>()
         for ((pi, piece) in pieces.withIndex()) for ((a, b) in edgesOf(piece)) {
             val len = a.distanceTo(b)
-            val n = (len / 10.0).toInt().coerceAtLeast(1)
+            val n = (len / 10.0).toInt().coerceIn(1, MAX_RAILING_SAMPLES)
             var runStart: Vec2? = null
             for (k in 0 until n) {
                 val p0 = a + (b - a) * (k.toDouble() / n)
@@ -273,7 +256,7 @@ object Stairs {
                 val inner = pieces.withIndex().any { (qi, q) ->
                     qi != pi && (Polygon.contains(q, mid) || edgesOf(q).any { (c, d) -> Polygon.distanceToSegment(mid, c, d) < 0.5 })
                 }
-                val nearWall = walls.any { (c, d) -> Polygon.distanceToSegment(mid, c, d) < half + 4 }
+                val nearWall = walls.any { w -> Polygon.distanceToSegment(mid, w.a, w.b) < w.half + 4 }
                 val atArrival = arrival.any { (c, d) -> Polygon.distanceToSegment(mid, c, d) < if (spiral) 3.0 else 2.0 }
                 val free = !inner && !nearWall && !atArrival
                 if (free && runStart == null) runStart = p0
@@ -286,6 +269,21 @@ object Stairs {
 
     /** Altezza libera minima consigliata sotto il solaio sopra una scala (cm). */
     const val MIN_HEADROOM = 200.0
+
+    /** Alzata oltre la quale la scala è troppo ripida per salire comodi (cm): i regolamenti edilizi di solito chiedono 18-20 al massimo. */
+    const val STEEP_RISER = 20.0
+
+    /** Passo più corto che resta comodo (cm): due alzate più una pedata (regola di Blondel: il passo giusto è 62-64). */
+    const val MIN_STRIDE = 58.0
+
+    /** Larghezza minima consigliata di una scala dentro casa (cm). */
+    const val MIN_WIDTH = 80.0
+
+    /**
+     * Tratti al massimo su un lato del vano per decidere dove va la ringhiera ([wellRailingRunsAlong]): uno ogni 10 cm fino a
+     * 200 m, poi più lunghi. Con una scala larga chilometri (misura sbagliata) erano milioni, e pianta e 3D si fermavano.
+     */
+    private const val MAX_RAILING_SAMPLES = 2000
 
     /** Gradini che si possono coprire con il pavimento di sopra: tutti tranne gli ultimi due (per arrivare). */
     fun maxCovered(l: Layout): Int = (l.steps.size - 2).coerceAtLeast(0)
@@ -312,6 +310,60 @@ object Stairs {
         if (k == 0) return null
         return rise - slab - l.steps[k - 1].top
     }
+
+    /** Triangoli delle stanze del piano di sopra (anche balconi e terrazze): solo sopra di loro il vano scala si apre nel pavimento. */
+    fun cover(upper: FloorPlan): List<List<Vec2>> = upper.rooms.filter { it.points.size >= 3 }.flatMap { r ->
+        Triangulation.triangulate(r.points).map { (a, b, c) -> listOf(r.points[a], r.points[b], r.points[c]) }
+    }
+
+    /**
+     * Vuoto vero nel solaio sopra la scala `s` del piano `lower`: il [well] dove sopra c'è una stanza del piano di sopra (`cover`,
+     * vedi [cover]). Fuori dalle sue stanze sopra la scala c'è il tetto piano del piano di sotto: resta aperto solo sopra i gradini che
+     * lo attraverserebbero. Con `cover` null (il piano di sopra non si conosce) il vuoto resta tutto.
+     */
+    fun openWell(s: Stair, rise: Double, lower: FloorPlan, cover: List<List<Vec2>>?, l: Layout = layout(s, rise)): List<List<Vec2>> {
+        val well = well(s, rise, l)
+        if (cover == null) return well
+        val out = mutableListOf<List<Vec2>>()
+        for (piece in well) {
+            for (t in cover) Clip.intersect(piece, t)?.let { out += it }
+            for (st in l.steps) {
+                if (st.top + 5.0 < Structure.ceilingAt(lower, center(st.polygon), rise)) continue
+                val part = Clip.intersect(piece, st.polygon) ?: continue
+                out += Clip.subtractAll(part, cover)
+            }
+        }
+        return out
+    }
+
+    /** Altezza libera più bassa sopra la scala ([MIN_HEADROOM]); `underRoof`: lì sopra c'è il tetto, non una stanza del piano di sopra. */
+    class Headroom(val height: Double, val underRoof: Boolean)
+
+    /**
+     * Altezza libera più bassa sopra i gradini della scala `s` del piano `lower` che stanno sotto il solaio chiuso: quelli coperti dal
+     * pavimento di sopra (fino al solaio, spessore `slab`) e quelli fuori dalle stanze del piano `upper`, sotto il tetto piano (fino al
+     * soffitto). Null se il vuoto è sopra tutti i gradini.
+     */
+    fun headroomUnder(s: Stair, rise: Double, slab: Double, lower: FloorPlan, upper: FloorPlan): Headroom? {
+        val l = layout(s, rise)
+        val cover = cover(upper)
+        val open = openWell(s, rise, lower, cover, l)
+        var best: Headroom? = null
+        for (st in l.steps) {
+            val c = center(st.polygon)
+            // Il centro e i vertici appena dentro il gradino: basta un punto fuori dal vuoto perché ci si batta la testa.
+            val probes = listOf(c) + st.polygon.map { it + (c - it) * 0.15 }
+            val closed = probes.filter { p -> open.none { Polygon.contains(it, p) } }
+            if (closed.isEmpty()) continue
+            val roof = closed.any { p -> cover.none { Polygon.contains(it, p) } }
+            val top = if (roof) min(rise - slab, closed.minOf { Structure.ceilingAt(lower, it, rise) }) else rise - slab
+            val h = top - st.top
+            if (best == null || h < best.height) best = Headroom(h, roof)
+        }
+        return best
+    }
+
+    private fun center(poly: List<Vec2>) = poly.reduce { a, b -> a + b } / poly.size.toDouble()
 
     /** Ingombro di tutte le scale di una pianta (per inquadrarla). */
     fun footprint(plan: FloorPlan, rise: Double): List<Vec2> = plan.stairs.flatMap { layout(it, rise).pieces.flatten() }

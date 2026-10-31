@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -175,8 +176,8 @@ private fun Modifier.guideRing(): Modifier {
 
 /** Stesso numero, scritto con la virgola o il punto ("330", "330,0"). */
 private fun sameNumber(text: String?, expect: String): Boolean {
-    val a = text?.trim()?.replace(',', '.')?.toDoubleOrNull() ?: return false
-    val b = expect.replace(',', '.').toDoubleOrNull() ?: return false
+    val a = text?.let(::parseNumber) ?: return false
+    val b = parseNumber(expect) ?: return false
     return kotlin.math.abs(a - b) < 0.01
 }
 
@@ -365,7 +366,7 @@ private fun CourseBubble(course: CourseUi, hint: GuideHint?, vm: EditorViewModel
     ) {
         Column(Modifier.padding(start = 14.dp, end = 8.dp, top = 12.dp)) {
             Text(
-                c.intestazione(course.lesson, course.lessons, c.lezione(step.lesson)),
+                if (course.single) c.intestazioneSola(c.lezione(step.lesson)) else c.intestazione(course.lesson, course.lessons, c.lezione(step.lesson)),
                 style = MaterialTheme.typography.labelMedium,
                 color = Color(0xFFB85F00),
             )
@@ -395,7 +396,7 @@ private fun CourseBubble(course: CourseUi, hint: GuideHint?, vm: EditorViewModel
                 )
                 Text(c.vaiAllaLezione, style = MaterialTheme.typography.labelMedium, color = onColor.copy(alpha = 0.7f), modifier = Modifier.padding(top = 8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    for (l in Lesson.entries.drop(1)) OutlinedButton(
+                    for (l in Lesson.entries.drop(1).filter { it.inCourse }) OutlinedButton(
                         onClick = { if (l == Lesson.OverPlan) { vm.leaveCourse(); onLesson(l) } else vm.startCourse(l) },
                         contentPadding = PaddingValues(0.dp),
                         modifier = Modifier.size(36.dp),
@@ -404,22 +405,28 @@ private fun CourseBubble(course: CourseUi, hint: GuideHint?, vm: EditorViewModel
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 val quiet = onColor.copy(alpha = 0.7f)
+                if (course.canGoBack) {
+                    TextButton(onClick = vm::previousCourseStep) { Text(T.comuni.indietroFreccia, color = quiet) }
+                    Spacer(Modifier.weight(1f))
+                }
                 when (step) {
                     CourseStep.Welcome -> {
                         TextButton(onClick = { vm.finishCourse(completed = false) }) { Text(T.editor.noGrazie, color = quiet) }
                         TextButton(onClick = vm::nextCourseStep) { Text(T.editor.inizia) }
                     }
-                    CourseStep.ElementsDone -> {
+                    CourseStep.CheckDone -> {
                         TextButton(onClick = { vm.finishCourse() }) { Text(c.bastaCosi, color = quiet) }
                         TextButton(onClick = { vm.leaveCourse(); onLesson(Lesson.OverPlan) }) { Text(c.apriProgettoNuovo) }
                     }
+                    // La lezione sola (il sole, dalla bussola) finisce lì.
+                    CourseStep.SunDone -> TextButton(onClick = { vm.finishCourse() }) { Text(T.comuni.fine) }
                     CourseStep.Finished -> {
                         TextButton(onClick = { vm.finishCourse() }) { Text(T.comuni.fine, color = quiet) }
                         TextButton(onClick = { vm.finishCourse(); onOpenProjects() }) { Text(c.vaiAiProgetti) }
                     }
                     else -> if (step.action) {
                         TextButton(onClick = { vm.finishCourse(completed = false) }) { Text(T.comuni.esci, color = quiet) }
-                        TextButton(onClick = vm::nextCourseStep) { Text(T.editor.saltaPasso) }
+                        if (Course.canSkip(step)) TextButton(onClick = vm::skipCourseStep) { Text(T.editor.saltaPasso) }
                     } else {
                         TextButton(onClick = { vm.finishCourse(completed = false) }) { Text(T.comuni.esci, color = quiet) }
                         TextButton(onClick = vm::nextCourseStep) { Text(c.avanti) }

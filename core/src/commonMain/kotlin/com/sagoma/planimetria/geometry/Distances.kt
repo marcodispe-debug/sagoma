@@ -38,22 +38,35 @@ object Distances {
         listOf(a + n * from, b + n * from, b + n * to, a + n * to)
 
     fun shapeOf(plan: FloorPlan, t: MeasureTarget, levelHeight: Double): Shape? {
-        val half = Room.WALL_THICKNESS / 2
         return when (t) {
             is MeasureTarget.Wall -> {
                 val r = plan.room(t.roomId)?.takeIf { t.index < it.wallCount } ?: return null
-                val s = r.wallStart(t.index)
-                val e = r.wallEnd(t.index)
-                val n = (e - s).normalized().perp()
-                val h = r.thicknessOf(t.index) / 2
-                Shape(listOf(rect(s, e, n, -h, h)))
+                val i = t.index
+                val h = r.thicknessOf(i) / 2
+                // Muro curvo: la fascia del muro lungo l'arco (non la corda tra i due angoli).
+                r.arcOf(i)?.let { arc ->
+                    val pieces = 32
+                    val mid = (0..pieces).map { k -> -1.0 + 2.0 * k / pieces }
+                    val side = { k: Double, d: Double -> arc.at(k) + arc.tangentAt(k).perp() * d }
+                    return Shape(listOf(mid.map { side(it, -h) } + mid.reversed().map { side(it, h) }))
+                }
+                // Muro spostato di lato ([Room.wallOffsets]): la sua mezzeria vera, come nel disegno.
+                val s = r.wallStart(i)
+                val e = r.wallEnd(i)
+                val u = (e - s).normalized()
+                val shift = r.outwardOf(i) * r.wallShift(i)
+                val (d0, d1) = r.shiftedEndDeltas(i)
+                Shape(listOf(rect(s + shift + u * d0, e + shift + u * d1, u.perp(), -h, h)))
             }
             is MeasureTarget.Opening -> {
                 val r = plan.room(t.roomId) ?: return null
                 val o = r.opening(t.openingId)?.takeIf { it.wallIndex < r.wallCount } ?: return null
                 val (a, b) = Openings.span(r, o)
                 val n = (b - a).normalized().perp()
-                Shape(listOf(rect(a, b, n, -half, half)))
+                // Il vano attraversa tutto il muro: spessore e spostamento del suo muro (anche dei muri singoli).
+                val h = r.thicknessOf(o.wallIndex) / 2
+                val shift = r.outwardOf(o.wallIndex) * r.wallShift(o.wallIndex)
+                Shape(listOf(rect(a + shift, b + shift, n, -h, h)))
             }
             is MeasureTarget.Fixture -> {
                 val r = plan.room(t.roomId) ?: return null

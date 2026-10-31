@@ -3,6 +3,8 @@ package com.sagoma.planimetria.testi
 /** Tavola PDF in scala: cartiglio, computo e finestra di esportazione. */
 open class TestiPdf {
     open fun pianta(p1: Any?): String = "Pianta $p1"
+    /** Livelli del file DXF della pianta: muri, riempimento dei muri, porte e finestre, archi delle ante, stanze, testi, scale, pilastri, parapetti. */
+    open val livelliDxf: List<String> get() = listOf("MURI", "MURI_PIENO", "PORTE_FINESTRE", "ANTE", "STANZE", "TESTI", "SCALE", "PILASTRI", "PARAPETTI", "MISURE_MURI", "QUOTE", "NOTE")
     open val progetto: String get() = "PROGETTO"
     open val progetto2: String get() = "Progetto"
     open val cliente: String get() = "CLIENTE"
@@ -29,6 +31,8 @@ open class TestiPdf {
     open val paretiNettoAperture: String get() = "Pareti (al netto delle aperture)"
     open val arredi: String get() = "Arredi"
     open val impianti: String get() = "Impianti"
+    open val porteFinestre: String get() = "Porte e finestre"
+    open val davanzaliSoglie: String get() = "Davanzali e soglie"
     open val tavolaPdfNonDisponibile: String get() = "Tavola PDF non disponibile su questa piattaforma"
     open val esportazioneNonRiuscita: String get() = "Esportazione non riuscita"
     open val tavolaPdfSalvataMarchio: String get() = "Tavola PDF salvata con il marchio Sagoma"

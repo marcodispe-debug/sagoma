@@ -16,7 +16,7 @@ import org.lwjgl.system.windows.WindowsLibrary
  * può bloccarla. Si disegna sempre fuori schermo (framebuffer), la finestra serve solo a ospitare il contesto.
  * Va creato, usato e chiuso sempre dallo stesso thread.
  */
-internal class WglContext {
+internal class WglContext : GlContext {
     private var hwnd = 0L
     private var hdc = 0L
     private var hglrc = 0L
@@ -55,9 +55,9 @@ internal class WglContext {
         GL.createCapabilities()
     }
 
-    val isOpen: Boolean get() = hglrc != 0L
+    override val isOpen: Boolean get() = hglrc != 0L
 
-    fun close() {
+    override fun close() {
         if (hglrc != 0L) {
             WGL.wglMakeCurrent(null, 0L, 0L)
             WGL.wglDeleteContext(null, hglrc)

@@ -1,5 +1,7 @@
 package com.sagoma.planimetria.testi
 
+import com.sagoma.planimetria.geometry.HousingNorms
+
 /** Computo e lista arredi. */
 open class TestiComputo {
     open val progetto: String get() = "Progetto"
@@ -9,12 +11,16 @@ open class TestiComputo {
     open val nonSonoAncoraStanze: String get() = "Non ci sono ancora stanze."
     open val stanze: String get() = "Stanze"
     open val stanza: String get() = "Stanza"
+    open val muriSingoli: String get() = "Muri singoli"
+    open val soffitti: String get() = "Soffitti"
+    open val statoDiProgetto: String get() = "Conta lo stato di progetto: senza i muri da demolire e le aperture da chiudere."
     open val pavM2: String get() = "Pav. m²"
     open val paretiM2: String get() = "Pareti m²"
     open val battiscM: String get() = "Battisc. m"
     open val pavimento: String get() = "Pavimento"
     open val totale: String get() = "Totale"
     open val paretiSuperficieInternaNetto: String get() = "Pareti: superficie interna al netto di porte e finestre. Battiscopa: perimetro interno meno porte e balconi."
+    open val togliZoneNonCalpestabili: String get() = "Pavimento senza le zone non calpestabili"
     open val pavimentiOrdinare: String get() = "Pavimenti da ordinare"
     open val finiturePareti: String get() = "Finiture delle pareti"
     open val arredi: String get() = "Arredi"
@@ -37,4 +43,62 @@ open class TestiComputo {
     open val paretiM22: String get() = "PARETI;m²"
     open val arrediMisureQuantitaDove: String get() = "ARREDI;Misure;Quantità;Dove"
     open val impiantiQuantitaDove: String get() = "IMPIANTI;Quantità;Dove"
+    open val porteFinestre: String get() = "Porte e finestre"
+    open val porteFinestreNota: String get() = "Misure del vano (larghezza × altezza), da far controllare a chi fa il preventivo. Le aperture da chiudere non ci sono."
+    open fun misuraVano(w: Any?, h: Any?): String = "$w×$h cm"
+    open val porteFinestreCsv: String get() = "PORTE E FINESTRE;Aspetto;Misure del vano;Quantità;Dove"
+    open val davanzaliSoglie: String get() = "Davanzali e soglie"
+    open val davanzaliSoglieNota: String get() = "Lastre da ordinare: lunghezza × profondità × spessore, con le parti che entrano nei lati del vano e quelle che sporgono dal muro."
+    open val davanzaliSoglieCsv: String get() = "DAVANZALI E SOGLIE;Misure;Quantità;Dove"
+    open val luceAria: String get() = "Luce e aria (finestre / pavimento)"
+    open val finM2: String get() = "Fin. m²"
+    open val rapporto: String get() = "Rapporto"
+    /** Colonna «basta?» della tabella luce e aria: «≥ 1/8», o «Basta» dove nel paese basta una finestra. */
+    open fun almeno(n: HousingNorms): String = n.windowRatio?.let { "≥ ${n.ratioLabel(it)}" } ?: "Basta"
+    open val si: String get() = "sì"
+    open val no: String get() = "no"
+    open fun notaLuce(n: HousingNorms): String {
+        val ratio = n.windowRatio
+        return "Stanze da abitare. Finestre ${if (n.openableOnly) "apribili " else ""}che danno fuori, misurate sul vano del muro. " + when {
+            ratio == null -> "${T.controllo.paese(n.country)} (${n.source}): basta una finestra apribile che dà fuori."
+            !n.official -> "Consiglio (l'app non ha le norme del paese della casa): almeno ${n.ratioLabel(ratio)} del pavimento."
+            else -> "${T.controllo.paese(n.country)} (${n.source}): ne serve almeno ${n.ratioLabel(ratio)} del pavimento" +
+                (n.ventRatio?.let { ", e la parte che si apre almeno ${n.ratioLabel(it)}" } ?: "") + "."
+        }
+    }
+    open fun notaLucePdf(n: HousingNorms): String {
+        val ratio = n.windowRatio
+        return "Finestre ${if (n.openableOnly) "apribili " else ""}verso fuori, sul vano del muro; " + when {
+            ratio == null -> "almeno una (${T.controllo.paese(n.country)})."
+            !n.official -> "consiglio: almeno ${n.ratioLabel(ratio)}."
+            else -> "almeno ${n.ratioLabel(ratio)}${n.ventRatio?.let { ", apribili ${n.ratioLabel(it)}" } ?: ""} (${T.controllo.paese(n.country)})."
+        }
+    }
+    open val opere: String get() = "Opere (demolizioni e costruzioni)"
+    open val muriDaDemolire: String get() = "Muri da demolire"
+    open val muriNuovi: String get() = "Muri nuovi"
+    open val voce: String get() = "Voce"
+    open val numero: String get() = "N."
+    open val pianoVoceNumeroM2M3: String get() = "Piano;Voce;N.;m²;m³"
+    open val vaniDaAprire: String get() = "Vani da aprire nei muri esistenti"
+    open val apertureDaChiudere: String get() = "Aperture da chiudere"
+    open val notaOpere: String get() = "Muri: una faccia, vuoto per pieno meno porte e finestre, alti come la parete; m³ con lo spessore. Un muro in comune conta una volta. Indicativo: da controllare sul posto."
+    open val notaOperePdf: String get() = "Muri: una faccia meno porte e finestre; m³ con lo spessore. Indicativo."
+    open val opere2: String get() = "OPERE"
+    open val superfici: String get() = "Superfici"
+    open val piano: String get() = "Piano"
+    open val utileM2: String get() = "Utile m²"
+    open val lordaM2: String get() = "Lorda m²"
+    open val balconiM2: String get() = "Balc. m²"
+    open val commerciale: String get() = "Superficie commerciale (indicativa)"
+    open val notaSuperfici: String get() =
+        "Utile: il pavimento delle stanze. Lorda: con i muri. Commerciale (DPR 138/1998): muri esterni fino a 50 cm (quelli in comune " +
+            "con altri appartamenti andrebbero a metà), senza le zone non calpestabili, interrati al 50%, balconi e terrazze al 30% fino a 25 m² e al 10% oltre."
+    open val notaSuperficiPdf: String get() = "DPR 138/1998: muri esterni ≤ 50 cm, interrati 50%, balconi 30% (10% oltre 25 m²)."
+    open val superfici2: String get() = "SUPERFICI"
+    open val pianoSuperfici: String get() = "Piano;Utile m²;Lorda m²;Balconi e terrazze m²"
+    open val commercialeCsv: String get() = "Superficie commerciale indicativa"
+    open val luceAria2: String get() = "LUCE E ARIA"
+    open fun pianoStanzaLuce(n: HousingNorms): String =
+        "Piano;Stanza;Pavimento m²;${if (n.openableOnly) "Finestre apribili m²" else "Finestre m²"};Rapporto;${n.windowRatio?.let { "Almeno ${n.ratioLabel(it)}" } ?: "Basta"}"
 }

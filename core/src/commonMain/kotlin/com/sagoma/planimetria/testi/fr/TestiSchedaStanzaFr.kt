@@ -1,5 +1,7 @@
 package com.sagoma.planimetria.testi.fr
 
+import com.sagoma.planimetria.geometry.HousingNorms
+import com.sagoma.planimetria.testi.T
 import com.sagoma.planimetria.testi.TestiSchedaStanza
 
 object TestiSchedaStanzaFr : TestiSchedaStanza() {
@@ -9,8 +11,34 @@ object TestiSchedaStanzaFr : TestiSchedaStanza() {
     override val porteImpianti: String get() = "Portes, équip."
     override val progetto: String get() = "Projet"
     override val foto: String get() = "Photos"
+    override val schedaAspetto: String get() = "Aspect"
+    override val schedaForma: String get() = "Forme"
+    override val schedaApertura: String get() = "Ouverture"
+    override val schedaGradini: String get() = "Marches"
+    override val schedaPianoSopra: String get() = "Étage sup."
+    override val schedaCurva: String get() = "Courbe"
+    override val schedaFinitura: String get() = "Finition"
     override val eliminaStanza: String get() = "Supprimer la pièce"
+    override val distanzeDaiMuri: String get() = "📏 Distances des murs"
+    override val nascondiDistanzeDaiMuri: String get() = "📏 Masquer les distances"
+    override val muroSinistra: String get() = "← À gauche"
+    override val muroDestra: String get() = "À droite →"
+    override val muroSopra: String get() = "↑ En haut"
+    override val muroSotto: String get() = "↓ En bas"
+    override val alCentroDelMuro: String get() = "⟷ Au centre du mur"
     override fun perimetroCm(p1: Any?, p2: Any?): String = "$p1 · périmètre $p2 cm"
+    override fun luceAria(fin: String, frazione: String, apribili: Boolean): String =
+        "Lumière et air : fenêtres ${if (apribili) "ouvrantes " else ""}$fin m², $frazione du sol"
+    override fun luceAriaInsieme(nomi: String): String = " (avec $nomi)"
+    override fun luceAriaNessuna(apribili: Boolean): String = "Lumière et air : aucune fenêtre ${if (apribili) "ouvrante " else ""}donnant dehors"
+    override fun chiChiede(n: HousingNorms): String = if (n.official) "Règles (${T.controllo.paese(n.country)})" else "Conseil"
+    override fun luceAriaMinimo(n: HousingNorms, serve: String?): String {
+        val ratio = n.windowRatio
+        return if (ratio == null || serve == null) "${chiChiede(n)} : les pièces à vivre demandent au moins une fenêtre ouvrante donnant dehors."
+        else "${chiChiede(n)} : les pièces à vivre en demandent au moins ${n.ratioLabel(ratio)} du sol ($serve m²)."
+    }
+    override fun luceAriaApribile(n: HousingNorms, minimo: String, serve: String): String =
+        "${chiChiede(n)} : la partie ouvrante doit faire au moins $minimo du sol ($serve m²)."
     override val allAperto: String get() = " · extérieur"
     override val parapetto: String get() = "Garde-corps"
     override val altezzaParapetto: String get() = "Hauteur du garde-corps"
@@ -31,14 +59,18 @@ object TestiSchedaStanzaFr : TestiSchedaStanza() {
     override fun pavimentoInteroM2Computo(p1: Any?): String = "Sol entier $p1 m² (le métré utilise celui-ci)."
     override val aggiungiZonaNonCalpestabile: String get() = "▧ Ajouter une zone non praticable"
     override val pavimento: String get() = "Sol"
-    override val pavimentoFotografico: String get() = "Sol photographique"
+    override fun pavimentoDiPrima(p1: Any?): String = "Ancien sol : $p1"
     override val paretiInterne: String get() = "Murs intérieurs"
-    override val paretiEsterneFacciataPiano: String get() = "Murs extérieurs (façade de l'étage)"
+    override val paretiEsterneTuttaCasa: String get() = "Murs extérieurs (toute la maison)"
+    override val paretiEsterneSoloPiano: String get() = "Murs extérieurs (cet étage seulement)"
+    override val soloQuestoPiano: String get() = "Cet étage seulement"
     override fun aperture(size: Any?): String = "Ouvertures ($size)"
     override val nessunaUsaElementiArchitettonici: String get() = "Aucune. Utilisez 🧱 Éléments de construction en bas : Portes, Fenêtres ou Portes-fenêtres."
     override fun muroCm(p1: Any?, p2: Any?, p3: Any?): String = "mur $p1 · $p2×$p3 cm"
     override fun terra(p1: Any?): String = " · depuis le sol $p1"
     override fun impianti(size: Any?): String = "Équipements ($size)"
+    override fun impiantoBase(prese: Int, minPrese: Int, luci: Int, minLuci: Int): String =
+        "Installation électrique de base (CEI 64-8) : points de prise $prese sur $minPrese, points lumineux $luci sur $minLuci"
     override val nessunoUsaElementiArchitettonici: String get() = "Aucun. Utilisez 🧱 Éléments de construction → Équipements pour radiateurs, prises, interrupteurs, points d'eau et lumières."
     override val muriStanza: String get() = "Murs de la pièce : "
     override val statiDiversiCambianoMuro: String get() = "états différents (modifiés mur par mur)"

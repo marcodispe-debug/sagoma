@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,9 +44,11 @@ fun <T> ModelPicker(
 ) {
     Column(modifier.fillMaxWidth()) {
         Text(label, style = MaterialTheme.typography.labelMedium)
+        // Si apre con il modello scelto in vista (preceduto dal suo vicino, per far capire che ce ne sono altri prima).
         ArrowLazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(top = 4.dp, end = 8.dp),
+            firstVisible = (options.indexOf(selected) - 1).coerceAtLeast(0),
         ) {
             itemsIndexed(options) { _, option ->
                 val isSelected = option == selected
@@ -66,8 +67,11 @@ fun <T> ModelPicker(
                             name(option),
                             style = MaterialTheme.typography.labelSmall,
                             textAlign = TextAlign.Center,
+                            // Sempre due righe (le schede restano alte uguali), misurate dal testo: con 30 dp fissi la
+                            // seconda riga veniva tagliata in fondo («Parquet rovere»).
+                            minLines = 2,
                             maxLines = 2,
-                            modifier = Modifier.padding(top = 4.dp).height(30.dp),
+                            modifier = Modifier.padding(top = 4.dp),
                         )
                     }
                 }

@@ -12,6 +12,13 @@ import kotlin.math.roundToInt
 
 // Funzioni di appoggio in Kotlin puro che sostituiscono quelle di Android (colori HSV, misure dello schermo).
 
+/**
+ * Nome di un file da salvare a partire dal nome di un progetto: restano lettere (anche accentate), cifre, spazi, «_» e «-».
+ * Prima restavano solo le lettere senza accento: «Casa di Nicolò» diventava «Casa di Nicol».
+ */
+fun fileNameOf(name: String, fallback: String): String =
+    name.filter { it.isLetterOrDigit() || it == ' ' || it == '_' || it == '-' }.trim().ifEmpty { fallback }
+
 /** Colore ARGB → tonalità (0–360), saturazione e luminosità (0–1), come `android.graphics.Color.colorToHSV`. */
 fun colorToHsv(argb: Int, out: FloatArray) {
     val r = ((argb shr 16) and 0xFF) / 255f
@@ -66,3 +73,14 @@ fun androidx.compose.ui.focus.FocusRequester.requestFocusSafely() {
 /** Altezza della finestra dell'app (al posto di `LocalConfiguration.screenHeightDp`). */
 @Composable
 fun windowHeight(): Dp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
+
+/**
+ * Come `awaitFirstDown`, ma con qualunque tasto del mouse: quello di Compose aspetta solo il tasto sinistro, e il destro
+ * (deseleziona, sposta la vista) o la rotellina premuta non arriverebbero mai.
+ */
+suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.awaitAnyDown(requireUnconsumed: Boolean = true): androidx.compose.ui.input.pointer.PointerInputChange {
+    while (true) {
+        val e = awaitPointerEvent()
+        if (e.changes.isNotEmpty() && e.changes.all { it.pressed && !it.previousPressed && (!requireUnconsumed || !it.isConsumed) }) return e.changes[0]
+    }
+}

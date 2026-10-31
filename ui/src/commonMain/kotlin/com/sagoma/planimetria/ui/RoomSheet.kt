@@ -35,6 +35,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -45,13 +46,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import com.sagoma.planimetria.editor.GuideField
 import com.sagoma.planimetria.editor.GuideTarget
 import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.Ceilings
+import com.sagoma.planimetria.geometry.HousingNorms
+import com.sagoma.planimetria.geometry.HousingRules
+import com.sagoma.planimetria.geometry.ElectricRules
+import com.sagoma.planimetria.geometry.formatDecimal
 import androidx.compose.ui.unit.dp
 import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.model.Fixture
@@ -145,11 +152,22 @@ fun InfoSheet(
                     Box(Modifier.size(10.dp).background(dotColor, CircleShape))
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(
+                // Nome e misura su una riga; se non ci stanno (pannello stretto, lingue con parole lunghe) il nome può andare
+                // su due righe e la misura sotto, più piccola, invece di sparire nei puntini. Col telefono in orizzontale
+                // (poca altezza) resta solo il nome: i dettagli si leggono aprendo Info.
+                var twoLines by remember(title) { mutableStateOf(false) }
+                val lowWindow = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } < 500.dp
+                val head = title.substringBefore(" · ")
+                val rest = title.substringAfter(" · ", "")
+                if (twoLines) Column(Modifier.weight(1f)) {
+                    Text(head, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (rest.isNotEmpty() && !lowWindow) Text(rest, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                } else Text(
                     title,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { if (it.hasVisualOverflow) twoLines = true },
                     modifier = Modifier.weight(1f),
                 )
                 actions()
@@ -235,22 +253,11 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
                 style = MaterialTheme.typography.bodyMedium,
             )
             // Schede a larghezza fissa: tutte visibili anche sul telefono ("Porte e impianti" va su due righe).
-            androidx.compose.material3.SecondaryTabRow(selectedTabIndex = tabs.indexOf(tab), containerColor = Color.Transparent) {
-                // Margini stretti: con quelli standard le parole si spezzano a metà nella tendina.
-                for (t in tabs) androidx.compose.material3.Tab(
-                    selected = t == tab,
-                    onClick = { lastRoomTab = t },
-                    modifier = Modifier.guide(GuideTarget.MeasuresTab.takeIf { t == RoomTab.Measures }, done = tab == RoomTab.Measures),
-                ) {
-                    Text(
-                        if (t == RoomTab.Photos && room.photos.isNotEmpty()) "${t.label} (${room.photos.size})" else t.label,
-                        style = MaterialTheme.typography.labelLarge,
-                        textAlign = TextAlign.Center,
-                        maxLines = 2,
-                        modifier = Modifier.padding(horizontal = 2.dp, vertical = 10.dp),
-                    )
-                }
-            }
+            InfoTabRow(
+                tabs.map { t -> if (t == RoomTab.Photos && room.photos.isNotEmpty()) "${t.label} (${room.photos.size})" else t.label },
+                tabs.indexOf(tab),
+                tabModifier = { i -> Modifier.guide(GuideTarget.MeasuresTab.takeIf { tabs[i] == RoomTab.Measures }, done = tab == RoomTab.Measures) },
+            ) { lastRoomTab = tabs[it] }
         }
         // Contenuto della scheda: scorre nello spazio rimasto, con la barra di scorrimento a destra (ogni scheda riparte dall'alto).
         val scroll = key(tab) { rememberScrollState() }
@@ -259,7 +266,7 @@ private fun RoomSheetContent(room: Room, plan: FloorPlan, vm: EditorViewModel, m
                 when (tab) {
                     RoomTab.Measures -> MeasuresTab(room, vm)
                     RoomTab.Finishes -> FinishesTab(room, plan, vm)
-                    RoomTab.Openings -> OpeningsTab(room, vm)
+                    RoomTab.Openings -> OpeningsTab(room, plan, vm)
                     RoomTab.Project -> ProjectTab(room, vm)
                     RoomTab.Photos -> PhotosTab(room, vm)
                 }
@@ -405,16 +412,52 @@ private fun MeasuresTab(room: Room, vm: EditorViewModel) {
 /** Scheda Finiture: aspetto nel 3D, pavimento e pareti. */
 @Composable
 private fun FinishesTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
-    ModelPicker(T.schedaStanza.pavimento, FloorFinish.entries, room.floorFinish, { it.label }, { vm.setRoomLook(room.id, floor = it) }) {
-        floorPreview(it, Color(room.type.argb))
-    }
-    // Pavimento con un materiale fotografico (vince sulla finitura qui sopra), dove ci sono i materiali.
+    // Pavimento: dove ci sono i materiali fotografici si sceglie solo tra quelli («Nessuno» = colore della stanza). I pavimenti
+    // disegnati di prima restano solo nei progetti che li hanno, e si possono togliere; senza materiali (browser) restano i soli.
     if (FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.PHOTO_FLOORS)) {
-        MaterialPicker(T.schedaStanza.pavimentoFotografico, room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
+        if (room.floorFinish != FloorFinish.RoomColor) Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(T.schedaStanza.pavimentoDiPrima(T.lingua.minuscola(room.floorFinish.label)), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            TextButton(onClick = { vm.setRoomLook(room.id, floor = FloorFinish.RoomColor) }) { Text(T.schedaStanza.togli, color = MaterialTheme.colorScheme.error) }
+        }
+        MaterialPicker(T.schedaStanza.pavimento, room.floorMaterial, forFloor = true, allowNone = true) { vm.setFloorMaterial(room.id, it) }
+        if (room.floorMaterial != null) {
+            MaterialLayoutControls(room.floorLayout, room.floorMaterial) { vm.setFloorLayout(room.id, it) }
+            // Quanti pezzi servono con la posa a pezzi.
+            val count = remember(room) { com.sagoma.planimetria.geometry.LayingPieces.count(room) }
+            if (count != null) Text(
+                T.finiture.pezziServono(count.total, count.whole, count.cut, com.sagoma.planimetria.geometry.formatDecimal(count.area, 2)),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(end = 8.dp, bottom = 4.dp),
+            )
+        }
+    } else {
+        ModelPicker(T.schedaStanza.pavimento, FloorFinish.entries, room.floorFinish, { it.label }, { vm.setRoomLook(room.id, floor = it) }) {
+            floorPreview(it, Color(room.type.argb))
+        }
     }
-    // Colore qualsiasi e rivestimenti. La facciata è una sola per tutto il piano: si cambia da qualunque stanza.
+    // Colore qualsiasi e rivestimenti. La facciata (lato esterno) si sceglie dalla scheda del muro: vedi [FacadeFinishSection].
     if (!room.outdoor) FinishPicker(T.schedaStanza.paretiInterne, room.roomFinish, { vm.setRoomFinish(room.id, it) })
-    FinishPicker(T.schedaStanza.paretiEsterneFacciataPiano, plan.facadeOrPaint, { vm.setFacadeFinish(it) })
+}
+
+/**
+ * Facciata: una sola per tutta la casa, si cambia da qualunque muro e vale per tutti i piani; con più piani si può fare
+ * un'eccezione per il piano corrente.
+ */
+@Composable
+internal fun FacadeFinishSection(plan: FloorPlan, vm: EditorViewModel) {
+    val floors = vm.state.collectAsState().value.fullBuilding.floors
+    val differs = floors.any { it.plan.facadeOrPaint != plan.facadeOrPaint }
+    var onlyThisFloor by remember(floors.size > 1, differs) { mutableStateOf(differs) }
+    val label = if (onlyThisFloor) T.schedaStanza.paretiEsterneSoloPiano else T.schedaStanza.paretiEsterneTuttaCasa
+    FinishPicker(label, plan.facadeOrPaint, { vm.setFacadeFinish(it, onlyThisFloor) })
+    if (floors.size > 1) Row(verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.Checkbox(checked = onlyThisFloor, onCheckedChange = { on ->
+            onlyThisFloor = on
+            // Tornando a "tutta la casa", gli altri piani prendono la facciata di questo.
+            if (!on && differs) vm.setFacadeFinish(plan.facadeOrPaint)
+        })
+        Text(T.schedaStanza.soloQuestoPiano, style = MaterialTheme.typography.bodyMedium)
+    }
 }
 
 /** Una riga dell'elenco: un tocco seleziona l'oggetto e ne apre il riquadro caratteristiche. */
@@ -427,8 +470,11 @@ private fun ItemRow(title: String, detail: String, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Text(detail, style = MaterialTheme.typography.bodySmall)
+            // Nome sopra e dettagli sotto: su una riga sola i dettagli lunghi schiacciavano il nome («Finest-ra 2 ante»).
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyMedium)
+                Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Text("  ›", style = MaterialTheme.typography.titleMedium)
         }
     }
@@ -436,7 +482,7 @@ private fun ItemRow(title: String, detail: String, onClick: () -> Unit) {
 
 /** Scheda Porte e impianti: elenco delle aperture e degli impianti della stanza. */
 @Composable
-private fun OpeningsTab(room: Room, vm: EditorViewModel) {
+private fun OpeningsTab(room: Room, plan: FloorPlan, vm: EditorViewModel) {
     SectionTitle(T.schedaStanza.aperture(room.openings.size))
     if (room.openings.isEmpty()) {
         Text(T.schedaStanza.nessunaUsaElementiArchitettonici, style = MaterialTheme.typography.bodySmall)
@@ -445,12 +491,60 @@ private fun OpeningsTab(room: Room, vm: EditorViewModel) {
         openingLabel(o),
         T.schedaStanza.muroCm(o.wallIndex + 1, formatCm(o.width), formatCm(o.height)) + (if (o.kind.hasSill) T.schedaStanza.terra(formatCm(o.sillHeight)) else ""),
     ) { vm.selectOpening(room.id, o.id) }
+    // Le norme del paese della casa (dalla sua città, o dalla lingua).
+    val norms = HousingNorms.of(vm.state.collectAsState().value.building)
+    LightAndAirLine(room, plan, norms)
 
     SectionTitle(T.schedaStanza.impianti(room.fixtures.size))
+    if (norms.electric) ElectricLine(room, plan)
     if (room.fixtures.isEmpty()) {
         Text(T.schedaStanza.nessunoUsaElementiArchitettonici, style = MaterialTheme.typography.bodySmall)
     }
     for (f in room.fixtures) ItemRow(f.kind.label, fixtureSummary(f)) { vm.selectFixture(room.id, f.id) }
+}
+
+/**
+ * Luce e aria naturali (rapporto aeroilluminante): finestre che danno fuori (apribili, o anche fisse dove le norme del paese le
+ * contano) rispetto al pavimento, per l'ambiente intero (il soggiorno con la cucina a vista insieme); nelle stanze da abitare, il
+ * minimo del paese se non c'è (1/8 in Italia).
+ */
+@Composable
+private fun LightAndAirLine(room: Room, plan: FloorPlan, norms: HousingNorms) {
+    if (room.outdoor) return
+    val space = HousingRules.space(plan, room)
+    val ratio = HousingRules.ratio(plan, space, norms) ?: return
+    val habitable = space.any { HousingRules.habitable(it.type) }
+    if (!habitable && ratio <= 0) return
+    val with = if (space.size > 1) T.schedaStanza.luceAriaInsieme(space.drop(1).joinToString(", ") { T.controllo.nome(it.name.ifBlank { it.type.label }) }) else ""
+    val line = if (ratio > 0) {
+        T.schedaStanza.luceAria(formatDecimal(HousingRules.windowArea(plan, space, norms.openableOnly) / 10_000, 2), HousingRules.fraction(ratio), norms.openableOnly)
+    } else T.schedaStanza.luceAriaNessuna(norms.openableOnly)
+    Text(line + with, style = MaterialTheme.typography.bodySmall)
+    if (!habitable) return
+    val floor = HousingRules.floorArea(space)
+    val vent = norms.ventRatio
+    val short = when {
+        HousingRules.lightShort(plan, space, norms) -> T.schedaStanza.luceAriaMinimo(norms, norms.windowRatio?.let { formatDecimal(floor * it / 10_000, 2) })
+        vent != null && HousingRules.airShort(plan, space, norms) -> T.schedaStanza.luceAriaApribile(norms, norms.ratioLabel(vent), formatDecimal(floor * vent / 10_000, 2))
+        else -> return
+    }
+    Text(short, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+}
+
+/**
+ * Impianto elettrico di base (CEI 64-8, livello 1): punti presa e punti luce messi e quanti ne vuole la norma per questa stanza. In
+ * rosso quando mancano e sul piano si stanno già mettendo le prese; prima è solo un'indicazione.
+ */
+@Composable
+private fun ElectricLine(room: Room, plan: FloorPlan) {
+    val min = ElectricRules.minimum(plan, room) ?: return
+    val has = ElectricRules.points(room)
+    val missing = (has.outlets < min.outlets || has.lights < min.lights) && ElectricRules.wired(plan.rooms)
+    Text(
+        T.schedaStanza.impiantoBase(has.outlets, min.outlets, has.lights, min.lights),
+        style = MaterialTheme.typography.bodySmall,
+        color = if (missing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** Scheda Progetto: stato di fatto / progetto di tutti i muri insieme (es. stanza nuova, o tramezzi da demolire). */
@@ -494,12 +588,14 @@ private fun SectionTitle(text: String) {
  * muri, dove applicare ogni cifra digitata deformerebbe la stanza mentre si scrive.
  */
 @Composable
-internal fun CommitNumberField(label: String, value: Double, modifier: Modifier, onCommit: (Double) -> Unit) {
+internal fun CommitNumberField(label: String, value: Double, modifier: Modifier, allowZero: Boolean = false, onCommit: (Double) -> Unit) {
     val focusManager = LocalFocusManager.current
     var text by remember(value) { mutableStateOf(formatCm(value)) }
     var focused by remember { mutableStateOf(false) }
+    // Distanze dai muri: anche 0 (oggetto contro il muro).
+    fun parse(t: String) = if (allowZero) parseNumber(t)?.takeIf { it >= 0 } else parsePositive(t)
     fun commit() {
-        val v = parsePositive(text)
+        val v = parse(text)
         if (v != null && formatCm(v) != formatCm(value)) onCommit(v) else text = formatCm(value)
     }
     SelectAllTextField(
@@ -508,7 +604,7 @@ internal fun CommitNumberField(label: String, value: Double, modifier: Modifier,
         label = label,
         numeric = true,
         suffix = "cm",
-        isError = parsePositive(text) == null,
+        isError = parse(text) == null,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { commit(); focusManager.clearFocus() }),
         modifier = modifier.onFocusChanged {

@@ -190,7 +190,8 @@ object GroupOps {
             openings = r.openings.map { o -> o.copy(wallIndex = wall(o.wallIndex), position = r.wallLength(o.wallIndex) - o.position, hingeLeft = !o.hingeLeft) },
             fixtures = r.fixtures.map { f ->
                 if (f.kind.mount == Mount.Ceiling) f.copy(point = x.point(f.point), rotation = x.rotate(f.rotation))
-                else f.copy(wallIndex = wall(f.wallIndex), position = r.wallLength(f.wallIndex) - f.position)
+                // Il fascio dei faretti a parete gira a destra invece che a sinistra (e viceversa) rispetto alla normale.
+                else f.copy(wallIndex = wall(f.wallIndex), position = r.wallLength(f.wallIndex) - f.position, aimYaw = norm(-f.aimYaw))
             },
             // Specchiate: stesso verso di percorrenza della stanza.
             excludedZones = r.excludedZones.map { z -> z.copy(points = z.points.map(x.point).reversed()) },

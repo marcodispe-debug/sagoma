@@ -199,14 +199,114 @@ object Places {
         w("Mumbai", 19.08, 72.88, 5.5, DaylightSaving.None),
     )
 
+    /**
+     * Nomi in inglese, francese e spagnolo ("en|fr|es") delle città che non si chiamano come in italiano. Nel progetto
+     * si salva sempre il nome italiano; questi servono solo per mostrarle nella lingua scelta.
+     */
+    internal val translated: Map<String, String> = mapOf(
+        "Aosta" to "Aosta|Aoste|Aosta",
+        "Bergamo" to "Bergamo|Bergame|Bérgamo",
+        "Bologna" to "Bologna|Bologne|Bolonia",
+        "Catania" to "Catania|Catane|Catania",
+        "Città del Vaticano" to "Vatican City|Cité du Vatican|Ciudad del Vaticano",
+        "Ferrara" to "Ferrara|Ferrare|Ferrara",
+        "Firenze" to "Florence|Florence|Florencia",
+        "Genova" to "Genoa|Gênes|Génova",
+        "Livorno" to "Livorno|Livourne|Livorno",
+        "Lucca" to "Lucca|Lucques|Luca",
+        "Mantova" to "Mantua|Mantoue|Mantua",
+        "Messina" to "Messina|Messine|Mesina",
+        "Milano" to "Milan|Milan|Milán",
+        "Modena" to "Modena|Modène|Módena",
+        "Napoli" to "Naples|Naples|Nápoles",
+        "Padova" to "Padua|Padoue|Padua",
+        "Palermo" to "Palermo|Palerme|Palermo",
+        "Parma" to "Parma|Parme|Parma",
+        "Pavia" to "Pavia|Pavie|Pavía",
+        "Perugia" to "Perugia|Pérouse|Perusa",
+        "Pisa" to "Pisa|Pise|Pisa",
+        "Ravenna" to "Ravenna|Ravenne|Rávena",
+        "Reggio Calabria" to "Reggio Calabria|Reggio de Calabre|Regio de Calabria",
+        "Roma" to "Rome|Rome|Roma",
+        "San Marino" to "San Marino|Saint-Marin|San Marino",
+        "Siena" to "Siena|Sienne|Siena",
+        "Siracusa" to "Syracuse|Syracuse|Siracusa",
+        "Torino" to "Turin|Turin|Turín",
+        "Trento" to "Trento|Trente|Trento",
+        "Venezia" to "Venice|Venise|Venecia",
+        "Verona" to "Verona|Vérone|Verona",
+        "Vicenza" to "Vicenza|Vicence|Vicenza",
+        "Amsterdam" to "Amsterdam|Amsterdam|Ámsterdam",
+        "Atene" to "Athens|Athènes|Atenas",
+        "Barcellona" to "Barcelona|Barcelone|Barcelona",
+        "Belgrado" to "Belgrade|Belgrade|Belgrado",
+        "Berlino" to "Berlin|Berlin|Berlín",
+        "Berna" to "Bern|Berne|Berna",
+        "Bruxelles" to "Brussels|Bruxelles|Bruselas",
+        "Bucarest" to "Bucharest|Bucarest|Bucarest",
+        "Copenaghen" to "Copenhagen|Copenhague|Copenhague",
+        "Dublino" to "Dublin|Dublin|Dublín",
+        "Edimburgo" to "Edinburgh|Édimbourg|Edimburgo",
+        "Francoforte" to "Frankfurt|Francfort|Fráncfort",
+        "Ginevra" to "Geneva|Genève|Ginebra",
+        "Lione" to "Lyon|Lyon|Lyon",
+        "Lisbona" to "Lisbon|Lisbonne|Lisboa",
+        "Londra" to "London|Londres|Londres",
+        "Lubiana" to "Ljubljana|Ljubljana|Liubliana",
+        "Lussemburgo" to "Luxembourg|Luxembourg|Luxemburgo",
+        "Malta" to "Malta|Malte|Malta",
+        "Marsiglia" to "Marseille|Marseille|Marsella",
+        "Monaco di Baviera" to "Munich|Munich|Múnich",
+        "Nizza" to "Nice|Nice|Niza",
+        "Parigi" to "Paris|Paris|París",
+        "Porto" to "Porto|Porto|Oporto",
+        "Praga" to "Prague|Prague|Praga",
+        "Siviglia" to "Seville|Séville|Sevilla",
+        "Spalato" to "Split|Split|Split",
+        "Stoccolma" to "Stockholm|Stockholm|Estocolmo",
+        "Valencia" to "Valencia|Valence|Valencia",
+        "Varsavia" to "Warsaw|Varsovie|Varsovia",
+        "Vienna" to "Vienna|Vienne|Viena",
+        "Zagabria" to "Zagreb|Zagreb|Zagreb",
+        "Zurigo" to "Zurich|Zurich|Zúrich",
+        "Istanbul" to "Istanbul|Istanbul|Estambul",
+        "Mosca" to "Moscow|Moscou|Moscú",
+        "Il Cairo" to "Cairo|Le Caire|El Cairo",
+        "Tunisi" to "Tunis|Tunis|Túnez",
+        "Dubai" to "Dubai|Dubaï|Dubái",
+        "New York" to "New York|New York|Nueva York",
+        "Montréal" to "Montreal|Montréal|Montreal",
+        "Città del Messico" to "Mexico City|Mexico|Ciudad de México",
+        "San Paolo" to "São Paulo|São Paulo|São Paulo",
+        "Santiago del Cile" to "Santiago|Santiago du Chili|Santiago de Chile",
+        "Città del Capo" to "Cape Town|Le Cap|Ciudad del Cabo",
+        "Tokyo" to "Tokyo|Tokyo|Tokio",
+        "Pechino" to "Beijing|Pékin|Pekín",
+        "Singapore" to "Singapore|Singapour|Singapur",
+        "Mumbai" to "Mumbai|Bombay|Bombay",
+    )
+
+    private val languages = listOf("en", "fr", "es")
+
+    /** Nome della città nella lingua [lang] ("it", "en", "fr", "es"); se non c'è, il nome italiano salvato. */
+    fun displayName(place: Place, lang: String): String {
+        val i = languages.indexOf(lang)
+        if (i < 0) return place.name
+        return translated[place.name]?.split('|')?.getOrNull(i) ?: place.name
+    }
+
     val all: List<Entry> = (italy + world).sortedBy { it.place.name.lowercase() }
 
-    /** Città il cui nome (o un altro nome) contiene [query], senza badare a maiuscole e accenti; prima quelle che iniziano così. */
-    fun search(query: String): List<Place> {
+    /**
+     * Città il cui nome (in una qualsiasi lingua, o un altro nome) contiene [query], senza badare a maiuscole e accenti,
+     * in ordine alfabetico nella lingua [lang]; prima quelle il cui nome in quella lingua inizia così.
+     */
+    fun search(query: String, lang: String = "it"): List<Place> {
         val q = fold(query.trim())
-        if (q.isEmpty()) return all.map { it.place }
-        val found = all.filter { e -> fold(e.place.name + " " + e.aliases).contains(q) }
-        return found.sortedBy { e -> if (fold(e.place.name).startsWith(q)) 0 else 1 }.map { it.place }
+        val shown = all.sortedBy { fold(displayName(it.place, lang)) }
+        if (q.isEmpty()) return shown.map { it.place }
+        val found = shown.filter { e -> fold(e.place.name + " " + e.aliases + " " + translated[e.place.name].orEmpty().replace('|', ' ')).contains(q) }
+        return found.sortedBy { e -> if (fold(displayName(e.place, lang)).startsWith(q)) 0 else 1 }.map { it.place }
     }
 
     private fun fold(s: String): String = buildString {

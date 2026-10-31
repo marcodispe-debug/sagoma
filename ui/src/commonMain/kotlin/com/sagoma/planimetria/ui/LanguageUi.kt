@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -50,7 +52,8 @@ fun LanguageDialog(onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         title = { Text(T.vari.lingua) },
         text = {
-            Column {
+            // Scorre: col telefono in orizzontale l'ultima voce («Come il sistema») restava tagliata.
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 for (c in LanguageChoice.entries) {
                     Row(
                         Modifier.fillMaxWidth().clickable { setting.change(c) }.padding(vertical = 4.dp),

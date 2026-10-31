@@ -41,6 +41,16 @@ import com.sagoma.planimetria.model.LengthUnit
 import com.sagoma.planimetria.testi.T
 import kotlin.math.abs
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import com.sagoma.planimetria.editor.LiveCheck
+import com.sagoma.planimetria.editor.PlanCheck
+import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.layout.onSizeChanged
@@ -54,7 +64,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +85,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sagoma.planimetria.editor.EditorViewModel
+import com.sagoma.planimetria.editor.DragTarget
+import com.sagoma.planimetria.editor.Selection
+import com.sagoma.planimetria.editor.OpeningPreset
 import com.sagoma.planimetria.editor.PendingOpening
 import com.sagoma.planimetria.editor.Tip
 import com.sagoma.planimetria.editor.TutorialCourse
@@ -81,6 +96,7 @@ import com.sagoma.planimetria.editor.TutorialUi
 import androidx.compose.foundation.layout.widthIn
 import com.sagoma.planimetria.model.FixtureKind
 import com.sagoma.planimetria.model.Mount
+import com.sagoma.planimetria.model.Vec2
 import com.sagoma.planimetria.model.OpeningKind
 import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
@@ -95,6 +111,13 @@ import com.sagoma.planimetria.editor.MeasureState
 import com.sagoma.planimetria.editor.EditorUiState
 import com.sagoma.planimetria.persistence.RoomPhotoFiles
 import com.sagoma.planimetria.geometry.Distances
+import com.sagoma.planimetria.access.Right
+import com.sagoma.planimetria.access.Rights
+import com.sagoma.planimetria.ifc.IfcExport
+import com.sagoma.planimetria.ifc.IfcFurniture
+import com.sagoma.planimetria.ifc.IfcImport
+import com.sagoma.planimetria.ifc.IfcRoundTrip
+import com.sagoma.planimetria.model.Building
 
 /**
  * L'editor del progetto `projectId`. `courseLesson`: guida interattiva da far partire appena aperto (poi `onCourseStarted`);
@@ -135,29 +158,91 @@ fun EditorScreen(
     // anche un clic sulla pianta la riprende (vedi PlanCanvas), così le scorciatoie funzionano sempre.
     LaunchedEffect(state.view3d) { if (!state.view3d) keyFocus.requestFocusSafely() }
     val exportPng = rememberPngExporter(state.plan, state.building.layers)
+    val exportDxf = rememberDxfExporter(state)
     // Strumenti professionali: tavola PDF in scala, computo, pianta di sfondo da ricalcare.
     var showPdf by remember { mutableStateOf(false) }
     var showTakeoff by remember { mutableStateOf(false) }
+    var showCheck by remember { mutableStateOf(false) }
     var showBackground by remember { mutableStateOf(false) }
     var showLayers by remember { mutableStateOf(false) }
     var showTheme by remember { mutableStateOf(false) }
     var showLanguage by remember { mutableStateOf(false) }
     var showSite by remember { mutableStateOf(false) }
+    // «Controlla la pianta» in tempo reale: poco dopo l'ultima modifica (mai mentre si trascina), fuori dal filo della pianta. Il
+    // segnale sulla pianta dice quanti problemi ci sono; un errore di disegno appena fatto si dice subito con un avviso breve.
+    var liveIssues by remember(vm) { mutableStateOf<List<PlanCheck.Issue>?>(null) }
+    var liveNotice by remember(vm) { mutableStateOf<PlanCheck.Issue?>(null) }
+    // I problemi del «!» toccato sulla pianta, nella scheda in alto.
+    var openMark by remember(vm) { mutableStateOf<List<PlanCheck.Issue>?>(null) }
+    // La casa intera si ricostruisce solo quando cambia (a ogni spostamento della vista no): i confronti dopo sono istantanei.
+    val liveBuilding = remember(state.building, state.plan) { state.fullBuilding }
+    LaunchedEffect(liveBuilding, state.dragging) {
+        if (state.dragging) return@LaunchedEffect
+        delay(LiveCheck.DELAY_MS)
+        val now = withContext(Dispatchers.Default) { runCatching { PlanCheck.of(liveBuilding) }.getOrDefault(emptyList()) }
+        val before = liveIssues
+        liveIssues = now
+        // Annullato o corretto, l'avviso sparisce. Appena aperto il progetto solo il segnale; durante la guida niente avvisi
+        // (ha già le sue schede); niente avviso per un errore già tolto dalla pianta.
+        val still = liveNotice?.let { LiveCheck.stillThere(it, now) }
+        val fresh = if (before != null && state.course == null && state.tutorial == null) LiveCheck.notice(before, now, liveBuilding) else null
+        liveNotice = fresh ?: still
+        // Nella scheda di un «!» restano i problemi che ci sono ancora; un errore appena fatto la chiude.
+        openMark = if (fresh != null) null else openMark?.mapNotNull { LiveCheck.stillThere(it, now) }?.takeIf { it.isNotEmpty() }
+    }
+    // «Correggi» nell'avviso: per i problemi da provare prima ([PlanCheck.triesFirst], come le stanze sovrapposte) solo se
+    // correggerli riesce davvero (si prova fuori dal filo della pianta).
+    val noticeFixable by produceState(false, liveNotice, liveBuilding) {
+        val n = liveNotice
+        value = when {
+            n == null || !PlanCheck.canFix(n) -> false
+            !PlanCheck.triesFirst(n) -> true
+            else -> withContext(Dispatchers.Default) { runCatching { PlanCheck.canFix(liveBuilding, n) }.getOrDefault(false) }
+        }
+    }
+    LaunchedEffect(liveNotice?.let(LiveCheck::key)) {
+        if (liveNotice == null) return@LaunchedEffect
+        delay(LiveCheck.NOTICE_MS)
+        liveNotice = null
+    }
+    // Prima di esportare (tavola PDF, DXF): se la pianta ha errori di disegno lo dice, e si può controllare o andare avanti; dopo
+    // «Esporta lo stesso» non lo chiede più finché il progetto resta aperto.
+    var exportAnyway by remember { mutableStateOf(false) }
+    var pendingExport by remember { mutableStateOf<Pair<Int, () -> Unit>?>(null) }
+    fun checked(action: () -> Unit): () -> Unit = {
+        val errors = if (exportAnyway) 0 else drawingErrors(vm.state.value.fullBuilding)
+        if (errors == 0) action() else pendingExport = errors to action
+    }
     val extraMenu = listOf(
         T.editor.progetti to { vm.saveNow(); onOpenProjects() },
         T.editor.livelli to { showLayers = true },
-        T.editor.tavolaPdfScala to { showPdf = true },
+        T.editor.tavolaPdfScala to checked { showPdf = true },
         T.editor.computoListaArredi to { showTakeoff = true },
+        T.controllo.voceMenu to { showCheck = true },
+        T.editor.esportaDxf to checked(exportDxf),
         T.editor.piantaSfondo to { showBackground = true },
         T.editor.temaChiaroScuro to { showTheme = true },
         if (state.building.units == LengthUnit.Meters) T.editor.misureInCentimetri to { vm.setUnits(LengthUnit.Centimeters) }
         else T.editor.misureInMetri to { vm.setUnits(LengthUnit.Meters) },
         T.editor.linguaMenu to { showLanguage = true },
         T.vista3D.nordCitta to { showSite = true },
-    )
-    if (showSite) HouseSiteDialog(state.building.site, onNorth = vm::setNorth, onPlace = vm::setPlace, onDismiss = { showSite = false })
+    ) + if (Rights.has(platform.account, Right.ExchangeIfc)) listOf(
+        T.editor.esportaIfc to { exportIfc(platform, state.fullBuilding, projects.info(projectId)?.name, projectId) },
+        T.editor.rileggiIfc to { readIfc(platform, vm, projectId) },
+        T.editor.cucinaNegozio to { readShopKitchen(platform, vm) },
+    ) else emptyList()
+    if (showSite) HouseSiteDialog(state.building.site, onNorth = vm::setNorth, onPlace = vm::setPlace, onDismiss = { showSite = false; vm.siteDialogClosed() })
     if (showPdf) PdfExportDialog(state, projects.info(projectId), onDismiss = { showPdf = false })
     if (showTakeoff) TakeoffDialog(state, projects.info(projectId), onDismiss = { showTakeoff = false })
+    if (showCheck) PlanCheckDialog(state, vm, onDismiss = { showCheck = false; vm.planCheckClosed() }, projectName = projects.info(projectId)?.name)
+    pendingExport?.let { (errors, action) ->
+        ExportCheckDialog(
+            errors,
+            onCheck = { pendingExport = null; showCheck = true },
+            onExport = { pendingExport = null; exportAnyway = true; action() },
+            onDismiss = { pendingExport = null },
+        )
+    }
     // "Ricalca una piantina" al posto della prima stanza: la finestra resta aperta finché non si carica e si tara la piantina.
     val tracingSetup = state.tracing != null && state.underlayTool == null
     if (showBackground || tracingSetup) BackgroundDialog(state, vm, projectId, tracing = state.tracing != null, onDismiss = {
@@ -172,45 +257,121 @@ fun EditorScreen(
     if (showLanguage) LanguageDialog(onDismiss = { showLanguage = false })
     state.textDialogAt?.let { at -> NewTextDialog(at, vm) }
 
+    // Vista 3D: telecamera e superficie OpenGL restano le stesse passando da 2D a 3D e ritorno.
+    val view3dState = remember { View3DState() }
+    // Il renderer 3D resta da una apertura all'altra della vista 3D; uscendo dall'editor si libera.
+    DisposableEffect(view3dState) { onDispose { view3dState.dispose() } }
+    // In secondo piano la memoria del 3D chiuso torna al telefono.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { view3dState.releaseIfClosed() }
+    // Nord e città della casa: decidono il giro del sole nel 3D.
+    LaunchedEffect(state.building.site) { view3dState.site = state.building.site; view3dState.refresh() }
+    // Ora e giorno del sole scelti nel 3D: li segue la guida del sole.
+    view3dState.onSunHour = vm::sunHourChanged
+    view3dState.onSunDay = { d -> (d ?: com.sagoma.planimetria.geometry.CalendarDay.today()).let { vm.sunDayChanged(it.month, it.day) } }
+    // Luminosità delle lampade scelta nel progetto: la vista 3D la ritrova a ogni apertura.
+    LaunchedEffect(state.building.lampBrightness) { view3dState.lampBrightness = state.building.lampBrightness.toFloat(); view3dState.refresh() }
+    // WASD e frecce tenuti premuti nella pianta: scorre in modo continuo, a ogni fotogramma (come nel 3D).
+    val planKeys = remember { PlanKeyPan() }
+    // Passando tra pianta e 3D, o se la finestra perde la tastiera (altro programma, Alt+Tab) mentre un tasto è giù, il suo
+    // «lasciato» non arriva più: senza dimenticarlo la vista continuerebbe da sola, o il tasto opposto sembrerebbe bloccato.
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    LaunchedEffect(state.view3d, windowFocused) {
+        planKeys.keys.clear()
+        view3dState.keys.clear()
+    }
+    LaunchedEffect(planKeys) {
+        snapshotFlow { planKeys.moving }.collectLatest { moving ->
+            if (!moving) return@collectLatest
+            var last = 0L
+            while (true) {
+                withFrameNanos { now ->
+                    val dt = if (last == 0L) 0.0 else ((now - last) / 1e9).coerceAtMost(0.1)
+                    last = now
+                    val d = planKeys.step(dt)
+                    if (d != Offset.Zero) vm.pan(d.x, d.y)
+                }
+            }
+        }
+    }
+
+    // Scorciatoie da tastiera (§8). Dopo i campi di testo (onKeyEvent, non "preview"): dentro un campo
+    // Ctrl+C, Ctrl+V, Ctrl+Z e Canc lavorano sul testo, non sugli oggetti della pianta.
+    val handleKey: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = handleKey@{ e ->
+        // Un tasto lasciato conta sempre, anche con Ctrl giù (W lasciato dopo aver premuto Ctrl+Z): se no resta «tenuto».
+        val move = e.type == KeyEventType.KeyUp || !e.isCtrlPressed
+        // Nel 3D WASD e frecce muovono la vista anche se la tastiera è rimasta su un pulsante.
+        if (state.view3d && move && view3dState.onKey(e)) return@handleKey true
+        // Con un oggetto selezionato WASD e frecce spostano lui, di pochi pixel a ogni battuta (con Maiusc di più). Il tasto
+        // lasciato chiude lo spostamento e va comunque alla pianta, che potrebbe averlo visto premere prima della selezione.
+        val nudgeDir = PlanKeyPan.direction(e.key)
+        if (!state.view3d && move && nudgeDir != null) {
+            if (e.type == KeyEventType.KeyUp) vm.endNudge()
+            else nudgeTarget(state.selection)?.takeIf { e.type == KeyEventType.KeyDown }?.let { t ->
+                val cm = (if (e.isShiftPressed) NUDGE_FAST_PX else NUDGE_PX) / state.camera.scale.toDouble()
+                vm.nudge(t, Vec2(-nudgeDir.first * cm, -nudgeDir.second * cm))
+                return@handleKey true
+            }
+        }
+        // WASD e frecce spostano la pianta (con Maiusc di più), come la vista 3D.
+        if (!state.view3d && move && planKeys.onKey(e)) return@handleKey true
+        if (e.type != KeyEventType.KeyDown) return@handleKey false
+        // Selezione multipla: Canc elimina gli oggetti selezionati, Esc svuota la selezione (poi esce).
+        if (!e.isCtrlPressed) return@handleKey when {
+            // Canc: elimina ciò che è selezionato (gruppo, oggetto, muro → lato aperto, stanza con conferma).
+            !state.view3d && (e.key == Key.Delete || e.key == Key.Backspace) -> vm.deleteSelected()
+            state.pasting && e.key == Key.Escape -> { vm.stopPaste(); true }
+            state.dimensionDraw != null && e.key == Key.Escape -> { vm.cancelDimension(); true }
+            state.textPlacing && e.key == Key.Escape -> { vm.cancelText(); true }
+            state.selectMode && e.key == Key.Escape -> { if (state.multi.isEmpty()) vm.toggleSelectMode() else vm.clearMulti(); true }
+            else -> false
+        }
+        when {
+            e.key == Key.A && !state.view3d -> { vm.selectAll(); true }
+            // Copia e incolla come nei programmi del computer: Ctrl+C copia l'oggetto selezionato (con un
+            // messaggio), Ctrl+V incolla subito dove c'è il mouse (o accanto all'originale).
+            e.key == Key.C && !state.view3d -> {
+                if (vm.copy()) vm.state.value.clipboard?.let { platform.toast(T.editor.copiatoCtrlVIncollare(clipLabel(it))) }
+                else platform.toast(T.editor.selezionaPrimaQualcosaCopiare)
+                true
+            }
+            e.key == Key.V && !state.view3d -> {
+                if (!vm.pasteNow()) platform.toast(if (state.clipboard == null) T.editor.nienteIncollareCopiaPrima else T.editor.quiNonPuoIncollare)
+                true
+            }
+            // Ctrl+D: duplica l'oggetto selezionato (come il pulsante "⧉ Duplica" nella scheda Info).
+            e.key == Key.D && !state.view3d -> vm.duplicateSelected()
+            e.key == Key.Z && e.isShiftPressed -> { vm.redo(); true }
+            e.key == Key.Z -> { vm.undo(); true }
+            e.key == Key.Y -> { vm.redo(); true }
+            else -> false
+        }
+    }
+    // Tasti che nessuno ha usato perché la tastiera è rimasta su niente o fuori dall'editor (pulsante sparito, menu chiuso,
+    // Invio nel nome della stanza): la finestra li passa qui e valgono lo stesso. Un tasto premuto che l'editor usa gli
+    // riporta anche la tastiera; quelli lasciati no, per non toglierla a un campo di testo fuori dall'editor.
+    val currentHandleKey by rememberUpdatedState(handleKey)
+    var editorHasFocus by remember { mutableStateOf(false) }
+    DisposableEffect(platform) {
+        platform.unhandledKeys = fallback@{ e ->
+            // Con la tastiera nell'editor il tasto è già passato da handleKey.
+            if (editorHasFocus) return@fallback false
+            val used = currentHandleKey(e)
+            if (used && e.type == KeyEventType.KeyDown) keyFocus.requestFocusSafely()
+            used
+        }
+        onDispose { platform.unhandledKeys = null }
+    }
+
     Column(
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
             .safeDrawingPadding()
-            // Scorciatoie da tastiera (§8). Dopo i campi di testo (onKeyEvent, non "preview"): dentro un campo
-            // Ctrl+C, Ctrl+V, Ctrl+Z e Canc lavorano sul testo, non sugli oggetti della pianta.
-            .onKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
-                // Selezione multipla: Canc elimina gli oggetti selezionati, Esc svuota la selezione (poi esce).
-                if (!e.isCtrlPressed) return@onKeyEvent when {
-                    // Canc: elimina ciò che è selezionato (gruppo, oggetto, muro → lato aperto, stanza con conferma).
-                    !state.view3d && (e.key == Key.Delete || e.key == Key.Backspace) -> vm.deleteSelected()
-                    state.pasting && e.key == Key.Escape -> { vm.stopPaste(); true }
-                    state.dimensionDraw != null && e.key == Key.Escape -> { vm.cancelDimension(); true }
-                    state.textPlacing && e.key == Key.Escape -> { vm.cancelText(); true }
-                    state.selectMode && e.key == Key.Escape -> { if (state.multi.isEmpty()) vm.toggleSelectMode() else vm.clearMulti(); true }
-                    else -> false
-                }
-                when {
-                    e.key == Key.A && !state.view3d -> { vm.selectAll(); true }
-                    // Copia e incolla come nei programmi del computer: Ctrl+C copia l'oggetto selezionato (con un
-                    // messaggio), Ctrl+V incolla subito dove c'è il mouse (o accanto all'originale).
-                    e.key == Key.C && !state.view3d -> {
-                        if (vm.copy()) vm.state.value.clipboard?.let { platform.toast(T.editor.copiatoCtrlVIncollare(clipLabel(it))) }
-                        else platform.toast(T.editor.selezionaPrimaQualcosaCopiare)
-                        true
-                    }
-                    e.key == Key.V && !state.view3d -> {
-                        if (!vm.pasteNow()) platform.toast(if (state.clipboard == null) T.editor.nienteIncollareCopiaPrima else T.editor.quiNonPuoIncollare)
-                        true
-                    }
-                    // Ctrl+D: duplica l'oggetto selezionato (come il pulsante "⧉ Duplica" nella scheda Info).
-                    e.key == Key.D && !state.view3d -> vm.duplicateSelected()
-                    e.key == Key.Z && e.isShiftPressed -> { vm.redo(); true }
-                    e.key == Key.Z -> { vm.undo(); true }
-                    e.key == Key.Y -> { vm.redo(); true }
-                    else -> false
-                }
+            .onKeyEvent(handleKey)
+            // Tasti tenuti premuti mentre la tastiera va altrove (campo di testo, altra finestra): la pianta si ferma.
+            .onFocusChanged {
+                editorHasFocus = it.hasFocus
+                if (!it.hasFocus) planKeys.keys.clear()
             }
             .focusRequester(keyFocus)
             .focusable(),
@@ -221,14 +382,6 @@ fun EditorScreen(
         val wideWindow = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() } >= 900.dp
         // E la barra di stato si nasconde (riappare temporaneamente scorrendo dal bordo superiore).
         LaunchedEffect(compactHeight) { platform.setStatusBarHidden(compactHeight) }
-        // Vista 3D: telecamera e superficie OpenGL restano le stesse passando da 2D a 3D e ritorno.
-        val view3dState = remember { View3DState() }
-        // Il renderer 3D resta da una apertura all'altra della vista 3D; uscendo dall'editor si libera.
-        DisposableEffect(view3dState) { onDispose { view3dState.dispose() } }
-        // In secondo piano la memoria del 3D chiuso torna al telefono.
-        LifecycleEventEffect(Lifecycle.Event.ON_STOP) { view3dState.releaseIfClosed() }
-        // Nord e città della casa: decidono il giro del sole nel 3D.
-        LaunchedEffect(state.building.site) { view3dState.site = state.building.site; view3dState.refresh() }
         var openGuide by remember { mutableStateOf<Guide?>(null) }
         openGuide?.let { GuideDialog(it, onDismiss = { openGuide = null }, onOpen3d = { vm.setView3d(true) }) }
         // Guide passo passo che si fanno sulla pianta: avanzano da sole a ogni azione.
@@ -300,6 +453,17 @@ fun EditorScreen(
             }
             // Marchio del piano gratuito sopra pianta e 3D (non sui pulsanti), così resta anche in uno screenshot.
             WatermarkOverlay(Modifier.fillMaxSize())
+            // «!» sulla pianta dove c'è un problema (non quelli tolti dalla pianta; non durante la guida, che ha le sue schede, tranne
+            // nella lezione sul controllo della pianta, né mentre si disegna o si mette qualcosa, dove il tocco serve alla pianta): il
+            // tocco apre la scheda di quel punto.
+            val drawing = state.creation != null || state.wallDraw != null || state.pendingOpening != null || state.pendingFixture != null ||
+                state.pasting || state.measure != null || state.underlayTool != null || state.selectMode
+            val guided = state.course != null && state.course?.step?.lesson != Lesson.Check
+            if (!state.view3d && !drawing && !guided && state.tutorial == null) liveIssues?.let { issues ->
+                val floor = state.building.current
+                val marks = remember(issues, state.plan, liveBuilding.hiddenChecks, floor) { checkMarks(issues, liveBuilding, floor, state.plan) }
+                CheckMarkers(marks, state.camera, onOpen = { m -> liveNotice = null; openMark = m.issues; vm.checkMarkOpened() }, modifier = Modifier.fillMaxSize())
+            }
             // Suggerimento durante il posizionamento di un'apertura o di un impianto.
             val placingHint = state.pendingOpening?.let { T.editor.toccaMuroCuiPosizionare(T.lingua.minuscola(it.kind.label)) }
                 ?: state.pendingFixture?.let {
@@ -449,7 +613,7 @@ fun EditorScreen(
                     modifier = panelModifier.guide(GuideTarget.InfoPanel),
                     actions = { SnapToggle(state.snapOn, vm::setSnapOn, compact = true, guide = GuideTarget.Snap) },
                 ) { contentModifier ->
-                    if (sel != null) SelectionPanel(sel, state.plan, vm, contentModifier, state.levelHeight, state.planBelow, state.levelHeightBelow)
+                    if (sel != null) SelectionPanel(sel, state.plan, vm, contentModifier, state.levelHeight, state.planBelow, state.levelHeightBelow, state.building.floors.getOrNull(state.building.current + 1)?.plan)
                     else if (focusedRoom != null) RoomInfo(focusedRoom, state.plan, vm, contentModifier)
                 }
             }
@@ -471,46 +635,100 @@ fun EditorScreen(
                     bottom = with(density) { coveredBottomPx.toDp() } + 8.dp,
                 )
             // Angolo in basso a destra: passaggio 2D/3D, e la legenda (2D) o Cammina / Vista dall'alto (3D).
+            // Telefono in orizzontale col pannello «Piantina e disegno» aperto: non c'è altezza per pannello e pulsanti insieme
+            // (la Legenda finiva fuori dallo schermo e «Vista 3D» sotto la bussola). Resta solo il pannello, che ha il suo «Chiudi».
+            val panelOnly = compactHeight && showVisibility && !state.view3d
             Column(cornerModifier, horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                LegendButton(
+                if (!panelOnly) LegendButton(
                     if (state.view3d) T.editor.pianta2d else T.editor.vista3d,
                     onClick = {
                         if (state.view3d && view3dState.walking) view3dState.stopWalking()
                         vm.setView3d(!state.view3d)
                     },
+                    modifier = Modifier.guide(GuideTarget.View3d),
                 )
                 if (state.view3d) View3DControls(state, view3dState)
                 else {
                     // Mostra/nascondi e trasparenza di piantina e disegno, regolate dal vivo.
                     if (showVisibility) VisibilityPanel(state, vm, onLoadPlan = { showBackground = true }, onClose = { showVisibility = false })
-                    LegendButton(
-                        T.editor.piantinaDisegno, onClick = { showVisibility = !showVisibility },
-                        modifier = Modifier.guide(GuideTarget.PlanPanel, done = showVisibility),
-                    )
-                    PhaseLegend(state)
-                    LegendButton(T.editor.legenda, onClick = { showLegend = true })
+                    if (!panelOnly) {
+                        LegendButton(
+                            T.editor.piantinaDisegno, onClick = { showVisibility = !showVisibility },
+                            modifier = Modifier.guide(GuideTarget.PlanPanel, done = showVisibility),
+                        )
+                        PhaseLegend(state)
+                        LegendButton(T.editor.legenda, onClick = { showLegend = true })
+                    }
                 }
             }
             // Bussola in alto a destra sulla pianta, sotto le schede in alto: la N si gira trascinandola, il tocco apre "Nord e città".
             if (!state.view3d) NorthCompass(
                 state.building.site.northDeg,
                 onNorth = vm::setNorth,
-                onOpen = { showSite = true },
+                // Sul computer il primo tocco fa partire la lezione del sole; poi apre «Nord e città».
+                onOpen = { if (!(platform.interactiveGuide && vm.compassTapped())) showSite = true },
                 modifier = Modifier.align(Alignment.TopEnd).padding(
                     end = with(density) { coveredRightPx.toDp() } + 8.dp,
                     top = with(density) { coveredTopPx.toDp() } + 8.dp,
-                ),
+                ).guide(GuideTarget.Compass, done = showSite),
             )
+            // Segnale di «Controlla la pianta» in alto a sinistra, sotto le schede in alto: il tocco apre l'elenco.
+            if (!state.view3d) liveIssues?.let { issues ->
+                LiveCheckChip(
+                    LiveCheck.counts(issues.filter { !PlanCheck.hidden(liveBuilding, it) }),
+                    onClick = { showCheck = true },
+                    modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = with(density) { coveredTopPx.toDp() } + 8.dp),
+                )
+            }
+            // Errore appena fatto: sotto le schede in alto (la pianta non si sposta), finché non si chiude, si corregge, si
+            // annulla o passa qualche secondo.
+            if (!state.view3d) liveNotice?.let { n ->
+                LiveCheckNotice(
+                    n, liveBuilding,
+                    onShow = { liveNotice = null; vm.showIssue(n) },
+                    onFix = if (noticeFixable) {
+                        { liveNotice = null; platform.toast(vm.fixIssueMessage(n) ?: T.controllo.nonSiCorregge) }
+                    } else null,
+                    onClose = { liveNotice = null },
+                    modifier = Modifier.align(Alignment.TopCenter)
+                        .padding(start = 8.dp, end = 8.dp, top = with(density) { coveredTopPx.toDp() } + 8.dp)
+                        .widthIn(max = 520.dp),
+                )
+            }
+            // Scheda del «!» toccato: nello stesso posto dell'avviso (ce n'è uno alla volta).
+            if (!state.view3d && liveNotice == null) openMark?.let { list ->
+                fun drop(i: PlanCheck.Issue) {
+                    openMark = list.filter { it != i }.takeIf { it.isNotEmpty() }
+                }
+                CheckSpotCard(
+                    list, liveBuilding,
+                    onFix = { i ->
+                        val message = vm.fixIssueMessage(i)
+                        if (message != null) drop(i)
+                        platform.toast(message ?: T.controllo.nonSiCorregge)
+                    },
+                    onShow = { i -> openMark = null; vm.showIssue(i) },
+                    onHide = { i -> vm.setCheckHidden(i, true); drop(i) },
+                    onClose = { openMark = null },
+                    modifier = Modifier.align(Alignment.TopCenter)
+                        .padding(start = 8.dp, end = 8.dp, top = with(density) { coveredTopPx.toDp() } + 8.dp)
+                        .widthIn(max = 520.dp),
+                )
+            }
             // Ora del giorno: su schermo largo o telefono girato, verticale a sinistra (sopra il joystick).
             if (state.view3d) {
                 if (wide || compactHeight) TimeOfDayPanel(
                     view3dState, Modifier.align(Alignment.TopStart).padding(12.dp), vertical = true,
                     length = (maxHeight - 120.dp - 16.dp - 24.dp - 110.dp).coerceIn(90.dp, 260.dp),
+                    onLampBrightness = { vm.setLampBrightness(it.toDouble()) },
                 )
-                else TimeOfDayPanel(view3dState, Modifier.align(Alignment.TopCenter).padding(12.dp).fillMaxWidth())
+                else TimeOfDayPanel(
+                    view3dState, Modifier.align(Alignment.TopCenter).padding(12.dp).fillMaxWidth(),
+                    onLampBrightness = { vm.setLampBrightness(it.toDouble()) },
+                )
             }
-            // Joystick per spostarsi: camminando e anche nella vista dall'alto (stessi comandi).
-            if (state.view3d) {
+            // Joystick per spostarsi: camminando e anche nella vista dall'alto (stessi comandi). Sul computer no: ci sono WASD e mouse.
+            if (state.view3d && platform.walkJoystick) {
                 WalkJoystick(
                     view3dState,
                     Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = with(density) { coveredBottomPx.toDp() } + 16.dp),
@@ -742,9 +960,10 @@ private fun ArchitectureButton(
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     compact: Boolean = false,
 ) {
-    fun opening(kind: OpeningKind, style: PassageStyle = PassageStyle.Square, sliding: Boolean = false) =
-        { vm.startPlacingOpening(PendingOpening(kind, style, sliding)) }
+    fun opening(kind: OpeningKind, style: PassageStyle = PassageStyle.Square, sliding: Boolean = false, preset: OpeningPreset = OpeningPreset.None) =
+        { vm.startPlacingOpening(PendingOpening(kind, style, sliding, preset)) }
     fun fixture(kind: FixtureKind) = { vm.startPlacingFixture(kind) }
+    val light = rememberLightChoice(vm)
     val lights = listOf(
         FixtureKind.Spotlight, FixtureKind.Neon, FixtureKind.Chandelier, FixtureKind.CeilingLight, FixtureKind.LedStrip,
         FixtureKind.WallLight, FixtureKind.WallSpot, FixtureKind.WallLedStrip,
@@ -762,7 +981,17 @@ private fun ArchitectureButton(
                 children = listOf(
                     MenuEntry(T.editor.portaAd1Anta, opening(OpeningKind.Door), guide = GuideTarget.Menu(GuideMenu.Door)),
                     MenuEntry(T.editor.porta2Ante, opening(OpeningKind.Door2)),
+                    MenuEntry(T.editor.porta2AnteDisuguali, opening(OpeningKind.Door2, preset = OpeningPreset.UnequalLeaves)),
                     MenuEntry(T.editor.portaScorrevole, opening(OpeningKind.Door, sliding = true)),
+                    MenuEntry(T.editor.portaScorrevoleEsterna, opening(OpeningKind.Door, preset = OpeningPreset.WallSlide)),
+                    MenuEntry(T.editor.portaALibro, opening(OpeningKind.Door, preset = OpeningPreset.Folding)),
+                    MenuEntry(T.editor.portaFiloMuro, opening(OpeningKind.Door, preset = OpeningPreset.Frameless)),
+                    MenuEntry(T.editor.portaABilico, opening(OpeningKind.Door, preset = OpeningPreset.Pivot)),
+                    MenuEntry(T.editor.portaBlindata, opening(OpeningKind.Door, preset = OpeningPreset.Armored)),
+                    MenuEntry(T.editor.portaTuttoVetro, opening(OpeningKind.Door, preset = OpeningPreset.AllGlass)),
+                    MenuEntry(T.editor.portaConSopraluce, opening(OpeningKind.Door, preset = OpeningPreset.Glazed)),
+                    MenuEntry(T.editor.portaBasculante, opening(OpeningKind.Door, preset = OpeningPreset.GarageUpAndOver)),
+                    MenuEntry(T.editor.portaSezionale, opening(OpeningKind.Door, preset = OpeningPreset.GarageSectional)),
                     MenuEntry(
                         T.editor.aperturaSenzaPorta,
                         children = PassageStyle.entries.map { st -> MenuEntry(st.label, opening(OpeningKind.Passage, st)) },
@@ -777,6 +1006,19 @@ private fun ArchitectureButton(
                     MenuEntry(T.editor.finestraAd1Anta, opening(OpeningKind.Window1)),
                     MenuEntry(T.editor.finestra2Ante, opening(OpeningKind.Window2), guide = GuideTarget.Menu(GuideMenu.Window)),
                     MenuEntry(T.editor.finestraScorrevole, opening(OpeningKind.Window2, sliding = true)),
+                    MenuEntry(T.editor.finestraAntaRibalta, opening(OpeningKind.Window1, preset = OpeningPreset.TiltTurn)),
+                    MenuEntry(T.editor.finestraVasistas, opening(OpeningKind.Window1, preset = OpeningPreset.Hopper)),
+                    MenuEntry(T.editor.finestraFissa, opening(OpeningKind.Window1, preset = OpeningPreset.Fixed)),
+                    MenuEntry(T.editor.finestraBilico, opening(OpeningKind.Window1, preset = OpeningPreset.PivotSash)),
+                    MenuEntry(T.editor.finestra3Ante, opening(OpeningKind.Window2, preset = OpeningPreset.ThreeLeaves)),
+                    MenuEntry(T.editor.finestraAdArco, opening(OpeningKind.Window2, preset = OpeningPreset.ArchedWindow)),
+                    MenuEntry(T.editor.oblo, opening(OpeningKind.Window1, preset = OpeningPreset.RoundWindow)),
+                    MenuEntry(T.editor.finestraSopraluce, opening(OpeningKind.Window2, preset = OpeningPreset.TopLight)),
+                    MenuEntry(T.editor.finestraLegno, opening(OpeningKind.Window2, preset = OpeningPreset.WoodWindow)),
+                    MenuEntry(T.editor.finestraRomana, opening(OpeningKind.Window1, preset = OpeningPreset.RomanShutter)),
+                    MenuEntry(T.editor.bovindo, opening(OpeningKind.Window2, preset = OpeningPreset.BayWindow)),
+                    MenuEntry(T.editor.vetromattone, opening(OpeningKind.Window1, preset = OpeningPreset.GlassBlock)),
+                    MenuEntry(T.editor.vetrataInterna, opening(OpeningKind.Window2, preset = OpeningPreset.InteriorGlazing)),
                 ),
             ),
             MenuEntry(
@@ -787,8 +1029,11 @@ private fun ArchitectureButton(
                     MenuEntry(T.editor.balconeAd1Anta, opening(OpeningKind.Balcony1)),
                     MenuEntry(T.editor.balcone2Ante, opening(OpeningKind.Balcony2), guide = GuideTarget.Menu(GuideMenu.FrenchWindow)),
                     MenuEntry(T.editor.balconeScorrevole, opening(OpeningKind.Balcony2, sliding = true)),
+                    MenuEntry(T.editor.balcone4Ante, opening(OpeningKind.Balcony2, preset = OpeningPreset.FourLeaves)),
+                    MenuEntry(T.editor.alzanteScorrevole, opening(OpeningKind.Balcony2, preset = OpeningPreset.LiftSlide)),
                 ),
             ),
+            MenuEntry(T.editor.nicchia, opening(OpeningKind.Niche), enabled = hasRooms),
             MenuEntry(
                 T.editor.impianti,
                 enabled = hasRooms,
@@ -801,7 +1046,7 @@ private fun ArchitectureButton(
                     MenuEntry(
                         T.editor.luci,
                         guide = GuideTarget.Menu(GuideMenu.Lights),
-                        children = lights.map { MenuEntry(it.label, fixture(it), guide = if (it == FixtureKind.Chandelier) GuideTarget.Menu(GuideMenu.Chandelier) else null) },
+                        children = lights.map { MenuEntry(it.label, light(it), guide = if (it == FixtureKind.Chandelier) GuideTarget.Menu(GuideMenu.Chandelier) else null) },
                     ),
                 ),
             ),
@@ -968,6 +1213,7 @@ private fun FixtureButton(
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
 ) {
     fun place(kind: FixtureKind) = { vm.startPlacingFixture(kind) }
+    val light = rememberLightChoice(vm)
     val lights = listOf(
         FixtureKind.Spotlight, FixtureKind.Neon, FixtureKind.Chandelier, FixtureKind.CeilingLight, FixtureKind.LedStrip,
         FixtureKind.WallLight, FixtureKind.WallSpot, FixtureKind.WallLedStrip,
@@ -980,11 +1226,25 @@ private fun FixtureButton(
             MenuEntry(T.editor.presaCorrente, place(FixtureKind.Outlet)),
             MenuEntry(T.editor.interruttore, place(FixtureKind.Switch)),
             MenuEntry(T.editor.puntoAcqua, place(FixtureKind.WaterPoint)),
-            MenuEntry(T.editor.luci, children = lights.map { MenuEntry(it.label, place(it)) }),
+            MenuEntry(T.editor.luci, children = lights.map { MenuEntry(it.label, light(it)) }),
         ),
         buttonModifier,
         contentPadding,
     )
+}
+
+/**
+ * Le voci di «Luci»: se il catalogo ha dei modelli di quella luce (lampadari, plafoniere, applique, fari) si aprono gli arredi con
+ * quei modelli già scelti ([LightPickerDialog]), altrimenti (faretti, neon, strisce LED, o senza arredi) si mette subito il punto luce.
+ */
+@Composable
+private fun rememberLightChoice(vm: EditorViewModel): (FixtureKind) -> () -> Unit {
+    var picking by remember { mutableStateOf<FixtureKind?>(null) }
+    val furniture = FeatureAccess.isEnabled(LocalPlatform.current, AppFeature.FURNITURE)
+    picking?.let { kind -> LightPickerDialog(kind, vm) { picking = null } }
+    return { kind ->
+        { if (furniture && com.sagoma.planimetria.model.FurnitureCatalog.lights(kind).isNotEmpty()) picking = kind else vm.startPlacingFixture(kind) }
+    }
 }
 
 /** Voce di menu: esegue un'azione oppure, se ha figli, apre un sottomenu; `hint` è una riga di spiegazione sotto. */
@@ -1022,10 +1282,10 @@ private fun MenuButton(
     fun close() { open = false; path = emptyList() }
     Box(modifier.guide(guide, done = open)) {
         if (filled) Button(enabled = enabled, onClick = { open = true }, modifier = Modifier.fillMaxWidth(), contentPadding = contentPadding) {
-            Text(if (arrow) "$label ▾" else label, maxLines = 1)
+            FitText(if (arrow) "$label ▾" else label)
         }
         else OutlinedButton(enabled = enabled, onClick = { open = true }, modifier = Modifier.fillMaxWidth(), contentPadding = contentPadding) {
-            Text(if (arrow) "$label ▾" else label, maxLines = 1)
+            FitText(if (arrow) "$label ▾" else label)
         }
         DropdownMenu(expanded = open, onDismissRequest = ::close) {
             val current = path.lastOrNull()
@@ -1101,7 +1361,7 @@ private fun Toolbar(
         TextButton(onClick = onFit, contentPadding = pad) { Text(T.editor.adatta, maxLines = 1) }
         var menu by remember { mutableStateOf(false) }
         Box {
-            IconButton(onClick = { menu = true }) { Text("⋮", style = MaterialTheme.typography.titleLarge) }
+            IconButton(onClick = { menu = true }, modifier = Modifier.guide(GuideTarget.More, done = menu)) { Text("⋮", style = MaterialTheme.typography.titleLarge) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 // Azioni sulla stanza selezionata; senza selezione restano visibili ma disattivate, così si scoprono.
                 DropdownMenuItem(
@@ -1119,7 +1379,12 @@ private fun Toolbar(
                     onClick = { menu = false; focusedRoom?.let { vm.requestDeleteRoom(it.id) } },
                 )
                 HorizontalDivider()
-                for ((label, action) in extraMenu) DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; action() })
+                for ((label, action) in extraMenu) DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = { menu = false; action() },
+                    // La guida interattiva fa provare il controllo della pianta.
+                    modifier = Modifier.guide(GuideTarget.CheckItem.takeIf { label == T.controllo.voceMenu }),
+                )
                 DropdownMenuItem(text = { Text(T.editor.esportaPng) }, onClick = { menu = false; onExport() })
                 DropdownMenuItem(text = { Text(T.editor.rivediSuggerimenti) }, onClick = { menu = false; vm.resetTips() })
             }
@@ -1152,4 +1417,51 @@ private fun RoomTabs(rooms: List<Room>, focusedId: Long?, onTap: (Long) -> Unit,
             }
         }
     }
+}
+
+
+/** Pixel sullo schermo di cui un tasto sposta l'oggetto selezionato (con Maiusc [NUDGE_FAST_PX]). */
+private const val NUDGE_PX = 2.0
+private const val NUDGE_FAST_PX = 10.0
+
+/** Oggetto che WASD e frecce spostano: quello selezionato che si può trascinare, muri compresi. */
+internal fun nudgeTarget(sel: Selection?): DragTarget? =
+    if (sel is Selection.Wall) DragTarget.Wall(sel.roomId, sel.index) else selectedDragTarget(sel)
+
+/** Chiave dei GlobalId IFC del progetto: la stessa all'andata e al ritorno, anche se il progetto cambia nome. */
+private fun ifcKey(projectId: Long) = "sagoma-progetto-$projectId"
+
+/** Planimetria nuda in IFC (mai gli arredi del catalogo), da mandare al professionista. */
+private fun exportIfc(platform: Platform, building: Building, name: String?, projectId: Long) {
+    val title = name?.takeIf { it.isNotBlank() } ?: "sagoma"
+    val text = IfcExport.export(building, title, key = ifcKey(projectId), timestamp = isoDate(platform.now()) + "T00:00:00")
+    val file = "${title.replace(Regex("[^A-Za-z0-9 _-]"), "").ifBlank { "sagoma" }}.ifc"
+    platform.saveFile(file, "application/x-step", text.encodeToByteArray()) { ok ->
+        platform.toast(if (ok) T.editor.ifcEsportato else T.vari.esportazioneNonRiuscita)
+    }
+}
+
+/**
+ * La cucina del negozio dal suo IFC (Winner esporta i soli mobili): entra nel piano corrente come oggetto fornito, che non va
+ * nel catalogo e non esce da sagoma. Si annulla con Annulla.
+ */
+private fun readShopKitchen(platform: Platform, vm: EditorViewModel) = platform.openFile(listOf(ANY_FILE)) { file ->
+    file ?: return@openFile
+    val name = file.name.substringBeforeLast('.').ifBlank { T.editor.cucinaNegozio }
+    val read = runCatching { IfcFurniture.read(file.bytes.decodeToString(), id = 1, name = name) }.getOrNull()
+    val obj = read?.obj
+    if (obj == null) { platform.toast(T.editor.cucinaNonLetta); return@openFile }
+    vm.addSupplied(obj, read.center)
+    platform.toast(T.editor.cucinaMessa(obj.elements.size))
+}
+
+/** Ritorno dal professionista: il suo IFC prende il posto della planimetria, gli arredi restano (Annulla torna a prima). */
+private fun readIfc(platform: Platform, vm: EditorViewModel, projectId: Long) = platform.openFile(listOf(ANY_FILE)) { file ->
+    file ?: return@openFile
+    val read = runCatching { IfcImport.read(file.bytes.decodeToString()) }.getOrNull()
+    if (read == null || read.report.rooms + read.report.walls == 0) { platform.toast(T.editor.ifcNonLetto); return@openFile }
+    val merged = IfcRoundTrip.merge(vm.state.value.fullBuilding, read, key = ifcKey(projectId))
+    vm.applyIfcReturn(merged.building)
+    val r = merged.report
+    platform.toast(T.editor.ifcRiletto(r.unchanged, r.moved + r.reshaped, r.added, r.removed, r.toCheck.size))
 }

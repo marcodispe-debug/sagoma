@@ -21,10 +21,16 @@ import kotlin.math.roundToInt
  * indica cosa cliccare ([GuideHint]) e va avanti da sola quando l'azione è fatta. Le lezioni prima dell'ultima costruiscono la
  * casa della piantina della guida ([GuidePlan]), ogni cosa al suo posto: lo studio, il soggiorno attaccato sopra, la camera a
  * destra, il bagno sotto la camera, l'ingresso nello spazio che resta, il tramezzo della cabina armadio nella camera, poi porte,
- * finestre e il resto. L'ultima («Sopra la tua planimetria») si fa in un secondo progetto, sopra l'immagine della stessa piantina.
+ * finestre e il resto; poi il controllo della pianta, sulla casa fatta. L'ultima («Sopra la tua planimetria») si fa in un secondo
+ * progetto, sopra l'immagine della stessa piantina.
+ *
+ * [Sun] non fa parte della guida: parte da sola, sul progetto dell'utente, la prima volta che si tocca la bussola.
  */
 enum class Lesson {
-    Square, LShape, Rectangle, Survey, Walls, FreeWall, Elements, OverPlan;
+    Square, LShape, Rectangle, Survey, Walls, FreeWall, Elements, Check, OverPlan, Sun;
+
+    /** Lezione della guida interattiva (le altre partono da sole, quando serve). */
+    val inCourse: Boolean get() = this != Sun
 
     /** La stanza della piantina che si disegna nella lezione (null: nessuna). */
     val planRoom: GuidePlan.Room?
@@ -88,6 +94,13 @@ enum class CourseStep(val lesson: Lesson, val action: Boolean = true) {
     Info(Lesson.Elements),
     ElementsDone(Lesson.Elements, action = false),
 
+    CheckOpen(Lesson.Check),
+    CheckFix(Lesson.Check),
+    CheckClose(Lesson.Check),
+    CheckMark(Lesson.Check),
+    CheckHide(Lesson.Check),
+    CheckDone(Lesson.Check, action = false),
+
     TraceStart(Lesson.OverPlan),
     TraceLoad(Lesson.OverPlan),
     CalibA(Lesson.OverPlan),
@@ -110,6 +123,14 @@ enum class CourseStep(val lesson: Lesson, val action: Boolean = true) {
     LivingInfo(Lesson.OverPlan),
     PlanFade(Lesson.OverPlan),
     Finished(Lesson.OverPlan, action = false),
+
+    // Il sole, al primo tocco sulla bussola: niente da scrivere, ogni scelta va bene e ogni passo si può saltare.
+    North(Lesson.Sun),
+    City(Lesson.Sun),
+    Open3d(Lesson.Sun),
+    SunHour(Lesson.Sun),
+    SunDay(Lesson.Sun),
+    SunDone(Lesson.Sun, action = false),
     ;
 
     companion object {
@@ -123,8 +144,8 @@ enum class ShapeChoice { Square, Rectangle, L, Survey, Walls, Trace, FreeWall }
 /** Campi in cui la guida fa scrivere una misura. `index` in [GuideTarget.Field] dice quale lato o diagonale. */
 enum class GuideField { Side, Width, Depth, MainWidth, MainDepth, ProtrusionWidth, ProtrusionDepth, SurveySide, Diagonal, WallLength, Calibration, WallInfo, FreeWallLength, FreeWallThickness }
 
-/** Voci del menu «Elementi architettonici» che la guida indica. */
-enum class GuideMenu { Room, Doors, Door, Windows, Window, FrenchWindows, FrenchWindow, Systems, Radiator, Lights, Chandelier, Stairs, Spiral, Outdoor, Balcony }
+/** Voci del menu «Elementi architettonici» che la guida indica; `LightPoint` è il punto luce semplice nella scelta delle luci. */
+enum class GuideMenu { Room, Doors, Door, Windows, Window, FrenchWindows, FrenchWindow, Systems, Radiator, Lights, Chandelier, LightPoint, Stairs, Spiral, Outdoor, Balcony }
 
 /** Comandi dell'interfaccia che la guida interattiva sa indicare (l'interfaccia li segna con `Modifier.guide`). */
 sealed interface GuideTarget {
@@ -160,6 +181,32 @@ sealed interface GuideTarget {
     data object InfoPanel : GuideTarget
     /** «↶ Annulla» in alto. */
     data object Undo : GuideTarget
+    /** Il menu «⋮» in alto: fatto quando è aperto. */
+    data object More : GuideTarget
+    /** La voce «Controlla la pianta» del menu «⋮». */
+    data object CheckItem : GuideTarget
+    /** «Chiudi» nella finestra «Controlla la pianta». */
+    data object CheckClose : GuideTarget
+    /** Il primo «✓ Correggi tutti» della finestra «Controlla la pianta». */
+    data object CheckFixAll : GuideTarget
+    /** Il primo «✓ Correggi» della finestra «Controlla la pianta». */
+    data object CheckFix : GuideTarget
+    /** Un «!» sulla pianta (il primo, il più grave): il tocco apre la sua scheda. */
+    data object CheckMark : GuideTarget
+    /** «Togli dalla pianta» nella scheda di un «!» (il primo problema). */
+    data object CheckHide : GuideTarget
+    /** La bussola sulla pianta: si trascina per girare la N, un tocco apre «Nord e città» (fatto quando è aperta). */
+    data object Compass : GuideTarget
+    /** «Chiudi» nella finestra «Nord e città». */
+    data object CloseSite : GuideTarget
+    /** «Vista 3D» / «Pianta 2D» in basso a destra. */
+    data object View3d : GuideTarget
+    /** L'ora nel 3D («☀ 12:00»): fatto quando il cursore dell'ora è aperto. */
+    data object SunTime : GuideTarget
+    /** Il cursore dell'ora del giorno. */
+    data object SunSlider : GuideTarget
+    /** «📅» accanto al cursore dell'ora: fatto quando l'elenco dei giorni è aperto. */
+    data object SunDay : GuideTarget
 }
 
 /**
@@ -189,6 +236,10 @@ data class CourseUi(
     val number: Int,
     val total: Int,
     val detail: String?,
+    /** «Indietro»: c'è un passo prima a cui tornare. */
+    val canGoBack: Boolean = false,
+    /** Una lezione sola, sul progetto dell'utente (per esempio quella del sole, al primo tocco sulla bussola). */
+    val single: Boolean = false,
 )
 
 /** Avanzamento della guida interattiva. Le azioni arrivano come [TutorialEvent], come per il tutorial. */
@@ -198,18 +249,24 @@ class Course {
 
     val active: Boolean get() = step != null
 
-    fun start(lesson: Lesson) {
+    /** Lezione sola sul progetto dell'utente (il sole, dalla bussola): finita la lezione la guida finisce. */
+    var single: Boolean = false
+        private set
+
+    fun start(lesson: Lesson, single: Boolean = false) {
         step = CourseStep.first(lesson)
+        this.single = single
     }
 
     fun stop() {
         step = null
+        single = false
     }
 
     /** Passo successivo ("Avanti", "Salta passo" o passo completato); null dopo l'ultimo. */
     fun next() {
         val s = step ?: return
-        step = CourseStep.entries.getOrNull(s.ordinal + 1)
+        step = CourseStep.entries.getOrNull(s.ordinal + 1)?.takeUnless { if (single) it.lesson != s.lesson else !it.lesson.inCourse }
     }
 
     /** Registra un'azione dell'utente sulla casa `s` (già aggiornata); true se il passo è cambiato. */
@@ -240,6 +297,12 @@ class Course {
             CourseStep.Radiator, CourseStep.Light -> e == TutorialEvent.FixtureAdded
             CourseStep.Stair -> e == TutorialEvent.StairAdded
             CourseStep.Info -> e == TutorialEvent.InfoOpened
+            // Il controllo della pianta: elenco aperto, qualcosa corretto, elenco chiuso, un «!» toccato e tolto dalla pianta.
+            CourseStep.CheckOpen -> e == TutorialEvent.PlanCheckOpened
+            CourseStep.CheckFix -> e == TutorialEvent.IssuesFixed
+            CourseStep.CheckClose -> e == TutorialEvent.PlanChecked
+            CourseStep.CheckMark -> e == TutorialEvent.CheckMarkOpened
+            CourseStep.CheckHide -> e == TutorialEvent.CheckHidden
             CourseStep.TraceStart -> e == TutorialEvent.TracingStarted
             CourseStep.TraceLoad -> e == TutorialEvent.UnderlayLoaded
             // Durante la taratura il passo segue i punti toccati: il terzo tocco ricomincia da A, e la guida torna indietro.
@@ -261,10 +324,32 @@ class Course {
             CourseStep.FreeWallMove -> e == TutorialEvent.FreeWallMoved && CourseHints(s).freeWallInPlace()
             CourseStep.FreeWallEnd -> e == TutorialEvent.FreeWallEndDragged && CourseHints(s).freeWallShortened()
             CourseStep.FreeWallInfo -> CourseHints(s).freeWallExact()
+            // Il sole: la casa dell'utente ha il suo nord e la sua città, ogni scelta va bene.
+            CourseStep.North -> e == TutorialEvent.NorthTurned
+            CourseStep.City -> e == TutorialEvent.SiteClosed
+            CourseStep.Open3d -> e == TutorialEvent.View3dOpened
+            CourseStep.SunHour -> e is TutorialEvent.SunHour
+            CourseStep.SunDay -> e is TutorialEvent.SunDay
             else -> false
         }
         if (done) next()
         return done
+    }
+
+    /**
+     * «Salta passo»: il passo dopo; dentro «Muro per muro» si salta tutto il disegno dell'ingresso, che la guida mette da sola
+     * (vedi [skipped]).
+     */
+    fun skip() {
+        step = when (step) {
+            CourseStep.WallsFirst, CourseStep.WallsTyped, CourseStep.WallsClose -> CourseStep.WallsDone
+            else -> return next()
+        }
+    }
+
+    /** «Indietro»: di nuovo al passo `target` (uno già fatto). */
+    fun goTo(target: CourseStep) {
+        step = target
     }
 
     private fun moveTo(target: CourseStep): Boolean {
@@ -279,9 +364,10 @@ class Course {
         val steps = CourseStep.entries.filter { it.lesson == st.lesson && it.action }
         val detail = when (st) {
             CourseStep.WallsTyped -> T.corso.muriFatti(((s.wallDraw?.points?.size ?: 1) - 1).coerceAtLeast(0), GuidePlan.entranceWalls.size)
+            CourseStep.North -> T.corso.nordOra(s.building.site.northDeg.roundToInt())
             else -> null
         }
-        return CourseUi(st, st.lesson.ordinal + 1, Lesson.entries.size, steps.indexOf(st) + 1, steps.size, detail)
+        return CourseUi(st, st.lesson.ordinal + 1, Lesson.entries.count { it.inCourse }, steps.indexOf(st) + 1, steps.size, detail, single = single)
     }
 
     companion object {
@@ -300,6 +386,35 @@ class Course {
          */
         fun place(step: CourseStep?, s: EditorUiState, interior: List<Vec2>, shape: List<Vec2>, outdoor: Boolean): List<Vec2>? =
             CourseHints(s).place(step, interior, shape, outdoor)
+
+        /** «Salta passo» c'è: non per caricare la piantina della guida, senza la quale il resto della lezione non si può fare. */
+        fun canSkip(step: CourseStep): Boolean = step.action && step != CourseStep.TraceLoad
+
+        /**
+         * La stanza che nasce quando si salta un passo «Crea stanza»: tipo e filo interno (dove nasce lo decide [place], come
+         * per quelle create a mano). Null: il passo non crea una stanza.
+         */
+        fun skippedRoom(step: CourseStep): Pair<RoomType, List<Vec2>>? = when (step) {
+            CourseStep.SquareMeasures -> GuidePlan.studio.let { it.type to it.points }
+            CourseStep.LMeasures -> GuidePlan.soggiorno.let { it.type to it.points }
+            CourseStep.RectMeasures -> GuidePlan.camera.let { it.type to it.points }
+            CourseStep.SurveyMeasures -> GuidePlan.bagno.let { it.type to it.points }
+            CourseStep.Balcony -> GuidePlan.balcone.let { it.type to it.points }
+            CourseStep.PlanMeasures -> GuidePlan.side(GuidePlan.camera, 1).toDouble().let { RoomType.Camera to RoomFactory.rectangle(it, it) }
+            CourseStep.Bath -> GuidePlan.side(GuidePlan.bagno, 0).toDouble().let { RoomType.Bagno to RoomFactory.rectangle(it, it) }
+            // Il soggiorno a L con misure di prova, un po' più piccolo di quello disegnato: i muri si portano poi sulla piantina.
+            CourseStep.LivingMeasures -> RoomType.Soggiorno to GuidePlan.soggiorno.points.map { it * SKIPPED_LIVING_SCALE }
+            else -> null
+        }
+
+        /**
+         * La casa come l'avrebbe lasciata il passo `step` fatto a mano (muri trascinati, stanze al loro posto, misure esatte,
+         * taratura), così dopo «Salta passo» i passi seguenti si possono fare. Null: il passo non cambia la casa.
+         */
+        fun skipped(step: CourseStep, s: EditorUiState): FloorPlan? = CourseHints(s).skipped(step)
+
+        /** Il passo `step` è già fatto sulla casa `s`: dopo un passo saltato la guida va avanti da sola. */
+        fun ready(step: CourseStep, s: EditorUiState): Boolean = CourseHints(s).ready(step)
 
         /** La casa di prova com'è all'inizio della lezione `lesson`: le stanze (e il tramezzo) delle lezioni prima, al loro posto. */
         fun house(lesson: Lesson): FloorPlan {
@@ -333,6 +448,8 @@ private class CourseHints(private val s: EditorUiState) {
     private fun menu(first: String, vararg items: Pair<GuideMenu, String>): List<GuideHint> =
         listOf(hint(GuideTarget.Elements, first)) + items.map { (m, t) -> hint(GuideTarget.Menu(m), t) }
 
+    private fun reopenCheck() = listOf(hint(GuideTarget.More, c.controlloRiapri), hint(GuideTarget.CheckItem, c.controlloVoce))
+
     /** Scelta della forma: nella finestra se è aperta, altrimenti prima la si apre da «Elementi architettonici» → «Stanza». */
     private fun pick(choice: ShapeChoice, text: String, open: String = c.apriElementi): List<GuideHint> =
         if (s.creation is CreationStep.PickShape) listOf(hint(GuideTarget.Shape(choice), text))
@@ -344,7 +461,7 @@ private class CourseHints(private val s: EditorUiState) {
 
     fun of(step: CourseStep): List<GuideHint> = when (step) {
         CourseStep.Welcome, CourseStep.SquareDone, CourseStep.RectDone, CourseStep.LDone, CourseStep.SurveyDone,
-        CourseStep.WallsDone, CourseStep.ElementsDone, CourseStep.InnerFace, CourseStep.Finished -> emptyList()
+        CourseStep.WallsDone, CourseStep.ElementsDone, CourseStep.CheckDone, CourseStep.SunDone, CourseStep.InnerFace, CourseStep.Finished -> emptyList()
 
         CourseStep.SquarePick -> pick(ShapeChoice.Square, c.scegliQuadrato)
         CourseStep.SquareMeasures -> measures(ShapeChoice.Square, c.scegliQuadrato) {
@@ -442,10 +559,20 @@ private class CourseHints(private val s: EditorUiState) {
         else listOfNotNull(frenchSpot()?.let { mark(c.cliccaMuroBalcone, PlanMark(listOf(it))) })
         CourseStep.Radiator -> if (s.pendingFixture == null) menu(c.impiantiElementi, GuideMenu.Systems to c.impianti, GuideMenu.Radiator to c.calorifero)
         else listOf(mark(c.cliccaMuroCalorifero, PlanMark(listOf(radiatorSpot()))))
-        CourseStep.Light -> if (s.pendingFixture == null) menu(c.luciElementi, GuideMenu.Systems to c.impianti, GuideMenu.Lights to c.luci, GuideMenu.Chandelier to c.lampadario)
-        else listOf(mark(c.cliccaStanzaLuce, PlanMark(listOf(lightSpot()))))
+        CourseStep.Light -> if (s.pendingFixture == null) {
+            // Se il catalogo ha dei lampadari si apre la scelta del modello: il punto luce semplice è il primo.
+            menu(c.luciElementi, GuideMenu.Systems to c.impianti, GuideMenu.Lights to c.luci, GuideMenu.Chandelier to c.lampadario, GuideMenu.LightPoint to c.luceSemplice)
+        } else listOf(mark(c.cliccaStanzaLuce, PlanMark(listOf(lightSpot()))))
         CourseStep.Stair -> stairHints()
         CourseStep.Info -> listOf(hint(GuideTarget.Info, c.info))
+
+        // Con la finestra «Controlla la pianta» chiusa a metà passo, prima la si riapre.
+        CourseStep.CheckOpen -> listOf(hint(GuideTarget.More, c.controlloMenu), hint(GuideTarget.CheckItem, c.controlloVoce))
+        CourseStep.CheckFix -> reopenCheck() + hint(GuideTarget.CheckFixAll, c.controlloCorreggiTutti) + hint(GuideTarget.CheckFix, c.controlloCorreggi)
+        CourseStep.CheckClose -> reopenCheck() + hint(GuideTarget.CheckClose, c.controlloChiudi)
+        CourseStep.CheckMark -> listOf(hint(GuideTarget.CheckMark, c.controlloSegno))
+        // Scheda del «!» chiusa senza togliere niente: di nuovo un «!».
+        CourseStep.CheckHide -> listOf(hint(GuideTarget.CheckHide, c.controlloTogli), hint(GuideTarget.CheckMark, c.controlloSegnoDiNuovo))
 
         CourseStep.TraceStart -> listOf(hint(GuideTarget.Shape(ShapeChoice.Trace), c.ricalca))
         CourseStep.TraceLoad -> listOf(hint(GuideTarget.GuidePlanImage, c.usaPiantinaGuida))
@@ -494,6 +621,16 @@ private class CourseHints(private val s: EditorUiState) {
         }
         CourseStep.LivingInfo -> livingInfoHints()
         CourseStep.PlanFade -> listOf(hint(GuideTarget.PlanPanel, c.apriPannello), hint(GuideTarget.PlanOpacity, c.trasparenzaPiantina))
+
+        // La bussola è solo sulla pianta, ora e giorno solo nel 3D: chi è dall'altra parte ci viene riportato.
+        CourseStep.North -> if (s.view3d) listOf(hint(GuideTarget.View3d, c.tornaAllaPianta)) else listOf(hint(GuideTarget.Compass, c.giraBussola))
+        CourseStep.City -> if (s.view3d) listOf(hint(GuideTarget.View3d, c.tornaAllaPianta))
+        else listOf(hint(GuideTarget.Compass, c.toccaBussola), hint(GuideTarget.CloseSite, c.sceltaCitta))
+        CourseStep.Open3d -> listOf(hint(GuideTarget.View3d, c.apriVista3d))
+        CourseStep.SunHour -> if (!s.view3d) listOf(hint(GuideTarget.View3d, c.tornaAl3d))
+        else listOf(hint(GuideTarget.SunTime, c.apriOra), hint(GuideTarget.SunSlider, c.trascinaOra))
+        CourseStep.SunDay -> if (!s.view3d) listOf(hint(GuideTarget.View3d, c.tornaAl3d))
+        else listOf(hint(GuideTarget.SunTime, c.riapriOra), hint(GuideTarget.SunDay, c.apriGiorno), GuideHint(c.scegliGiorno))
     }
 
     /**
@@ -580,6 +717,94 @@ private class CourseHints(private val s: EditorUiState) {
             if (d.y >= 0) Vec2(0.0, house.maxY + GAP_CM - ab.minY) else Vec2(0.0, house.minY - GAP_CM - ab.maxY)
         }
         return at.map { it + away }
+    }
+
+    // ---------- «Salta passo»: la casa come l'avrebbe lasciata il passo fatto ----------
+
+    fun ready(step: CourseStep): Boolean = when (step) {
+        CourseStep.SquareInfo -> squareExact()
+        CourseStep.LMove, CourseStep.RectMove, CourseStep.SurveyMove -> inPlace(step.lesson.planRoom)
+        CourseStep.FreeWallMove -> freeWallInPlace()
+        CourseStep.FreeWallEnd -> freeWallShortened()
+        CourseStep.FreeWallInfo -> freeWallExact()
+        CourseStep.LivingWalls -> livingWalls()?.isEmpty() == true
+        CourseStep.LivingInfo -> livingExact()
+        else -> false
+    }
+
+    fun skipped(step: CourseStep): FloorPlan? = when (step) {
+        // Lo studio: muro di destra più in là, misure esatte, angolo in fuori, di nuovo dritto (Annulla).
+        CourseStep.SquareWall -> studio()?.let { r ->
+            val right = r.points.sortedByDescending { it.x }.take(2).toSet()
+            plan.replace(r.copy(points = r.points.map { if (it in right) it + Vec2(STRETCH_CM, 0.0) else it }))
+        }
+        CourseStep.SquareInfo, CourseStep.SquareUndo -> withRoom(GuidePlan.studio)
+        CourseStep.SquareCorner -> studio()?.let { r ->
+            val corner = r.points.maxBy { it.x + it.y }
+            plan.replace(r.copy(points = r.points.map { if (it == corner) it + Vec2(CORNER_CM, CORNER_CM * 0.6) else it }))
+        }
+        CourseStep.LMove, CourseStep.RectMove, CourseStep.SurveyMove -> step.lesson.planRoom?.let(::withRoom)
+        // L'ingresso disegnato muro per muro: già chiuso, al suo posto.
+        CourseStep.WallsFirst, CourseStep.WallsTyped, CourseStep.WallsClose -> withRoom(GuidePlan.ingresso)
+        CourseStep.FreeWallMove -> partition()?.let { (top, _) ->
+            val w = freeWall()
+            val camera = goal(GuidePlan.camera)
+            val bottom = camera?.maxOf { it.y } ?: (top.y + GuidePlan.tramezzo.length)
+            withFreeWall(if (w != null && upright(w)) w.copy(start = Vec2(top.x, w.start.y), end = Vec2(top.x, w.end.y)) else (w ?: newFreeWall()).copy(start = top, end = Vec2(top.x, bottom)))
+        }
+        CourseStep.FreeWallEnd -> partition()?.let { (top, end) -> withFreeWall((freeWall() ?: newFreeWall()).copy(start = top, end = end)) }
+        CourseStep.FreeWallInfo -> partition()?.let { (top, end) ->
+            withFreeWall((freeWall() ?: newFreeWall()).copy(start = top, end = end, thickness = GuidePlan.tramezzo.thickness))
+        }
+        // Sopra la piantina: taratura fatta, poi le stanze portate e allungate sopra quelle disegnate.
+        CourseStep.CalibA, CourseStep.CalibB, CourseStep.CalibValue -> plan.underlay?.let { u ->
+            val f = GuidePlan.width / (u.cmPerPx * u.widthPx)
+            val a = GuidePlan.onUnderlay(u, GuidePlan.calibrationA)
+            plan.copy(underlay = u.copy(cmPerPx = u.cmPerPx * f, origin = a + (u.origin - a) * f))
+        }
+        CourseStep.MoveRoom -> indoor(RoomType.Camera, 0)?.let { r -> onPlan(GuidePlan.camera.points[0])?.let { moved(r, it) } }
+        CourseStep.Stretch -> indoor(RoomType.Camera, 0)?.let { r -> onDrawn(r, GuidePlan.camera) }
+        CourseStep.MoveBath -> bath()?.let { r -> onPlan(GuidePlan.bagno.points[0])?.let { moved(r, it) } }
+        CourseStep.CornerC, CourseStep.CornerD -> bath()?.takeIf { it.points.size == GuidePlan.bagno.points.size }?.let { r ->
+            val drawn = GuidePlan.bagno.points.map { onPlan(it) ?: return@let null }
+            val i = if (step == CourseStep.CornerC) 2 else 3
+            val corner = Polygon.inset(drawn, -r.wallThickness / 2)[i]
+            plan.replace(r.copy(points = r.points.mapIndexed { k, p -> if (k == i) corner else p }))
+        }
+        CourseStep.Attach -> living()?.let { r ->
+            val d = (cameraCorner() ?: return@let null) - topRight(r)
+            plan.replace(r.copy(points = r.points.map { it + d }))
+        }
+        CourseStep.LivingWalls, CourseStep.LivingInfo -> living()?.let { r -> onDrawn(r, GuidePlan.soggiorno) }
+        else -> null
+    }
+
+    /** La stanza `target` della piantina al suo posto nella casa di prova (aggiunta se manca). */
+    private fun withRoom(target: GuidePlan.Room): FloorPlan? {
+        val g = goal(target) ?: return null
+        val r = room(target.type)
+        val points = Polygon.fromInterior(g, r?.wallThickness ?: Room.WALL_THICKNESS)
+        return if (r != null) plan.replace(r.copy(points = points))
+        else plan.copy(rooms = plan.rooms + Room(plan.nextId, RoomFactory.autoName(plan, target.type), target.type, points, floorFinish = target.type.defaultFloor))
+    }
+
+    private fun newFreeWall(): FreeWall = FreeWall(plan.nextFreeWallId, Vec2.Zero, Vec2.Zero)
+
+    private fun withFreeWall(w: FreeWall): FloorPlan =
+        if (plan.freeWalls.any { it.id == w.id }) plan.replace(w) else plan.copy(freeWalls = plan.freeWalls + w)
+
+    private fun bath(): Room? = room(RoomType.Bagno) ?: plan.rooms.lastOrNull()
+
+    /** La stanza `r` spostata (senza cambiare forma) con l'angolo in alto a sinistra del filo interno in `corner`. */
+    private fun moved(r: Room, corner: Vec2): FloorPlan {
+        val d = corner - r.interior().minBy { it.x + it.y }
+        return plan.replace(r.copy(points = r.points.map { it + d }))
+    }
+
+    /** La stanza `r` proprio sopra la stanza `target` disegnata sulla piantina. */
+    private fun onDrawn(r: Room, target: GuidePlan.Room): FloorPlan? {
+        val drawn = target.points.map { onPlan(it) ?: return null }
+        return plan.replace(r.copy(points = Polygon.fromInterior(drawn, r.wallThickness)))
     }
 
     // ---------- Lo studio: i modi per cambiare forma a una stanza ----------
@@ -915,7 +1140,7 @@ private class CourseHints(private val s: EditorUiState) {
             val pts = GuidePlan.ingresso.points.map { it - GuidePlan.ingresso.points[0] + st }
             pad(b.union(Polygon.bounds(pts)), 40.0)
         }
-        CourseStep.FreeWallPick, CourseStep.FreeWallDone -> roomsBounds()?.let { pad(it, 60.0) }
+        CourseStep.FreeWallPick, CourseStep.FreeWallDone, CourseStep.CheckMark -> roomsBounds()?.let { pad(it, 60.0) }
         CourseStep.FreeWallMove, CourseStep.FreeWallEnd, CourseStep.FreeWallInfo -> room(RoomType.Camera)?.let { pad(Polygon.bounds(it.points), 60.0) }
         CourseStep.CalibA -> plan.underlay?.let { u -> Bounds(u.origin.x, u.origin.y, u.origin.x + u.widthCm, u.origin.y + u.heightCm) }
         CourseStep.InnerFace, CourseStep.MoveRoom, CourseStep.Stretch -> withGoal(indoor(RoomType.Camera, 0), GuidePlan.camera, 60.0)
@@ -940,6 +1165,9 @@ private class CourseHints(private val s: EditorUiState) {
 /** Quanto più in là si trascina il muro di destra dello studio, e l'angolo in basso a destra. */
 private const val STRETCH_CM = 70.0
 private const val CORNER_CM = 60.0
+
+/** Il soggiorno a L creato saltando il passo delle misure, rispetto a quello disegnato. */
+private const val SKIPPED_LIVING_SCALE = 0.85
 
 /** Una stanza nuova nasce così lontana dalla casa (in mezzeria): staccata, ma vicina al suo posto. */
 private const val GAP_CM = 120.0

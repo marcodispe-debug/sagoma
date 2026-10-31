@@ -6,6 +6,7 @@ object TestiVista3DFr : TestiVista3D() {
     override val luciAccese: String get() = "💡 Lumières allumées"
     override val luciSpente: String get() = "💡 Lumières éteintes"
     override val luciAuto: String get() = "💡 Lumières : auto"
+    override fun luminositaLuci(pct: Int): String = "💡 Luminosité des lumières : $pct %"
     override val vistaDallAlto: String get() = "🏠 Vue de dessus"
     override val cammina: String get() = "🚶 Marcher"
     override fun oraGiorno(h: Any?, p2: Any?): String = "Heure : $h:$p2"
@@ -28,4 +29,10 @@ object TestiVista3DFr : TestiVista3D() {
     override val giugno21: String get() = "21 juin"
     override val settembre21: String get() = "21 septembre"
     override val dicembre21: String get() = "21 décembre"
+    override val foto4k: String get() = "📷 Photo 4K"
+    override val fotoInPreparazione: String get() = "📷 Préparation de la photo 4K : téléchargement des matériaux plus définis, cela peut prendre une minute…"
+    override val fotoSalvata: String get() = "Photo 4K enregistrée"
+    override val fotoSalvataMarchio: String get() = "Photo 4K enregistrée, avec le filigrane Sagoma"
+    override val fotoMaterialiMenoDefiniti: String get() = "Photo enregistrée. Certains matériaux n'étaient pas encore disponibles en 4K : ils sont un peu moins nets sur la photo"
+    override val fotoNonRiuscita: String get() = "La photo a échoué : la carte graphique est peut-être pleine, fermez d'autres programmes et réessayez"
 }

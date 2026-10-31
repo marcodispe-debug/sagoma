@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Pianta a L stilizzata -->
+<!-- Il simbolo di Sagoma: la «o» della scritta, una stanza vista dall'alto con l'arco della porta. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -8,7 +8,12 @@
     <path
         android:fillColor="#00000000"
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="5"
-        android:strokeLineJoin="miter"
-        android:pathData="M34,34 L58,34 L58,50 L74,50 L74,74 L34,74 Z" />
+        android:strokeWidth="9.84"
+        android:pathData="M55.27,36.92H48.95A10.8,10.8 0 0 0 38.16,47.72V60.28A10.8,10.8 0 0 0 48.95,71.08H59.05A10.8,10.8 0 0 0 69.84,60.28V51.5" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#C8553D"
+        android:strokeWidth="3.15"
+        android:strokeLineCap="round"
+        android:pathData="M55.27,36.92A14.58,14.58 0 0 1 69.84,51.5" />
 </vector>

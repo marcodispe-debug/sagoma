@@ -57,9 +57,13 @@ import com.sagoma.planimetria.reading.PlanReaderResult
 import com.sagoma.planimetria.reading.PlanReadingImport
 import com.sagoma.planimetria.reading.scaledTo
 import com.sagoma.planimetria.testi.T
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.roundToInt
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 /** Progetto aperto: le immagini di sfondo stanno tra i suoi file. */
 val LocalProjectId = staticCompositionLocalOf<Long?> { null }
@@ -76,6 +80,9 @@ private object UnderlayImages {
 
 /** Lato lungo massimo dell'immagine salvata (px): abbastanza per leggere le quote, senza esaurire la memoria. */
 private const val MAX_SIDE = 3000
+
+/** Tipi per scegliere un DXF: i nomi MIME che usano i sistemi, l'estensione (per il browser) e qualunque file. */
+internal val DXF_TYPES = listOf("application/dxf", "image/vnd.dxf", "image/x-dxf", ".dxf", ANY_FILE)
 
 @Composable
 fun rememberUnderlayImage(u: Underlay?): ImageBitmap? {
@@ -130,6 +137,56 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
     // "Leggi la piantina da sola": solo dove c'è il server della lettura e la pianta è ancora vuota.
     val reader = platform.planReader?.takeIf { state.plan.rooms.isEmpty() && state.plan.freeWalls.isEmpty() && state.plan.stairs.isEmpty() }
     var reading by remember { mutableStateOf(false) }
+    val measurer = rememberTextMeasurer()
+
+    /**
+     * Pianta DXF da un programma CAD (per esempio quella che rimanda il professionista): solo sfondo, già in scala (l'unità è
+     * nel file). Se sta sopra la pianta resta dov'è, altrimenti si mette sopra la pianta e la si sposta col dito.
+     */
+    fun importDxf(file: PickedFile?) {
+        if (file == null) return
+        loading = true
+        scope.launch {
+            val result = withContext(Dispatchers.Default) { runCatching { com.sagoma.planimetria.dxf.DxfReader.read(file.bytes) }.getOrNull() }
+            val drawing = (result as? com.sagoma.planimetria.dxf.DxfReader.Result.Ok)?.drawing
+            if (drawing == null) {
+                loading = false
+                platform.toast(
+                    when (result) {
+                        com.sagoma.planimetria.dxf.DxfReader.Result.Dwg -> T.sfondo.dxfDwg
+                        com.sagoma.planimetria.dxf.DxfReader.Result.Binary -> T.sfondo.dxfBinario
+                        com.sagoma.planimetria.dxf.DxfReader.Result.Empty -> T.sfondo.dxfVuoto
+                        else -> T.sfondo.impossibileLeggereFile
+                    },
+                )
+                return@launch
+            }
+            val raster = runCatching { dxfRaster(drawing, measurer, MAX_SIDE) }.getOrNull()
+            val png = raster?.let { platform.encodePng(it.image) }
+            val name = "sfondo-${platform.now()}.png"
+            val saved = png != null && runCatching { platform.projects.writeFile(projectId, name, png) }.isSuccess
+            loading = false
+            if (raster == null || !saved) {
+                platform.toast(if (png == null) T.sfondo.impossibileLeggereFile else T.sfondo.nonSpazioSalvareSfondo)
+                return@launch
+            }
+            val w = raster.image.width
+            val h = raster.image.height
+            val bounds = Openings.planBounds(state.plan)
+            val over = dxfOverPlan(drawing, bounds)
+            val origin = if (over) raster.origin
+            else (bounds?.center ?: (state.camera.toWorld(0f, 0f) + Vec2(600.0, 400.0))) - Vec2(w * raster.cmPerPx / 2, h * raster.cmPerPx / 2)
+            vm.setScaledUnderlay(Underlay(name, w, h, origin = origin, cmPerPx = raster.cmPerPx, opacity = 0.6), move = !over)
+            platform.toast(
+                listOfNotNull(
+                    T.sfondo.dxfInScala(fmt2(drawing.width / 100), fmt2(drawing.height / 100)),
+                    T.sfondo.dxfUnita(drawing.cmPerUnit).takeIf { drawing.unitGuessed },
+                    T.sfondo.dxfParziale.takeIf { drawing.truncated },
+                ).joinToString("\n"),
+            )
+            onDismiss()
+        }
+    }
 
     /** Carica la piantina come sfondo; con `read` la fa anche leggere ([readPlan]), altrimenti si passa alla taratura. */
     fun import(file: PickedFile?, pdf: Boolean, read: Boolean = false) {
@@ -169,7 +226,7 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
         onDismissRequest = { if (!loading) onDismiss() },
         title = { Text(if (tracing) T.sfondo.ricalcaPiantina else T.sfondo.piantaSfondo) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 state.tutorial?.takeIf { it.step == TutorialStep.TraceLoad }?.let { t ->
                     Text(
                         T.sfondo.guidaRicalcoPasso(t.number, t.total),
@@ -200,9 +257,11 @@ fun BackgroundDialog(state: EditorUiState, vm: EditorViewModel, projectId: Long,
                         OutlinedButton(enabled = !loading, onClick = { platform.openFile(listOf("application/pdf")) { import(it, pdf = true) } }) { Text(T.sfondo.pdf) }
                     }
                 }
+                // Il tipo dei DXF cambia da un sistema all'altro: si accetta anche qualunque file (il lettore riconosce il DXF).
+                OutlinedButton(enabled = !loading, onClick = { platform.openFile(DXF_TYPES) { importDxf(it) } }) { Text(T.sfondo.dxf) }
+                Text(T.sfondo.dxfSpiega, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 // Guida interattiva, lezione sulla planimetria: la piantina inventata della guida al posto di un file.
                 if (state.course?.step?.lesson == Lesson.OverPlan && u == null) {
-                    val measurer = rememberTextMeasurer()
                     Button(
                         enabled = !loading,
                         onClick = { guidePlanPng(platform, measurer)?.let { import(PickedFile("piantina-guida.png", it), pdf = false) } },
@@ -278,7 +337,9 @@ internal suspend fun readPlan(platform: Platform, reader: PlanReader, file: Pick
             return false
         }
     }
-    val result = PlanReadingImport.toPlan(reading.scaledTo(img.width, img.height), name)
+    // Le coordinate sono nei pixel dell'immagine mandata: la sua misura la sappiamo noi, non si prende quella della risposta.
+    val sent = reading.copy(image = com.sagoma.planimetria.reading.PlanReading.ImageSize(small.width, small.height))
+    val result = PlanReadingImport.toPlan(sent.scaledTo(img.width, img.height), name)
     val units = if (reading.units.trim().lowercase() == "m") LengthUnit.Meters else LengthUnit.Centimeters
     if (!vm.applyPlanReading(result.plan, units)) {
         platform.toast(T.sfondo.letturaNonRiuscita)
@@ -308,12 +369,12 @@ fun UnderlayToolCard(state: EditorUiState, vm: EditorViewModel) {
     }
     if (tool is UnderlayTool.Calibrate && tool.first != null && tool.second != null) {
         var text by remember(tool) { mutableStateOf("") }
-        val cm = text.replace(',', '.').toDoubleOrNull()
+        val cm = parseNumber(text)
         AlertDialog(
             onDismissRequest = { vm.setUnderlayTool(UnderlayTool.Calibrate()) },
             title = { Text(T.sfondo.misuraReale) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(T.sfondo.quantoLungaDavveroDistanza)
                     SelectAllTextField(
                         value = text, onValueChange = { text = it }, label = "cm",

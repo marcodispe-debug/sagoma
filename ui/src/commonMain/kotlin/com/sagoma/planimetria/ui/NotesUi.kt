@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
@@ -93,7 +95,7 @@ internal fun DimensionPanel(sel: Selection.Dimension, plan: FloorPlan, vm: Edito
     Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SelectAllTextField(
             value = off,
-            onValueChange = { off = it; it.replace(',', '.').toDoubleOrNull()?.let { v -> vm.updateDimension(d.copy(offset = if (d.offset < 0) -v else v)) } },
+            onValueChange = { off = it; parseNumber(it)?.let { v -> vm.updateDimension(d.copy(offset = if (d.offset < 0) -v else v)) } },
             label = T.note.distanzaLineaCm,
             numeric = true,
             modifier = Modifier.weight(1f),
@@ -162,7 +164,8 @@ fun LayersDialog(state: EditorUiState, vm: EditorViewModel, onDismiss: () -> Uni
         onDismissRequest = onDismiss,
         title = { Text(T.note.livelli) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            // Scorre: col telefono in orizzontale l'ultima riga (Arredi) restava tagliata.
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     T.note.nascostoNonVedePianta,
                     style = MaterialTheme.typography.bodySmall,

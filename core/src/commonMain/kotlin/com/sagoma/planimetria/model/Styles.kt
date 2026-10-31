@@ -15,6 +15,10 @@ enum class DoorModel {
     Glazed,
     Planks,
     Modern,
+    /** Blindata: anta spessa con le bugne, serratura e spioncino. */
+    Armored,
+    /** Tutto vetro: anta di vetro temperato satinato, senza telaio, con le cerniere e la maniglia di metallo. */
+    AllGlass,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
@@ -40,10 +44,55 @@ enum class WindowModel {
     Classic,
     Minimal,
     English,
+    /** Vetrata stile loft: profili neri sottili e vetro diviso a riquadri. */
+    Loft,
+    /** Infisso in legno: telaio più grosso, vetro fermato dai listelli (fermavetro); di solito rovere. */
+    Wood,
+    /** Vetromattone: blocchi di vetro murati, fissi (niente ante, oscuranti, inferriata, zanzariera o tenda). */
+    GlassBlock,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.windowModel(this)
+}
+
+/** Come si apre l'anta di finestre e balconi (quando non sono scorrevoli). */
+enum class SashType {
+    Casement,
+    TiltTurn,
+    Hopper,
+    Fixed,
+    /** A bilico: gira su un perno orizzontale a metà altezza. */
+    Pivot,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.sashType(this)
+}
+
+/**
+ * Porta da garage: invece di aprirsi a battente il pannello sale e va sotto il soffitto, dentro la stanza. Si possono
+ * aggiungere tipi, non rinominarli (finiscono nel file).
+ */
+enum class GarageDoor {
+    None,
+    /** Basculante: un pannello unico che si ribalta in alto. */
+    UpAndOver,
+    /** Sezionale: pannelli orizzontali che scorrono su binari fino sotto il soffitto. */
+    Sectional,
+}
+
+/** Forma di finestre e balconi. Si possono aggiungere forme, non rinominarle (finiscono nel file). */
+enum class WindowShape {
+    Rectangle,
+    /** Con la cima ad arco tondo. */
+    Arched,
+    /** Tonda (oblò): il diametro è la larghezza. Solo finestre. */
+    Round,
+    ;
+
+    /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
+    val label: String get() = com.sagoma.planimetria.testi.T.nomi.windowShape(this)
 }
 
 /** Dove sta l'infisso di finestre e balconi nello spessore del muro. */
@@ -57,11 +106,19 @@ enum class FramePosition {
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.framePosition(this)
 }
 
-/** Oscuranti di finestre e balconi, all'esterno. */
+/** Oscuranti di finestre e balconi: all'esterno, tranne gli scuri interni. */
 enum class Shading {
     None,
     Shutters,
     RollerShutter,
+    /** Veneziana esterna (frangisole a lamelle orientabili), abbassata per due terzi. */
+    Venetian,
+    /** Scuri interni: ante di legno sulla faccia del muro verso la stanza, aperte ai lati della finestra. */
+    InteriorShutters,
+    /** Persiana alla romana (a sporgere): incernierata in alto, aperta in fuori con il fondo staccato dal muro. */
+    RomanShutter,
+    /** Persiane scorrevoli: ante a stecche appese a un binario sopra la finestra, aperte di lato lungo il muro (fuori dal vano). */
+    SlidingShutters,
     ;
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
@@ -90,6 +147,14 @@ enum class StairMaterial(val argb: Long) {
 
     /** Nome da mostrare, nella lingua dei testi ([com.sagoma.planimetria.testi.Nomi]). */
     val label: String get() = com.sagoma.planimetria.testi.T.nomi.stairMaterial(this)
+
+    companion object {
+        /** Il materiale col colore più vicino a `argb`: quello che resta sotto la foto scelta dai pavimenti, per chi non la vede. */
+        fun closestTo(argb: Long): StairMaterial = entries.minBy { m ->
+            fun ch(c: Long, s: Int) = ((c shr s) and 0xFF).toInt()
+            listOf(16, 8, 0).sumOf { s -> (ch(m.argb, s) - ch(argb, s)).let { it * it } }
+        }
+    }
 }
 
 /** Ringhiera della scala, sui lati liberi (non contro i muri). */
@@ -198,6 +263,8 @@ data class WallFinish(
     val coveringHeight: Double? = null,
     /** Con [Covering.Material]: il materiale della libreria ([MaterialCatalog]). */
     val material: String? = null,
+    /** Con [Covering.Material]: verso e misura dei pezzi. */
+    val layout: MaterialLayout = MaterialLayout(),
 ) {
     val coverArgb: Long get() = coveringArgb ?: (if (covering == Covering.Material) material?.let { MaterialCatalog.item(it)?.argb } else null) ?: covering.defaultArgb
     /** Fin dove arriva il rivestimento (null = tutta la parete). */
@@ -208,6 +275,71 @@ data class WallFinish(
         const val FULL_HEIGHT = 1000.0
 
         fun of(paint: WallPaint) = WallFinish(paint.argb)
+    }
+}
+
+/**
+ * Posa di un materiale fotografico ([MaterialCatalog]) su un pavimento o su una parete: `rotation` gira i pezzi (gradi: 90 =
+ * doghe nell'altro verso, 45 = in diagonale), `scale` li ingrandisce rispetto alla foto del catalogo (1,5 = doghe o
+ * piastrelle più grandi del 50%). Con `laying` i pezzi si posano uno per uno, con la fuga ([Laying]); `scale` allora non conta.
+ */
+@Serializable
+data class MaterialLayout(val rotation: Double = 0.0, val scale: Double = 1.0, val laying: Laying? = null) {
+    /** Coordinate nella foto del punto (`x`, `y`) cm del pavimento o della parete, con la foto che si ripete ogni `size` cm. */
+    fun uv(x: Double, y: Double, size: Double): Vec2 {
+        val r = rotation * kotlin.math.PI / 180
+        val c = kotlin.math.cos(r)
+        val s = kotlin.math.sin(r)
+        val k = size * scale.coerceIn(MIN_SCALE, MAX_SCALE)
+        return Vec2((x * c + y * s) / k, (y * c - x * s) / k)
+    }
+
+    companion object {
+        const val MIN_SCALE = 0.25
+        const val MAX_SCALE = 3.0
+    }
+}
+
+/** Schema di posa dei pezzi: le file corrono lungo il verso scelto ([MaterialLayout.rotation]). */
+@Serializable
+enum class LayingPattern {
+    /** In fila, fughe allineate nei due versi. */
+    Dritta,
+    /** File sfalsate di mezzo pezzo (a mattoncino). */
+    Sfalsata,
+    /** File sfalsate di un terzo di pezzo. */
+    Terzi,
+    /** File sfalsate a caso, mai con le giunte vicine a quelle della fila accanto (il parquet «a correre»). */
+    ACorrere,
+    /** Spina di pesce: pezzi ad angolo retto, a 45° rispetto al verso. */
+    SpinaDiPesce,
+    /** A cesto: quadrati di pezzi affiancati, girati di 90° uno sì e uno no. */
+    Cesto;
+
+    val label: String get() = com.sagoma.planimetria.testi.T.finiture.schemaPosa(this)
+}
+
+/** Da dove parte la posa: dal centro della stanza (tagli uguali ai lati) o da un angolo (pezzi interi da quel lato). */
+@Serializable
+enum class LayingStart { Centro, Angolo }
+
+/**
+ * Posa a pezzi di un materiale: pezzi `width` × `length` cm (lato corto e lato lungo) posati con lo schema `pattern`,
+ * fughe larghe `joint` cm del colore `jointArgb`. Ogni pezzo mostra un pezzo vero della foto ([MaterialPieces]).
+ */
+@Serializable
+data class Laying(
+    val pattern: LayingPattern = LayingPattern.Dritta,
+    val width: Double = 60.0,
+    val length: Double = 60.0,
+    val joint: Double = 0.3,
+    val jointArgb: Long = 0xFFB9B4AA,
+    val start: LayingStart = LayingStart.Centro,
+) {
+    companion object {
+        const val MIN_SIDE = 2.0
+        const val MAX_SIDE = 300.0
+        const val MAX_JOINT = 2.0
     }
 }
 

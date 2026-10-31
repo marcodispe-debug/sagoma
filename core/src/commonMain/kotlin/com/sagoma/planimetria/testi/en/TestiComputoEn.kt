@@ -1,5 +1,7 @@
 package com.sagoma.planimetria.testi.en
 
+import com.sagoma.planimetria.geometry.HousingNorms
+import com.sagoma.planimetria.testi.T
 import com.sagoma.planimetria.testi.TestiComputo
 
 object TestiComputoEn : TestiComputo() {
@@ -10,12 +12,16 @@ object TestiComputoEn : TestiComputo() {
     override val nonSonoAncoraStanze: String get() = "There are no rooms yet."
     override val stanze: String get() = "Rooms"
     override val stanza: String get() = "Room"
+    override val muriSingoli: String get() = "Free walls"
+    override val soffitti: String get() = "Ceilings"
+    override val statoDiProgetto: String get() = "Counts the proposed state: without the walls to demolish and the openings to close."
     override val pavM2: String get() = "Floor m²"
     override val paretiM2: String get() = "Walls m²"
     override val battiscM: String get() = "Skirting m"
     override val pavimento: String get() = "Flooring"
     override val totale: String get() = "Total"
     override val paretiSuperficieInternaNetto: String get() = "Walls: interior surface net of doors and windows. Skirting: interior perimeter minus doors and balconies."
+    override val togliZoneNonCalpestabili: String get() = "Floor area without the non-walkable areas"
     override val pavimentiOrdinare: String get() = "Flooring to order"
     override val finiturePareti: String get() = "Wall finishes"
     override val arredi: String get() = "Furniture"
@@ -37,5 +43,62 @@ object TestiComputoEn : TestiComputo() {
     override val pavimentiM2M210: String get() = "FLOORING;m²;m² with 10% waste"
     override val paretiM22: String get() = "WALLS;m²"
     override val arrediMisureQuantitaDove: String get() = "FURNITURE;Size;Quantity;Where"
+    override val luceAria: String get() = "Light and air (windows / floor)"
+    override val finM2: String get() = "Win. m²"
+    override val rapporto: String get() = "Ratio"
+    override fun almeno(n: HousingNorms): String = n.windowRatio?.let { "≥ ${n.ratioLabel(it)}" } ?: "Enough"
+    override val si: String get() = "yes"
+    override val no: String get() = "no"
+    override fun notaLuce(n: HousingNorms): String {
+        val ratio = n.windowRatio
+        return "Living spaces. ${if (n.openableOnly) "Opening windows" else "Windows"} facing outside, measured on the wall opening. " + when {
+            ratio == null -> "${T.controllo.paese(n.country)} (${n.source}): one opening window facing outside is enough."
+            !n.official -> "Advice (the app doesn't have the rules of the home's country): at least ${n.ratioLabel(ratio)} of the floor."
+            else -> "${T.controllo.paese(n.country)} (${n.source}): at least ${n.ratioLabel(ratio)} of the floor" +
+                (n.ventRatio?.let { ", and the opening part at least ${n.ratioLabel(it)}" } ?: "") + "."
+        }
+    }
+    override fun notaLucePdf(n: HousingNorms): String {
+        val ratio = n.windowRatio
+        return "${if (n.openableOnly) "Opening windows" else "Windows"} facing outside, on the wall opening; " + when {
+            ratio == null -> "at least one (${T.controllo.paese(n.country)})."
+            !n.official -> "advice: at least ${n.ratioLabel(ratio)}."
+            else -> "at least ${n.ratioLabel(ratio)}${n.ventRatio?.let { ", opening ${n.ratioLabel(it)}" } ?: ""} (${T.controllo.paese(n.country)})."
+        }
+    }
+    override val opere: String get() = "Works (demolition and construction)"
+    override val muriDaDemolire: String get() = "Walls to demolish"
+    override val muriNuovi: String get() = "New walls"
+    override val voce: String get() = "Item"
+    override val numero: String get() = "No."
+    override val pianoVoceNumeroM2M3: String get() = "Floor;Item;No.;m²;m³"
+    override val vaniDaAprire: String get() = "Openings to cut in existing walls"
+    override val apertureDaChiudere: String get() = "Openings to close"
+    override val notaOpere: String get() = "Walls: one face, gross minus doors and windows, as high as the wall; m³ with the thickness. A shared wall counts once. Indicative: check on site."
+    override val notaOperePdf: String get() = "Walls: one face minus doors and windows; m³ with the thickness. Indicative."
+    override val opere2: String get() = "WORKS"
+    override val superfici: String get() = "Areas"
+    override val piano: String get() = "Floor"
+    override val utileM2: String get() = "Usable m²"
+    override val lordaM2: String get() = "Gross m²"
+    override val balconiM2: String get() = "Balc. m²"
+    override val commerciale: String get() = "Commercial area (indicative)"
+    override val notaSuperfici: String get() =
+        "Usable: the floor of the rooms. Gross: with the walls. Commercial (Italian DPR 138/1998): outer walls up to 50 cm (those shared " +
+            "with other flats would count half), without non-walkable zones, basements at 50%, balconies and terraces at 30% up to 25 m² and 10% beyond."
+    override val notaSuperficiPdf: String get() = "DPR 138/1998 (Italy): outer walls ≤ 50 cm, basements 50%, balconies 30% (10% > 25 m²)."
+    override val superfici2: String get() = "AREAS"
+    override val pianoSuperfici: String get() = "Floor;Usable m²;Gross m²;Balconies and terraces m²"
+    override val commercialeCsv: String get() = "Indicative commercial area"
+    override val luceAria2: String get() = "LIGHT AND AIR"
+    override fun pianoStanzaLuce(n: HousingNorms): String =
+        "Floor;Room;Floor area m²;${if (n.openableOnly) "Opening windows m²" else "Windows m²"};Ratio;${n.windowRatio?.let { "At least ${n.ratioLabel(it)}" } ?: "Enough"}"
     override val impiantiQuantitaDove: String get() = "FIXTURES;Quantity;Where"
+    override val porteFinestre: String get() = "Doors and windows"
+    override val porteFinestreNota: String get() = "Opening sizes (width × height), to be checked by whoever quotes them. Openings to be filled in are left out."
+    override fun misuraVano(w: Any?, h: Any?): String = "$w×$h cm"
+    override val porteFinestreCsv: String get() = "DOORS AND WINDOWS;Look;Opening size;Quantity;Where"
+    override val davanzaliSoglie: String get() = "Sills and thresholds"
+    override val davanzaliSoglieNota: String get() = "Slabs to order: length × depth × thickness, including the parts set into the sides of the opening and those projecting from the wall."
+    override val davanzaliSoglieCsv: String get() = "SILLS AND THRESHOLDS;Size;Quantity;Where"
 }

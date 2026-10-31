@@ -2,7 +2,6 @@ package com.sagoma.planimetria.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
@@ -23,6 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
@@ -39,7 +40,9 @@ import com.sagoma.planimetria.editor.EditorViewModel
 import com.sagoma.planimetria.editor.Selection
 import com.sagoma.planimetria.editor.UnderlayTool
 import com.sagoma.planimetria.geometry.Collisions
+import com.sagoma.planimetria.geometry.distanceToOpeningBody
 import com.sagoma.planimetria.geometry.distanceToWall
+import com.sagoma.planimetria.geometry.distanceToWallBody
 import com.sagoma.planimetria.geometry.distanceTo
 import com.sagoma.planimetria.geometry.Fixtures
 import com.sagoma.planimetria.geometry.Openings
@@ -51,10 +54,11 @@ import com.sagoma.planimetria.geometry.Polygon
 import com.sagoma.planimetria.geometry.Stairs
 import com.sagoma.planimetria.geometry.Structure
 import com.sagoma.planimetria.geometry.Furnishings
-import com.sagoma.planimetria.model.Room
 import com.sagoma.planimetria.model.Layer
 import com.sagoma.planimetria.geometry.PhaseView
 import com.sagoma.planimetria.geometry.Phases
+import com.sagoma.planimetria.geometry.ExteriorChains
+import com.sagoma.planimetria.geometry.expandCurves
 import com.sagoma.planimetria.model.Vec2
 import kotlin.math.abs
 import kotlin.math.pow
@@ -62,6 +66,30 @@ import kotlin.math.roundToLong
 
 private val GridColor = Color(0xFFE9ECEF)
 internal val PlanBackgroundColor = Color(0xFFF8F9FA)
+
+/** L'oggetto selezionato come bersaglio da trascinare (non i muri, che stanno sotto a tutto e non si scelgono dall'elenco). */
+internal fun selectedDragTarget(sel: Selection?): DragTarget? = when (sel) {
+    is Selection.Opening -> DragTarget.Opening(sel.roomId, sel.openingId)
+    is Selection.Fixture -> DragTarget.Fixture(sel.roomId, sel.fixtureId)
+    is Selection.Stair -> DragTarget.Stair(sel.stairId)
+    is Selection.Column -> DragTarget.Column(sel.columnId)
+    is Selection.Beam -> DragTarget.BeamBody(sel.beamId)
+    is Selection.FreeWall -> DragTarget.FreeWallBody(sel.wallId)
+    is Selection.Furniture -> DragTarget.FurnitureBody(sel.furnitureId)
+    else -> null
+}
+
+/**
+ * Oggetti sovrapposti (la plafoniera sopra il letto): se sotto il dito c'è anche l'oggetto selezionato, magari scelto
+ * dall'elenco, si trascina quello e non il primo della pila. Maniglie e angoli restano come sono.
+ */
+internal fun preferSelected(hit: DragTarget, selected: DragTarget?, under: () -> List<DragTarget>): DragTarget {
+    if (selected == null || selected == hit) return hit
+    val body = hit is DragTarget.FurnitureBody || hit is DragTarget.Fixture || hit is DragTarget.Opening || hit is DragTarget.Wall ||
+        hit is DragTarget.Column || hit is DragTarget.BeamBody || hit is DragTarget.Stair || hit is DragTarget.FreeWallBody ||
+        hit is DragTarget.RoomLabel || hit is DragTarget.RoomInterior
+    return if (body && selected in under()) selected else hit
+}
 
 @Composable
 fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = Modifier, onPointerDown: () -> Unit = {}) {
@@ -83,6 +111,11 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
     val labels = remember(state.plan, state.focusedRoomId) {
         measureRoomLabels(state.plan, measurer) { it.id == state.focusedRoomId }
     }
+
+    // Quote esterne a catena e muri che danno fuori, sulla pianta come appare (stato di fatto / progetto).
+    val shownPlan = remember(state.plan, state.phaseView) { if (state.phaseView == PhaseView.Compare) state.plan else Phases.view(state.plan, state.phaseView) }
+    val outside = remember(shownPlan) { ExteriorChains.of(shownPlan) }
+    val shownExpanded = remember(shownPlan) { shownPlan.expandCurves().plan }
 
     val underlayImage = rememberUnderlayImage(state.plan.underlay)
     val currentState by rememberUpdatedState(state)
@@ -152,7 +185,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         /** Il dito è su un angolo o proprio su un muro: quelli hanno la precedenza sugli oggetti accostati. */
         fun onWall() = s.plan.rooms.any { r ->
             r.points.any { it.distanceTo(world) * cam.scale <= cornerHitPx } ||
-                (0 until r.wallCount).any { r.distanceToWall(it, world) * cam.scale <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
+                (0 until r.wallCount).any { r.distanceToWallBody(it, world) * cam.scale <= wallStrictPx }
         }
         // Arredi (tranne i tappeti, che stanno sotto a tutto): l'ultimo messo per primo.
         s.plan.furniture.takeIf { s.building.layers.editable(Layer.Furniture) }.orEmpty().asReversed().firstOrNull { it.height >= 3 && Furnishings.contains(it, world) }?.let { f ->
@@ -173,7 +206,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         s.plan.beams.takeIf { s.building.layers.editable(Layer.Structure) }.orEmpty().asReversed().firstOrNull { Structure.contains(it, world) }?.let { b ->
             val onWall = s.plan.rooms.any { r ->
                 r.points.any { it.distanceTo(world) * cam.scale <= cornerHitPx } ||
-                    (0 until r.wallCount).any { r.distanceToWall(it, world) * cam.scale <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
+                    (0 until r.wallCount).any { r.distanceToWallBody(it, world) * cam.scale <= wallStrictPx }
             }
             if (!onWall) return DragTarget.BeamBody(b.id)
         }
@@ -181,7 +214,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         s.plan.stairs.takeIf { s.building.layers.editable(Layer.Structure) }.orEmpty().asReversed().firstOrNull { Stairs.layout(it, s.levelHeight).contains(world) }?.let { st ->
             val onWall = s.plan.rooms.any { r ->
                 r.points.any { it.distanceTo(world) * cam.scale <= cornerHitPx } ||
-                    (0 until r.wallCount).any { r.distanceToWall(it, world) * cam.scale <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
+                    (0 until r.wallCount).any { r.distanceToWallBody(it, world) * cam.scale <= wallStrictPx }
             }
             if (!onWall) return DragTarget.Stair(st.id)
         }
@@ -189,7 +222,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         s.planBelow?.stairs?.takeIf { s.building.layers.editable(Layer.Structure) }?.asReversed()?.firstOrNull { st -> Stairs.well(st, s.levelHeightBelow).any { Polygon.contains(it, world) } }?.let { st ->
             val onWall = s.plan.rooms.any { r ->
                 r.points.any { it.distanceTo(world) * cam.scale <= cornerHitPx } ||
-                    (0 until r.wallCount).any { r.distanceToWall(it, world) * cam.scale <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
+                    (0 until r.wallCount).any { r.distanceToWallBody(it, world) * cam.scale <= wallStrictPx }
             }
             if (!onWall) return DragTarget.StairWell(st.id)
         }
@@ -223,23 +256,24 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         ordered.flatMap { room ->
             room.openings
                 .filter { it.wallIndex < room.wallCount }
-                .map { o -> Triple(room, o, Openings.span(room, o).let { (a, b) -> Polygon.distanceToSegment(world, a, b) * cam.scale }) }
+                .map { o -> Triple(room, o, room.distanceToOpeningBody(o, world) * cam.scale) }
         }
-            .filter { it.third <= wallHitPx + Room.WALL_THICKNESS / 2 * cam.scale }
+            .filter { it.third <= wallHitPx }
             .minByOrNull { it.third }
             ?.let { (room, o) -> return DragTarget.Opening(room.id, o.id) }
         for (room in ordered) {
+            // Distanza dal muro com'è disegnato (spessore e spostamento veri) e, a parità, dalla sua mezzeria.
             val wallDistances = (0 until room.wallCount)
-                .map { it to room.distanceToWall(it, world) * cam.scale }
+                .map { Triple(it, room.distanceToWallBody(it, world) * cam.scale, room.distanceToWall(it, world)) }
             // Tocco proprio sul muro: vince sull'etichetta, che in una stanza stretta copre i muri laterali.
-            wallDistances.filter { it.second <= wallStrictPx + Room.WALL_THICKNESS / 2 * cam.scale }
-                .minByOrNull { it.second }?.let { return DragTarget.Wall(room.id, it.first) }
+            wallDistances.filter { it.second <= wallStrictPx }
+                .minWithOrNull(compareBy({ it.second }, { it.third }))?.let { return DragTarget.Wall(room.id, it.first) }
             currentLabels.firstOrNull { it.room.id == room.id }?.let { l ->
                 if (labelRect(l, cam).contains(p)) return DragTarget.RoomLabel(room.id)
             }
             val wallIdx = wallDistances
-                .filter { it.second <= wallHitPx + Room.WALL_THICKNESS / 2 * cam.scale }
-                .minByOrNull { it.second }?.first
+                .filter { it.second <= wallHitPx }
+                .minWithOrNull(compareBy({ it.second }, { it.third }))?.first
             if (wallIdx != null) return DragTarget.Wall(room.id, wallIdx)
         }
         s.plan.furniture.takeIf { s.building.layers.editable(Layer.Furniture) }.orEmpty().asReversed().firstOrNull { Furnishings.contains(it, world) }?.let { return DragTarget.FurnitureBody(it.id) }
@@ -278,12 +312,10 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
                 if (d * cam.scale <= fixtureHitPx) objects += DragTarget.Fixture(room.id, f.id)
             }
             room.openings.filter { it.wallIndex < room.wallCount }.forEach { o ->
-                val d = Openings.span(room, o).let { (a, b) -> Polygon.distanceToSegment(world, a, b) * cam.scale }
-                if (d <= wallHitPx + Room.WALL_THICKNESS / 2 * cam.scale) objects += DragTarget.Opening(room.id, o.id)
+                if (room.distanceToOpeningBody(o, world) * cam.scale <= wallHitPx) objects += DragTarget.Opening(room.id, o.id)
             }
             for (i in 0 until room.wallCount) {
-                val d = room.distanceToWall(i, world) * cam.scale
-                if (d <= wallHitPx + Room.WALL_THICKNESS / 2 * cam.scale) walls += DragTarget.Wall(room.id, i)
+                if (room.distanceToWallBody(i, world) * cam.scale <= wallHitPx) walls += DragTarget.Wall(room.id, i)
             }
         }
         return objects + walls
@@ -299,7 +331,9 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
         modifier
             // La pianta (e i campi sui muri) non deve mai disegnare sopra barre e schede quando la vista scorre.
             .clipToBounds()
-            .onSizeChanged { vm.setViewport(it.width.toFloat(), it.height.toFloat(), with(density) { 24.dp.toPx() }) }
+            // Margine attorno alla pianta inquadrata: quanto basta per le quote esterne (sullo schermo stretto del telefono un
+            // po' meno, per non rimpicciolire troppo la pianta).
+            .onSizeChanged { vm.setViewport(it.width.toFloat(), it.height.toFloat(), with(density) { (if (it.width.toDp() >= 700.dp) ChainLayout.SPACE else 48.dp).toPx() }) }
             // Rotellina del mouse (§11).
             .pointerInput(Unit) {
                 awaitPointerEventScope {
@@ -337,15 +371,34 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
     ) {
         val gestures = Modifier.pointerInput(Unit) {
                 awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = true)
+                    val down = awaitAnyDown(requireUnconsumed = true)
                     // Un clic sulla pianta le ridà la tastiera (scorciatoie come Ctrl+C / Ctrl+V).
                     pointerDown()
+                    // Tasto destro del mouse: un clic deseleziona tutto, trascinando sposta la vista (non gli oggetti); la rotellina
+                    // premuta sposta la vista.
+                    val secondary = currentEvent.buttons.isSecondaryPressed
+                    if (secondary || currentEvent.buttons.isTertiaryPressed) {
+                        var moved = Offset.Zero
+                        var panning = false
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val ch = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!ch.pressed) break
+                            val delta = ch.position - ch.previousPosition
+                            moved += delta
+                            if (!panning && moved.getDistance() > touchSlop) panning = true
+                            if (panning) { vm.pan(delta.x, delta.y); ch.consume() }
+                        }
+                        if (!panning && secondary) vm.deselectAll()
+                        return@awaitEachGesture
+                    }
                     // Strumenti della pianta di sfondo: il disegno non si tocca.
                     val tool = currentState.underlayTool
                     val moveUnderlay = tool == UnderlayTool.Move && currentState.plan.underlay != null
                     // Disegno dei muri, quote e testi: i tocchi mettono i punti, i trascinamenti spostano la vista.
                     val drawing = currentState.wallDraw != null || currentState.dimensionDraw != null || currentState.textPlacing
-                    val target = if (tool != null || drawing) DragTarget.Background else hitTest(down.position)
+                    val target = if (tool != null || drawing) DragTarget.Background
+                    else preferSelected(hitTest(down.position), selectedDragTarget(currentState.selection)) { hitAll(down.position) }
                     val startCam = currentState.camera
                     var dragging = false
                     var multiTouch = false
@@ -460,9 +513,18 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
             drawFloorBelow(state.planBelow, state.camera)
             drawPlan(shown, measurer)
             if (layers.visible(Layer.Structure)) drawStairs(state, measurer)
-            if (layers.visible(Layer.Furniture)) drawFurniture(state.plan.furniture, state.camera, (state.selection as? Selection.Furniture)?.furnitureId)
+            if (layers.visible(Layer.Furniture)) drawFurniture(state.plan.furniture, state.camera, (state.selection as? Selection.Furniture)?.furnitureId, state.plan.supplied)
             // Quote dei muri (solo lettura: le lunghezze si cambiano dalla tendina Info della stanza).
-            if (layers.visible(Layer.WallLengths)) drawWallDimensions(state.plan, state.camera, measurer, avoid = labels.map { it.rect(state.camera, labelPadPx) })
+            // Quote: fuori dalla casa a catena; dentro solo quelle che fuori non si leggono. Le scritte crescono un poco con lo zoom.
+            val dimScale = dimensionTextScale(state.camera, density.density)
+            if (layers.visible(Layer.WallLengths)) {
+                drawExteriorChains(outside, state.camera, measurer, dimScale)
+                drawWallDimensions(
+                    state.plan, state.camera, measurer, avoid = labels.map { it.rect(state.camera, labelPadPx) },
+                    skip = { id, i -> (id to i) in outside.covered }, textScale = dimScale,
+                )
+                drawOpeningSizes(shownExpanded, outside, state.camera, measurer, PlanBackgroundColor, dimScale)
+            }
             drawWallCuts(state)
             drawRoomLabels(labels, state.camera, labelPadPx) { it.id == state.focusedRoomId }
             // Sopra le etichette: una colonna appena messa sta proprio al centro della stanza.
@@ -487,6 +549,7 @@ fun PlanCanvas(state: EditorUiState, vm: EditorViewModel, modifier: Modifier = M
             drawMultiSelection(state, levelHeight = state.levelHeight)
             drawPastePreview(state)
             drawSnapGuides(state.snapGuides, state.camera, measurer)
+            drawWallGaps(state, measurer, avoid = labels.map { it.rect(state.camera, labelPadPx) })
         }
         // Vicino ai bordi dello schermo i trascinamenti di angoli e metro non devono diventare il gesto "indietro".
         val cam = state.camera

@@ -2,6 +2,7 @@ package com.sagoma.planimetria.testi.es
 
 import com.sagoma.planimetria.testi.Comuni
 import com.sagoma.planimetria.testi.TestiCorso
+import com.sagoma.planimetria.testi.TestiControllo
 import com.sagoma.planimetria.testi.Lingua
 import com.sagoma.planimetria.testi.Nomi
 import com.sagoma.planimetria.testi.Suggerimenti
@@ -59,4 +60,5 @@ object Spagnolo : Lingua("es") {
     override val pannelli: TestiPannelli = TestiPannelliEs
     override val foto: TestiFoto = TestiFotoEs
     override val corso: TestiCorso = TestiCorsoEs
+    override val controllo: TestiControllo = TestiControlloEs
 }
