@@ -468,15 +468,27 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
             .build(engine)
         if (version >= 2) {
             // Per ogni livello le 6 facce una dopo l'altra, 4 byte a pixel (R11F_G11F_B10F): come le vuole la texture.
+            // Il livello 0 si carica in un colpo. Dal livello 1 in giù Filament (1.77, parte Android) calcola male la dimensione
+            // dei dati (divide l'altezza della regione per 2^livello) e rifiuta il caricamento: si carica una riga alla volta, le
+            // 6 facce insieme, perché con altezza 1 il conto torna.
             var at = bb.position()
             for (level in 0 until levels) {
                 val dim = maxOf(1, size shr level)
                 val n = dim * dim * 6 * 4
                 val data = ByteBuffer.allocateDirect(n).order(java.nio.ByteOrder.nativeOrder())
-                data.put(bytes, at, n)
-                data.flip()
-                tex.setImage(engine, level, 0, 0, 0, dim, dim, 6,
-                    Texture.PixelBufferDescriptor(data, Texture.Format.RGB, Texture.Type.UINT_10F_11F_11F_REV))
+                if (level == 0) {
+                    data.put(bytes, at, n).flip()
+                    tex.setImage(engine, 0, 0, 0, 0, dim, dim, 6,
+                        Texture.PixelBufferDescriptor(data, Texture.Format.RGB, Texture.Type.UINT_10F_11F_11F_REV))
+                } else {
+                    data.put(envRowsByFace(bytes, at, dim)).flip()
+                    val row = dim * 6 * 4
+                    for (y in 0 until dim) {
+                        data.limit((y + 1) * row).position(y * row)
+                        tex.setImage(engine, level, 0, y, 0, dim, 1, 6,
+                            Texture.PixelBufferDescriptor(data.slice(), Texture.Format.RGB, Texture.Type.UINT_10F_11F_11F_REV))
+                    }
+                }
                 at += n
             }
         } else {
@@ -720,4 +732,17 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         EntityManager.get().destroy(fill)
         engine.destroy()
     }
+}
+
+/**
+ * Un livello di un cubo con 4 byte a pixel, salvato faccia dopo faccia ([faccia][riga][colonna]), riordinato riga dopo riga con
+ * le 6 facce affiancate ([riga][faccia][colonna]): così ogni riga si carica da sola per tutte le facce (vedi loadEnv).
+ */
+internal fun envRowsByFace(bytes: ByteArray, at: Int, dim: Int): ByteArray {
+    val row = dim * 4
+    val out = ByteArray(dim * dim * 6 * 4)
+    for (face in 0 until 6) for (y in 0 until dim) {
+        System.arraycopy(bytes, at + (face * dim + y) * row, out, (y * 6 + face) * row, row)
+    }
+    return out
 }
