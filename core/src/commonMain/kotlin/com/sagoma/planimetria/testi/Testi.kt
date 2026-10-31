@@ -1,6 +1,7 @@
 package com.sagoma.planimetria.testi
 
 import com.sagoma.planimetria.persistence.LanguageChoice
+import com.sagoma.planimetria.testi.de.Tedesco
 import com.sagoma.planimetria.testi.en.Inglese
 import com.sagoma.planimetria.testi.es.Spagnolo
 import com.sagoma.planimetria.testi.fr.Francese
@@ -54,7 +55,7 @@ object Italiano : Lingua("it")
 /** Le lingue dell'app e quale usare per la scelta dell'utente. */
 object Lingue {
     /** Tutte le lingue dell'app. */
-    val tutte: List<Lingua> get() = listOf(Italiano, Inglese, Francese, Spagnolo)
+    val tutte: List<Lingua> get() = listOf(Italiano, Inglese, Francese, Spagnolo, Tedesco)
 
     /**
      * Lingua per la scelta: con "come il sistema" quella del sistema se l'app la conosce, altrimenti l'inglese
@@ -65,6 +66,7 @@ object Lingue {
         LanguageChoice.English -> Inglese
         LanguageChoice.French -> Francese
         LanguageChoice.Spanish -> Spagnolo
+        LanguageChoice.German -> Tedesco
         LanguageChoice.System -> sistema.lowercase().let { s -> tutte.firstOrNull { s.startsWith(it.codice) } ?: Inglese }
     }
 }

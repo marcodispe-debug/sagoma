@@ -41,7 +41,7 @@ object AutoNames {
         val separators = Regex("\\s*[-/+]\\s*").findAll(name).toList()
         if (separators.isEmpty()) return name
         val parts = name.split(Regex("\\s*[-/+]\\s*"))
-        val translated = parts.map { roomPart(it, lingua) ?: return name }
+        val translated = parts.mapIndexed { i, part -> roomPart(part, lingua, inner = i > 0) ?: return name }
         return buildString {
             for ((i, part) in translated.withIndex()) {
                 append(part)
@@ -50,8 +50,11 @@ object AutoNames {
         }
     }
 
-    /** Traduzione di un nome di stanza intero (con l'eventuale numero), lui stesso se è già della lingua giusta; null se sconosciuto. */
-    private fun roomPart(name: String, lingua: Lingua): String? {
+    /**
+     * Traduzione di un nome di stanza intero (con l'eventuale numero), lui stesso se è già della lingua giusta; null se sconosciuto.
+     * `inner`: parte di un nome composto dopo la prima ("stireria" in "Lavanderia - stireria").
+     */
+    private fun roomPart(name: String, lingua: Lingua, inner: Boolean = false): String? {
         val trimmed = name.trim()
         val number = Regex(" (\\d+)$").find(trimmed)
         val base = number?.let { trimmed.substring(0, it.range.first) } ?: trimmed
@@ -63,12 +66,17 @@ object AutoNames {
         for (altra in Lingue.tutte) {
             if (altra === lingua) continue
             val target = translate(key, altra, lingua) ?: continue
-            // "stireria" in un nome composto resta minuscola anche tradotta.
-            val cased = if (base.first().isLowerCase()) target.replaceFirstChar { it.lowercaseChar() } else target
+            // "stireria" in un nome composto resta minuscola anche tradotta. Il tedesco ha sempre la maiuscola: tradotto in un'altra
+            // lingua, dopo la prima parte torna minuscolo ("Waschküche - Bügelzimmer" → "Lavanderia - stireria").
+            val minuscolo = base.first().isLowerCase() || (inner && altra.minuscola(base) == base)
+            val cased = if (minuscolo && lingua.minuscola(target) != target) lowerFirst(target) else target
             return cased + suffix
         }
         return null
     }
+
+    /** Prima lettera minuscola, se non è una sigla ("WC" resta così). */
+    private fun lowerFirst(s: String): String = if (s.length > 1 && s[1].isUpperCase()) s else s.replaceFirstChar { it.lowercaseChar() }
 
     /** Nome normalizzato `key` della lingua `da` portato nella lingua `a`; null se in `da` non è un nome conosciuto. */
     private fun translate(key: String, da: Lingua, a: Lingua): String? {

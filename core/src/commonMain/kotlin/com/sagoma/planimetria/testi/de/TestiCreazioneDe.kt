@@ -1,0 +1,47 @@
+package com.sagoma.planimetria.testi.de
+
+import com.sagoma.planimetria.testi.TestiCreazione
+
+object TestiCreazioneDe : TestiCreazione() {
+    override val scegliFormaStanza: String get() = "Wähle die Form des Raums"
+    override val quadrato: String get() = "Quadrat"
+    override val rettangolo: String get() = "Rechteck"
+    override val rilievo: String get() = "Aus Aufmaß"
+    override val latiDiagonaliMisuratiAnche: String get() = "Gemessene Seiten und Diagonalen: auch schiefwinklige Räume oder Räume mit 5 und mehr Seiten"
+    override val muroMuro: String get() = "Wand für Wand"
+    override val disegniAngoliPiantaAgganci: String get() = "Du zeichnest die Ecken auf dem Grundriss, mit Einrasten und genauen Maßen: jede Form"
+    override val ricalcaPiantina: String get() = "Grundriss nachzeichnen"
+    override val carichiFotoPdfPiantina: String get() = "Du lädst Foto oder PDF des Grundrisses, bringst ihn mit einem Maß in den richtigen Maßstab und zeichnest die Wände nach"
+    override val carichiFotoPiantinaMetti: String get() = "Du lädst das Foto des Grundrisses, bringst ihn mit einem Maß in den richtigen Maßstab und zeichnest die Wände nach"
+    override val muroSingolo: String get() = "Einzelwand"
+    override val tramezzoSoloAgganciaAgli: String get() = "Eine einzelne Trennwand, die an den anderen Wänden einrastet"
+    override val progetti: String get() = "📁 Projekte"
+    override val doveSporgeStanza: String get() = "Wo steht der Raum vor?"
+    override val stanzaRilievo: String get() = "Raum aus Aufmaß"
+    override val tipoStanza: String get() = "Raumtyp"
+    override val numeroLati: String get() = "Anzahl der Seiten"
+    override val misuraLatiFiloInterno: String get() =
+        "Miss die Seiten an der Innenkante der Wände, im Uhrzeigersinn ab Ecke A; dann die Diagonalen, von einer Ecke " +
+            "zu den gegenüberliegenden Ecken (welche, entscheidest du). Mit den Diagonalen stimmt die Form, auch wenn die Winkel nicht 90° sind."
+    override fun lato(p1: Any?, p2: Any?): String = "Seite $p1$p2"
+    override fun diagonale(p1: Any?, p2: Any?): String = "Diagonale $p1$p2"
+    override val qualeDiagonale: String get() = "Welche Diagonale hast du gemessen?"
+    override val diagonaliDallAngolo: String get() = "Von welcher Ecke gehen die Diagonalen aus?"
+    override val anteprima: String get() = "Vorschau"
+    override val questeMisureStanzaNon: String get() = "Mit diesen Maßen schließt sich der Raum nicht: prüfe Seiten und Diagonalen."
+    override val spessoreMuri: String get() = "Wandstärke"
+    override val altezzaSoffitto: String get() = "Raumhöhe"
+    override val creaStanza: String get() = "Raum erstellen"
+    override val lato2: String get() = "Seite"
+    override val larghezzaPrincipale: String get() = "Hauptbreite"
+    override val profonditaPrincipale: String get() = "Haupttiefe"
+    override val larghezzaProtuberanza: String get() = "Breite des Vorsprungs"
+    override val profonditaProtuberanza: String get() = "Tiefe des Vorsprungs"
+    override val misureBalcone: String get() = "Maße des Balkons"
+    override val misureTerrazza: String get() = "Maße der Terrasse"
+    override val misureStanza: String get() = "Maße des Raums"
+    override val protuberanzaDeveEsserePiu: String get() = "Der Vorsprung muss schmaler sein als der Hauptraum."
+    override val spazioAllApertoPosto: String get() = "Außenbereich: statt Wänden gibt es eine Brüstung (Geländer, Mäuerchen oder Glas), die du dann unter Info wählst."
+    override val crea: String get() = "Erstellen"
+    override val protuberanzaDeveEsserePiu2: String get() = "Der Vorsprung muss schmaler sein als der Raum"
+}

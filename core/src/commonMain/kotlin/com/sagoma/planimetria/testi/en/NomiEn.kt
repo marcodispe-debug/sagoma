@@ -247,6 +247,7 @@ object NomiEn : Nomi() {
         LanguageChoice.English -> "English"
         LanguageChoice.French -> "Français"
         LanguageChoice.Spanish -> "Español"
+        LanguageChoice.German -> "Deutsch"
         LanguageChoice.System -> "Same as system"
     }
 

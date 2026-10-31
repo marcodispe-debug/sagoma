@@ -2,6 +2,7 @@ package com.sagoma.planimetria.model
 
 import com.sagoma.planimetria.testi.Italiano
 import com.sagoma.planimetria.testi.Lingue
+import com.sagoma.planimetria.testi.de.Tedesco
 import com.sagoma.planimetria.testi.en.Inglese
 import com.sagoma.planimetria.testi.es.Spagnolo
 import com.sagoma.planimetria.testi.fr.Francese
@@ -66,7 +67,7 @@ class AutoNamesTest {
     @Test
     fun nomiDellaPiantinaDiMarco() {
         val nomi = listOf("Area fitness", "Bagno", "Lavanderia - stireria", "Disimpegno", "Bagno 2", "Camera doppia", "Camera matrimoniale", "Poggiolo")
-        for (l in listOf(Inglese, Francese, Spagnolo)) {
+        for (l in listOf(Inglese, Francese, Spagnolo, Tedesco)) {
             for (n in nomi) {
                 val tradotto = AutoNames.room(n, l)
                 assertTrue(tradotto != n, "\"$n\" non tradotto in ${l.codice}")
@@ -82,9 +83,25 @@ class AutoNamesTest {
         assertEquals("Salón con cocina", AutoNames.room("Soggiorno con cucina", Spagnolo))
         assertEquals("Living room with kitchen", AutoNames.room("Soggiorno con cucina", Inglese))
         assertEquals("Suite parentale", AutoNames.room("Camera padronale", Francese))
-        for (l in listOf(Inglese, Francese, Spagnolo)) for (n in listOf("Camera padronale", "Soggiorno con cucina")) {
+        for (l in listOf(Inglese, Francese, Spagnolo, Tedesco)) for (n in listOf("Camera padronale", "Soggiorno con cucina")) {
             assertEquals(n, AutoNames.room(AutoNames.room(n, l), Italiano), "\"$n\" andata e ritorno da ${l.codice}")
         }
+    }
+
+    @Test
+    fun tedesco() {
+        assertEquals("Küche 2", AutoNames.room("Cucina 2", Tedesco))
+        assertEquals("Doppelzimmer", AutoNames.room("Camera doppia", Tedesco))
+        assertEquals("Balkon", AutoNames.room("Poggiolo", Tedesco))
+        assertEquals("Waschküche - Bügelzimmer", AutoNames.room("Lavanderia - stireria", Tedesco))
+        assertEquals("Camera da letto", AutoNames.room("Schlafzimmer", Italiano))
+        assertEquals("Erdgeschoss", AutoNames.floor("Piano terra", Tedesco))
+        assertEquals("1. Obergeschoss", AutoNames.floor("First floor", Tedesco))
+        assertEquals("Untergeschoss", AutoNames.floor("Piano interrato", Tedesco))
+        assertEquals("Souterrain", AutoNames.floor("Seminterrato", Tedesco))
+        assertEquals("Piano 7", AutoNames.floor("7. Obergeschoss", Italiano))
+        assertEquals("Projekt 3", AutoNames.project("Progetto 3", Tedesco))
+        assertEquals(Tedesco.muroPerMuro.cavedio, AutoNames.zone("Cavedio", Tedesco))
     }
 
     @Test

@@ -393,10 +393,7 @@ private fun Swatch(label: String, id: String?, isSelected: Boolean, onClick: () 
             else Text("—", style = MaterialTheme.typography.titleMedium)
         }
         // Fino a tre righe: con due «Parquet rovere miele» perdeva l'ultima parola senza segno.
-        Text(
-            label, style = MaterialTheme.typography.labelSmall, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 2.dp),
-        )
+        CardName(label, maxLines = 3, modifier = Modifier.padding(top = 2.dp))
     }
 }
 
