@@ -259,6 +259,10 @@ fun EditorScreen(
 
     // Vista 3D: telecamera e superficie OpenGL restano le stesse passando da 2D a 3D e ritorno.
     val view3dState = remember { View3DState() }
+    // Il renderer 3D resta da una apertura all'altra della vista 3D; uscendo dall'editor si libera.
+    DisposableEffect(view3dState) { onDispose { view3dState.dispose() } }
+    // In secondo piano la memoria del 3D chiuso torna al telefono.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { view3dState.releaseIfClosed() }
     // Nord e città della casa: decidono il giro del sole nel 3D.
     LaunchedEffect(state.building.site) { view3dState.site = state.building.site; view3dState.refresh() }
     // Ora e giorno del sole scelti nel 3D: li segue la guida del sole.

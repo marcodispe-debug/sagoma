@@ -34,8 +34,13 @@ if (catalogoRemoto) {
     }
 }
 
-/** Quello che resta nell'app quando il catalogo è sul server: elenchi, miniature, viste dall'alto e luci ambiente. */
-val catalogoLeggero = listOf("furniture/catalog.json", "furniture/*.png", "materials/materials.json", "materials/*_thumb.jpg", "env/*.ibl")
+/**
+ * Quello che resta nell'app quando il catalogo è sul server: elenchi, miniature, viste dall'alto e le due luci ambiente che il 3D
+ * usa (giorno e tramonto, vedi FilamentSceneRenderer). La luce "interno" non la usa nessuno: resta sul server (9 MB in meno).
+ */
+val catalogoLeggero = listOf(
+    "furniture/catalog.json", "furniture/*.png", "materials/materials.json", "materials/*_thumb.jpg", "env/giorno.ibl", "env/tramonto.ibl",
+)
 
 /** Copia nella cartella generata la parte leggera del catalogo (i modelli e le mappe dei materiali restano sul server). */
 abstract class CatalogoLeggero @Inject constructor(private val fs: FileSystemOperations) : DefaultTask() {
@@ -138,6 +143,15 @@ android {
     // (core, pacchetto `access`), non varianti di build separate.
 
     buildTypes {
+        // Per provare sul telefono com'è davvero veloce: come debug (stessa firma, si installa sopra senza perdere i progetti) ma
+        // non "debuggable", che rallenta molto Compose, e solo con le librerie per i telefoni a 64 bit (niente emulatori: ~18 MB in
+        // meno). gradlew :app:installVeloce (o assembleVeloce → app/build/outputs/apk/veloce/app-veloce.apk).
+        create("veloce") {
+            initWith(getByName("debug"))
+            isDebuggable = false
+            ndk { abiFilters += "arm64-v8a" }
+            matchingFallbacks += "debug"
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
