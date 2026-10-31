@@ -14,6 +14,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * [FurnitureAssets] sopra uno [AssetStore]: cataloghi caricati dallo store, immagini lette una volta sola e
@@ -61,6 +62,10 @@ class FurnitureAssetsTest {
             val platform = FakePlatform(DirectoryAssetStore(File(root, "assets")), root) { decoded++; ImageBitmap(256, 200) }
 
             FurnitureAssets.init(platform)
+            // I cataloghi si leggono in un thread a parte: si aspetta il segnale.
+            val until = System.currentTimeMillis() + 10_000
+            while (!FurnitureAssets.ready && System.currentTimeMillis() < until) Thread.sleep(5)
+            assertTrue(FurnitureAssets.ready)
 
             // Cataloghi letti dallo store; i tappeti nascono dai materiali (2 per materiale da tappeto); in più i moduli della
             // cucina e gli altri mobili su misura, generati senza file (uno per tipo).

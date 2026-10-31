@@ -94,6 +94,11 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
     private val modelFiles = HashMap<String, ByteBuffer?>()
     /** Arredi in scena, nello stesso ordine della scena: si riusano se il modello non cambia. */
     private val furniture = mutableListOf<Pair<String, FilamentAsset>>()
+    /**
+     * Arredi le cui foto (texture) si stanno ancora decodificando in altri thread, ognuno con il suo caricatore (quello di
+     * gltfio ne segue uno alla volta). Entrano in scena quando sono pronti (un attimo dopo), non neri o senza foto.
+     */
+    private val loading = mutableListOf<Pair<FilamentAsset, ResourceLoader>>()
     private var pendingScene: Scene3D? = null
     private var dirty = true
     private var running = false
@@ -172,7 +177,7 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         materials = UbershaderProvider(engine)
         assetLoader = AssetLoader(engine, materials, EntityManager.get())
         resourceLoader = ResourceLoader(engine)
-        texturedSurfaces = TexturedSurfaces(engine, scene, materials, assets)
+        texturedSurfaces = TexturedSurfaces(engine, scene, materials, assets) { dirty = true }
     }
 
     private val frameCallback = object : Choreographer.FrameCallback {
@@ -180,6 +185,7 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
             if (!running) return
             Choreographer.getInstance().postFrameCallback(this)
             pendingScene?.let { load(it); pendingScene = null }
+            if (loading.isNotEmpty()) updateLoading()
             val chain = swapChain ?: return
             if (!dirty || uiHelper?.isReadyToRender != true) return
             if (renderer.beginFrame(chain, frameTimeNanos)) {
@@ -442,12 +448,16 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
      * e un sole coerente con la foto (a mezzogiorno alto e bianco, al tramonto basso e arancio).
      */
 
-    /** Legge assets/env/<name>.ibl (preparato con tools/furniture/PackEnv.java). */
+    /**
+     * Legge assets/env/<name>.ibl. Versione 2 (tools/furniture/PrefilterEnv.java, quella dentro l'app): tutti i livelli dei
+     * riflessi già pronti nel formato della texture, si caricano e basta. Versione 1 (tools/furniture/PackEnv.java, quella del
+     * server): solo il cubo nitido, e i livelli ruvidi li calcola Filament sul processore (costa qualche centinaio di ms).
+     */
     private fun loadEnv(name: String): Env? = runCatching {
         val bytes = assets.peek(AssetPaths.environment(name)) ?: error("${AssetPaths.environment(name)} non trovato")
         val bb = ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
         check(bb.get().toInt() == 'S'.code && bb.get().toInt() == 'I'.code && bb.get().toInt() == 'B'.code && bb.get().toInt() == 'L'.code)
-        bb.int // versione
+        val version = bb.int
         val size = bb.int
         val levels = bb.int
         val sh = FloatArray(27) { bb.float }
@@ -456,18 +466,45 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
             .sampler(Texture.Sampler.SAMPLER_CUBEMAP)
             .format(Texture.InternalFormat.R11F_G11F_B10F)
             .build(engine)
-        // Si usa il cubo nitido (livello 0: 6 facce RGB half float); i livelli sempre più ruvidi dei
-        // riflessi li calcola Filament sulla scheda grafica.
-        val face = size * size * 6
-        val data = ByteBuffer.allocateDirect(face * 6).order(java.nio.ByteOrder.nativeOrder())
-        data.put(bytes, bb.position(), face * 6)
-        data.flip()
-        tex.generatePrefilterMipmap(
-            engine,
-            Texture.PixelBufferDescriptor(data, Texture.Format.RGB, Texture.Type.HALF),
-            IntArray(6) { it * face },
-            Texture.PrefilterOptions(),
-        )
+        if (version >= 2) {
+            // Per ogni livello le 6 facce una dopo l'altra, 4 byte a pixel (R11F_G11F_B10F): come le vuole la texture.
+            // Il livello 0 si carica in un colpo. Dal livello 1 in giù Filament (1.77, parte Android) calcola male la dimensione
+            // dei dati (divide l'altezza della regione per 2^livello) e rifiuta il caricamento: si carica una riga alla volta, le
+            // 6 facce insieme, perché con altezza 1 il conto torna.
+            var at = bb.position()
+            for (level in 0 until levels) {
+                val dim = maxOf(1, size shr level)
+                val n = dim * dim * 6 * 4
+                val data = ByteBuffer.allocateDirect(n).order(java.nio.ByteOrder.nativeOrder())
+                if (level == 0) {
+                    data.put(bytes, at, n).flip()
+                    tex.setImage(engine, 0, 0, 0, 0, dim, dim, 6,
+                        Texture.PixelBufferDescriptor(data, Texture.Format.RGB, Texture.Type.UINT_10F_11F_11F_REV))
+                } else {
+                    data.put(envRowsByFace(bytes, at, dim)).flip()
+                    val row = dim * 6 * 4
+                    for (y in 0 until dim) {
+                        data.limit((y + 1) * row).position(y * row)
+                        tex.setImage(engine, level, 0, y, 0, dim, 1, 6,
+                            Texture.PixelBufferDescriptor(data.slice(), Texture.Format.RGB, Texture.Type.UINT_10F_11F_11F_REV))
+                    }
+                }
+                at += n
+            }
+        } else {
+            // Si usa il cubo nitido (livello 0: 6 facce RGB half float); i livelli sempre più ruvidi dei
+            // riflessi li calcola Filament.
+            val face = size * size * 6
+            val data = ByteBuffer.allocateDirect(face * 6).order(java.nio.ByteOrder.nativeOrder())
+            data.put(bytes, bb.position(), face * 6)
+            data.flip()
+            tex.generatePrefilterMipmap(
+                engine,
+                Texture.PixelBufferDescriptor(data, Texture.Format.RGB, Texture.Type.HALF),
+                IntArray(6) { it * face },
+                Texture.PrefilterOptions(),
+            )
+        }
         // All'aperto il cielo della foto fa da sfondo; dentro casa resta il cielo chiaro uniforme.
         val sky = if (name == "interno") null else Skybox.Builder().environment(tex).build(engine)
         Env(tex, sh, sky)
@@ -477,12 +514,37 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         camera.setProjection(fovY, width.toDouble() / height, near * 0.01, 1000.0, Camera.Fov.VERTICAL)
     }
 
-    /** Sostituisce la scena disegnata con quella nuova. */
+    /** L'ultima scena caricata: della nuova si rifà solo quello che è cambiato. */
+    private var shown: Scene3D? = null
+
+    /**
+     * Sostituisce la scena disegnata con quella nuova. Si rifà solo quello che è cambiato: selezionando un mobile, per
+     * esempio, la casa (glTF), le superfici con le foto e le luci restano quelle di prima e cambia solo il bagliore del mobile.
+     */
     private fun load(s: Scene3D) {
+        val prev = shown
+        val sameGeometry = prev != null && prev.opaque.contentEquals(s.opaque) && prev.transparent.contentEquals(s.transparent)
+        if (!sameGeometry && !loadHouse(s)) return
+        shown = s
+        loadFurniture(s.furniture)
+        val sameTextured = sameGeometry && prev!!.textured.size == s.textured.size &&
+            s.textured.all { (k, v) -> prev.textured[k]?.contentEquals(v) == true }
+        if (!sameTextured || texturedSurfaces.hasMissing) texturedSurfaces.update(s.textured + (GRASS to ground(s)))
+        val lights = s.lights.filterNot { it.spill }
+        if (prev == null || lights != sceneLights || s.windows != sceneWindows) {
+            sceneLights = lights
+            sceneWindows = s.windows
+            applyLighting()
+        }
+        dirty = true
+    }
+
+    /** La casa (muri, pavimenti, vetri…) come glTF in memoria, al posto di quella di prima. */
+    private fun loadHouse(s: Scene3D): Boolean {
         val bytes = Glb.fromScene(s, ground = GROUND)
         val buffer = ByteBuffer.allocateDirect(bytes.size).put(bytes)
         buffer.flip()
-        val next = assetLoader.createAsset(buffer) ?: return
+        val next = assetLoader.createAsset(buffer) ?: return false
         resourceLoader.loadResources(next)
         next.releaseSourceData()
         val rm = engine.renderableManager
@@ -499,11 +561,7 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         }
         scene.addEntities(next.entities)
         asset = next
-        loadFurniture(s.furniture)
-        texturedSurfaces.update(s.textured + (GRASS to ground(s)))
-        sceneLights = s.lights.filterNot { it.spill }
-        sceneWindows = s.windows
-        applyLighting()
+        return true
     }
 
     /**
@@ -556,21 +614,41 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
     private fun createFurniture(model: String): FilamentAsset? {
         val buffer = modelFile(model) ?: return null
         val a = runCatching { assetLoader.createAsset(buffer.duplicate()) }.getOrNull() ?: return null
-        resourceLoader.loadResources(a)
-        a.releaseSourceData()
+        // Foto decodificate in altri thread: prima si aspettavano tutte qui, sul thread principale, e la scena restava ferma.
+        val rl = ResourceLoader(engine)
+        val async = rl.asyncBeginLoad(a)
+        if (async) loading += a to rl else { a.releaseSourceData(); rl.destroy() }
         val rm = engine.renderableManager
         for (e in a.renderableEntities) {
             val ri = rm.getInstance(e)
             rm.setCastShadows(ri, true)
             rm.setReceiveShadows(ri, true)
         }
-        scene.addEntities(a.entities)
+        if (!async) scene.addEntities(a.entities)
         return a
     }
 
     private fun destroyFurniture(a: FilamentAsset) {
+        val i = loading.indexOfFirst { it.first === a }
+        if (i >= 0) loading.removeAt(i).second.apply { asyncCancelLoad(); destroy() }
         scene.removeEntities(a.entities)
         assetLoader.destroyAsset(a)
+    }
+
+    /** A ogni fotogramma: le foto già decodificate vanno sulla scheda grafica; chi ha finito libera il suo caricatore. */
+    private fun updateLoading() {
+        val it = loading.iterator()
+        while (it.hasNext()) {
+            val (a, rl) = it.next()
+            rl.asyncUpdateLoad()
+            if (rl.asyncGetLoadProgress() >= 1f) {
+                scene.addEntities(a.entities)
+                a.releaseSourceData()
+                rl.destroy()
+                it.remove()
+            }
+        }
+        dirty = true
     }
 
     private fun removeFurniture(i: Int) = destroyFurniture(furniture.removeAt(i).second)
@@ -654,4 +732,17 @@ class FilamentSceneRenderer(private val assets: AssetStore) : AndroidSceneRender
         EntityManager.get().destroy(fill)
         engine.destroy()
     }
+}
+
+/**
+ * Un livello di un cubo con 4 byte a pixel, salvato faccia dopo faccia ([faccia][riga][colonna]), riordinato riga dopo riga con
+ * le 6 facce affiancate ([riga][faccia][colonna]): così ogni riga si carica da sola per tutte le facce (vedi loadEnv).
+ */
+internal fun envRowsByFace(bytes: ByteArray, at: Int, dim: Int): ByteArray {
+    val row = dim * 4
+    val out = ByteArray(dim * dim * 6 * 4)
+    for (face in 0 until 6) for (y in 0 until dim) {
+        System.arraycopy(bytes, at + (face * dim + y) * row, out, (y * 6 + face) * row, row)
+    }
+    return out
 }
